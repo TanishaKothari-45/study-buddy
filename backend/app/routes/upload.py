@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Response
 from typing import List
 import os
 import shutil
@@ -7,6 +7,17 @@ from ..utils.pdf_reader import process_pdf_for_chunks
 from ..core.config import settings
 
 router = APIRouter()
+
+@router.post("/reset")
+async def reset_database(request: Request):
+    """Delete all collections and start fresh"""
+    try:
+        chroma_handler = request.app.state.chroma_handler
+        chroma_handler.delete_all_collections()
+        return {"message": "Successfully deleted all collections and created a fresh one"}
+    except Exception as e:
+        logger.error(f"Failed to reset database: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = "data/uploads"
@@ -37,13 +48,29 @@ async def upload_pdfs(request: Request, files: List[UploadFile] = File(...)):
             )
 
             if chunks_with_metadata:
-                chroma_handler.add_documents(chunks_with_metadata)
-                processed_files_summary.append({
-                    "filename": file.filename,
-                    "status": "success",
-                    "chunks_added": len(chunks_with_metadata)
-                })
-                logger.info(f"Successfully processed and added {len(chunks_with_metadata)} chunks for {file.filename}")
+                try:
+                    chroma_handler.add_documents(chunks_with_metadata)
+                    processed_files_summary.append({
+                        "filename": file.filename,
+                        "status": "success",
+                        "chunks_added": len(chunks_with_metadata)
+                    })
+                    logger.info(f"Successfully processed and added {len(chunks_with_metadata)} chunks for {file.filename}")
+                except Exception as e:
+                    if "dimension" in str(e).lower():
+                        # Handle dimension mismatch by resetting collection
+                        logger.warning("Detected embedding dimension mismatch. Resetting collection...")
+                        chroma_handler.reset_collection()
+                        # Try adding documents again
+                        chroma_handler.add_documents(chunks_with_metadata)
+                        processed_files_summary.append({
+                            "filename": file.filename,
+                            "status": "success",
+                            "chunks_added": len(chunks_with_metadata),
+                            "note": "Collection was reset due to dimension mismatch"
+                        })
+                    else:
+                        raise
             else:
                 processed_files_summary.append({
                     "filename": file.filename,

@@ -27,11 +27,20 @@ class ChromaHandler:
         # Initialize embedder
         self.embedder = Embedder()
 
-        # Get or create collection
-        self.collection = self.client.get_or_create_collection(
-            name=settings.COLLECTION_NAME,
-            metadata={"hnsw:space": settings.DISTANCE_METRIC}
-        )
+        # Check if collection exists
+        try:
+            self.collection = self.client.get_collection(name=settings.COLLECTION_NAME)
+            logger.info(f"Found existing collection: {settings.COLLECTION_NAME}")
+        except ValueError:
+            # Collection doesn't exist, create new one
+            self.collection = self.client.create_collection(
+                name=settings.COLLECTION_NAME,
+                metadata={"hnsw:space": settings.DISTANCE_METRIC}
+            )
+            logger.info(f"Created new collection: {settings.COLLECTION_NAME}")
+        except Exception as e:
+            logger.error(f"❌ Error accessing collection: {e}")
+            raise
 
         logger.info(f"✅ Initialized ChromaDB collection: {self.collection.name}")
 
@@ -94,6 +103,42 @@ class ChromaHandler:
 
         except Exception as e:
             logger.error(f"❌ Query failed: {e}")
+            raise
+
+    def delete_all_collections(self) -> None:
+        """Delete all collections and their data"""
+        try:
+            # Get all collections
+            collections = self.client.list_collections()
+            for collection in collections:
+                self.client.delete_collection(collection.name)
+                logger.info(f"Deleted collection: {collection.name}")
+            
+            # Create fresh collection
+            self.collection = self.client.create_collection(
+                name=settings.COLLECTION_NAME,
+                metadata={"hnsw:space": settings.DISTANCE_METRIC}
+            )
+            logger.info(f"✨ Created fresh collection: {settings.COLLECTION_NAME}")
+        except Exception as e:
+            logger.error(f"❌ Failed to delete collections: {e}")
+            raise
+
+    def reset_collection(self) -> None:
+        """Reset the collection to handle dimension mismatch"""
+        try:
+            # Delete existing collection
+            self.client.delete_collection(settings.COLLECTION_NAME)
+            logger.info(f"Deleted collection: {settings.COLLECTION_NAME}")
+            
+            # Create new collection
+            self.collection = self.client.create_collection(
+                name=settings.COLLECTION_NAME,
+                metadata={"hnsw:space": settings.DISTANCE_METRIC}
+            )
+            logger.info(f"Created new collection: {settings.COLLECTION_NAME}")
+        except Exception as e:
+            logger.error(f"❌ Failed to reset collection: {e}")
             raise
 
     def get_stats(self) -> Dict[str, Any]:

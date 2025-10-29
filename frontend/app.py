@@ -1,231 +1,201 @@
+"""
+Streamlit frontend for Study Buddy AI
+"""
 import streamlit as st
 import requests
+import time
+from typing import List, Dict, Any
 import os
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
-
-st.set_page_config(layout="wide", page_title="Study Buddy AI - Geography Q&A Bot")
-
-# Backend URL (ensure this matches your FastAPI server's address)
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8001")
 
-def check_backend_status():
+def check_backend_status() -> bool:
+    """Check if backend is running"""
     try:
-        response = requests.get(f"{BACKEND_URL}/", timeout=5)
-        if response.status_code == 200:
-            return True, response.json()
-        else:
-            return False, {"error": f"Backend returned status code: {response.status_code}"}
-    except requests.exceptions.ConnectionError as e:
-        return False, {"error": f"Connection error: {e}"}
-    except requests.exceptions.Timeout as e:
-        return False, {"error": f"Timeout error: {e}"}
-    except Exception as e:
-        return False, {"error": f"Unexpected error: {e}"}
+        response = requests.get(f"{BACKEND_URL}/")
+        return response.status_code == 200
+    except:
+        return False
 
-# Check backend status and get model info
-backend_status, backend_info = check_backend_status()
+# Page config
+st.set_page_config(
+    page_title="Study Buddy AI",
+    page_icon="📚",
+    layout="wide"
+)
 
-st.title("📚 Study Buddy AI - Geography Q&A Bot")
-st.markdown("Your personal AI assistant for UPSC Geography preparation.")
+# Title
+st.title("📚 Study Buddy AI - Geography Q&A")
 
-# Show backend status prominently
-if not backend_status:
-    st.error("⚠️ Backend server is not running. Please start the backend server first!")
-    st.code("cd backend && python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001", language="bash")
+# Check backend status
+backend_status = check_backend_status()
 
-# --- Tabs ---
-tab_upload, tab_query = st.tabs(["⬆️ Upload Materials", "❓ Ask Questions"])
+# Sidebar
+with st.sidebar:
+    st.title("Navigation")
+    tab_choice = st.radio(
+        "Choose a feature:",
+        ["Upload PDFs", "Ask Questions", "Generate Mock Test"]
+    )
 
-with tab_upload:
-    st.header("Upload Your Geography Study Materials")
-    st.markdown("Upload multiple PDF files (NCERTs, Vision IAS notes, PYQs, etc.) related to Geography. "
-                "The AI will process them to answer your questions.")
+    if backend_status:
+        st.success("✅ Backend server is running")
+    else:
+        st.error("❌ Backend server is not running")
+        st.info("Please start the backend server first")
 
+# Main content based on tab selection
+if tab_choice == "Upload PDFs":
+    st.header("📤 Upload Your Study Materials")
+    
     uploaded_files = st.file_uploader(
-        "Choose PDF files",
-        type="pdf",
+        "Upload your Geography PDFs",
+        type=["pdf"],
         accept_multiple_files=True,
-        help="Select one or more PDF files to upload.",
         disabled=not backend_status
     )
 
-    if uploaded_files:
-        # Show uploaded files before processing
-        st.subheader(f"📄 Ready to Process ({len(uploaded_files)} files)")
-
-        # Calculate total size
-        total_size = sum(len(file.getvalue()) for file in uploaded_files)
-        total_size_mb = total_size / (1024 * 1024)
-
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Files Selected", len(uploaded_files))
-        with col2:
-            st.metric("Total Size", f"{total_size_mb:.1f} MB")
-        with col3:
-            estimated_time = max(2, int(total_size_mb * 0.5))  # Rough estimate: 30s per MB
-            st.metric("Est. Time", f"{estimated_time} min")
-
-        # Show file list with details
-        st.markdown("**Files to process:**")
-        for i, file in enumerate(uploaded_files, 1):
-            file_size_mb = len(file.getvalue()) / (1024 * 1024)
-            st.write(f"{i}. 📄 **{file.name}** ({file_size_mb:.1f} MB)")
-
-        if st.button("🚀 Process and Store PDFs", disabled=not backend_status):
-            # Show processing status
-            status_container = st.container()
-            with status_container:
-                st.info("📊 Processing files... This may take several minutes for large files.")
-                st.info("🔄 The AI is extracting text, creating chunks, and generating embeddings...")
-
+    if uploaded_files and st.button("Process Files", disabled=not backend_status):
+        with st.spinner("Processing PDFs..."):
+            files = [("files", file) for file in uploaded_files]
             try:
-                files = [("files", (file.name, file.getvalue(), "application/pdf")) for file in uploaded_files]
-                response = requests.post(f"{BACKEND_URL}/upload/", files=files, timeout=900)  # 15 min timeout for large files
-
+                response = requests.post(f"{BACKEND_URL}/upload/", files=files)
                 if response.status_code == 200:
-                    result = response.json()
-
-                    # Clear the progress info
-                    status_container.empty()
-
-                    # Show success message with file count
-                    st.success(f"✅ All {len(uploaded_files)} PDFs processed successfully!")
-
-                    # Show detailed results
-                    summary = result.get("summary", [])
-
-                    if summary:
-                        st.subheader("📋 Processing Results")
-
-                        # Create columns for better layout
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Files Processed", len([s for s in summary if s.get("status") == "success"]))
-                        with col2:
-                            total_chunks = sum(s.get("chunks_added", 0) for s in summary if s.get("status") == "success")
-                            st.metric("Total Chunks", total_chunks)
-                        with col3:
-                            failed_files = len([s for s in summary if s.get("status") == "failed"])
-                            st.metric("Failed Files", failed_files)
-
-                        # Show detailed breakdown
-                        st.subheader("📁 File-by-File Results")
-
-                        for file_info in summary:
-                            filename = file_info.get("filename", "Unknown")
-                            status = file_info.get("status", "unknown")
-                            chunks = file_info.get("chunks_added", 0)
-
-                            if status == "success":
-                                st.success(f"✅ **{filename}**\n📊 {chunks} chunks extracted and embedded")
-                            else:
-                                reason = file_info.get("reason", "Unknown error")
-                                st.error(f"❌ **{filename}**\n⚠️ Error: {reason}")
-
-                        # Show total summary
-                        st.info(f"🎯 **Summary**: Successfully processed {len([s for s in summary if s.get('status') == 'success'])} out of {len(summary)} files, creating {total_chunks} searchable chunks from your Geography materials!")
-
-                    else:
-                        st.warning("No file processing details available.")
-
+                    results = response.json()["summary"]
+                    st.success("✅ Files processed successfully!")
+                    
+                    # Show processing results
+                    for result in results:
+                        if result["status"] == "success":
+                            st.info(f"📄 {result['filename']}: Added {result['chunks_added']} chunks")
+                        else:
+                            st.error(f"❌ {result['filename']}: {result['reason']}")
                 else:
-                    status_container.empty()
-                    st.error(f"❌ Upload failed with status {response.status_code}")
-                    st.text(response.text)
-
-            except requests.exceptions.ConnectionError:
-                status_container.empty()
-                st.error("❌ Could not connect to the backend server. Please ensure the backend is running.")
-            except requests.exceptions.Timeout:
-                status_container.empty()
-                st.error("⏰ Request timed out. Large PDF files can take 10-15 minutes to process.")
+                    st.error("Failed to process files")
             except Exception as e:
-                status_container.empty()
-                st.error(f"❌ Unexpected error: {e}")
-    else:
-        st.info("📂 No files selected. Please upload PDFs to get started.")
+                st.error(f"Error: {str(e)}")
 
-with tab_query:
-    st.header("Ask Questions about Your Study Materials")
-    st.markdown("Enter your questions below, and the AI will provide answers based on the uploaded PDFs and its general knowledge.")
-
+elif tab_choice == "Ask Questions":
+    st.header("❓ Ask Questions")
+    
     question = st.text_area(
-        "Your Question:",
-        placeholder="e.g., What are the main types of landforms in geomorphology?",
-        height=100,
+        "Enter your Geography question:",
         disabled=not backend_status
     )
 
     if st.button("Get Answer", disabled=not backend_status):
         if question:
-            with st.spinner("Fetching answer..."):
+            with st.spinner("Finding answer..."):
                 try:
-                    response = requests.post(f"{BACKEND_URL}/query/", json={"question": question}, timeout=120)  # 2 min timeout
+                    response = requests.post(
+                        f"{BACKEND_URL}/query/",
+                        json={"question": question},
+                        timeout=30
+                    )
                     if response.status_code == 200:
-                        answer_data = response.json()
-                        answer = answer_data.get("answer", "No answer found.")
-                        
-                        # Store the answer in session state
-                        st.session_state.last_answer = answer
-                        
+                        data = response.json()
                         st.subheader("Answer:")
+                        st.write(data["answer"])
                         
-                        # Show model info
-                        if "OpenAI unavailable" in answer or "OpenAI API error" in answer:
-                            st.warning("⚠️ Using Sentence Transformers (direct context from materials)")
-                        else:
-                            st.success("✨ Using OpenAI to generate answer")
-                        
-                        st.write(answer)
-                        if answer_data.get("sources"):
+                        if data.get("sources"):
                             st.subheader("Sources:")
-                            for source in answer_data["sources"]:
+                            for source in data["sources"]:
                                 st.markdown(f"- **File:** `{source['filename']}`, **Page:** `{source['page_number']}`")
                     else:
-                        st.error(f"Failed to get answer: {response.status_code} - {response.text}")
-                except requests.exceptions.ConnectionError:
-                    st.error("Could not connect to the backend server. Please ensure the backend is running.")
+                        st.error("Failed to get answer")
                 except requests.exceptions.Timeout:
-                    st.error("The request timed out. The server might be busy.")
+                    st.error("Request timed out. Please try again.")
                 except Exception as e:
-                    st.error(f"An unexpected error occurred: {e}")
+                    st.error(f"Error: {str(e)}")
         else:
-            st.warning("Please enter a question.")
+            st.warning("Please enter a question")
 
-st.sidebar.header("About Study Buddy AI")
-st.sidebar.info(
-    "This is an AI-powered Q&A bot designed to help you with UPSC Geography preparation. "
-    "Upload your study materials, and ask questions to get instant, relevant answers."
-)
-
-# Initialize session state for storing last answer
-if 'last_answer' not in st.session_state:
-    st.session_state.last_answer = None
-
-# Show backend status in sidebar
-if backend_status:
-    st.sidebar.success("✅ Backend server is running")
+else:  # Mock Test tab
+    st.header("📝 Generate Mock Test")
     
-    # Check if we're using OpenAI or sentence-transformers based on last answer
-    if st.session_state.last_answer and ("OpenAI unavailable" in st.session_state.last_answer or "OpenAI API error" in st.session_state.last_answer):
-        st.sidebar.warning("🤖 Using Sentence Transformers (Fallback Mode)")
-        st.sidebar.info("OpenAI API is not available. Using direct context from your materials.")
-    else:
-        st.sidebar.success("🤖 Using OpenAI GPT Model")
-        st.sidebar.info("Answers are generated using OpenAI with context from your materials.")
+    col1, col2 = st.columns(2)
     
-    # Show total chunks
-    st.sidebar.info("📚 Using chunks from your uploaded Geography materials")
-else:
-    st.sidebar.error("❌ Backend server is not running")
+    with col1:
+        num_questions = st.number_input(
+            "Number of questions:",
+            min_value=1,
+            max_value=20,
+            value=5,
+            disabled=not backend_status
+        )
+        
+        difficulty = st.select_slider(
+            "Difficulty level:",
+            options=["easy", "medium", "hard"],
+            value="medium",
+            disabled=not backend_status
+        )
+    
+    with col2:
+        topics = st.multiselect(
+            "Select topics (optional):",
+            [
+                "Monsoon", "Climate", "Physical Geography",
+                "Indian Geography", "World Geography",
+                "Geomorphology", "Oceanography"
+            ],
+            disabled=not backend_status
+        )
 
-# Show API details
-st.sidebar.markdown("---")
-st.sidebar.markdown("### Technical Details")
-st.sidebar.markdown(f"**Backend URL:** `{BACKEND_URL}`")
-if isinstance(backend_info, dict):
-    for key, value in backend_info.items():
-        st.sidebar.markdown(f"**{key}:** {value}")
+    if st.button("Generate Test", disabled=not backend_status):
+        with st.spinner("Generating mock test..."):
+            try:
+                response = requests.post(
+                    f"{BACKEND_URL}/mock-test/generate",
+                    json={
+                        "num_questions": num_questions,
+                        "topics": topics,
+                        "difficulty": difficulty
+                    },
+                    timeout=60
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    # Show test instructions
+                    st.info("📋 Test Instructions:")
+                    for instruction in data["instructions"]:
+                        st.markdown(f"- {instruction}")
+                    
+                    st.info(f"⏱️ Time allowed: {data['time_allowed']}")
+                    st.info(f"📊 Total marks: {data['total_marks']}")
+                    
+                    # Show questions
+                    for i, q in enumerate(data["questions"], 1):
+                        st.markdown("---")
+                        st.subheader(f"Question {i}:")
+                        st.write(q["question"])
+                        
+                        # Options with radio buttons
+                        answer = st.radio(
+                            "Select your answer:",
+                            q["options"],
+                            key=f"q_{i}"
+                        )
+                        
+                        # Show/Hide explanation button
+                        if st.button(f"Show Explanation {i}"):
+                            st.success(f"✅ Correct answer: {q['correct_answer']}")
+                            st.markdown(f"**Explanation:** {q['explanation']}")
+                            st.markdown(f"**Source:** File: `{q['source']['filename']}`, Page: `{q['source']['page_number']}`")
+                
+                else:
+                    st.error("Failed to generate mock test")
+            
+            except requests.exceptions.Timeout:
+                st.error("Request timed out. Please try again.")
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+
+# Footer
+st.markdown("---")
+st.markdown("Made with ❤️ by Study Buddy AI")

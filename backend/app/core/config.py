@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     FALLBACK_MODEL: str = "all-MiniLM-L6-v2"
     
     # RAG Settings
-    TOP_K_CHUNKS: int = 5
+    TOP_K_CHUNKS: int = 8  # Increased to get more context
     
     def setup_directories(self):
         """Create necessary directories"""

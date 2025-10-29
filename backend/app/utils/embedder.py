@@ -1,108 +1,87 @@
 """
-Text embedding utilities
+Text embedding utilities using OpenAI's text-embedding-3-small with Sentence Transformers fallback
 """
-import os
 import logging
-import time
+import os
 from typing import List
+import time
 from openai import OpenAI, RateLimitError
 from sentence_transformers import SentenceTransformer
 from ..core.config import settings
-from ..core.env import load_env_vars
-
-# Ensure environment variables are loaded
-load_env_vars()
 
 logger = logging.getLogger(__name__)
 
 class Embedder:
     def __init__(self):
-        """Initialize embedding models"""
+        """Initialize embedders"""
         self.openai_client = None
         self.sbert_model = None
         
-        # Try OpenAI first
+        # Try to initialize OpenAI first
         api_key = os.getenv("OPENAI_API_KEY")
-        print(f"api_key: {api_key}")
         if api_key:
             try:
                 self.openai_client = OpenAI(api_key=api_key)
-                print("\nTesting OpenAI connection:")
-                print(f"- Using API key: {api_key}")
-                print(f"- Model: {settings.EMBEDDING_MODEL}")
-                
-                # Test the connection
-                response = self.openai_client.embeddings.create(
-                    model=settings.EMBEDDING_MODEL,
-                    input=["test"],
-                    encoding_format="float"
-                )
-                if response and response.data:
-                    logger.info("✅ OpenAI embeddings initialized")
-                    return
+                logger.info("✅ OpenAI client initialized")
             except Exception as e:
-                error_msg = str(e)
-                logger.warning(f"⚠️ OpenAI initialization failed: {error_msg}")
-                print("\nOpenAI Error Details:")
-                print(f"- Error type: {type(e).__name__}")
-                print(f"- Error message: {error_msg}")
-                if "quota" in error_msg.lower():
-                    print("⚠️ This appears to be a quota issue. Please check:")
-                    print("1. Your API key is correct")
-                    print("2. You have sufficient quota in your OpenAI account")
-                    print("3. You're using the correct OpenAI account")
-                self.openai_client = None
+                logger.warning(f"⚠️ OpenAI initialization failed: {e}")
         
-        # Initialize Sentence Transformers as fallback
+        # Always initialize Sentence Transformers as fallback
         try:
             self.sbert_model = SentenceTransformer(settings.FALLBACK_MODEL)
-            logger.info("✅ Using Sentence Transformers as fallback")
+            logger.info(f"✅ Sentence Transformers initialized with model: {settings.FALLBACK_MODEL}")
         except Exception as e:
-            logger.error(f"❌ Sentence Transformers initialization failed: {e}")
-            raise RuntimeError("No embedding model available")
+            logger.error(f"❌ Failed to initialize Sentence Transformers: {e}")
+            if not self.openai_client:
+                raise RuntimeError("No embedding models available")
 
-    def get_embeddings(self, texts: List[str], max_retries: int = 3, initial_wait: float = 1.0) -> List[List[float]]:
-        """Generate embeddings with automatic fallback and rate limit handling"""
+    def get_openai_embeddings(self, texts: List[str], max_retries: int = 3) -> List[List[float]]:
+        """Generate embeddings using OpenAI with retry logic"""
+        wait_time = 1.0
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.openai_client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=texts
+                )
+                embeddings = [data.embedding for data in response.data]
+                logger.info(f"✅ Generated {len(embeddings)} embeddings using OpenAI")
+                return embeddings
+                
+            except RateLimitError as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"⚠️ Rate limit hit, waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                    wait_time *= 2
+                else:
+                    logger.warning("⚠️ Rate limit persists, falling back to Sentence Transformers")
+                    raise
+            except Exception as e:
+                logger.error(f"❌ OpenAI embedding failed: {e}")
+                raise
+
+    def get_sbert_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings using Sentence Transformers"""
+        try:
+            embeddings = self.sbert_model.encode(texts)
+            if hasattr(embeddings, "tolist"):
+                embeddings = embeddings.tolist()
+            logger.info(f"✅ Generated {len(embeddings)} embeddings using Sentence Transformers")
+            return embeddings
+        except Exception as e:
+            logger.error(f"❌ Sentence Transformers embedding failed: {e}")
+            raise
+
+    def get_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings using OpenAI first, falling back to Sentence Transformers"""
         if not texts:
             return []
 
-        # Try OpenAI first
         if self.openai_client:
-            wait_time = initial_wait
-            for attempt in range(max_retries):
-                try:
-                    response = self.openai_client.embeddings.create(
-                        model=settings.EMBEDDING_MODEL,
-                        input=texts,
-                        encoding_format="float"
-                    )
-                    embeddings = [d.embedding for d in response.data]
-                    logger.info(f"✅ Generated {len(embeddings)} OpenAI embeddings")
-                    return embeddings
-                except RateLimitError as e:
-                    if attempt < max_retries - 1:
-                        logger.warning(f"⚠️ Rate limit hit, waiting {wait_time}s before retry...")
-                        time.sleep(wait_time)
-                        wait_time *= 2  # Exponential backoff
-                    else:
-                        logger.warning(f"⚠️ Rate limit persists after {max_retries} retries, falling back...")
-                        break
-                except Exception as e:
-                    logger.warning(f"⚠️ OpenAI embeddings failed: {e}")
-                    if not self.sbert_model:
-                        raise RuntimeError("OpenAI failed and no fallback available")
-                    break
-
-        # Use Sentence Transformers
-        if self.sbert_model:
             try:
-                embeddings = self.sbert_model.encode(texts)
-                if hasattr(embeddings, "tolist"):
-                    embeddings = embeddings.tolist()
-                logger.info(f"✅ Generated {len(embeddings)} Sentence Transformer embeddings")
-                return embeddings
+                return self.get_openai_embeddings(texts)
             except Exception as e:
-                logger.error(f"❌ Sentence Transformer embeddings failed: {e}")
-                raise
-
-        raise RuntimeError("No embedding model available")
+                logger.warning(f"⚠️ OpenAI embedding failed, falling back to Sentence Transformers: {e}")
+                
+        return self.get_sbert_embeddings(texts)
