@@ -232,6 +232,57 @@ class ChromaHandler:
             logger.error(f"❌ Failed to delete collection {collection_name}: {e}")
             raise
 
+    def get_all_documents_paginated(self, batch_size: int = 500) -> List[Dict[str, Any]]:
+        """Fetch all documents from the collection in small batches."""
+        try:
+            total_count = self.collection.count()
+            all_docs = []
+            for offset in range(0, total_count, batch_size):
+                results = self.collection.get(
+                    include=['documents', 'metadatas'],
+                    limit=batch_size,
+                    offset=offset
+                )
+                for i in range(len(results['documents'])):
+                    all_docs.append({
+                        "id": results['ids'][i],
+                        "content": results['documents'][i],
+                        "metadata": results['metadatas'][i]
+                    })
+                logger.info(f"📦 Retrieved {len(all_docs)}/{total_count} so far...")
+            return all_docs
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch all documents in batches: {e}")
+            raise
+
+    def update_metadata_batch(self, docs_with_metadata: List[Dict[str, Any]]) -> None:
+        """Safely merge new metadata with existing ones instead of overwriting."""
+        if not docs_with_metadata:
+            return
+        
+        try:
+            for item in docs_with_metadata:
+                doc_id = item["id"]
+                new_meta = item["metadata"]
+                existing = self.collection.get(ids=[doc_id], include=['metadatas'])
+                
+                merged_meta = existing['metadatas'][0] if existing['metadatas'] else {}
+                merged_meta.update(new_meta)
+                
+                self.collection.update(ids=[doc_id], metadatas=[merged_meta])
+            
+            logger.info(f"✅ Merged metadata for {len(docs_with_metadata)} documents")
+        except Exception as e:
+            logger.error(f"❌ Failed to merge metadata batch: {e}")
+            raise
+
+    def get_unenriched_documents(self, key: str = "major_domain") -> List[Dict[str, Any]]:
+        """Return only docs missing a given metadata key (e.g., major_domain)."""
+        all_docs = self.get_all_documents_paginated()
+        unenriched = [d for d in all_docs if key not in d["metadata"]]
+        logger.info(f"🧠 Found {len(unenriched)} unenriched documents (missing '{key}')")
+        return unenriched
+
     def switch_to_collection(self, collection_name: str) -> None:
         """Switch active collection to the specified collection name, creating it if necessary."""
         try:
