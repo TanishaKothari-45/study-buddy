@@ -5,6 +5,7 @@ import logging
 from typing import List, Dict, Any
 import chromadb
 from chromadb.config import Settings
+from chromadb.errors import NotFoundError
 
 from ..core.config import settings
 from .embedder import Embedder
@@ -152,3 +153,24 @@ class ChromaHandler:
         except Exception as e:
             logger.error(f"❌ Failed to get stats: {e}")
             return {"error": str(e)}
+
+    def create_new_collection(self, collection_name: str) -> None:
+        """Create a new collection for newly processed chunks"""
+        try:
+            self.collection = self.client.create_collection(
+                name=collection_name,
+                metadata={"hnsw:space": settings.DISTANCE_METRIC}
+            )
+            logger.info(f"✨ Created new collection: {collection_name}")
+        except Exception as e:
+            logger.error(f"❌ Failed to create new collection: {e}")
+            raise
+
+    def switch_to_collection(self, collection_name: str) -> None:
+        """Switch active collection to the specified collection name, creating it if necessary."""
+        try:
+            self.collection = self.client.get_collection(name=collection_name)
+            logger.info(f"✅ Switched to collection: {collection_name}")
+        except NotFoundError:
+            logger.warning(f"Collection {collection_name} not found. Creating new one.")
+            self.create_new_collection(collection_name)

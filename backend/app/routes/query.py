@@ -35,21 +35,29 @@ def format_answer_with_gpt(context: str, question: str, api_key: str, max_retrie
                 messages=[
                     {
                         "role": "system",
-                        "content": """You are a knowledgeable UPSC Geography expert. When answering questions:
-1. First, use the provided context from the study materials if relevant
-2. Then, supplement with your general knowledge about geography
-3. Clearly indicate which parts of your answer come from the provided materials vs. your knowledge
-4. Always aim to give comprehensive, UPSC-relevant answers
-5. If the context doesn't contain specific information, still provide a detailed answer from your knowledge"""
+                        "content": (
+                            "You are a friendly and knowledgeable UPSC Study Buddy who explains "
+                            "geography concepts in a simple, engaging way. When explaining: "
+                            "- Use the context from study materials first. "
+                            "- Then add your own understanding only when it helps make things clearer. "
+                            "- Break complex ideas into small, easy-to-understand steps. "
+                            "- Use examples, analogies, and relatable comparisons. "
+                            "- Avoid jargon unless necessary, and when you use it, explain it simply. "
+                            "- Your tone should be warm, clear, and human — like a good teacher. "
+                            "- When relevant, link the concept to real-world or Indian examples. "
+                            "- Don’t just repeat text — *explain it like you’re teaching someone new to the topic*."
+                        )
                     },
                     {
                         "role": "user",
-                        "content": f"""Question: {question}
-
-Reference Context from Study Materials:
-{context}
-
-Please provide a comprehensive answer combining both the reference materials and your knowledge. If using general knowledge, clearly indicate this."""
+                        "content": (
+                            f"Question: {question}\n\n"
+                            f"Reference Context from Study Materials:\n{context}\n\n"
+                            "Please explain this concept clearly and simply, step by step. "
+                            "Use examples, analogies, and real-world connections where possible. "
+                            "If something isn’t directly in the material, add it from your knowledge "
+                            "(but only to clarify)."
+                        )
                     }
                 ],
                 temperature=0.1,
@@ -70,12 +78,15 @@ Please provide a comprehensive answer combining both the reference materials and
             logger.error(f"❌ Failed to format answer: {e}")
             return f"Based on the available information:\n\n{context}"
 
-@router.post("/", response_model=QueryResponse)
+@router.post("/")
 async def query_pdfs(request: Request, query_request: QueryRequest):
-    """Query PDFs and generate answer"""
+    """
+    Query the enriched ChromaDB collection for answers.
+    """
     try:
-        # Get ChromaDB handler from app state
+        # Switch to the new collection for enriched chunks
         chroma_handler = request.app.state.chroma_handler
+        chroma_handler.switch_to_collection("geography_docs_enriched")
         
         # Get relevant chunks using Sentence Transformers (local)
         chunks = chroma_handler.query_documents(

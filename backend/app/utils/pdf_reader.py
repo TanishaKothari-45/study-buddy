@@ -66,6 +66,16 @@ def extract_text_from_pdf(pdf_path: str) -> List[Dict[str, Any]]:
     
     return pages_content
 
+def extract_text_with_logging(pdf_path: str) -> str:
+    """Extracts and logs the first 500 characters of text from a given PDF."""
+    contents = extract_text_from_pdf(pdf_path)
+    if not contents:
+        return ""
+    full_text = "\n".join(page["text"] for page in contents)
+    print(full_text[:500])
+    print(f"Text length: {len(full_text)}")
+    return full_text
+
 def chunk_text(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
     """
     Chunks text into smaller pieces with a specified overlap.
@@ -103,7 +113,12 @@ def process_pdf_for_chunks(pdf_path: str, filename: str, chunk_size: int, chunk_
     Extracts text from a PDF, chunks it, and adds metadata.
     """
     all_chunks_with_metadata = []
-    pages_content = extract_text_from_pdf(pdf_path)
+    pages_content = extract_text_with_logging(pdf_path)
+
+    # Add guard for empty text
+    if not pages_content.strip() or len(pages_content.strip()) < 200:
+        logger.warning(f"Skipping {filename} — no valid text detected after extraction.")
+        return []
 
     for page_data in pages_content:
         page_text = page_data["text"]
