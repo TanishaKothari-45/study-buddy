@@ -56,25 +56,80 @@ class ChromaHandler:
             documents = [item['content'] for item in chunks_with_metadata]
             metadatas = [item['metadata'] for item in chunks_with_metadata]
 
-            # Generate embeddings
-            embeddings = self.embedder.get_embeddings(documents)
+            # Filter out empty or invalid documents before embedding
+            valid_indices = []
+            filtered_documents = []
+            filtered_metadatas = []
+            
+            for i, doc in enumerate(documents):
+                if isinstance(doc, str) and doc.strip() and len(doc.strip()) > 10:
+                    valid_indices.append(i)
+                    filtered_documents.append(doc.strip())
+                    filtered_metadatas.append(metadatas[i])
+            
+            if not filtered_documents:
+                logger.warning("⚠️ No valid documents to embed after filtering")
+                return
+            
+            logger.info(f"📊 Filtered {len(documents)} → {len(filtered_documents)} valid documents")
 
-            # Generate IDs
-            ids = [f"doc_{i}_{hash(doc)}" for i, doc in enumerate(documents)]
+            # Generate embeddings
+            embeddings = self.embedder.get_embeddings(filtered_documents)
+            
+            if not embeddings:
+                logger.warning("⚠️ No embeddings generated, skipping add")
+                return
+
+            # Ensure embeddings match documents length
+            if len(embeddings) != len(filtered_documents):
+                logger.error(f"❌ Mismatch: {len(filtered_documents)} documents but {len(embeddings)} embeddings")
+                # Use the minimum length to avoid crashes
+                min_len = min(len(embeddings), len(filtered_documents))
+                filtered_documents = filtered_documents[:min_len]
+                filtered_metadatas = filtered_metadatas[:min_len]
+                embeddings = embeddings[:min_len]
+                logger.warning(f"⚠️ Truncated to {min_len} items to match")
+
+            # Generate IDs for filtered documents
+            ids = [f"doc_{i}_{hash(doc)}" for i, doc in enumerate(filtered_documents)]
 
             # Add to collection
             self.collection.add(
                 embeddings=embeddings,
-                documents=documents,
-                metadatas=metadatas,
+                documents=filtered_documents,
+                metadatas=filtered_metadatas,
                 ids=ids
             )
 
-            logger.info(f"✅ Added {len(documents)} chunks to ChromaDB")
+            logger.info(f"✅ Added {len(filtered_documents)} chunks to ChromaDB")
 
         except Exception as e:
-            logger.error(f"❌ Failed to add documents: {e}")
-            raise
+            error_msg = str(e)
+            # Check if it's a dimension mismatch error
+            if "dimension" in error_msg.lower() or "expecting embedding" in error_msg.lower():
+                logger.warning(f"⚠️ Dimension mismatch detected. Resetting collection...")
+                try:
+                    collection_name = self.collection.name
+                    self.client.delete_collection(collection_name)
+                    self.collection = self.client.create_collection(
+                        name=collection_name,
+                        metadata={"hnsw:space": settings.DISTANCE_METRIC}
+                    )
+                    logger.info(f"✨ Collection reset, retrying add...")
+                    # Retry once
+                    self.collection.add(
+                        embeddings=embeddings,
+                        documents=filtered_documents,
+                        metadatas=filtered_metadatas,
+                        ids=ids
+                    )
+                    logger.info(f"✅ Added {len(filtered_documents)} chunks to ChromaDB after reset")
+                except Exception as retry_error:
+                    logger.error(f"❌ Failed to add documents after reset: {retry_error}")
+                    raise
+            else:
+                logger.error(f"❌ Failed to add documents: {e}")
+                raise
 
     def query_documents(self, query_text: str, k: int = 5) -> List[Dict[str, Any]]:
         """Query for most relevant documents"""
@@ -164,6 +219,17 @@ class ChromaHandler:
             logger.info(f"✨ Created new collection: {collection_name}")
         except Exception as e:
             logger.error(f"❌ Failed to create new collection: {e}")
+            raise
+
+    def delete_collection(self, collection_name: str) -> None:
+        """Delete a specific collection by name"""
+        try:
+            self.client.delete_collection(collection_name)
+            logger.info(f"✅ Deleted collection: {collection_name}")
+        except NotFoundError:
+            logger.warning(f"Collection {collection_name} not found, nothing to delete")
+        except Exception as e:
+            logger.error(f"❌ Failed to delete collection {collection_name}: {e}")
             raise
 
     def switch_to_collection(self, collection_name: str) -> None:

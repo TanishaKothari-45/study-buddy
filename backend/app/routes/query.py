@@ -106,12 +106,27 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
         sources = []
         seen = set()
         for chunk in chunks:
-            key = (chunk["metadata"]["filename"], chunk["metadata"]["page_number"])
+            metadata = chunk.get("metadata", {})
+            filename = metadata.get("filename", "Unknown")
+            page_number = metadata.get("page_number")  # May not exist in new metadata structure
+            chapter = metadata.get("chapter", "Unknown")
+            section = metadata.get("section", "Unknown")
+            
+            # Create unique key based on available metadata
+            if page_number:
+                key = (filename, page_number)
+            else:
+                key = (filename, chapter, section)
+            
             if key not in seen:
-                sources.append({
-                    "filename": chunk["metadata"]["filename"],
-                    "page_number": chunk["metadata"]["page_number"]
-                })
+                source_info = {
+                    "filename": filename,
+                    "chapter": chapter,
+                    "section": section
+                }
+                if page_number:
+                    source_info["page_number"] = page_number
+                sources.append(source_info)
                 seen.add(key)
 
         # Format answer using GPT if available

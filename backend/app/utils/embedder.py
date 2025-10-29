@@ -39,11 +39,27 @@ class Embedder:
         """Generate embeddings using OpenAI with retry logic"""
         wait_time = 1.0
         
+        # Ensure texts is a list of non-empty strings
+        if not texts:
+            return []
+        
+        # Filter out empty strings and ensure all are strings
+        cleaned_texts = []
+        for text in texts:
+            if isinstance(text, str) and text.strip():
+                cleaned_texts.append(text.strip())
+            elif text:  # Non-empty but not string - convert to string
+                cleaned_texts.append(str(text).strip())
+        
+        if not cleaned_texts:
+            logger.warning("⚠️ No valid texts to embed")
+            return []
+        
         for attempt in range(max_retries):
             try:
                 response = self.openai_client.embeddings.create(
                     model="text-embedding-3-small",
-                    input=texts
+                    input=cleaned_texts
                 )
                 embeddings = [data.embedding for data in response.data]
                 logger.info(f"✅ Generated {len(embeddings)} embeddings using OpenAI")

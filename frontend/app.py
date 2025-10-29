@@ -103,7 +103,14 @@ elif tab_choice == "Ask Questions":
                         if data.get("sources"):
                             st.subheader("Sources:")
                             for source in data["sources"]:
-                                st.markdown(f"- **File:** `{source['filename']}`, **Page:** `{source['page_number']}`")
+                                source_info = f"- **File:** `{source.get('filename', 'Unknown')}`"
+                                if source.get('chapter') and source.get('chapter') != 'Unknown':
+                                    source_info += f", **Chapter:** `{source['chapter']}`"
+                                if source.get('section') and source.get('section') != 'Unknown':
+                                    source_info += f", **Section:** `{source['section']}`"
+                                if source.get('page_number'):
+                                    source_info += f", **Page:** `{source['page_number']}`"
+                                st.markdown(source_info)
                     else:
                         st.error("Failed to get answer")
                 except requests.exceptions.Timeout:
@@ -186,7 +193,14 @@ else:  # Mock Test tab
                         if st.button(f"Show Explanation {i}"):
                             st.success(f"✅ Correct answer: {q['correct_answer']}")
                             st.markdown(f"**Explanation:** {q['explanation']}")
-                            st.markdown(f"**Source:** File: `{q['source']['filename']}`, Page: `{q['source']['page_number']}`")
+                            source_info = f"**Source:** File: `{q['source'].get('filename', 'Unknown')}`"
+                            if q['source'].get('chapter') and q['source'].get('chapter') != 'Unknown':
+                                source_info += f", Chapter: `{q['source']['chapter']}`"
+                            if q['source'].get('section') and q['source'].get('section') != 'Unknown':
+                                source_info += f", Section: `{q['source']['section']}`"
+                            if q['source'].get('page_number'):
+                                source_info += f", Page: `{q['source']['page_number']}`"
+                            st.markdown(source_info)
                 
                 else:
                     st.error("Failed to generate mock test")
