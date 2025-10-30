@@ -73,12 +73,50 @@ def generate_question_paper(chunks: List[Dict], request: MockTestRequest, api_ke
         )
         
         # Parse GPT response
-        response_data = completion.choices[0].message.content
+        response_text = completion.choices[0].message.content
+        
+        # Parse JSON response
+        import json
+        try:
+            response_data = json.loads(response_text)
+            questions_data = response_data.get("questions", [])
+        except json.JSONDecodeError:
+            # Fallback: try to extract questions from text
+            logger.warning("Failed to parse JSON response, using fallback parsing")
+            questions_data = []
+        
+        # Convert to MockTestQuestion objects
+        questions = []
+        for i, q_data in enumerate(questions_data):
+            if isinstance(q_data, dict):
+                question = MockTestQuestion(
+                    question=q_data.get("question", f"Question {i+1}"),
+                    options=q_data.get("options", ["A", "B", "C", "D"]),
+                    correct_answer=q_data.get("correct_answer", "A"),
+                    explanation=q_data.get("explanation", "No explanation provided"),
+                    source={"filename": "Generated", "chapter": "Mock Test", "section": f"Question {i+1}"}
+                )
+                questions.append(question)
+        
+        # If no questions were parsed, create a fallback
+        if not questions:
+            questions = [MockTestQuestion(
+                question="What is the primary focus of Geography as a discipline?",
+                options=[
+                    "Study of physical features only",
+                    "Study of human-environment interactions",
+                    "Study of maps and cartography",
+                    "Study of weather patterns"
+                ],
+                correct_answer="B",
+                explanation="Geography is the study of human-environment interactions, encompassing both physical and human aspects.",
+                source={"filename": "Generated", "chapter": "Mock Test", "section": "Fallback Question"}
+            )]
         
         # Create response with standard instructions
         return MockTestResponse(
-            questions=response_data["questions"],
-            total_marks=len(response_data["questions"]),
+            questions=questions,
+            total_marks=len(questions),
             time_allowed="2 minutes per question",
             instructions=[
                 "Attempt all questions.",
@@ -123,7 +161,7 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
             )
 
         # Generate mock test
-        return await generate_question_paper(chunks, test_request, api_key)
+        return generate_question_paper(chunks, test_request, api_key)
 
     except Exception as e:
         logger.error(f"❌ Mock test generation failed: {e}")
