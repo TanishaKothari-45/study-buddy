@@ -9,6 +9,17 @@ pydantic-settings==2.1.0
 # PDF Processing
 pdfplumber==0.10.3
 PyPDF2==3.0.1
+pdf2image==1.16.3  # For PDF to image conversion
+
+# OCR dependencies (EasyOCR - CPU-friendly, excellent for handwritten text)
+easyocr>=1.7.0  # Fast, CPU-friendly OCR for handwritten text
+Pillow>=9.0.0
+opencv-python-headless>=4.5.0,<4.9  # For image preprocessing (compatible with numpy 1.x)
+
+# Optional: DeepSeek-OCR (heavy, GPU recommended - disabled by default)
+# torch>=2.0.0
+# transformers>=4.40.0,<4.45.0
+# torchvision>=0.15.0
 
 # Vector Store
 chromadb==0.4.18

@@ -295,6 +295,101 @@ elif tab_choice == "Evaluate Answer":
     st.header("📊 Evaluate Your Answer")
     st.info("Upload your written answer to get UPSC-style evaluation with marks, feedback, and improvement suggestions.")
     
+    # Add info about handwritten answer support
+    st.success("✨ **New Feature**: Upload handwritten answers! The system now supports OCR processing of handwritten text using DeepSeek-OCR for accurate text extraction and evaluation.")
+    
+    # OCR Preview section
+    st.subheader("🔍 OCR Preview (Optional)")
+    st.info("Upload an image/PDF to preview what text will be extracted before evaluation.")
+    
+    preview_file = st.file_uploader(
+        "Upload image/PDF for OCR preview:",
+        type=["png", "jpg", "jpeg", "pdf"],
+        key="preview_upload",
+        disabled=not backend_status
+    )
+    
+    if preview_file and st.button("Preview OCR Extraction", disabled=not backend_status):
+        with st.spinner("Processing image with OCR..."):
+            try:
+                files = {"answer_file": preview_file}
+                response = requests.post(
+                    f"{BACKEND_URL}/evaluate-answer/preview-ocr/",
+                    files=files,
+                    timeout=120
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if data["success"]:
+                        st.success("✅ OCR extraction successful!")
+                        
+                        # Show preprocessing info
+                        if data.get("preprocessing_info"):
+                            with st.expander("🔧 OCR Processing Details"):
+                                info = data["preprocessing_info"]
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    if info.get("image_size"):
+                                        st.metric("Image Size", f"{info['image_size']}")
+                                    if info.get("avg_confidence"):
+                                        st.metric("Avg Confidence", f"{info['avg_confidence']:.2%}")
+                                with col2:
+                                    st.metric("Word Count", f"{info.get('word_count', 0)}")
+                                    st.metric("Confidence Level", data["confidence"].title())
+                                with col3:
+                                    if info.get("detections"):
+                                        st.metric("Text Detections", f"{info['detections']}")
+                                    if info.get("confidences") and len(info["confidences"]) > 1:
+                                        st.metric("Pages Processed", f"{len(info['confidences'])}")
+                        
+                        # Show extracted text prominently
+                        st.subheader("📝 Extracted Text (via EasyOCR):")
+                        st.info("💡 **Review the extracted text below to verify OCR accuracy before evaluation.**")
+                        
+                        # Make the text area editable so users can correct OCR mistakes
+                        extracted_text_display = st.text_area(
+                            "OCR Result (you can edit if needed):",
+                            value=data["extracted_text"],
+                            height=400,
+                            key="extracted_text_display",
+                            help="Review and edit the extracted text if the OCR made any mistakes"
+                        )
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.info(f"📊 **Word count:** {data['word_count']} words")
+                        with col2:
+                            st.info(f"🎯 **Confidence:** {data['confidence'].title()}")
+                        
+                        # Update session state with potentially edited text
+                        if st.button("✅ Use This Text for Evaluation", key="use_previewed_text"):
+                            st.session_state.previewed_text = extracted_text_display
+                            st.success("✅ Text saved! You can now use it in the evaluation form below.")
+                            st.rerun()
+                    else:
+                        st.error(f"❌ OCR extraction failed: {data.get('error', 'Unknown error')}")
+                else:
+                    st.error("Failed to process OCR preview")
+            except requests.exceptions.Timeout:
+                st.error("OCR processing timed out. Please try again.")
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+    
+    # Show previewed text in the main form if available
+    if hasattr(st.session_state, 'previewed_text'):
+        st.info("📋 **Previewed text available below**")
+        st.text_area(
+            "Previewed OCR Text:",
+            value=st.session_state.previewed_text,
+            height=200,
+            disabled=True
+        )
+        if st.button("Clear Previewed Text"):
+            del st.session_state.previewed_text
+            st.rerun()
+    
     col1, col2 = st.columns(2)
     
     with col1:
@@ -307,8 +402,8 @@ elif tab_choice == "Evaluate Answer":
     
     with col2:
         uploaded_file = st.file_uploader(
-            "Upload your answer (PDF or text file):",
-            type=["pdf", "txt"],
+            "Upload your answer (PDF, image, or text file):",
+            type=["pdf", "txt", "png", "jpg", "jpeg"],
             disabled=not backend_status
         )
     
@@ -324,22 +419,44 @@ elif tab_choice == "Evaluate Answer":
         if question and (uploaded_file or answer_text):
             with st.spinner("Evaluating your answer..."):
                 try:
-                    # Prepare evaluation request
-                    eval_data = {
-                        "question": question,
-                        "answer_text": answer_text if answer_text else None
-                    }
-                    
-                    files = None
+                    # Determine which endpoint to use based on file type
                     if uploaded_file:
-                        files = {"answer_file": uploaded_file}
-                    
-                    response = requests.post(
-                        f"{BACKEND_URL}/evaluate-answer/",
-                        json=eval_data,
-                        files=files,
-                        timeout=60
-                    )
+                        # Check if it's an image or PDF (handwritten)
+                        file_extension = uploaded_file.filename.split('.')[-1].lower()
+                        if file_extension in ['png', 'jpg', 'jpeg', 'pdf']:
+                            # Use handwritten OCR endpoint
+                            files = {"answer_file": uploaded_file}
+                            data = {"question": question}
+                            response = requests.post(
+                                f"{BACKEND_URL}/evaluate-answer/upload-handwritten/",
+                                data=data,
+                                files=files,
+                                timeout=120  # Longer timeout for OCR processing
+                            )
+                        else:
+                            # Use regular text file processing
+                            eval_data = {
+                                "question": question,
+                                "answer_text": answer_text if answer_text else None
+                            }
+                            files = {"answer_file": uploaded_file}
+                            response = requests.post(
+                                f"{BACKEND_URL}/evaluate-answer/",
+                                json=eval_data,
+                                files=files,
+                                timeout=60
+                            )
+                    else:
+                        # Direct text evaluation
+                        eval_data = {
+                            "question": question,
+                            "answer_text": answer_text
+                        }
+                        response = requests.post(
+                            f"{BACKEND_URL}/evaluate-answer/",
+                            json=eval_data,
+                            timeout=60
+                        )
                     
                     if response.status_code == 200:
                         data = response.json()
