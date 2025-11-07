@@ -330,3 +330,38 @@ class ChromaHandler:
         except NotFoundError:
             logger.warning(f"Collection {collection_name} not found. Creating new one.")
             self.create_new_collection(collection_name)
+
+    def delete_documents_by_filename(self, filename: str) -> int:
+        """
+        Delete all documents/chunks that match a specific filename.
+        
+        Args:
+            filename: The filename to match (supports substring matching)
+        
+        Returns:
+            Number of documents deleted
+        """
+        try:
+            # Get all documents with matching filename
+            all_docs = self.get_all_documents_paginated()
+            matching_docs = [
+                doc for doc in all_docs 
+                if filename.lower() in doc.get('metadata', {}).get('filename', '').lower()
+            ]
+            
+            if not matching_docs:
+                logger.info(f"ℹ️  No documents found with filename containing '{filename}'")
+                return 0
+            
+            # Get IDs of matching documents
+            ids_to_delete = [doc['id'] for doc in matching_docs]
+            
+            # Delete by IDs
+            self.collection.delete(ids=ids_to_delete)
+            
+            logger.info(f"✅ Deleted {len(ids_to_delete)} documents matching filename '{filename}'")
+            return len(ids_to_delete)
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to delete documents by filename: {e}")
+            raise

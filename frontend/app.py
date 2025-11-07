@@ -297,11 +297,11 @@ elif tab_choice == "Generate Mock Test":
             
             # Radio buttons with better formatting
             answer = st.radio(
-                "",
+                "Select your answer",
                 q["options"],
                 key=f"q_{i}",
                 index=None,  # No default selection
-                label_visibility="collapsed"
+                label_visibility="hidden"
             )
             
             # Display selected answer (don't show right/wrong until submitted)
