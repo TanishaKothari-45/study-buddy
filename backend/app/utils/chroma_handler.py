@@ -48,14 +48,34 @@ class ChromaHandler:
                 if count > 0:
                     # Try to get sample embeddings
                     sample = self.collection.get(limit=1, include=['embeddings'])
-                    if sample and sample.get('embeddings') and len(sample['embeddings']) > 0:
-                        embedding_list = sample['embeddings'][0]
-                        if embedding_list and len(embedding_list) > 0:
-                            self.expected_dimension = len(embedding_list)
-                            logger.info(f"📏 Collection has {count} chunks with {self.expected_dimension}-dim embeddings")
-                            logger.info(f"   ⚠️ All new chunks MUST use {self.expected_dimension}-dim embeddings for consistency!")
+                    # Check for None explicitly to avoid numpy array truthiness issues
+                    if sample is not None:
+                        embeddings = sample.get('embeddings')
+                        # Check if embeddings exists and is not empty (avoid numpy array truthiness)
+                        if embeddings is not None:
+                            try:
+                                embeddings_len = len(embeddings)
+                                if embeddings_len > 0:
+                                    embedding_list = embeddings[0]
+                                    # Handle numpy arrays - check length without truthiness check
+                                    try:
+                                        embedding_length = len(embedding_list)
+                                        if embedding_length > 0:
+                                            self.expected_dimension = embedding_length
+                                            logger.info(f"📏 Collection has {count} chunks with {self.expected_dimension}-dim embeddings")
+                                            logger.info(f"   ⚠️ All new chunks MUST use {self.expected_dimension}-dim embeddings for consistency!")
+                                        else:
+                                            logger.info(f"📏 Collection has {count} chunks but couldn't determine dimension (will detect on first add)")
+                                    except (TypeError, ValueError) as len_error:
+                                        logger.debug(f"Could not get embedding length: {len_error}")
+                                        logger.info(f"📏 Collection has {count} chunks but couldn't determine dimension (will detect on first add)")
+                                else:
+                                    logger.info(f"📏 Collection has {count} chunks but couldn't retrieve embeddings (will detect on first add)")
+                            except (TypeError, ValueError) as len_error:
+                                logger.debug(f"Could not get embeddings length: {len_error}")
+                                logger.info(f"📏 Collection has {count} chunks but couldn't retrieve embeddings (will detect on first add)")
                         else:
-                            logger.info(f"📏 Collection has {count} chunks but couldn't determine dimension (will detect on first add)")
+                            logger.info(f"📏 Collection has {count} chunks but couldn't retrieve embeddings (will detect on first add)")
                     else:
                         logger.info(f"📏 Collection has {count} chunks but couldn't retrieve embeddings (will detect on first add)")
                 else:
@@ -489,22 +509,42 @@ class ChromaHandler:
                 if count > 0:
                     # Try to get sample embeddings to detect dimension
                     sample = self.collection.get(limit=1, include=['embeddings'])
-                    if sample and sample.get('embeddings') and len(sample['embeddings']) > 0:
-                        embedding_list = sample['embeddings'][0]
-                        if embedding_list and len(embedding_list) > 0:
-                            existing_dimension = len(embedding_list)
-                            logger.info(f"📏 Collection '{collection_name}' has {count} chunks with {existing_dimension}-dim embeddings")
-                            
-                            # If existing is 384-dim, warn but we'll still try OpenAI first
-                            if existing_dimension == 384:
-                                logger.warning(f"   ⚠️ Collection has 384-dim embeddings (Sentence Transformers)")
-                                logger.warning(f"   ⚠️ Will try OpenAI (1536-dim) first - if mismatch occurs, old chunks may need to be deleted")
-                            elif existing_dimension == 1536:
-                                logger.info(f"   ✅ Collection already uses 1536-dim embeddings (OpenAI) - perfect match!")
-                            else:
-                                logger.warning(f"   ⚠️ Collection has {existing_dimension}-dim embeddings (unexpected dimension)")
+                    # Check for None explicitly to avoid numpy array truthiness issues
+                    if sample is not None:
+                        embeddings = sample.get('embeddings')
+                        # Check if embeddings exists and is not empty (avoid numpy array truthiness)
+                        if embeddings is not None:
+                            try:
+                                embeddings_len = len(embeddings)
+                                if embeddings_len > 0:
+                                    embedding_list = embeddings[0]
+                                    # Handle numpy arrays - check length without truthiness check
+                                    try:
+                                        embedding_length = len(embedding_list)
+                                        if embedding_length > 0:
+                                            existing_dimension = embedding_length
+                                            logger.info(f"📏 Collection '{collection_name}' has {count} chunks with {existing_dimension}-dim embeddings")
+                                            
+                                            # If existing is 384-dim, warn but we'll still try OpenAI first
+                                            if existing_dimension == 384:
+                                                logger.warning(f"   ⚠️ Collection has 384-dim embeddings (Sentence Transformers)")
+                                                logger.warning(f"   ⚠️ Will try OpenAI (1536-dim) first - if mismatch occurs, old chunks may need to be deleted")
+                                            elif existing_dimension == 1536:
+                                                logger.info(f"   ✅ Collection already uses 1536-dim embeddings (OpenAI) - perfect match!")
+                                            else:
+                                                logger.warning(f"   ⚠️ Collection has {existing_dimension}-dim embeddings (unexpected dimension)")
+                                        else:
+                                            logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't determine dimension")
+                                    except (TypeError, ValueError) as len_error:
+                                        logger.debug(f"Could not get embedding length: {len_error}")
+                                        logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't determine dimension")
+                                else:
+                                    logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't retrieve embeddings")
+                            except (TypeError, ValueError) as len_error:
+                                logger.debug(f"Could not get embeddings length: {len_error}")
+                                logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't retrieve embeddings")
                         else:
-                            logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't determine dimension")
+                            logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't retrieve embeddings")
                     else:
                         logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't retrieve embeddings")
                 else:
