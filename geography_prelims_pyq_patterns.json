@@ -1,0 +1,232 @@
+{
+    "metadata": {
+      "subject": "Geography",
+      "total_patterns": 6,
+      "description": "UPSC Prelims Geography question grammar dataset for few-shot prompting and style conditioning."
+    },
+    "patterns": [
+      {
+        "id": "Q1",
+        "title": "Concept Definition / Single-Choice",
+        "explanation": "Tests conceptual understanding of a definition or scheme. UPSC often uses 'Which one of the following best describes...' to test conceptual precision or policy understanding.",
+        "example_questions": [
+          {
+            "question": "Which one of the following best describes the concept of 'Small Farmer Large Field'?",
+            "options": [
+              "(a) Resettlement of people uprooted from war zones for collective farming",
+              "(b) Many marginal farmers in an area organize themselves and synchronize key agricultural operations",
+              "(c) Many marginal farmers contract with a corporate body for fixed-term land use",
+              "(d) A company provides inputs and loans to small farmers to grow its required crops"
+            ],
+            "answer": "b",
+            "topic": "Agriculture - Farming Models",
+            "year": 2023
+          },
+          {
+            "question": "Which one of the following best describes the term 'Green Hydrogen'?",
+            "options": [
+              "(a) Hydrogen produced from natural gas",
+              "(b) Hydrogen produced using renewable energy sources such as solar or wind",
+              "(c) Hydrogen generated through nuclear fission",
+              "(d) Hydrogen produced using biomass combustion"
+            ],
+            "answer": "b",
+            "topic": "Energy and Resources",
+            "year": 2022
+          },
+          {
+            "question": "Which one of the following best defines the process of 'Salinization'?",
+            "options": [
+              "(a) Accumulation of salt in soil due to irrigation with saline water",
+              "(b) Conversion of fertile land into desert",
+              "(c) Excessive use of fertilizers leading to waterlogging",
+              "(d) Deposition of calcium in soil after deforestation"
+            ],
+            "answer": "a",
+            "topic": "Soil Degradation",
+            "year": 2021
+          }
+        ]
+      },
+      {
+        "id": "Q2",
+        "title": "Multi-Statement Evaluation",
+        "explanation": "This pattern uses 'Consider the following statements' followed by numbered facts or concepts. It evaluates factual recall and conceptual distinction across multiple points. The final sub-question asks how many or which statements are correct.",
+        "example_questions": [
+          {
+            "question": "Consider the following statements:\n1. The Government of India provides Minimum Support Price for niger (Guizotia abyssinica) seeds.\n2. Niger is cultivated as a Kharif crop.\n3. Some tribal people in India use niger seed oil for cooking.\nHow many of the above statements are correct?",
+            "options": [
+              "(a) Only one",
+              "(b) Only two",
+              "(c) All three",
+              "(d) None"
+            ],
+            "answer": "c",
+            "topic": "Agriculture - Oilseeds",
+            "year": 2023
+          },
+          {
+            "question": "Consider the following statements:\n1. The Himalayas are young fold mountains.\n2. They were formed due to collision between the Indo-Australian and Eurasian plates.\n3. They are among the oldest mountain systems in the world.\nWhich of the statements given above is/are correct?",
+            "options": [
+              "(a) 1 only",
+              "(b) 1 and 2 only",
+              "(c) 1 and 3 only",
+              "(d) 1, 2 and 3"
+            ],
+            "answer": "b",
+            "topic": "Geomorphology - Himalayas",
+            "year": 2020
+          },
+          {
+            "question": "Consider the following statements:\n1. Westerlies influence the rainfall pattern in Northern India during winters.\n2. Western Disturbances originate over the Mediterranean region.\nWhich of the statements given above is/are correct?",
+            "options": [
+              "(a) 1 only",
+              "(b) 2 only",
+              "(c) Both 1 and 2",
+              "(d) Neither 1 nor 2"
+            ],
+            "answer": "c",
+            "topic": "Climatology - Western Disturbances",
+            "year": 2021
+          }
+        ]
+      },
+      {
+        "id": "Q3",
+        "title": "Match-the-Pair Questions",
+        "explanation": "Two-column matching questions. They require pairing items such as regions vs resources, rivers vs origins, or mountain ranges vs countries. The question usually asks how many or which pairs are correctly matched.",
+        "example_questions": [
+          {
+            "question": "Consider the following pairs:\nRiver - Origin\n1. Ganga - Gangotri Glacier\n2. Godavari - Nasik Hills\n3. Krishna - Mahabaleshwar\nHow many of the above pairs are correctly matched?",
+            "options": [
+              "(a) Only one",
+              "(b) Only two",
+              "(c) All three",
+              "(d) None"
+            ],
+            "answer": "b",
+            "topic": "Indian Geography - Rivers",
+            "year": 2021
+          },
+          {
+            "question": "Consider the following pairs:\nMountain Range - Country\n1. Andes - South America\n2. Alps - Europe\n3. Atlas - Africa\nHow many of the above pairs are correctly matched?",
+            "options": [
+              "(a) Only one",
+              "(b) Only two",
+              "(c) All three",
+              "(d) None"
+            ],
+            "answer": "c",
+            "topic": "World Geography - Mountains",
+            "year": 2020
+          },
+          {
+            "question": "Consider the following pairs:\nCrop - Region\n1. Coffee - Karnataka\n2. Tea - Assam\n3. Rubber - Maharashtra\nHow many of the above pairs are correctly matched?",
+            "options": [
+              "(a) Only one",
+              "(b) Only two",
+              "(c) All three",
+              "(d) None"
+            ],
+            "answer": "b",
+            "topic": "Agriculture - Crops and Regions",
+            "year": 2018
+          }
+        ]
+      },
+      {
+        "id": "Q4",
+        "title": "Assertion–Reason Type (Statement Linking)",
+        "explanation": "These questions test cause–effect or conceptual logic through 'Statement–I' and 'Statement–II'. The student must determine whether both are true and if Statement–II explains Statement–I correctly.",
+        "example_questions": [
+          {
+            "question": "Statement–I: India, despite having uranium deposits, depends on coal for most of its electricity production.\nStatement–II: Uranium enriched to at least 60% is required for electricity generation.\nWhich one of the following is correct in respect of the above statements?",
+            "options": [
+              "(a) Both Statement–I and Statement–II are correct and Statement–II is the correct explanation for Statement–I",
+              "(b) Both Statement–I and Statement–II are correct but Statement–II is not the correct explanation for Statement–I",
+              "(c) Statement–I is correct but Statement–II is incorrect",
+              "(d) Statement–I is incorrect but Statement–II is correct"
+            ],
+            "answer": "c",
+            "topic": "Energy Resources",
+            "year": 2023
+          },
+          {
+            "question": "Statement–I: Indian monsoon is influenced by both the Tibetan Plateau and the Indian Ocean.\nStatement–II: The Tibetan Plateau acts as a heat source during summer and affects the monsoon circulation.\nWhich one of the following is correct in respect of the above statements?",
+            "options": [
+              "(a) Both Statement–I and Statement–II are correct and Statement–II is the correct explanation for Statement–I",
+              "(b) Both Statement–I and Statement–II are correct but Statement–II is not the correct explanation for Statement–I",
+              "(c) Statement–I is correct but Statement–II is incorrect",
+              "(d) Statement–I is incorrect but Statement–II is correct"
+            ],
+            "answer": "a",
+            "topic": "Climatology - Monsoon Mechanism",
+            "year": 2020
+          }
+        ]
+      },
+      {
+        "id": "Q5",
+        "title": "Fact-Based / Direct MCQ",
+        "explanation": "Tests static geographical facts like location, composition, or a simple physical process. These questions are direct and rely on memory or conceptual clarity.",
+        "example_questions": [
+          {
+            "question": "Which one of the following is a part of the Congo Basin?",
+            "options": [
+              "(a) Cameroon",
+              "(b) Nigeria",
+              "(c) South Sudan",
+              "(d) Uganda"
+            ],
+            "answer": "a",
+            "topic": "World Geography - River Basins",
+            "year": 2021
+          },
+          {
+            "question": "Which one of the following rivers flows through a rift valley?",
+            "options": [
+              "(a) Godavari",
+              "(b) Tapi",
+              "(c) Krishna",
+              "(d) Mahanadi"
+            ],
+            "answer": "b",
+            "topic": "Geomorphology - Rivers",
+            "year": 2019
+          }
+        ]
+      },
+      {
+        "id": "Q6",
+        "title": "Map / Location / Identification",
+        "explanation": "Tests spatial or map-based knowledge — locations, passes, rivers, or features shown on maps. Often tests recognition or directional awareness.",
+        "example_questions": [
+          {
+            "question": "With reference to Indian geography, which of the following mountain passes lies on the eastern Himalayas?",
+            "options": [
+              "(a) Nathu La",
+              "(b) Zoji La",
+              "(c) Shipki La",
+              "(d) Rohtang Pass"
+            ],
+            "answer": "a",
+            "topic": "Indian Geography - Mountain Passes",
+            "year": 2019
+          },
+          {
+            "question": "Which one of the following cities is closest to the Tropic of Cancer?",
+            "options": [
+              "(a) Bhopal",
+              "(b) Ranchi",
+              "(c) Agra",
+              "(d) Delhi"
+            ],
+            "answer": "b",
+            "topic": "Indian Geography - Latitude and Climate",
+            "year": 2018
+          }
+        ]
+      }
+    ]
+  }
+  

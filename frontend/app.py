@@ -4,13 +4,16 @@ Streamlit frontend for Study Buddy AI
 import streamlit as st
 import requests
 import time
+import re
 from typing import List, Dict, Any
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8001")
+# Load environment variables from parent directory
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8003")
 
 def check_backend_status() -> bool:
     """Check if backend is running"""
@@ -123,6 +126,12 @@ elif tab_choice == "Ask Questions":
 elif tab_choice == "Generate Mock Test":
     st.header("📝 Generate Mock Test")
     
+    # Initialize session state for test data and explanations
+    if "mock_test_data" not in st.session_state:
+        st.session_state.mock_test_data = None
+    if "show_explanations" not in st.session_state:
+        st.session_state.show_explanations = {}
+    
     col1, col2 = st.columns(2)
     
     with col1:
@@ -142,17 +151,51 @@ elif tab_choice == "Generate Mock Test":
         )
     
     with col2:
-        topics = st.multiselect(
-            "Select topics (optional):",
-            [
-                "Monsoon", "Climate", "Physical Geography",
-                "Indian Geography", "World Geography",
-                "Geomorphology", "Oceanography"
-            ],
-            disabled=not backend_status
+        # Topic selection with both dropdown and text input
+        st.markdown("**Select topics (optional):**")
+        topic_options = [
+            "Monsoon", "Climate", "Physical Geography",
+            "Indian Geography", "World Geography",
+            "Geomorphology", "Oceanography", "Climatology",
+            "Agriculture", "Economic Geography", "Cultural Geography",
+            "Natural Disasters", "Biogeography", "Oceanography"
+        ]
+        
+        selected_topics = st.multiselect(
+            "Choose from list:",
+            topic_options,
+            disabled=not backend_status,
+            label_visibility="collapsed"
         )
+        
+        # Allow typing custom topics
+        custom_topic = st.text_input(
+            "Or type a custom topic:",
+            placeholder="e.g., Cyclones, Monsoon Variability, etc.",
+            disabled=not backend_status,
+            key="custom_topic_input"
+        )
+        
+        # Combine selected and custom topics
+        topics = selected_topics.copy()
+        if custom_topic and custom_topic.strip():
+            topics.append(custom_topic.strip())
+    
+    # Generate new test button
+    col_gen, col_clear = st.columns([1, 1])
+    with col_gen:
+        generate_clicked = st.button("Generate Test", disabled=not backend_status)
+    with col_clear:
+        if st.button("Clear Test", disabled=not backend_status):
+            st.session_state.mock_test_data = None
+            st.session_state.show_explanations = {}
+            st.session_state.user_answers = {}
+            st.session_state.scores = {}
+            st.session_state.test_submitted = False
+            st.rerun()
 
-    if st.button("Generate Test", disabled=not backend_status):
+    # Generate test if button clicked
+    if generate_clicked:
         with st.spinner("Generating mock test..."):
             try:
                 response = requests.post(
@@ -167,41 +210,12 @@ elif tab_choice == "Generate Mock Test":
                 
                 if response.status_code == 200:
                     data = response.json()
-                    
-                    # Show test instructions
-                    st.info("📋 Test Instructions:")
-                    for instruction in data["instructions"]:
-                        st.markdown(f"- {instruction}")
-                    
-                    st.info(f"⏱️ Time allowed: {data['time_allowed']}")
-                    st.info(f"📊 Total marks: {data['total_marks']}")
-                    
-                    # Show questions
-                    for i, q in enumerate(data["questions"], 1):
-                        st.markdown("---")
-                        st.subheader(f"Question {i}:")
-                        st.write(q["question"])
-                        
-                        # Options with radio buttons
-                        answer = st.radio(
-                            "Select your answer:",
-                            q["options"],
-                            key=f"q_{i}"
-                        )
-                        
-                        # Show/Hide explanation button
-                        if st.button(f"Show Explanation {i}"):
-                            st.success(f"✅ Correct answer: {q['correct_answer']}")
-                            st.markdown(f"**Explanation:** {q['explanation']}")
-                            source_info = f"**Source:** File: `{q['source'].get('filename', 'Unknown')}`"
-                            if q['source'].get('chapter') and q['source'].get('chapter') != 'Unknown':
-                                source_info += f", Chapter: `{q['source']['chapter']}`"
-                            if q['source'].get('section') and q['source'].get('section') != 'Unknown':
-                                source_info += f", Section: `{q['source']['section']}`"
-                            if q['source'].get('page_number'):
-                                source_info += f", Page: `{q['source']['page_number']}`"
-                            st.markdown(source_info)
-                
+                    st.session_state.mock_test_data = data
+                    st.session_state.show_explanations = {}  # Reset explanations
+                    st.session_state.user_answers = {}  # Reset answers
+                    st.session_state.scores = {}  # Reset scores
+                    st.session_state.test_submitted = False  # Reset submission state
+                    st.rerun()
                 else:
                     st.error("Failed to generate mock test")
             
@@ -209,6 +223,192 @@ elif tab_choice == "Generate Mock Test":
                 st.error("Request timed out. Please try again.")
             except Exception as e:
                 st.error(f"Error: {str(e)}")
+    
+    # Display test if data exists in session state
+    if st.session_state.mock_test_data:
+        data = st.session_state.mock_test_data
+        
+        # Show test instructions
+        st.info("📋 Test Instructions:")
+        for instruction in data["instructions"]:
+            st.markdown(f"- {instruction}")
+        
+        st.info(f"⏱️ Time allowed: {data['time_allowed']}")
+        st.info(f"📊 Total marks: {len(data['questions']) * 2} (2 marks per question, -0.67 for wrong answer)")
+        
+        # Initialize score tracking and submission state
+        if "user_answers" not in st.session_state:
+            st.session_state.user_answers = {}
+        if "scores" not in st.session_state:
+            st.session_state.scores = {}
+        if "test_submitted" not in st.session_state:
+            st.session_state.test_submitted = False
+        
+        # Submit Test button (show at top, disabled if already submitted)
+        if not st.session_state.test_submitted:
+            col_submit, col_info = st.columns([1, 3])
+            with col_submit:
+                if st.button("📝 Submit Test", type="primary", use_container_width=True):
+                    # Calculate scores for all answered questions
+                    for i, q in enumerate(data["questions"], 1):
+                        user_answer = st.session_state.user_answers.get(i)
+                        if user_answer:
+                            correct_answer = q.get('correct_answer', '').upper()
+                            if user_answer == correct_answer:
+                                st.session_state.scores[i] = 2.0  # 2 marks for correct
+                            else:
+                                st.session_state.scores[i] = -0.67  # -1/3 of 2 marks for wrong
+                    st.session_state.test_submitted = True
+                    st.rerun()
+            with col_info:
+                answered_count = len(st.session_state.user_answers)
+                total_questions = len(data["questions"])
+                st.caption(f"📊 Answered: {answered_count} / {total_questions} questions")
+        else:
+            st.success("✅ Test submitted! You can now view explanations and final score.")
+        
+        # Show questions
+        for i, q in enumerate(data["questions"], 1):
+            st.markdown("---")
+            
+            # Question number and text in a styled container (dark mode compatible)
+            with st.container():
+                st.markdown(f"### Question {i}")
+                # Format question text - split statements and question on different lines
+                question_text = q['question']
+                # Replace common statement patterns with line breaks
+                question_text = question_text.replace('\\n', '\n')  # Handle escaped newlines
+                # Add line breaks before statements if they start with numbers
+                # Split on numbered statements (1., 2., Statement-I, Statement-II, etc.)
+                question_text = re.sub(r'(\d+\.)', r'\n\1', question_text)
+                question_text = re.sub(r'(Statement-I)', r'\n\1', question_text)
+                question_text = re.sub(r'(Statement-II)', r'\n\1', question_text)
+                question_text = re.sub(r'(Consider the following)', r'\n\1', question_text)
+                # Clean up multiple newlines
+                question_text = re.sub(r'\n{3,}', '\n\n', question_text)
+                question_text = question_text.strip()
+                
+                # Convert to HTML with line breaks
+                question_html = question_text.replace('\n', '<br>')
+                st.markdown(f"<div style='padding: 15px; background-color: #f0f2f6; border-radius: 5px; margin-bottom: 15px;'><p style='font-size: 16px; line-height: 1.8; color: #1f1f1f;'>{question_html}</p></div>", unsafe_allow_html=True)
+            
+            # Options displayed separately for better readability
+            st.markdown("**Select your answer:**")
+            
+            # Radio buttons with better formatting
+            answer = st.radio(
+                "",
+                q["options"],
+                key=f"q_{i}",
+                index=None,  # No default selection
+                label_visibility="collapsed"
+            )
+            
+            # Display selected answer (don't show right/wrong until submitted)
+            if answer is not None:
+                selected_index = q["options"].index(answer)
+                option_letter = chr(65 + selected_index)  # A, B, C, D
+                
+                # Store user answer
+                st.session_state.user_answers[i] = option_letter
+                
+                # Show selected answer without indicating if it's correct/wrong
+                st.info(f"📌 **You selected: {option_letter}**")
+                
+                # Only show right/wrong after test is submitted
+                if st.session_state.test_submitted:
+                    correct_answer = q.get('correct_answer', '').upper()
+                    is_correct = option_letter == correct_answer
+                    if is_correct:
+                        st.success(f"✅ **Correct!** The answer is {correct_answer}.")
+                    else:
+                        st.error(f"❌ **Wrong!** The correct answer is {correct_answer}.")
+            
+            # Toggle explanation button (only enabled after submission)
+            explanation_key = f"explanation_{i}"
+            explanation_disabled = not st.session_state.test_submitted
+            if st.button(
+                f"{'Hide' if explanation_key in st.session_state.show_explanations else 'Show'} Explanation {i}", 
+                key=f"btn_{i}",
+                disabled=explanation_disabled
+            ):
+                # Toggle explanation state
+                if explanation_key in st.session_state.show_explanations:
+                    del st.session_state.show_explanations[explanation_key]
+                else:
+                    st.session_state.show_explanations[explanation_key] = True
+                st.rerun()
+            
+            if explanation_disabled:
+                st.caption("💡 Submit the test first to view explanations")
+            
+            # Show explanation if toggled (only after submission)
+            if explanation_key in st.session_state.show_explanations:
+                correct_answer = q.get('correct_answer', 'N/A')
+                # Check if user answered correctly (only show status after submission)
+                user_answer = st.session_state.user_answers.get(i, None)
+                if st.session_state.test_submitted:
+                    if user_answer:
+                        if user_answer == correct_answer.upper():
+                            st.success(f"✅ Correct answer: **{correct_answer}**")
+                        else:
+                            st.error(f"❌ Correct answer: **{correct_answer}** (You selected: {user_answer})")
+                    else:
+                        st.info(f"📝 Correct answer: **{correct_answer}** (Not answered)")
+                else:
+                    st.info(f"📝 Correct answer: **{correct_answer}**")
+                
+                # Explanation with dark mode compatible text color
+                explanation_text = q.get('explanation', 'No explanation provided')
+                st.markdown(f"<div style='padding: 10px; background-color: #f0f2f6; border-radius: 5px;'><p style='color: #1f1f1f; line-height: 1.6;'><strong>Explanation:</strong> {explanation_text}</p></div>", unsafe_allow_html=True)
+                
+                # Show source information
+                source = q.get('source', {})
+                if source:
+                    source_info = f"**Source:** File: `{source.get('filename', 'Unknown')}`"
+                    if source.get('chapter') and source.get('chapter') != 'Unknown':
+                        source_info += f", Chapter: `{source['chapter']}`"
+                    if source.get('section') and source.get('section') != 'Unknown':
+                        source_info += f", Section: `{source['section']}`"
+                    if source.get('page_number'):
+                        source_info += f", Page: `{source['page_number']}`"
+                    st.markdown(source_info)
+        
+        # Calculate and display final score (only after submission)
+        if st.session_state.test_submitted and st.session_state.scores:
+            total_score = sum(st.session_state.scores.values())
+            max_score = len(data["questions"]) * 2
+            percentage = (total_score / max_score * 100) if max_score > 0 else 0
+            
+            st.markdown("---")
+            st.markdown("## 📊 Final Score")
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Score", f"{total_score:.2f} / {max_score}")
+            with col2:
+                st.metric("Percentage", f"{percentage:.1f}%")
+            with col3:
+                correct_count = sum(1 for score in st.session_state.scores.values() if score > 0)
+                wrong_count = sum(1 for score in st.session_state.scores.values() if score < 0)
+                st.metric("Correct Answers", f"{correct_count} / {len(data['questions'])}")
+            
+            # Score breakdown
+            st.markdown("### Score Breakdown:")
+            for i, q in enumerate(data["questions"], 1):
+                score = st.session_state.scores.get(i, 0)
+                user_answer = st.session_state.user_answers.get(i, "Not answered")
+                correct_answer = q.get('correct_answer', 'N/A')
+                if score > 0:
+                    status = "✅"
+                    color = "green"
+                elif score < 0:
+                    status = "❌"
+                    color = "red"
+                else:
+                    status = "⏸️"
+                    color = "gray"
+                st.markdown(f"<span style='color: {color};'>{status} Question {i}: {user_answer} (Correct: {correct_answer}) - Score: {score:+.2f}</span>", unsafe_allow_html=True)
 
 elif tab_choice == "UPSC Mains Answer":
     st.header("📝 Generate UPSC Mains Answer")

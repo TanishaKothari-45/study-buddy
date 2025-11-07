@@ -8,6 +8,8 @@ import os
 import logging
 import time
 import tempfile
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from openai import OpenAI, RateLimitError
 
 from ..core.config import settings
@@ -17,6 +19,9 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Thread pool for OCR processing to prevent blocking
+_ocr_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="ocr_worker")
 
 class EvaluateAnswerRequest(BaseModel):
     question: str
@@ -326,6 +331,40 @@ async def preview_ocr_extraction(
             error=str(e)
         )
 
+async def process_image_async(image: Image.Image, filename: str, timeout: int = 90) -> Dict[str, Any]:
+    """
+    Process image with EasyOCR in a separate thread with timeout
+    """
+    loop = asyncio.get_event_loop()
+    try:
+        # Run OCR in thread pool with timeout
+        result = await asyncio.wait_for(
+            loop.run_in_executor(
+                _ocr_executor,
+                process_image_with_easyocr,
+                image,
+                filename
+            ),
+            timeout=timeout
+        )
+        return result
+    except asyncio.TimeoutError:
+        logger.error(f"⏱️ OCR processing timed out for {filename} after {timeout}s")
+        return {
+            "success": False,
+            "text": "",
+            "error": f"OCR processing timed out after {timeout} seconds. Image may be too large or complex.",
+            "filename": filename
+        }
+    except Exception as e:
+        logger.error(f"❌ OCR processing failed for {filename}: {e}")
+        return {
+            "success": False,
+            "text": "",
+            "error": str(e),
+            "filename": filename
+        }
+
 @router.post("/upload-handwritten/")
 async def upload_handwritten_answer(
     request: Request,
@@ -334,7 +373,9 @@ async def upload_handwritten_answer(
 ):
     """
     Upload and process handwritten answer using EasyOCR (CPU-friendly)
+    Now with async processing and timeout handling
     """
+    temp_path = None
     try:
         # Save the file temporarily
         temp_path = f"/tmp/{answer_file.filename}"
@@ -351,13 +392,16 @@ async def upload_handwritten_answer(
                 pages = convert_from_path(temp_path)
                 logger.info(f"📄 Converted PDF to {len(pages)} pages")
                 
+                # Process pages with timeout (90s per page)
                 for i, page in enumerate(pages):
-                    logger.info(f"🔍 Processing page {i+1}/{len(pages)} with EasyOCR")
-                    result = process_image_with_easyocr(page, f"page_{i+1}")
+                    logger.info(f"🔍 Processing page {i+1}/{len(pages)} with EasyOCR (async, timeout=90s)")
+                    result = await process_image_async(page, f"page_{i+1}", timeout=90)
                     if result.get("success"):
                         full_text += f"\n--- Page {i+1} ---\n" + result["text"]
                     else:
-                        full_text += f"\n--- Page {i+1} ---\n[OCR failed: {result.get('error', 'Unknown error')}]"
+                        error_msg = result.get('error', 'Unknown error')
+                        full_text += f"\n--- Page {i+1} ---\n[OCR failed: {error_msg}]"
+                        logger.warning(f"⚠️ Page {i+1} OCR failed: {error_msg}")
                     
             except ImportError:
                 raise HTTPException(
@@ -365,19 +409,25 @@ async def upload_handwritten_answer(
                     detail="pdf2image not installed. Install with: pip install pdf2image"
                 )
         else:
-            # Handle image files directly
+            # Handle image files directly with async processing
             image = Image.open(temp_path).convert("RGB")
-            result = process_image_with_easyocr(image, answer_file.filename)
+            logger.info(f"🔍 Processing image with EasyOCR (async, timeout=90s)")
+            result = await process_image_async(image, answer_file.filename, timeout=90)
             if result.get("success"):
                 full_text = result["text"]
             else:
+                error_msg = result.get('error', 'Unknown error')
                 raise HTTPException(
                     status_code=400,
-                    detail=f"OCR extraction failed: {result.get('error', 'Unknown error')}"
+                    detail=f"OCR extraction failed: {error_msg}"
                 )
         
         # Clean up temp file
-        os.unlink(temp_path)
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to clean up temp file: {e}")
         
         if not full_text.strip():
             raise HTTPException(
@@ -388,9 +438,17 @@ async def upload_handwritten_answer(
         # Now evaluate the extracted text
         return await evaluate_extracted_answer(request, question, full_text)
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Handwritten answer processing failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Clean up on error
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except Exception:
+                pass
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 async def evaluate_extracted_answer(request: Request, question: str, answer_text: str) -> EvaluateAnswerResponse:
     """Evaluate extracted answer text using the existing evaluation pipeline"""

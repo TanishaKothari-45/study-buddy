@@ -59,8 +59,8 @@ backend/
    ```
 
 2. The API will be available at:
-   - API: http://localhost:8000
-   - Documentation: http://localhost:8000/docs
+   - API: http://localhost:8003
+   - Documentation: http://localhost:8003/docs
 
 ## API Endpoints
 
@@ -82,7 +82,7 @@ POST /api/v1/qa/query/
 
 1. Upload PDFs:
    ```bash
-   curl -X POST "http://localhost:8000/api/v1/documents/upload/" \
+   curl -X POST "http://localhost:8003/api/v1/documents/upload/" \
      -H "accept: application/json" \
      -H "Content-Type: multipart/form-data" \
      -F "files=@NCERT_Geography_Class11.pdf" \
@@ -91,7 +91,7 @@ POST /api/v1/qa/query/
 
 2. Ask questions:
    ```bash
-   curl -X POST "http://localhost:8000/api/v1/qa/query/" \
+   curl -X POST "http://localhost:8003/api/v1/qa/query/" \
      -H "accept: application/json" \
      -H "Content-Type: application/json" \
      -d '{"question": "What are the major types of plate boundaries?"}'

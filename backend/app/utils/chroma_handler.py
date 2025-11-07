@@ -2,7 +2,7 @@
 ChromaDB vector store handler
 """
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import chromadb
 from chromadb.config import Settings
 from chromadb.errors import NotFoundError
@@ -131,16 +131,29 @@ class ChromaHandler:
                 logger.error(f"❌ Failed to add documents: {e}")
                 raise
 
-    def query_documents(self, query_text: str, k: int = 5) -> List[Dict[str, Any]]:
-        """Query for most relevant documents"""
+    def query_documents(self, query_text: str, k: int = 5, 
+                      filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Query for most relevant documents
+        
+        Args:
+            query_text: Text to search for
+            k: Number of results to return
+            filter_metadata: Optional dict to filter by metadata fields
+                            Example: {"filename": "pyq"} or {"major_domain": "Indian Geography"}
+                            Supports substring matching for string fields
+        """
         try:
             # Generate query embedding
             query_embedding = self.embedder.get_embeddings([query_text])[0]
 
+            # Query more results if filtering is needed (to ensure we get enough after filtering)
+            query_k = k * 3 if filter_metadata else k
+
             # Query collection
             results = self.collection.query(
                 query_embeddings=[query_embedding],
-                n_results=k,
+                n_results=query_k,
                 include=['documents', 'metadatas', 'distances']
             )
 
@@ -148,14 +161,40 @@ class ChromaHandler:
             formatted_results = []
             if results['documents'] and results['documents'][0]:
                 for i in range(len(results['documents'][0])):
-                    formatted_results.append({
+                    chunk = {
                         "content": results['documents'][0][i],
                         "metadata": results['metadatas'][0][i],
                         "distance": results['distances'][0][i]
-                    })
+                    }
+                    
+                    # Apply metadata filtering if specified
+                    if filter_metadata:
+                        metadata = chunk["metadata"]
+                        matches = True
+                        for key, value in filter_metadata.items():
+                            if key not in metadata:
+                                matches = False
+                                break
+                            # Support substring matching for string fields
+                            if isinstance(metadata[key], str) and isinstance(value, str):
+                                if value.lower() not in metadata[key].lower():
+                                    matches = False
+                                    break
+                            elif metadata[key] != value:
+                                matches = False
+                                break
+                        
+                        if matches:
+                            formatted_results.append(chunk)
+                    else:
+                        formatted_results.append(chunk)
+                    
+                    # Stop if we have enough results
+                    if len(formatted_results) >= k:
+                        break
 
             logger.info(f"✅ Found {len(formatted_results)} relevant chunks")
-            return formatted_results
+            return formatted_results[:k]  # Return only requested k
 
         except Exception as e:
             logger.error(f"❌ Query failed: {e}")

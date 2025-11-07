@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"  # Ignore extra fields from .env that aren't in the model
     
     # Directory Settings
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
@@ -27,12 +28,18 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 50  # words
     
     # Vector Store Settings
-    COLLECTION_NAME: str = "geography_docs"
+    COLLECTION_NAME: str = "geography_docs_enriched"  # Default to enriched collection
     DISTANCE_METRIC: str = "cosine"
     
     # OpenAI Settings
     EMBEDDING_MODEL: str = "text-embedding-3-small"
-    LLM_MODEL: str = "gpt-3.5-turbo"
+    
+    # Model Selection Strategy: Use mini for 90% of tasks, large only for final question generation
+    LLM_MODEL_SMALL: str = "gpt-4o-mini"  # For most tasks (embeddings, chunking, evaluation, etc.)
+    LLM_MODEL_LARGE: str = "gpt-4o"  # For final test/question generation only
+    
+    # Legacy: defaults to small model for backward compatibility
+    LLM_MODEL: str = "gpt-4o-mini"
     
     # Fallback Model
     FALLBACK_MODEL: str = "all-MiniLM-L6-v2"
