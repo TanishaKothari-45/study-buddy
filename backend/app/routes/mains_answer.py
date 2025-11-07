@@ -17,46 +17,93 @@ router = APIRouter()
 class MainsAnswerRequest(BaseModel):
     question: str
     word_count: int = 500
-    include_diagrams: bool = True
 
 class MainsAnswerResponse(BaseModel):
     question: str
     answer: str
     sources: List[Dict[str, Any]]
-    diagram_suggestions: Optional[List[str]] = None
     word_count_actual: int
 
-def generate_mains_answer_with_gpt(question: str, context: str, word_count: int, include_diagrams: bool, api_key: str, max_retries: int = 3) -> Dict[str, Any]:
-    """Generate UPSC Mains style answer using GPT with retry logic"""
+def generate_mains_answer_with_gpt(question: str, context: str, word_count: int, api_key: str, max_retries: int = 1) -> Dict[str, Any]:
+    """Generate UPSC Mains style answer using GPT with retry logic (only 1 retry to limit API calls)"""
     wait_time = 1.0
     
-    for attempt in range(max_retries):
+    for attempt in range(max_retries + 1):  # max_retries=1 means 2 total attempts (initial + 1 retry)
         try:
             client = OpenAI(api_key=api_key)
             
             # Create system prompt for UPSC Mains style
-            system_prompt = f"""You are an expert UPSC Geography teacher and evaluator. Generate a comprehensive answer in UPSC Mains style with the following characteristics:
+            system_prompt = f"""You are an expert UPSC Geography teacher, evaluator and answer-writing coach.
 
-1. **Structure**: Introduction → Main Body (with sub-points) → Conclusion
-2. **Length**: Approximately {word_count} words
-3. **Style**: Academic, analytical, and well-structured
-4. **Content**: Use the provided context as primary source, supplement with your knowledge
-5. **Format**: Use proper headings, bullet points, and logical flow
-6. **UPSC Standards**: Include relevant examples, case studies, and current affairs where applicable
+Generate a high-quality UPSC Mains style answer with the following properties:
 
-Answer format:
-- Start with a brief introduction (2-3 sentences)
-- Use clear headings for main points
-- Include sub-points with specific examples
-- End with a concise conclusion
-- Use Indian examples and case studies when relevant"""
+STRUCTURE & FORMAT
+1) Follow IBC format strictly → Introduction → Body (multi-dimensions) → Conclusion (1 para).
+
+INTRODUCTION RULE:
+The introduction MUST be 2–3 lines and should NOT be generic. It should do one or more of the following explicitly:
+- define the concept clearly
+- cite a current report / scheme / data point
+- briefly describe the core problem or context
+Example formats permitted:
+• “According to NITI Aayog’s 2023 report, …”
+• “X refers to … In India, this is significant because …”
+• “Recently, [event/current affair] has highlighted …”
+The intro must instantly set intellectual context — avoid vague opening lines.
+
+2) Pay attention to directive words such as “Analyse”, “Discuss”, “Critically Examine”, “Evaluate” etc. Adjust structure, tone, argumentation based on directive.
+
+→ DIRECTIVE WORD INTERPRETATION (MANDATORY):
+Before writing the answer, interpret the directive and shape structure accordingly:
+- Comment = take a stance & justify (if critically → both sides)
+- Examine = probe deeper (causes / implications / way forward)
+- Critically examine = strengths + weaknesses separately, then implications
+- Discuss = broad overview → positives / negatives / causes / consequences
+- Discuss critically = same as discuss but more rigorous reasoning
+- Evaluate = assess worthiness → positives / negatives → give verdict
+- Critically evaluate = same as evaluate but explicitly bring value judgement
+- Analyse = break the topic into sub-parts and examine each dimension
+- Explain = clarify how/why something is
+- Elucidate = make clear using examples/data
+- Elaborate = expand the core idea by adding dimensions / layers / reasoning in detail
+- Substantiate = assert then support with evidence/reports/data
+- Note = concise summary of what/when/how/why
+- Justify = defend the given statement using evidence, data, logic.
+- Assess = judge importance/impact; like evaluate but magnitude-focused.
+- To what extent = assess degree (fully / partly / marginally) and give a balanced graded judgement.
+- Illustrate = give examples / mini case illustrations to clarify.
+
+
+3) Body must be arranged in sub-headings + bullet points. Use logical organisation (economic / social / political / environmental / geographic dimensions).
+4) Maintain clarity, precision, short sentences, and zero fluff. Avoid jargon unless necessary.
+
+CONTENT QUALITY
+5) Use provided context as primary — supplement with advanced knowledge.
+6) MUST Substantiate every major point with examples, case studies, gov data, NITI Aayog reports, NFHS statistics, IPCC, UN reports, or Geography-specific examples.
+7) Use MAXIMUM real Indian examples, named locations, regions, rivers, climatic zones, coal belts, ports, industrial corridors, etc. eg: Brahmaputra valley, Gondwana coal, Mediterranean → Spain / SW Australia / Chile etc.
+8) Must add human dimension even in physical geography answers (e.g. rainfall → cropping pattern, river regime → settlement, landforms → industrial location, Tribal displacement, Biodiversity loss, Pollutio ).
+9) Every answer MUST include AT LEAST ONE inline diagram suggestion — this is compulsory. If the answer body is long, include 2–3. These may be flowcharts, maps, pie charts, timelines, or comparative tables.
+10) Insert these diagram suggestions EXACTLY where they are relevant — inline — NOT at the end. Use short parenthetical suggestions, e.g. “(Suggested Diagram: India map showing monsoon onset dates)” or “(Suggested Diagram: Flowchart showing monsoon mechanism)”. They MUST appear embedded after introduction or inside the body section at appropriate points.
+
+CONCLUSION RULE:
+The conclusion must synthesise, not repeat. Prefer forward-looking outlook — policy suggestion, way forward, global best practice, SDG linkage.
+
+LENGTH
+~{word_count} words approx.
+
+OUTPUT FORMAT
+- crisp intro (2–3 lines)
+- structured sub-headings
+- bulletised content under each sub-heading
+- examples + data throughout
+- 1 para conclusion (forward looking / policy suggestion / synthesis)"""
 
             user_prompt = f"""Question: {question}
 
 Reference Context from Study Materials:
 {context}
 
-Generate a comprehensive UPSC Mains answer following the structure and style guidelines above."""
+Generate a comprehensive UPSC Mains answer following the UPSC structure instructions given in system prompt."""
 
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -72,54 +119,43 @@ Generate a comprehensive UPSC Mains answer following the structure and style gui
             
             answer = completion.choices[0].message.content
             
-            # Generate diagram suggestions if requested
-            diagram_suggestions = []
-            if include_diagrams:
-                try:
-                    diagram_prompt = f"""Based on this UPSC Mains answer about Geography, suggest 2-3 relevant diagrams that would enhance the answer:
-
-Answer: {answer[:1000]}...
-
-Provide specific diagram suggestions that would be useful for this topic."""
-
-                    diagram_completion = client.chat.completions.create(
-                        model=settings.LLM_MODEL,
-                        messages=[{"role": "user", "content": diagram_prompt}],
-                        temperature=0.2,
-                        max_tokens=300
-                    )
-                    
-                    diagram_text = diagram_completion.choices[0].message.content
-                    # Parse diagram suggestions (assuming they're in a list format)
-                    diagram_suggestions = [line.strip("- ").strip() for line in diagram_text.split("\n") if line.strip() and not line.strip().startswith("Based on")]
-                    
-                except Exception as e:
-                    logger.warning(f"⚠️ Failed to generate diagram suggestions: {e}")
-                    diagram_suggestions = ["Flow chart showing the main concepts", "Map showing relevant geographical features"]
-            
-            return {
-                "answer": answer,
-                "diagram_suggestions": diagram_suggestions
-            }
+            # Return the answer if successful
+            if answer:
+                return {
+                    "answer": answer
+                }
+            else:
+                raise ValueError("Empty response from OpenAI API")
 
         except RateLimitError as e:
-            if attempt < max_retries - 1:
-                logger.warning(f"⚠️ Rate limit hit, waiting {wait_time}s before retry...")
+            logger.warning(f"⚠️ Rate limit hit on attempt {attempt + 1}")
+            if attempt < max_retries:
+                logger.info(f"   Retrying once after {wait_time}s...")
                 time.sleep(wait_time)
-                wait_time *= 2
+                continue
             else:
-                logger.warning("⚠️ Rate limit persists, using basic answer format")
+                logger.warning("⚠️ Rate limit persists after retry, using fallback answer")
                 return {
-                    "answer": f"**UPSC Mains Answer**\n\n{context}\n\n*Note: This is a basic response due to API limitations. For a full UPSC-style answer, please try again later.*",
-                    "diagram_suggestions": ["Flow chart of main concepts", "Relevant geographical map"]
+                    "answer": f"**UPSC Mains Answer**\n\n{context}\n\n*Note: This is a basic response due to API rate limits. Please try again later.*"
                 }
                 
         except Exception as e:
-            logger.error(f"❌ Failed to generate mains answer: {e}")
-            return {
-                "answer": f"**UPSC Mains Answer**\n\n{context}\n\n*Note: This is a basic response due to technical limitations.*",
-                "diagram_suggestions": ["Flow chart of main concepts", "Relevant geographical map"]
-            }
+            logger.error(f"❌ Failed to generate mains answer on attempt {attempt + 1}: {e}")
+            if attempt < max_retries:
+                logger.info(f"   Retrying once after {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+            else:
+                logger.warning("⚠️ All attempts failed, using fallback answer")
+                return {
+                    "answer": f"**UPSC Mains Answer**\n\n{context}\n\n*Note: This is a basic response due to technical limitations.*"
+                }
+    
+    # If loop completes without returning (shouldn't happen), return fallback
+    logger.warning("⚠️ Unexpected: loop completed without return, using fallback answer")
+    return {
+        "answer": f"**UPSC Mains Answer**\n\n{context}\n\n*Note: This is a basic response due to technical limitations.*"
+    }
 
 @router.post("/generate")
 async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequest):
@@ -142,7 +178,6 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
                 question=mains_request.question,
                 answer="No relevant information found in the uploaded documents for this question.",
                 sources=[],
-                diagram_suggestions=[],
                 word_count_actual=0
             )
 
@@ -175,14 +210,11 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
                 mains_request.question, 
                 context, 
                 mains_request.word_count,
-                mains_request.include_diagrams,
                 api_key
             )
             answer = result["answer"]
-            diagram_suggestions = result["diagram_suggestions"]
         else:
             answer = f"**UPSC Mains Answer**\n\n{context}\n\n*Note: OpenAI API key not available. This is a basic response.*"
-            diagram_suggestions = ["Flow chart of main concepts", "Relevant geographical map"]
 
         # Calculate actual word count
         word_count_actual = len(answer.split())
@@ -191,7 +223,6 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             question=mains_request.question,
             answer=answer,
             sources=sources,
-            diagram_suggestions=diagram_suggestions,
             word_count_actual=word_count_actual
         )
 

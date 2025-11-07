@@ -538,21 +538,13 @@ elif tab_choice == "UPSC Mains Answer":
         height=100
     )
     
-    col1, col2 = st.columns(2)
-    with col1:
-        word_count = st.selectbox(
-            "Target word count:",
-            [400, 500, 600, 700],
-            index=1,
-            disabled=not backend_status
-        )
+    word_count = st.selectbox(
+        "Target word count:",
+        [150, 250, 350, 400, 500],
+        index=1,
+        disabled=not backend_status
+    )
     
-    with col2:
-        include_diagrams = st.checkbox(
-            "Include diagram suggestions",
-            value=True,
-            disabled=not backend_status
-        )
 
     if st.button("Generate Mains Answer", disabled=not backend_status):
         if question:
@@ -562,8 +554,7 @@ elif tab_choice == "UPSC Mains Answer":
                         f"{BACKEND_URL}/mains-answer/generate",
                         json={
                             "question": question,
-                            "word_count": word_count,
-                            "include_diagrams": include_diagrams
+                            "word_count": word_count
                         },
                         timeout=60
                     )
@@ -591,12 +582,6 @@ elif tab_choice == "UPSC Mains Answer":
                                 if source.get('section') and source.get('section') != 'Unknown':
                                     source_info += f", **Section:** `{source['section']}`"
                                 st.markdown(source_info)
-                        
-                        # Show diagram suggestions if requested
-                        if data.get("diagram_suggestions"):
-                            st.subheader("📐 Diagram Suggestions:")
-                            for diagram in data["diagram_suggestions"]:
-                                st.markdown(f"- {diagram}")
                     
                     else:
                         st.error("Failed to generate mains answer")
