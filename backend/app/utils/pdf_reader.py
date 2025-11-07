@@ -7,20 +7,84 @@ from pathlib import Path
 from typing import List, Dict, Any
 import pdfplumber
 from tqdm import tqdm
+from .text_cleaner import clean_text_advanced
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def clean_text(text: str) -> str:
-    """Clean extracted text to handle common PDF issues"""
+    """Clean extracted text to handle common PDF issues and remove noise"""
     import re
-    # Remove repeated characters (like 'II' becoming 'I')
-    text = re.sub(r'(.)\1+', r'\1', text)
-    # Fix common OCR issues
+    import unicodedata
+    
+    if not text:
+        return ""
+    
+    # Step 1: Remove control characters and non-printable characters (except newlines and tabs)
+    # Keep only printable characters, newlines, tabs, and common whitespace
+    cleaned = []
+    for char in text:
+        if char == '\n' or char == '\t':
+            cleaned.append(char)
+        elif char.isspace():
+            cleaned.append(' ')  # Normalize all whitespace to space
+        elif unicodedata.category(char)[0] != 'C':  # Not a control character
+            cleaned.append(char)
+        # Skip control characters
+    text = ''.join(cleaned)
+    
+    # Step 2: Remove excessive special symbols and decorative characters
+    # Keep only standard punctuation and alphanumeric characters
+    # Remove symbols that are likely noise (decorative, mathematical symbols used as noise, etc.)
+    # Keep: letters, numbers, spaces, and common punctuation: . , ; : ! ? - ( ) [ ] { } " ' / \ | _ = + < > @ # $ % & * ~
+    # Remove: decorative symbols, box-drawing characters, mathematical operators used as noise
+    
+    # Pattern to keep: alphanumeric, common punctuation, and whitespace
+    # Remove everything else that's not a standard character
+    text = re.sub(r'[^\w\s\.\,\;\:\!\?\-\_\(\)\[\]\{\}\"\'\`\/\\\|\=\+\<\>\@\#\$\%\&\*\~\n\t]', ' ', text)
+    
+    # Step 3: Remove sequences of special characters (likely noise)
+    # Remove patterns like "✁✁ ✂ ✄" - sequences of non-alphanumeric characters
+    text = re.sub(r'[^\w\s]{3,}', ' ', text)  # Remove 3+ consecutive special chars
+    
+    # Step 4: Remove excessive whitespace and normalize
+    text = re.sub(r'\s+', ' ', text)  # Multiple spaces to single space
+    text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)  # Multiple newlines to max 2
+    
+    # Step 5: Fix common OCR issues
     text = text.replace('II', 'I').replace('EE', 'E').replace('aa', 'a')
-    # Remove non-standard whitespace
-    text = ' '.join(text.split())
+    
+    # Step 6: Remove lines that are mostly special characters or very short noise
+    lines = text.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        line_stripped = line.strip()
+        if not line_stripped:
+            cleaned_lines.append('')
+            continue
+        
+        # Skip lines that are mostly special characters (less than 30% alphanumeric)
+        alnum_count = sum(1 for c in line_stripped if c.isalnum())
+        if len(line_stripped) > 0 and alnum_count / len(line_stripped) < 0.3:
+            # This line is mostly noise, skip it
+            continue
+        
+        # Skip very short lines that are just symbols
+        if len(line_stripped) < 3 and not any(c.isalnum() for c in line_stripped):
+            continue
+        
+        cleaned_lines.append(line)
+    
+    text = '\n'.join(cleaned_lines)
+    
+    # Step 7: Final cleanup - remove leading/trailing whitespace
+    text = text.strip()
+    
+    # Step 8: Remove excessive repeated characters (but keep intentional ones like "III" in Roman numerals)
+    # Only remove if it's 4+ repetitions of the same character
+    text = re.sub(r'(.)\1{3,}', r'\1\1\1', text)  # Max 3 repetitions
+    
     return text
 
 def extract_text_from_pdf(pdf_path: str) -> List[Dict[str, Any]]:
@@ -31,6 +95,10 @@ def extract_text_from_pdf(pdf_path: str) -> List[Dict[str, Any]]:
     pages_content = []
     try:
         with pdfplumber.open(pdf_path) as pdf:
+            total_pages = len(pdf.pages)
+            logger.info(f"📖 Opening PDF: {pdf_path}")
+            logger.info(f"   • Total pages in PDF: {total_pages}")
+            
             for i, page in enumerate(pdf.pages):
                 # First try to extract tables
                 tables = page.extract_tables()
@@ -53,16 +121,47 @@ def extract_text_from_pdf(pdf_path: str) -> List[Dict[str, Any]]:
                     page_text += "\n" + text
                 
                 if page_text.strip():
-                    # Clean the text
-                    cleaned_text = clean_text(page_text)
-                    pages_content.append({
-                        "page_number": i + 1,
-                        "text": cleaned_text
-                    })
+                    # Clean the text with advanced cleaning
+                    cleaned_text = clean_text_advanced(page_text, pages_content=None)  # Will clean per-page first
+                    if cleaned_text.strip():  # Only add if there's content after cleaning
+                        pages_content.append({
+                            "page_number": i + 1,
+                            "text": cleaned_text
+                        })
+                    
+                    # Log first page extraction for verification
+                    if i == 0:
+                        logger.info(f"   • Page 1 text extraction:")
+                        logger.info(f"     - Raw length: {len(page_text)} chars")
+                        logger.info(f"     - Cleaned length: {len(cleaned_text)} chars")
+                        logger.info(f"     - Sample (first 300 chars): {cleaned_text[:300].replace(chr(10), ' ')}...")
+                        if tables:
+                            logger.info(f"     - Found {len(tables)} table(s) on page 1")
                     
     except Exception as e:
-        logger.error(f"Error extracting text from {pdf_path}: {e}")
+        logger.error(f"❌ Error extracting text from {pdf_path}: {e}")
         return []
+    
+    logger.info(f"   • Successfully extracted text from {len(pages_content)}/{total_pages} pages")
+    
+    # Apply advanced cleaning across all pages (for header/footer detection)
+    if pages_content:
+        logger.info(f"   🧹 Applying advanced text cleaning (removing headers/footers, images, noise)...")
+        full_text = "\n".join(page.get("text", "") for page in pages_content)
+        cleaned_full_text = clean_text_advanced(full_text, pages_content)
+        
+        # Split back into pages (approximate - this is a simplification)
+        # In practice, headers/footers are already removed per-page above
+        # This is mainly for final cleanup
+        cleaned_pages = cleaned_full_text.split('\n\n')  # Rough page split
+        
+        # Update pages_content with cleaned text
+        for i, page in enumerate(pages_content):
+            if i < len(cleaned_pages):
+                page["text"] = cleaned_pages[i].strip()
+            else:
+                # Re-clean individual page if split didn't work
+                page["text"] = clean_text_advanced(page.get("text", ""), pages_content=None)
     
     return pages_content
 

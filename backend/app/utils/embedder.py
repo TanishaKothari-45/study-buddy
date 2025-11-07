@@ -44,12 +44,33 @@ class Embedder:
             return []
         
         # Filter out empty strings and ensure all are strings
+        # Also truncate texts that are too long (OpenAI limit: 8192 tokens ≈ 6000 words)
+        # Use VERY conservative limit: 1500 words ≈ 1950 tokens (very safe)
         cleaned_texts = []
-        for text in texts:
+        MAX_WORDS = 1500  # Very conservative limit: ~1950 tokens (well under 8192)
+        
+        for i, text in enumerate(texts):
             if isinstance(text, str) and text.strip():
-                cleaned_texts.append(text.strip())
+                words = text.split()
+                word_count = len(words)
+                # If text is too long, truncate it aggressively
+                if word_count > MAX_WORDS:
+                    logger.error(f"❌ Text {i+1} too long ({word_count} words), truncating to {MAX_WORDS} words")
+                    logger.error(f"   This should not happen - chunking should prevent this!")
+                    truncated = " ".join(words[:MAX_WORDS])
+                    cleaned_texts.append(truncated.strip())
+                else:
+                    cleaned_texts.append(text.strip())
             elif text:  # Non-empty but not string - convert to string
-                cleaned_texts.append(str(text).strip())
+                text_str = str(text).strip()
+                words = text_str.split()
+                word_count = len(words)
+                if word_count > MAX_WORDS:
+                    logger.error(f"❌ Text {i+1} too long ({word_count} words), truncating to {MAX_WORDS} words")
+                    logger.error(f"   This should not happen - chunking should prevent this!")
+                    cleaned_texts.append(" ".join(words[:MAX_WORDS]).strip())
+                else:
+                    cleaned_texts.append(text_str)
         
         if not cleaned_texts:
             logger.warning("⚠️ No valid texts to embed")
@@ -90,14 +111,24 @@ class Embedder:
             raise
 
     def get_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings using OpenAI first, falling back to Sentence Transformers"""
+        """
+        Generate embeddings using OpenAI first, falling back to Sentence Transformers.
+        WARNING: Only use this if you don't care about dimension consistency.
+        For collections with existing data, use get_openai_embeddings() or get_sbert_embeddings() directly.
+        """
         if not texts:
             return []
 
         if self.openai_client:
             try:
-                return self.get_openai_embeddings(texts)
+                embeddings = self.get_openai_embeddings(texts)
+                logger.info(f"✅ Using OpenAI embeddings (1536 dimensions)")
+                return embeddings
             except Exception as e:
                 logger.warning(f"⚠️ OpenAI embedding failed, falling back to Sentence Transformers: {e}")
+                logger.warning(f"   ⚠️ WARNING: This will create 384-dim embeddings instead of 1536-dim!")
+                logger.warning(f"   ⚠️ This may cause dimension mismatch if collection already has 1536-dim embeddings!")
                 
-        return self.get_sbert_embeddings(texts)
+        embeddings = self.get_sbert_embeddings(texts)
+        logger.info(f"✅ Using Sentence Transformers embeddings (384 dimensions)")
+        return embeddings

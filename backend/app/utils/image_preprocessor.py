@@ -186,3 +186,4 @@ def get_image_preprocessor() -> HandwrittenImagePreprocessor:
             return None
     return _preprocessor
 
+

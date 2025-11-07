@@ -5,7 +5,13 @@ import logging
 from typing import List, Dict, Any, Optional
 import chromadb
 from chromadb.config import Settings
-from chromadb.errors import NotFoundError
+try:
+    from chromadb.errors import NotFoundError
+except ImportError:
+    # ChromaDB version compatibility - NotFoundError might not exist in older versions
+    class NotFoundError(Exception):
+        pass
+from fastapi import HTTPException
 
 from ..core.config import settings
 from .embedder import Embedder
@@ -27,11 +33,36 @@ class ChromaHandler:
 
         # Initialize embedder
         self.embedder = Embedder()
+        
+        # Check existing collection dimension to ensure consistency
+        self.expected_dimension = None
 
         # Check if collection exists
         try:
             self.collection = self.client.get_collection(name=settings.COLLECTION_NAME)
             logger.info(f"Found existing collection: {settings.COLLECTION_NAME}")
+            
+            # Check existing dimension to ensure consistency
+            try:
+                count = self.collection.count()
+                if count > 0:
+                    # Try to get sample embeddings
+                    sample = self.collection.get(limit=1, include=['embeddings'])
+                    if sample and sample.get('embeddings') and len(sample['embeddings']) > 0:
+                        embedding_list = sample['embeddings'][0]
+                        if embedding_list and len(embedding_list) > 0:
+                            self.expected_dimension = len(embedding_list)
+                            logger.info(f"📏 Collection has {count} chunks with {self.expected_dimension}-dim embeddings")
+                            logger.info(f"   ⚠️ All new chunks MUST use {self.expected_dimension}-dim embeddings for consistency!")
+                        else:
+                            logger.info(f"📏 Collection has {count} chunks but couldn't determine dimension (will detect on first add)")
+                    else:
+                        logger.info(f"📏 Collection has {count} chunks but couldn't retrieve embeddings (will detect on first add)")
+                else:
+                    logger.info(f"📏 Collection is empty (new collection)")
+            except Exception as dim_check_error:
+                logger.warning(f"⚠️ Could not check existing dimension: {dim_check_error}")
+                logger.info(f"   Will detect dimension on first add")
         except ValueError:
             # Collection doesn't exist, create new one
             self.collection = self.client.create_collection(
@@ -56,6 +87,15 @@ class ChromaHandler:
             documents = [item['content'] for item in chunks_with_metadata]
             metadatas = [item['metadata'] for item in chunks_with_metadata]
 
+            # Log what we're about to store
+            logger.info(f"💾 Preparing to store {len(documents)} chunks in ChromaDB")
+            if documents:
+                logger.info(f"   • First chunk content preview: {documents[0][:200].replace(chr(10), ' ')}...")
+                logger.info(f"   • First chunk metadata: {metadatas[0]}")
+                if len(documents) > 1:
+                    logger.info(f"   • Last chunk content preview: {documents[-1][:200].replace(chr(10), ' ')}...")
+                    logger.info(f"   • Last chunk metadata: {metadatas[-1]}")
+
             # Filter out empty or invalid documents before embedding
             valid_indices = []
             filtered_documents = []
@@ -72,13 +112,87 @@ class ChromaHandler:
                 return
             
             logger.info(f"📊 Filtered {len(documents)} → {len(filtered_documents)} valid documents")
+            
+            # Log what will actually be stored after filtering
+            if filtered_documents:
+                logger.info(f"   • Sample filtered chunk: {filtered_documents[0][:200].replace(chr(10), ' ')}...")
+                logger.info(f"   • Sample filtered metadata: {filtered_metadatas[0]}")
 
-            # Generate embeddings
-            embeddings = self.embedder.get_embeddings(filtered_documents)
+            # Generate embeddings - ensure dimension consistency
+            # Only enforce dimension if we successfully detected existing dimension
+            if self.expected_dimension is not None:
+                logger.info(f"🔍 Ensuring embeddings match existing dimension: {self.expected_dimension}")
+                # Force OpenAI if we need 1536 dims, or Sentence Transformers if 384 dims
+                if self.expected_dimension == 1536:
+                    if not self.embedder.openai_client:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Collection requires 1536-dim embeddings (OpenAI), but OpenAI API key is not available. Please set OPENAI_API_KEY in your .env file."
+                        )
+                    logger.info(f"   → Using OpenAI embeddings (1536 dims) to match collection")
+                    try:
+                        embeddings = self.embedder.get_openai_embeddings(filtered_documents)
+                    except Exception as embed_error:
+                        # If OpenAI fails due to token limit, fail gracefully - don't fall back
+                        error_msg = str(embed_error)
+                        if "token" in error_msg.lower() or "8192" in error_msg:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Chunks are too large for OpenAI embeddings (token limit exceeded). Some chunks exceed 8192 tokens. Please reduce chunk sizes or preprocess text better. Error: {error_msg}"
+                            )
+                        raise
+                elif self.expected_dimension == 384:
+                    logger.info(f"   → Using Sentence Transformers embeddings (384 dims) to match collection")
+                    embeddings = self.embedder.get_sbert_embeddings(filtered_documents)
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Unsupported embedding dimension: {self.expected_dimension}. Expected 1536 (OpenAI) or 384 (Sentence Transformers)."
+                    )
+            else:
+                # No existing dimension detected (new collection or couldn't read) - use OpenAI if available
+                logger.info(f"🔍 No existing dimension detected - using OpenAI if available")
+                if self.embedder.openai_client:
+                    try:
+                        embeddings = self.embedder.get_openai_embeddings(filtered_documents)
+                        if embeddings and len(embeddings) > 0:
+                            actual_dim = len(embeddings[0])
+                            logger.info(f"📏 Collection initialized with {actual_dim}-dim embeddings (OpenAI)")
+                            self.expected_dimension = actual_dim
+                    except Exception as embed_error:
+                        error_msg = str(embed_error)
+                        if "token" in error_msg.lower() or "8192" in error_msg:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Chunks are too large for OpenAI embeddings (token limit exceeded). Some chunks exceed 8192 tokens. Please reduce chunk sizes. Error: {error_msg}"
+                            )
+                        # For other errors, fall back to Sentence Transformers
+                        logger.warning(f"⚠️ OpenAI failed, falling back to Sentence Transformers: {embed_error}")
+                        embeddings = self.embedder.get_sbert_embeddings(filtered_documents)
+                        if embeddings and len(embeddings) > 0:
+                            actual_dim = len(embeddings[0])
+                            logger.info(f"📏 Collection initialized with {actual_dim}-dim embeddings (Sentence Transformers)")
+                            self.expected_dimension = actual_dim
+                else:
+                    # No OpenAI - use Sentence Transformers
+                    embeddings = self.embedder.get_sbert_embeddings(filtered_documents)
+                    if embeddings and len(embeddings) > 0:
+                        actual_dim = len(embeddings[0])
+                        logger.info(f"📏 Collection initialized with {actual_dim}-dim embeddings (Sentence Transformers)")
+                        self.expected_dimension = actual_dim
             
             if not embeddings:
                 logger.warning("⚠️ No embeddings generated, skipping add")
                 return
+
+            # Verify dimension matches expected
+            if embeddings and self.expected_dimension:
+                actual_dim = len(embeddings[0])
+                if actual_dim != self.expected_dimension:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Embedding dimension mismatch! Generated {actual_dim}-dim embeddings but collection requires {self.expected_dimension}-dim embeddings. Cannot mix different embedding models."
+                    )
 
             # Ensure embeddings match documents length
             if len(embeddings) != len(filtered_documents):
@@ -101,32 +215,72 @@ class ChromaHandler:
                 ids=ids
             )
 
-            logger.info(f"✅ Added {len(filtered_documents)} chunks to ChromaDB")
+            logger.info(f"✅ Successfully stored {len(filtered_documents)} chunks in ChromaDB")
+            logger.info(f"   • Collection: {self.collection.name}")
+            logger.info(f"   • Embedding dimension: {len(embeddings[0]) if embeddings else 'N/A'}")
+            
+            # Verify storage by querying one document back
+            try:
+                sample_id = ids[0] if ids else None
+                if sample_id:
+                    retrieved = self.collection.get(ids=[sample_id], include=['documents', 'metadatas'])
+                    if retrieved['documents']:
+                        logger.info(f"   • Verification: Successfully retrieved stored chunk (ID: {sample_id[:50]}...)")
+                        logger.info(f"   • Retrieved content preview: {retrieved['documents'][0][:200].replace(chr(10), ' ')}...")
+                        logger.info(f"   • Retrieved metadata: {retrieved['metadatas'][0]}")
+            except Exception as verify_error:
+                logger.warning(f"   ⚠️ Could not verify storage: {verify_error}")
 
         except Exception as e:
             error_msg = str(e)
             # Check if it's a dimension mismatch error
             if "dimension" in error_msg.lower() or "expecting embedding" in error_msg.lower():
-                logger.warning(f"⚠️ Dimension mismatch detected. Resetting collection...")
+                # Check if collection actually has data with different dimension
+                existing_count = 0
+                existing_dim = None
                 try:
-                    collection_name = self.collection.name
-                    self.client.delete_collection(collection_name)
-                    self.collection = self.client.create_collection(
-                        name=collection_name,
-                        metadata={"hnsw:space": settings.DISTANCE_METRIC}
+                    existing_count = self.collection.count()
+                    if existing_count > 0:
+                        sample = self.collection.get(limit=1, include=['embeddings'])
+                        if sample and sample.get('embeddings') and len(sample['embeddings']) > 0:
+                            embedding_list = sample['embeddings'][0]
+                            if embedding_list and len(embedding_list) > 0:
+                                existing_dim = len(embedding_list)
+                except Exception as check_err:
+                    logger.debug(f"Could not check existing dimension: {check_err}")
+                
+                new_dim = len(embeddings[0]) if embeddings and len(embeddings) > 0 else 0
+                
+                # Only fail if we actually have existing chunks with a different dimension
+                if existing_count > 0 and existing_dim is not None and existing_dim != new_dim:
+                    logger.error(f"❌ CRITICAL: Dimension mismatch!")
+                    logger.error(f"   • Existing chunks: {existing_count}")
+                    logger.error(f"   • Existing dimension: {existing_dim}")
+                    logger.error(f"   • New dimension: {new_dim}")
+                    
+                    # If trying to upgrade from 384 to 1536, provide helpful message
+                    if existing_dim == 384 and new_dim == 1536:
+                        logger.error(f"   • Collection has old 384-dim embeddings (Sentence Transformers)")
+                        logger.error(f"   • Trying to add new 1536-dim embeddings (OpenAI)")
+                        logger.error(f"   • Solution: Delete the collection first, then re-upload all files")
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Cannot add chunks: Collection has {existing_count} chunks with 384-dim embeddings (Sentence Transformers), but new chunks use 1536-dim embeddings (OpenAI). To upgrade to OpenAI embeddings, delete the collection first using the delete_collection script, then re-upload all files."
+                        )
+                    else:
+                        logger.error(f"   • Collection will NOT be reset to prevent data loss!")
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Cannot add chunks: Dimension mismatch! Collection has {existing_count} chunks with {existing_dim}-dim embeddings, but new chunks have {new_dim}-dim embeddings. Please ensure all chunks use the same embedding model."
+                        )
+                else:
+                    # If we can't determine existing dimension or collection is empty, 
+                    # this might be a ChromaDB internal error - log and re-raise original error
+                    logger.error(f"❌ ChromaDB error (possibly dimension-related but can't verify): {e}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to add documents to ChromaDB: {error_msg}"
                     )
-                    logger.info(f"✨ Collection reset, retrying add...")
-                    # Retry once
-                    self.collection.add(
-                        embeddings=embeddings,
-                        documents=filtered_documents,
-                        metadatas=filtered_metadatas,
-                        ids=ids
-                    )
-                    logger.info(f"✅ Added {len(filtered_documents)} chunks to ChromaDB after reset")
-                except Exception as retry_error:
-                    logger.error(f"❌ Failed to add documents after reset: {retry_error}")
-                    raise
             else:
                 logger.error(f"❌ Failed to add documents: {e}")
                 raise
@@ -327,9 +481,53 @@ class ChromaHandler:
         try:
             self.collection = self.client.get_collection(name=collection_name)
             logger.info(f"✅ Switched to collection: {collection_name}")
+            
+            # Check existing dimension to warn about mismatches, but default to OpenAI (1536)
+            existing_dimension = None
+            try:
+                count = self.collection.count()
+                if count > 0:
+                    # Try to get sample embeddings to detect dimension
+                    sample = self.collection.get(limit=1, include=['embeddings'])
+                    if sample and sample.get('embeddings') and len(sample['embeddings']) > 0:
+                        embedding_list = sample['embeddings'][0]
+                        if embedding_list and len(embedding_list) > 0:
+                            existing_dimension = len(embedding_list)
+                            logger.info(f"📏 Collection '{collection_name}' has {count} chunks with {existing_dimension}-dim embeddings")
+                            
+                            # If existing is 384-dim, warn but we'll still try OpenAI first
+                            if existing_dimension == 384:
+                                logger.warning(f"   ⚠️ Collection has 384-dim embeddings (Sentence Transformers)")
+                                logger.warning(f"   ⚠️ Will try OpenAI (1536-dim) first - if mismatch occurs, old chunks may need to be deleted")
+                            elif existing_dimension == 1536:
+                                logger.info(f"   ✅ Collection already uses 1536-dim embeddings (OpenAI) - perfect match!")
+                            else:
+                                logger.warning(f"   ⚠️ Collection has {existing_dimension}-dim embeddings (unexpected dimension)")
+                        else:
+                            logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't determine dimension")
+                    else:
+                        logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't retrieve embeddings")
+                else:
+                    logger.info(f"📏 Collection '{collection_name}' is empty (new collection)")
+            except Exception as dim_check_error:
+                logger.warning(f"⚠️ Could not check dimension for collection '{collection_name}': {dim_check_error}")
+            
+            # Default to OpenAI (1536 dims) - will be enforced in add_documents
+            # Only set expected_dimension if we want to match existing, otherwise let it default to OpenAI
+            if existing_dimension == 1536:
+                # Collection already uses OpenAI, so enforce it
+                self.expected_dimension = 1536
+            else:
+                # Try OpenAI first (1536 dims) - don't enforce existing dimension if it's 384
+                # This allows us to upgrade collections from 384 to 1536
+                self.expected_dimension = None  # Will default to OpenAI in add_documents
+                logger.info(f"   🎯 Will use OpenAI (1536-dim) embeddings by default")
+                
         except NotFoundError:
             logger.warning(f"Collection {collection_name} not found. Creating new one.")
             self.create_new_collection(collection_name)
+            # New collection - will use OpenAI (1536 dims) by default
+            self.expected_dimension = None
 
     def delete_documents_by_filename(self, filename: str) -> int:
         """

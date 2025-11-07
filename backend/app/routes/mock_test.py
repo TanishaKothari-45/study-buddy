@@ -264,7 +264,37 @@ You will study real UPSC PYQs provided below and replicate their:
 
 - Explanation tone (Vision IAS format)
 
+---
 
+DIVERSITY FRAMEWORK FOR QUESTION GENERATION : Ensure that in every test there is topic diversity and in every topic there is diversity in the type of questions.
+
+When generating questions, maintain diversity along these five semantic dimensions:
+
+1. **Conceptual Diversity**
+   - Each question must test a different *conceptual type*: definition, mechanism, cause-effect, implication, or application.
+   - Example: If one question asks "what is", the next must ask "why" or "how" about a different concept.
+
+2. **Contextual Diversity**
+   - Vary the *spatial*, *temporal*, or *domain context*.
+   - Example: If one question is India-specific, another should use global or historical context.
+
+3. **Analytical Diversity**
+   - Mix factual recall with analytical reasoning.
+
+4. **Topical Breadth**
+   - Avoid repeating the same factual entity, keyword, or event across questions.
+   - Each question must anchor in a different concept or factual base — even within the same topic.
+   - For example, for "Monsoon": one on its mechanism, one on variability, one on human impact.
+
+5. **Current Relevance Integration**
+   - If current-affairs materials are available, integrate *1–2 questions* that link a static concept with a recent event or policy.
+   - Example: link "Cyclone formation" with a recent IMD report or real cyclone event.
+
+ CHECKLIST BEFORE OUTPUT:
+
+- Each question covers a different combination of conceptual + contextual + analytical dimensions.
+- No two questions repeat the same keyword or factual entity (unless testing different aspects).
+- If user selected a topic, questions explore its sub-concepts rather than repeat the same one.
 
 ---
 
@@ -333,6 +363,12 @@ Each question must:
 - [ ] 1–2 questions integrate Current Affairs
 
 - [ ] Each explanation justifies correct and incorrect options
+
+- [ ] Each question tests a different conceptual type (definition vs mechanism vs application)
+
+- [ ] No two questions repeat the same keyword/factual entity (unless testing different aspects)
+
+- [ ] Questions vary in spatial/temporal context (India vs global, current vs historical)
 
 IMPORTANT: The "options" field must be a JSON array of strings, not a dictionary.
 Example: "options": ["(a) Option 1", "(b) Option 2", "(c) Option 3", "(d) Option 4"]
@@ -687,7 +723,6 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
     except Exception as e:
         logger.error(f"❌ Mock test generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 def is_pyq_chunk(chunk: Dict[str, Any]) -> bool:
     """Check if a chunk is from a PYQ (Previous Year Question) file"""
     metadata = chunk.get("metadata", {})
@@ -821,3 +856,5 @@ def is_actual_question_chunk(chunk: Dict[str, Any]) -> bool:
     # Must have at least 2 question indicators
     matches = sum(1 for indicator in question_indicators if indicator in content)
     return matches >= 2
+
+

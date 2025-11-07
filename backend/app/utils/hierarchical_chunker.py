@@ -5,6 +5,7 @@ Visual + Index based (default) with optional Semantic fallback.
 
 import re
 import logging
+import unicodedata
 from typing import List, Dict, Any
 import fitz  # PyMuPDF
 import nltk
@@ -69,6 +70,11 @@ def extract_index_from_pages(pdf_path: str) -> List[str]:
     return unique_headings
 
 
+def clean_text_noise(text: str) -> str:
+    """Clean noise characters from text using advanced cleaning"""
+    from .text_cleaner import clean_text_advanced
+    return clean_text_advanced(text, pages_content=None)
+
 def extract_visual_text(pdf_path: str) -> List[Dict[str, Any]]:
     """Extract text + font size info"""
     doc = fitz.open(pdf_path)
@@ -79,6 +85,10 @@ def extract_visual_text(pdf_path: str) -> List[Dict[str, Any]]:
                 for span in line.get("spans", []):
                     text = span["text"].strip()
                     if not text:
+                        continue
+                    # Clean noise from extracted text
+                    text = clean_text_noise(text)
+                    if not text:  # Skip if cleaning removed everything
                         continue
                     spans.append({
                         "text": text,
@@ -138,7 +148,9 @@ def group_by_hierarchy(spans: List[Dict[str, Any]], level_map: Dict[float, str])
 
 
 def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
-    """Split by sentences into word-length chunks"""
+    """Split by sentences into word-length chunks with quality improvements"""
+    from .text_cleaner import improve_chunk_quality
+    
     sentences = sent_tokenize(text)
     chunks, current, length = [], [], 0
     for sent in sentences:
@@ -150,7 +162,14 @@ def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]
             current, length = [], 0
     if current:
         chunks.append(" ".join(current))
-    return [c.strip() for c in chunks if len(c.split()) > 20]
+    
+    # Filter out very short chunks
+    chunks = [c.strip() for c in chunks if len(c.split()) > 20]
+    
+    # Improve chunk quality (merge small chunks, fix sentence boundaries)
+    chunks = improve_chunk_quality(chunks, min_words=20)
+    
+    return chunks
 
 
 # ---- Semantic fallback ----
@@ -227,7 +246,7 @@ class HierarchicalChunker:
                         continue
                     
                     for chunk_i, chunk in enumerate(chunks, 1):
-                        processed.append({
+                        chunk_data = {
                             "content": chunk,
                             "metadata": {
                                 "subject": "Geography",
@@ -236,7 +255,14 @@ class HierarchicalChunker:
                                 "chunk_id": f"{ci}_{si}_{chunk_i}",
                                 "filename": filename
                             }
-                        })
+                        }
+                        processed.append(chunk_data)
+                        
+                        # Log first chunk of each chapter for verification
+                        if chunk_i == 1 and ci == 1:
+                            logger.info(f"   📝 Sample chunk from {chap_title} > {sec_title}:")
+                            logger.info(f"      Content: {chunk[:300].replace(chr(10), ' ')}...")
+                            logger.info(f"      Length: {len(chunk)} chars")
             
             logger.info(f"   📊 Visual+Index created {len(processed)} chunks")
         
@@ -285,3 +311,266 @@ class HierarchicalChunker:
 
         logger.info(f"✅ Completed {filename}: {len(processed)} chunks created")
         return processed
+
+    def detect_chapters_in_text(self, text: str) -> List[Dict[str, Any]]:
+        """
+        Detect chapters in text using pattern matching.
+        Looks for patterns like:
+        - "Chapter 1 The Earth and the Universe"
+        - "CHAPTER 1: Title"
+        - "Chapter 1 - Title"
+        """
+        chapters = []
+        
+        # Pattern to match chapter headings
+        # Matches: "Chapter 1", "CHAPTER 1", "Chapter 1:", "Chapter 1 -", etc.
+        chapter_pattern = re.compile(
+            r'^Chapter\s+(\d+)[\s:.\-]*(.+?)$',
+            re.IGNORECASE | re.MULTILINE
+        )
+        
+        # Also match numbered chapters without "Chapter" keyword
+        numbered_pattern = re.compile(
+            r'^(\d+)[\.\s]+([A-Z][^\.\n]{5,100})$',
+            re.MULTILINE
+        )
+        
+        lines = text.split('\n')
+        current_chapter = None
+        current_content = []
+        
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            
+            # Check for chapter pattern
+            chapter_match = chapter_pattern.match(line_stripped)
+            numbered_match = numbered_pattern.match(line_stripped) if not chapter_match else None
+            
+            if chapter_match:
+                # Save previous chapter if exists
+                if current_chapter and current_content:
+                    chapters.append({
+                        "number": current_chapter["number"],
+                        "title": current_chapter["title"],
+                        "content": "\n".join(current_content).strip()
+                    })
+                
+                # Start new chapter
+                chapter_num = chapter_match.group(1)
+                chapter_title = chapter_match.group(2).strip()
+                current_chapter = {
+                    "number": int(chapter_num),
+                    "title": chapter_title
+                }
+                current_content = []
+                logger.debug(f"   📖 Found Chapter {chapter_num}: {chapter_title}")
+                
+            elif numbered_match and len(current_content) == 0:
+                # Potential chapter start (number at start of line, followed by title)
+                num = numbered_match.group(1)
+                title = numbered_match.group(2).strip()
+                # Only treat as chapter if it's at the start or after a blank line
+                if i == 0 or (i > 0 and not lines[i-1].strip()):
+                    if current_chapter and current_content:
+                        chapters.append({
+                            "number": current_chapter["number"],
+                            "title": current_chapter["title"],
+                            "content": "\n".join(current_content).strip()
+                        })
+                    current_chapter = {
+                        "number": int(num),
+                        "title": title
+                    }
+                    current_content = []
+                    logger.debug(f"   📖 Found numbered chapter {num}: {title}")
+                else:
+                    current_content.append(line)
+            else:
+                # Regular content line
+                if current_chapter:
+                    current_content.append(line)
+                elif line_stripped:  # Content before first chapter
+                    # Create a default first chapter
+                    if not current_chapter:
+                        current_chapter = {
+                            "number": 0,
+                            "title": "Introduction"
+                        }
+                        current_content = [line]
+        
+        # Add final chapter
+        if current_chapter and current_content:
+            chapters.append({
+                "number": current_chapter["number"],
+                "title": current_chapter["title"],
+                "content": "\n".join(current_content).strip()
+            })
+        
+        return chapters
+
+    def preprocess_text(self, text: str) -> str:
+        """
+        Clean and preprocess text to remove noise and normalize.
+        Uses advanced cleaning from text_cleaner module
+        """
+        if not text:
+            return ""
+        
+        from .text_cleaner import clean_text_advanced
+        
+        # Use advanced cleaning (handles images, headers/footers, noise, etc.)
+        text = clean_text_advanced(text, pages_content=None)
+        
+        # Additional preprocessing for TXT files
+        # Normalize unicode quotes and dashes
+        text = text.replace('\u201c', '"').replace('\u201d', '"')
+        text = text.replace('\u2018', "'").replace('\u2019', "'")
+        text = text.replace('\u2013', '-').replace('\u2014', '--')
+        
+        # Remove BOM if present
+        if text.startswith('\ufeff'):
+            text = text[1:]
+        
+        return text.strip()
+
+    def process_txt(self, txt_path: str, filename: str) -> List[Dict[str, Any]]:
+        """
+        Process a TXT file by reading it directly and chunking it.
+        Now with chapter detection and aggressive preprocessing.
+        Chunks are limited to ~1500 words to fit OpenAI embedding limits (8192 tokens).
+        """
+        logger.info(f"🔍 Processing TXT file: {filename}")
+        
+        try:
+            # Read the text file with UTF-8 encoding, fallback to latin-1 if needed
+            try:
+                with open(txt_path, 'r', encoding='utf-8') as f:
+                    text = f.read()
+            except UnicodeDecodeError:
+                logger.warning(f"   ⚠️ UTF-8 decode failed, trying latin-1...")
+                with open(txt_path, 'r', encoding='latin-1') as f:
+                    text = f.read()
+            
+            if not text or len(text.strip()) < 50:
+                logger.warning(f"   ⚠️ TXT file is empty or too short")
+                return []
+            
+            # Preprocess text to remove noise
+            logger.info(f"   🧹 Preprocessing text (removing noise, normalizing)...")
+            original_length = len(text)
+            text = self.preprocess_text(text)
+            cleaned_length = len(text)
+            logger.info(f"   • Original length: {original_length} chars")
+            logger.info(f"   • Cleaned length: {cleaned_length} chars")
+            logger.info(f"   • Sample text (first 300 chars): {text[:300].replace(chr(10), ' ')}...")
+            
+            # Detect chapters in the text
+            chapters = self.detect_chapters_in_text(text)
+            
+            if chapters:
+                logger.info(f"   📚 Detected {len(chapters)} chapters:")
+                for ch in chapters[:5]:  # Show first 5
+                    logger.info(f"      • Chapter {ch['number']}: {ch['title'][:50]}...")
+                if len(chapters) > 5:
+                    logger.info(f"      ... and {len(chapters) - 5} more chapters")
+            else:
+                logger.info(f"   ⚠️ No chapters detected, treating as single document")
+                chapters = [{
+                    "number": 1,
+                    "title": "Document",
+                    "content": text
+                }]
+            
+            # MUCH MORE AGGRESSIVE limit: 1500 words ≈ 1950 tokens (very safe)
+            # OpenAI limit is 8192 tokens, but we use 1500 words to be VERY safe
+            MAX_WORDS_PER_CHUNK = 1500  # ~1950 tokens, well under 8192 limit
+            processed = []
+            
+            # Process each chapter
+            for chapter in chapters:
+                chapter_num = chapter["number"]
+                chapter_title = chapter["title"]
+                chapter_content = chapter["content"]
+                
+                if not chapter_content or len(chapter_content.strip()) < 50:
+                    logger.debug(f"   ⚠️ Skipping empty chapter: {chapter_title}")
+                    continue
+                
+                # Chunk the chapter content
+                # Use MUCH smaller chunks to prevent token limit errors
+                chapter_chunks = chunk_text(chapter_content, chunk_size=1500, overlap=50)
+                
+                if not chapter_chunks:
+                    logger.debug(f"   ⚠️ No chunks created from chapter: {chapter_title}")
+                    continue
+                
+                # Process each chunk from this chapter
+                for chunk_idx, chunk in enumerate(chapter_chunks, 1):
+                    words = chunk.split()
+                    word_count = len(words)
+                    
+                    # If chunk is too large, split it further
+                    if word_count > MAX_WORDS_PER_CHUNK:
+                        logger.warning(f"   ⚠️ Chunk {chunk_idx} in Chapter {chapter_num} is too large ({word_count} words), splitting...")
+                        # Split into smaller sub-chunks
+                        sub_chunk_size = MAX_WORDS_PER_CHUNK - 100
+                        overlap_size = 50
+                        
+                        for sub_idx in range(0, word_count, sub_chunk_size - overlap_size):
+                            sub_chunk_words = words[sub_idx:sub_idx + sub_chunk_size]
+                            sub_chunk = " ".join(sub_chunk_words)
+                            
+                            # Double-check word count
+                            final_word_count = len(sub_chunk.split())
+                            if final_word_count > MAX_WORDS_PER_CHUNK:
+                                logger.error(f"   ❌ Sub-chunk still too large ({final_word_count} words), truncating!")
+                                truncated_words = sub_chunk.split()[:MAX_WORDS_PER_CHUNK]
+                                sub_chunk = " ".join(truncated_words)
+                            
+                            if len(sub_chunk.strip()) > 50:
+                                processed.append({
+                                    "content": sub_chunk,
+                                    "metadata": {
+                                        "subject": "Geography",
+                                        "chapter": chapter_title,
+                                        "section": f"Part {sub_idx // sub_chunk_size + 1}",
+                                        "chunk_id": f"CH{chapter_num}_{chunk_idx}_{sub_idx // sub_chunk_size + 1}",
+                                        "filename": filename
+                                    }
+                                })
+                    elif len(chunk.strip()) > 50:  # Only include substantial chunks
+                        # Final safety check
+                        final_word_count = len(chunk.split())
+                        if final_word_count > MAX_WORDS_PER_CHUNK:
+                            logger.warning(f"   ⚠️ Chunk exceeded limit ({final_word_count} words), truncating...")
+                            words = chunk.split()
+                            chunk = " ".join(words[:MAX_WORDS_PER_CHUNK])
+                        
+                        processed.append({
+                            "content": chunk,
+                            "metadata": {
+                                "subject": "Geography",
+                                "chapter": chapter_title,
+                                "section": f"Section {chunk_idx}",
+                                "chunk_id": f"CH{chapter_num}_{chunk_idx}",
+                                "filename": filename
+                            }
+                        })
+            
+            logger.info(f"   📊 Created {len(processed)} chunks from {len(chapters)} chapters")
+            if processed:
+                sample_words = len(processed[0]['content'].split())
+                sample_meta = processed[0]['metadata']
+                logger.info(f"   📝 Sample chunk:")
+                logger.info(f"      Chapter: {sample_meta['chapter']}")
+                logger.info(f"      Section: {sample_meta['section']}")
+                logger.info(f"      Content preview: {processed[0]['content'][:300].replace(chr(10), ' ')}...")
+                logger.info(f"      Length: {len(processed[0]['content'])} chars, ~{sample_words} words")
+            
+            return processed
+            
+        except Exception as e:
+            logger.error(f"   ❌ Error processing TXT file: {e}")
+            import traceback
+            traceback.print_exc()
+            return []

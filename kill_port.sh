@@ -47,6 +47,18 @@ if [ -n "$REMAINING" ]; then
     done
     
     sleep 1
+    
+    # Check again if still running
+    STILL_RUNNING=$(lsof -ti:$PORT 2>/dev/null)
+    if [ -n "$STILL_RUNNING" ]; then
+        echo "⚠️  Processes still running after kill -9, trying with sudo..."
+        echo "   You may be prompted for your password"
+        for PID in $STILL_RUNNING; do
+            echo "  → Attempting sudo kill -9 PID $PID"
+            sudo kill -9 $PID 2>/dev/null
+        done
+        sleep 1
+    fi
 fi
 
 # Final check

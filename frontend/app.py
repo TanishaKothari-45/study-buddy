@@ -53,29 +53,100 @@ with st.sidebar:
 # Main content based on tab selection
 if tab_choice == "Upload PDFs":
     st.header("📤 Upload Your Study Materials")
+    st.info("💡 You can upload PDF or TXT files. PDFs will be processed with visual structure detection, while TXT files will be chunked directly.")
+    
+    # Initialize processed files tracking in session state
+    if "processed_files" not in st.session_state:
+        st.session_state.processed_files = set()
     
     uploaded_files = st.file_uploader(
-        "Upload your Geography PDFs",
-        type=["pdf"],
+        "Upload your Geography PDFs or TXT files",
+        type=["pdf", "txt"],
         accept_multiple_files=True,
-        disabled=not backend_status
+        disabled=not backend_status,
+        key="file_uploader"  # Add key to help with clearing
     )
+    
+    # Filter out already processed files
+    if uploaded_files:
+        new_files = []
+        already_processed = []
+        
+        for file in uploaded_files:
+            if file.name in st.session_state.processed_files:
+                already_processed.append(file.name)
+            else:
+                new_files.append(file)
+        
+        if already_processed:
+            st.warning(f"⚠️ The following files have already been processed and will be skipped: {', '.join(already_processed)}")
+        
+        uploaded_files = new_files  # Only process new files
+    
+    # Show list of already processed files
+    if st.session_state.processed_files:
+        with st.expander("📋 Already Processed Files", expanded=False):
+            processed_list = sorted(list(st.session_state.processed_files))
+            for filename in processed_list:
+                st.text(f"✅ {filename}")
+            if st.button("🗑️ Clear Processed Files List", help="Clear the list to allow re-uploading these files"):
+                st.session_state.processed_files = set()
+                st.rerun()
 
     if uploaded_files and st.button("Process Files", disabled=not backend_status):
-        with st.spinner("Processing PDFs..."):
+        # Show file types being processed
+        file_types = {}
+        for file in uploaded_files:
+            ext = file.name.split('.')[-1].lower()
+            file_types[ext] = file_types.get(ext, 0) + 1
+        
+        file_type_summary = ", ".join([f"{count} {ext.upper()}" for ext, count in file_types.items()])
+        with st.spinner(f"Processing {file_type_summary} file(s)..."):
             files = [("files", file) for file in uploaded_files]
             try:
                 response = requests.post(f"{BACKEND_URL}/upload/", files=files)
                 if response.status_code == 200:
                     results = response.json()["summary"]
-                    st.success("✅ Files processed successfully!")
                     
-                    # Show processing results
+                    # Track successfully processed files
+                    successfully_processed = []
+                    failed_files = []
+                    
                     for result in results:
                         if result["status"] == "success":
-                            st.info(f"📄 {result['filename']}: Added {result['chunks_added']} chunks")
+                            filename = result['filename']
+                            st.session_state.processed_files.add(filename)
+                            successfully_processed.append(filename)
+                            st.info(f"📄 {filename}: Added {result['chunks_added']} chunks")
                         else:
-                            st.error(f"❌ {result['filename']}: {result['reason']}")
+                            failed_files.append(result['filename'])
+                            # Show detailed error information
+                            with st.expander(f"❌ {result['filename']}: {result['reason']}", expanded=True):
+                                st.error(f"**Status:** {result['status']}")
+                                st.error(f"**Reason:** {result['reason']}")
+                                
+                                # Show quality score if available
+                                if 'quality_score' in result:
+                                    st.warning(f"**Quality Score:** {result['quality_score']}/100")
+                                
+                                # Show issues if available
+                                if 'issues' in result and result['issues']:
+                                    st.write("**Issues Found:**")
+                                    for issue in result['issues']:
+                                        st.write(f"  - {issue}")
+                                
+                                # Show recommendation if available
+                                if 'recommendation' in result and result['recommendation']:
+                                    st.info(f"**💡 Recommendation:** {result['recommendation']}")
+                    
+                    # Show summary
+                    if successfully_processed:
+                        st.success(f"✅ Successfully processed {len(successfully_processed)} file(s)!")
+                        st.info(f"📝 Processed files: {', '.join(successfully_processed)}")
+                        # Clear the file uploader by rerunning
+                        st.rerun()
+                    elif failed_files:
+                        st.error(f"❌ Failed to process {len(failed_files)} file(s)")
                 else:
                     st.error("Failed to process files")
             except Exception as e:
@@ -244,28 +315,12 @@ elif tab_choice == "Generate Mock Test":
         if "test_submitted" not in st.session_state:
             st.session_state.test_submitted = False
         
-        # Submit Test button (show at top, disabled if already submitted)
+        # Progress indicator at top
         if not st.session_state.test_submitted:
-            col_submit, col_info = st.columns([1, 3])
-            with col_submit:
-                if st.button("📝 Submit Test", type="primary", use_container_width=True):
-                    # Calculate scores for all answered questions
-                    for i, q in enumerate(data["questions"], 1):
-                        user_answer = st.session_state.user_answers.get(i)
-                        if user_answer:
-                            correct_answer = q.get('correct_answer', '').upper()
-                            if user_answer == correct_answer:
-                                st.session_state.scores[i] = 2.0  # 2 marks for correct
-                            else:
-                                st.session_state.scores[i] = -0.67  # -1/3 of 2 marks for wrong
-                    st.session_state.test_submitted = True
-                    st.rerun()
-            with col_info:
-                answered_count = len(st.session_state.user_answers)
-                total_questions = len(data["questions"])
-                st.caption(f"📊 Answered: {answered_count} / {total_questions} questions")
-        else:
-            st.success("✅ Test submitted! You can now view explanations and final score.")
+            answered_count = len(st.session_state.user_answers)
+            total_questions = len(data["questions"])
+            progress = answered_count / total_questions if total_questions > 0 else 0
+            st.progress(progress, text=f"📊 Progress: {answered_count} / {total_questions} questions answered")
         
         # Show questions
         for i, q in enumerate(data["questions"], 1):
@@ -273,7 +328,19 @@ elif tab_choice == "Generate Mock Test":
             
             # Question number and text in a styled container (dark mode compatible)
             with st.container():
-                st.markdown(f"### Question {i}")
+                # Show question status indicator if submitted
+                status_indicator = ""
+                if st.session_state.test_submitted:
+                    user_answer = st.session_state.user_answers.get(i)
+                    correct_answer = q.get('correct_answer', '').upper()
+                    if user_answer == correct_answer:
+                        status_indicator = " ✅"
+                    elif user_answer:
+                        status_indicator = " ❌"
+                    else:
+                        status_indicator = " ⚠️"
+                
+                st.markdown(f"### Question {i} of {len(data['questions'])}{status_indicator}")
                 # Format question text - split statements and question on different lines
                 question_text = q['question']
                 # Replace common statement patterns with line breaks
@@ -295,72 +362,83 @@ elif tab_choice == "Generate Mock Test":
             # Options displayed separately for better readability
             st.markdown("**Select your answer:**")
             
-            # Radio buttons with better formatting
+            # Calculate index for previously selected answer
+            selected_index = None
+            if i in st.session_state.user_answers:
+                selected_letter = st.session_state.user_answers[i]
+                letter_index = ord(selected_letter) - 65  # Convert A=0, B=1, C=2, D=3
+                if 0 <= letter_index < len(q["options"]):
+                    selected_index = letter_index
+            
+            # Radio buttons - disabled if test is submitted
             answer = st.radio(
                 "Select your answer",
                 q["options"],
                 key=f"q_{i}",
-                index=None,  # No default selection
+                index=selected_index,  # Show previously selected answer
+                disabled=st.session_state.test_submitted,  # Disable after submission
                 label_visibility="hidden"
             )
             
-            # Display selected answer (don't show right/wrong until submitted)
-            if answer is not None:
-                selected_index = q["options"].index(answer)
-                option_letter = chr(65 + selected_index)  # A, B, C, D
-                
-                # Store user answer
+            # Store user answer if not submitted yet
+            if answer is not None and not st.session_state.test_submitted:
+                answer_index = q["options"].index(answer)
+                option_letter = chr(65 + answer_index)  # A, B, C, D
                 st.session_state.user_answers[i] = option_letter
-                
-                # Show selected answer without indicating if it's correct/wrong
                 st.info(f"📌 **You selected: {option_letter}**")
+            
+            # Show correct/wrong immediately after submission (for all questions)
+            if st.session_state.test_submitted:
+                correct_answer = q.get('correct_answer', '').upper()
+                user_answer = st.session_state.user_answers.get(i)
                 
-                # Only show right/wrong after test is submitted
-                if st.session_state.test_submitted:
-                    correct_answer = q.get('correct_answer', '').upper()
-                    is_correct = option_letter == correct_answer
+                if user_answer:
+                    is_correct = user_answer == correct_answer
                     if is_correct:
-                        st.success(f"✅ **Correct!** The answer is {correct_answer}.")
+                        st.success(f"✅ **Correct!** You selected **{user_answer}** and it's the right answer. (+2 marks)")
                     else:
-                        st.error(f"❌ **Wrong!** The correct answer is {correct_answer}.")
+                        st.error(f"❌ **Incorrect!** You selected **{user_answer}**, but the correct answer is **{correct_answer}**. (-0.67 marks)")
+                else:
+                    st.warning(f"⚠️ **Not answered.** The correct answer is **{correct_answer}**. (0 marks)")
             
             # Toggle explanation button (only enabled after submission)
             explanation_key = f"explanation_{i}"
             explanation_disabled = not st.session_state.test_submitted
-            if st.button(
-                f"{'Hide' if explanation_key in st.session_state.show_explanations else 'Show'} Explanation {i}", 
-                key=f"btn_{i}",
-                disabled=explanation_disabled
-            ):
-                # Toggle explanation state
-                if explanation_key in st.session_state.show_explanations:
-                    del st.session_state.show_explanations[explanation_key]
-                else:
-                    st.session_state.show_explanations[explanation_key] = True
-                st.rerun()
             
-            if explanation_disabled:
-                st.caption("💡 Submit the test first to view explanations")
+            # Only show explanation button after submission
+            if st.session_state.test_submitted:
+                if st.button(
+                    f"{'🔽 Hide' if explanation_key in st.session_state.show_explanations else '▶️ Show'} Explanation for Question {i}", 
+                    key=f"btn_{i}",
+                    use_container_width=False
+                ):
+                    # Toggle explanation state
+                    if explanation_key in st.session_state.show_explanations:
+                        del st.session_state.show_explanations[explanation_key]
+                    else:
+                        st.session_state.show_explanations[explanation_key] = True
+                    st.rerun()
             
             # Show explanation if toggled (only after submission)
-            if explanation_key in st.session_state.show_explanations:
+            if explanation_key in st.session_state.show_explanations and st.session_state.test_submitted:
+                st.markdown("---")
+                st.markdown("#### 📖 Explanation")
+                
                 correct_answer = q.get('correct_answer', 'N/A')
-                # Check if user answered correctly (only show status after submission)
                 user_answer = st.session_state.user_answers.get(i, None)
-                if st.session_state.test_submitted:
-                    if user_answer:
-                        if user_answer == correct_answer.upper():
-                            st.success(f"✅ Correct answer: **{correct_answer}**")
-                        else:
-                            st.error(f"❌ Correct answer: **{correct_answer}** (You selected: {user_answer})")
+                
+                # Show answer summary
+                if user_answer:
+                    if user_answer == correct_answer.upper():
+                        st.success(f"✅ **Correct Answer:** {correct_answer}")
                     else:
-                        st.info(f"📝 Correct answer: **{correct_answer}** (Not answered)")
+                        st.error(f"❌ **Correct Answer:** {correct_answer} (You selected: {user_answer})")
                 else:
-                    st.info(f"📝 Correct answer: **{correct_answer}**")
+                    st.info(f"📝 **Correct Answer:** {correct_answer} (You did not answer this question)")
                 
                 # Explanation with dark mode compatible text color
                 explanation_text = q.get('explanation', 'No explanation provided')
-                st.markdown(f"<div style='padding: 10px; background-color: #f0f2f6; border-radius: 5px;'><p style='color: #1f1f1f; line-height: 1.6;'><strong>Explanation:</strong> {explanation_text}</p></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='padding: 15px; background-color: #f0f2f6; border-radius: 5px; margin: 10px 0;'><p style='color: #1f1f1f; line-height: 1.8; font-size: 15px;'><strong>💡 Explanation:</strong><br>{explanation_text}</p></div>", unsafe_allow_html=True)
                 
                 # Show source information
                 source = q.get('source', {})
@@ -373,6 +451,45 @@ elif tab_choice == "Generate Mock Test":
                     if source.get('page_number'):
                         source_info += f", Page: `{source['page_number']}`"
                     st.markdown(source_info)
+        
+        # Submit Test button at the bottom (before score display)
+        st.markdown("---")
+        if not st.session_state.test_submitted:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                if st.button("📝 Submit Test", type="primary", use_container_width=True):
+                    # Calculate scores for all answered questions
+                    for i, q in enumerate(data["questions"], 1):
+                        user_answer = st.session_state.user_answers.get(i)
+                        if user_answer:
+                            correct_answer = q.get('correct_answer', '').upper()
+                            if user_answer == correct_answer:
+                                st.session_state.scores[i] = 2.0  # 2 marks for correct
+                            else:
+                                st.session_state.scores[i] = -0.67  # -1/3 of 2 marks for wrong
+                        else:
+                            st.session_state.scores[i] = 0  # Not answered
+                    st.session_state.test_submitted = True
+                    st.rerun()
+        else:
+            # Quick summary card after submission
+            answered_count = len([a for a in st.session_state.user_answers.values() if a])
+            correct_count = sum(1 for score in st.session_state.scores.values() if score > 0)
+            wrong_count = sum(1 for score in st.session_state.scores.values() if score < 0)
+            not_answered = len(data["questions"]) - answered_count
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("✅ Correct", correct_count)
+            with col2:
+                st.metric("❌ Incorrect", wrong_count)
+            with col3:
+                st.metric("⚠️ Not Answered", not_answered)
+            with col4:
+                total_score = sum(st.session_state.scores.values())
+                max_score = len(data["questions"]) * 2
+                percentage = (total_score / max_score * 100) if max_score > 0 else 0
+                st.metric("📊 Score", f"{percentage:.1f}%")
         
         # Calculate and display final score (only after submission)
         if st.session_state.test_submitted and st.session_state.scores:
