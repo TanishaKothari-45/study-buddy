@@ -10,7 +10,7 @@ from .core.env import load_env_vars
 load_env_vars()
 
 from .core.config import settings
-from .routes import upload, query, mock_test, mains_answer, evaluate_answer, deepseek_ocr
+from .routes import upload, query, mock_test, mains_answer, evaluate_answer
 from .utils.chroma_handler import ChromaHandler
 
 @asynccontextmanager
@@ -44,7 +44,6 @@ app.include_router(query.router, prefix="/query", tags=["Query"])
 app.include_router(mock_test.router, prefix="/mock-test", tags=["Mock Test"])
 app.include_router(mains_answer.router, prefix="/mains-answer", tags=["Mains Answer"])
 app.include_router(evaluate_answer.router, prefix="/evaluate-answer", tags=["Answer Evaluation"])
-app.include_router(deepseek_ocr.router, prefix="/deepseek-ocr", tags=["DeepSeek OCR"])
 
 @app.get("/")
 async def health_check():
