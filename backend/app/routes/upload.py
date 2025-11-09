@@ -1,9 +1,14 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Response
-from typing import List
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Response, Form
+from typing import List, Optional
 import os
 import shutil
 import logging
 from ..utils.pdf_reader import extract_text_from_pdf
+from ..utils.ocr_processor import process_handwritten_document
+from ..utils.handwritten_processor import process_pdf_with_roi, process_image_with_roi
+from ..utils.ocr_processor_v2 import process_pages_parallel_google_vision
+from ..utils.pdf_generator import generate_pdf_from_ocr_results
+from ..utils.answer_reconstructor import reconstruct_pages_blocks
 from ..core.config import settings
 from ..utils.hierarchical_chunker import HierarchicalChunker
 from ..utils.metadata_enricher import enrich_metadata
@@ -33,10 +38,184 @@ async def delete_collection(request: Request, collection_name: str):
         logger.error(f"Failed to delete collection {collection_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/sample-sheet")
+async def upload_sample_sheet(sample_sheet: UploadFile = File(...)):
+    """
+    Upload a sample sheet (empty or with answers) for ROI detection.
+    The sample sheet will be used to detect ROI coordinates that will be reused for all pages.
+    
+    Supported formats: WEBP, JPG, PNG, PDF
+    """
+    try:
+        # Validate file type
+        file_ext = os.path.splitext(sample_sheet.filename)[1].lower()
+        allowed_extensions = ['.webp', '.jpg', '.jpeg', '.png', '.pdf']
+        
+        if file_ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unsupported file type: {file_ext}. Supported: {', '.join(allowed_extensions)}"
+            )
+        
+        # Delete old sample sheets first (for development/testing)
+        logger.info("🗑️ Cleaning up old sample sheets...")
+        old_sample_files = [f for f in os.listdir(SAMPLE_SHEET_DIR) if f.startswith("sample_")]
+        deleted_count = 0
+        for old_file in old_sample_files:
+            old_path = os.path.join(SAMPLE_SHEET_DIR, old_file)
+            try:
+                os.remove(old_path)
+                deleted_count += 1
+                logger.info(f"   🗑️ Deleted old sample sheet: {old_file}")
+            except Exception as e:
+                logger.warning(f"   ⚠️ Failed to delete old sample sheet {old_file}: {e}")
+        
+        if deleted_count > 0:
+            logger.info(f"   ✅ Deleted {deleted_count} old sample sheet(s)")
+        
+        # Save new sample sheet
+        sample_sheet_path = os.path.join(SAMPLE_SHEET_DIR, f"sample_{sample_sheet.filename}")
+        with open(sample_sheet_path, "wb") as buffer:
+            shutil.copyfileobj(sample_sheet.file, buffer)
+        
+        logger.info(f"✅ Sample sheet uploaded: {sample_sheet.filename} -> {sample_sheet_path}")
+        
+        # Generate preview path for frontend
+        preview_url = f"/upload/sample-sheet-preview"
+        roi_preview_url = f"/upload/sample-sheet-roi-preview"
+        
+        logger.info(f"   📷 Preview URLs available:")
+        logger.info(f"      • Original: {preview_url}")
+        logger.info(f"      • ROI Preview: {roi_preview_url}")
+        
+        return {
+            "message": "Sample sheet uploaded successfully",
+            "filename": sample_sheet.filename,
+            "path": sample_sheet_path,
+            "file_type": file_ext,
+            "preview_url": preview_url,
+            "roi_preview_url": roi_preview_url
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error uploading sample sheet: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload sample sheet: {str(e)}")
+
+@router.get("/roi-preview/{file_name:path}")
+async def get_roi_preview(file_name: str):
+    """
+    Serve ROI preview images for viewing in frontend
+    """
+    preview_path = os.path.join(ROI_PREVIEW_DIR, file_name)
+    
+    if not os.path.exists(preview_path):
+        raise HTTPException(status_code=404, detail="ROI preview not found")
+    
+    from fastapi.responses import FileResponse
+    return FileResponse(preview_path, media_type="image/png")
+
+@router.get("/sample-sheet-preview")
+async def get_sample_sheet_preview():
+    """
+    Serve the most recently uploaded sample sheet for preview
+    """
+    sample_files = [f for f in os.listdir(SAMPLE_SHEET_DIR) if f.startswith("sample_")]
+    if not sample_files:
+        raise HTTPException(status_code=404, detail="No sample sheet found")
+    
+    # Get most recent sample sheet
+    latest_sample = sorted(sample_files)[-1]
+    sample_path = os.path.join(SAMPLE_SHEET_DIR, latest_sample)
+    
+    if not os.path.exists(sample_path):
+        raise HTTPException(status_code=404, detail="Sample sheet file not found")
+    
+    from fastapi.responses import FileResponse
+    # Determine content type based on extension
+    ext = os.path.splitext(latest_sample)[1].lower()
+    content_type = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.webp': 'image/webp',
+        '.pdf': 'application/pdf'
+    }.get(ext, 'image/png')
+    
+    return FileResponse(sample_path, media_type=content_type)
+
+@router.get("/sample-sheet-roi-preview")
+async def get_sample_sheet_roi_preview():
+    """
+    Generate and return ROI preview from sample sheet (shows what will be detected)
+    """
+    import cv2
+    from ..utils.roi_detector import extract_answer_roi
+    
+    sample_files = [f for f in os.listdir(SAMPLE_SHEET_DIR) if f.startswith("sample_")]
+    if not sample_files:
+        raise HTTPException(status_code=404, detail="No sample sheet found")
+    
+    # Get most recent sample sheet
+    latest_sample = sorted(sample_files)[-1]
+    sample_path = os.path.join(SAMPLE_SHEET_DIR, latest_sample)
+    
+    if not os.path.exists(sample_path):
+        raise HTTPException(status_code=404, detail="Sample sheet file not found")
+    
+    try:
+        # Load and process sample sheet
+        logger.info(f"📷 Loading sample sheet for ROI preview: {sample_path}")
+        img = cv2.imread(sample_path)
+        if img is None:
+            logger.error(f"❌ Failed to load sample sheet image: {sample_path}")
+            raise HTTPException(status_code=400, detail="Failed to load sample sheet image")
+        
+        logger.info(f"   ✅ Image loaded: shape={img.shape}")
+        
+        # Extract ROI (try Hough Lines first, fallback if needed)
+        logger.info("   🔍 Attempting ROI detection...")
+        try:
+            roi_image, metadata = extract_answer_roi(img, use_fallback=False)
+            logger.info(f"   ✅ ROI detected using {metadata['method']}")
+        except Exception as e:
+            logger.warning(f"   ⚠️ Hough Lines failed: {e}. Using fallback...")
+            roi_image, metadata = extract_answer_roi(img, use_fallback=True)
+            logger.info(f"   ✅ ROI detected using fallback method")
+        
+        # Extract original ROI crop for preview (before preprocessing)
+        top = metadata["coordinates"]["top"]
+        left = metadata["coordinates"]["left"]
+        right = metadata["coordinates"]["right"]
+        bottom = metadata["coordinates"]["bottom"]
+        original_roi = img[top:bottom, left:right]
+        
+        # Save original ROI crop (not binary thresholded) for preview
+        temp_preview_path = os.path.join(ROI_PREVIEW_DIR, "sample_sheet_roi_preview.png")
+        cv2.imwrite(temp_preview_path, original_roi)
+        logger.info(f"   💾 Saved ROI preview (original crop): {temp_preview_path}")
+        logger.info(f"      • Preview size: {original_roi.shape[1]}x{original_roi.shape[0]} pixels")
+        
+        from fastapi.responses import FileResponse
+        return FileResponse(temp_preview_path, media_type="image/png")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to generate sample sheet ROI preview: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate ROI preview: {str(e)}")
+
 logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = "data/uploads"
+SAMPLE_SHEET_DIR = "data/sample_sheets"
+ROI_PREVIEW_DIR = "data/roi_previews"
+OCR_OUTPUT_DIR = "data/ocr_outputs"  # Directory for generated PDFs
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(SAMPLE_SHEET_DIR, exist_ok=True)
+os.makedirs(ROI_PREVIEW_DIR, exist_ok=True)
+os.makedirs(OCR_OUTPUT_DIR, exist_ok=True)
 
 # Initialize the hierarchical chunker
 chunker = HierarchicalChunker(llm_client=OpenAI(api_key=os.getenv("OPENAI_API_KEY")))
@@ -44,11 +223,28 @@ chunker = HierarchicalChunker(llm_client=OpenAI(api_key=os.getenv("OPENAI_API_KE
 # Specify the name of the new collection for enriched chunks
 new_collection_name = "geography_docs_enriched"
 
+# Store sample sheet path in app state (will be set per session)
+# In production, you might want to use a database or session storage
+
 @router.post("/")
-async def upload_pdfs(request: Request, files: List[UploadFile] = File(...)):
+async def upload_pdfs(
+    request: Request, 
+    files: List[UploadFile] = File(...),
+    dpi: int = Form(600),
+    sample_sheet_path: Optional[str] = Form(None)
+):
     """
-    Uploads multiple PDF or TXT files, extracts text, chunks it, creates embeddings,
-    and stores them in a new ChromaDB collection.
+    Uploads multiple PDF or image files, processes them with ROI detection and OCR for handwritten content,
+    chunks it, creates embeddings, and stores them in a new ChromaDB collection.
+    
+    Args:
+        files: List of PDF or image files to upload
+        dpi: DPI for PDF conversion (300 or 600, default: 600)
+        sample_sheet_path: Optional path to sample sheet for ROI detection
+    
+    Supported formats:
+    - PDF: Text-based PDFs (extracted directly) or scanned/image-based PDFs (OCR with ROI)
+    - Images: JPG, JPEG, PNG, WEBP (processed with OCR and ROI)
     """
     processed_files_summary = []
     chroma_handler = request.app.state.chroma_handler
@@ -56,9 +252,30 @@ async def upload_pdfs(request: Request, files: List[UploadFile] = File(...)):
     # Switch to or create the new collection
     chroma_handler.switch_to_collection(new_collection_name)
 
+    # Validate DPI
+    if dpi not in [300, 600]:
+        raise HTTPException(status_code=400, detail="DPI must be 300 or 600")
+    
+    # Find sample sheet if not provided
+    if not sample_sheet_path:
+        # Look for most recent sample sheet
+        sample_files = [f for f in os.listdir(SAMPLE_SHEET_DIR) if f.startswith("sample_")]
+        if sample_files:
+            sample_sheet_path = os.path.join(SAMPLE_SHEET_DIR, sorted(sample_files)[-1])
+            logger.info(f"📋 Using sample sheet: {sample_sheet_path}")
+    
+    # Check if sample sheet exists
+    if sample_sheet_path and not os.path.exists(sample_sheet_path):
+        logger.warning(f"⚠️ Sample sheet not found: {sample_sheet_path}. Proceeding without it.")
+        sample_sheet_path = None
+
+    # Supported image extensions
+    image_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff', '.tif']
+    
     for file in files:
         file_path = os.path.join(UPLOAD_DIR, file.filename)
         file_ext = os.path.splitext(file.filename)[1].lower()
+        roi_info = None  # Initialize ROI info for this file
         
         try:
             # Save the uploaded file temporarily
@@ -67,7 +284,7 @@ async def upload_pdfs(request: Request, files: List[UploadFile] = File(...)):
 
             # Determine file type and process accordingly
             if file_ext == '.pdf':
-                # Read the PDF text
+                # First try to extract text directly from PDF
                 pages_content = extract_text_from_pdf(file_path)
                 text = "\n".join(page["text"] for page in pages_content if page.get("text"))
 
@@ -75,28 +292,69 @@ async def upload_pdfs(request: Request, files: List[UploadFile] = File(...)):
                 logger.info(f"📄 PDF Text Extraction for {file.filename}:")
                 logger.info(f"   • Total pages: {len(pages_content)}")
                 logger.info(f"   • Total text length: {len(text)} characters")
-                if text:
-                    # Show first 500 characters as sample
-                    sample_text = text[:500].replace('\n', ' ')
-                    logger.info(f"   • Sample text (first 500 chars): {sample_text}...")
-                    # Show last 200 characters
-                    if len(text) > 200:
-                        sample_end = text[-200:].replace('\n', ' ')
-                        logger.info(f"   • Sample text (last 200 chars): ...{sample_end}")
-                else:
-                    logger.warning(f"   ⚠️ No text extracted from PDF!")
-
+                
+                # If PDF has no extractable text (scanned/image-based), use ROI + OCR
                 if not text or len(text.strip()) < 200:
-                    logger.warning(f"{file.filename} has very little extractable text — check if it's scanned.")
-                    processed_files_summary.append({
-                        "filename": file.filename,
-                        "status": "skipped",
-                        "reason": "Text too short or empty"
-                    })
-                    continue
-
-                # Process PDF using the hierarchical chunker
-                chunks = chunker.process_pdf(file_path, file.filename)
+                    logger.warning(f"   ⚠️ PDF appears to be scanned/image-based. Using ROI + OCR...")
+                    try:
+                        # Process PDF with ROI detection
+                        roi_result = process_pdf_with_roi(
+                            pdf_path=file_path,
+                            dpi=dpi,
+                            sample_sheet_path=sample_sheet_path,
+                            save_roi_previews=True,
+                            preview_dir=os.path.join(ROI_PREVIEW_DIR, os.path.splitext(file.filename)[0])
+                        )
+                        
+                        # Extract ROI preview paths
+                        roi_preview_paths = [page.get("roi_preview_path") for page in roi_result["pages"] if page.get("roi_preview_path")]
+                        
+                        # TODO: Run OCR on ROI images (PaddleOCR → EasyOCR → Tesseract)
+                        # For now, we'll prepare the ROI images for OCR
+                        # This is where OCR will be integrated in the next step
+                        
+                        # Create placeholder text from ROI metadata
+                        ocr_text = f"ROI extracted from {len(roi_result['pages'])} pages. ROI method: {roi_result['roi_method']}. OCR processing pending."
+                        
+                        # Save temporary text file (will be replaced with actual OCR results)
+                        temp_txt_path = file_path.replace('.pdf', '_roi_ocr.txt')
+                        with open(temp_txt_path, 'w', encoding='utf-8') as f:
+                            f.write(ocr_text)
+                        
+                        logger.info(f"   ✅ ROI extracted from {len(roi_result['pages'])} pages")
+                        logger.info(f"   • ROI method: {roi_result['roi_method']}")
+                        logger.info(f"   • ROI previews saved: {len(roi_preview_paths)} files")
+                        
+                        # Process using chunker (will be updated when OCR is integrated)
+                        chunks = chunker.process_txt(temp_txt_path, file.filename)
+                        
+                        # Store ROI preview paths in summary
+                        roi_info = {
+                            "roi_preview_paths": roi_preview_paths,
+                            "roi_method": roi_result["roi_method"],
+                            "roi_coordinates": roi_result["roi_coordinates"]
+                        }
+                        
+                        # Clean up temp file
+                        if os.path.exists(temp_txt_path):
+                            os.remove(temp_txt_path)
+                    except Exception as roi_error:
+                        logger.error(f"   ❌ ROI + OCR processing failed: {roi_error}")
+                        processed_files_summary.append({
+                            "filename": file.filename,
+                            "status": "failed",
+                            "reason": f"ROI + OCR processing failed: {str(roi_error)}"
+                        })
+                        continue
+                else:
+                    # PDF has extractable text, process normally
+                    if text:
+                        # Show first 500 characters as sample
+                        sample_text = text[:500].replace('\n', ' ')
+                        logger.info(f"   • Sample text (first 500 chars): {sample_text}...")
+                    
+                    # Process PDF using the hierarchical chunker
+                    chunks = chunker.process_pdf(file_path, file.filename)
                 
             elif file_ext == '.txt':
                 # Process TXT file directly
@@ -110,11 +368,189 @@ async def upload_pdfs(request: Request, files: List[UploadFile] = File(...)):
                         "reason": "No chunks created from TXT file"
                     })
                     continue
+                    
+            elif file_ext in image_extensions:
+                # Process image file with ROI + OCR + PDF generation
+                logger.info(f"🖼️ Processing image file with ROI + OCR: {file.filename}")
+                try:
+                    # Step 1: Process image with ROI detection
+                    roi_result = process_image_with_roi(
+                        image_path=file_path,
+                        sample_sheet_path=sample_sheet_path,
+                        save_roi_preview=True,
+                        preview_dir=os.path.join(ROI_PREVIEW_DIR, os.path.splitext(file.filename)[0])
+                    )
+                    
+                    logger.info(f"   ✅ ROI extracted using method: {roi_result['roi_method']}")
+                    
+                    # Step 2: Prepare page data for OCR (single page)
+                    page_data = [{
+                        "page_number": 1,
+                        "roi_image_preprocessed": roi_result["roi_image_preprocessed"]
+                    }]
+                    
+                    # Step 3: Run OCR using Google Vision API
+                    logger.info("")
+                    logger.info("   " + "="*70)
+                    logger.info("   🔍 STEP 3: Starting OCR Processing")
+                    logger.info("   " + "="*70)
+                    logger.info("   📋 OCR Pipeline: Google Vision API")
+                    logger.info("   ⏳ Processing with Google Vision API...")
+                    logger.info("   " + "="*70)
+                    logger.info("")
+                    try:
+                        ocr_results = process_pages_parallel_google_vision(page_data, max_workers=1)
+                        logger.info("")
+                        logger.info("   ✅ STEP 3: OCR Processing Complete!")
+                        logger.info("")
+                        
+                        # Step 4: No post-processing cleaning - only block filtering (len > 2) done in vision_blocks
+                        # Blocks are primary data - merged text is for backward compatibility only
+                        # No cleaning applied to preserve spatial structure
+                    except Exception as ocr_error:
+                        logger.error(f"   ❌ OCR processing failed: {ocr_error}")
+                        # Create empty OCR result so PDF can still be generated
+                        ocr_results = [{
+                            "page_number": 1,
+                            "text": f"OCR processing failed: {str(ocr_error)}\n\nPlease check:\n1. Google Vision API credentials are set\n2. GOOGLE_APPLICATION_CREDENTIALS environment variable\n3. Backend logs for details",
+                            "error": str(ocr_error),
+                            "blocks": []
+                        }]
+                    
+                    # Step 5: Reconstruct blocks using LLM
+                    logger.info("")
+                    logger.info("   " + "="*70)
+                    logger.info("   🤖 STEP 5: Starting LLM Reconstruction")
+                    logger.info("   " + "="*70)
+                    logger.info("   📋 Reconstructing OCR blocks into clean prose...")
+                    logger.info("   " + "="*70)
+                    logger.info("")
+                    
+                    try:
+                        # Log OCR data being sent to LLM (for user inspection)
+                        logger.info("   📋 OCR Data Summary (before LLM reconstruction):")
+                        for result in ocr_results:
+                            page_no = result.get("page_number", 0)
+                            blocks = result.get("blocks", [])
+                            full_text = result.get("full_text", "")
+                            width = result.get("width", 0)
+                            height = result.get("height", 0)
+                            
+                            logger.info(f"      Page {page_no}:")
+                            logger.info(f"         • Blocks: {len(blocks)}")
+                            logger.info(f"         • Full text: {len(full_text)} chars")
+                            logger.info(f"         • Dimensions: {width}x{height} pixels")
+                            
+                            if blocks:
+                                # Show first few blocks as preview
+                                for i, block in enumerate(blocks[:3], 1):
+                                    text_preview = block.get("text", "")[:60]
+                                    conf = block.get("conf", 0.0)
+                                    bbox = block.get("bbox", [])
+                                    logger.info(f"         Block {i}: '{text_preview}...' (conf={conf:.2f}) bbox={bbox}")
+                                if len(blocks) > 3:
+                                    logger.info(f"         ... and {len(blocks) - 3} more blocks")
+                        
+                        # Initialize OpenAI client for reconstruction
+                        openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+                        
+                        # Reconstruct OCR data using LLM (combine pages for single reconstruction)
+                        ocr_results = reconstruct_pages_blocks(
+                            ocr_results=ocr_results,
+                            llm_client=openai_client,
+                            model=settings.LLM_MODEL,
+                            combine_pages=True  # Combine all pages into one reconstruction
+                        )
+                        
+                        logger.info("")
+                        logger.info("   ✅ STEP 5: LLM Reconstruction Complete!")
+                        logger.info("")
+                        
+                    except Exception as recon_error:
+                        logger.error(f"   ❌ LLM reconstruction failed: {recon_error}")
+                        logger.warning(f"   ⚠️ Using original merged text as fallback")
+                        # Add empty reconstructed_text to results
+                        for result in ocr_results:
+                            if "reconstructed_text" not in result:
+                                result["reconstructed_text"] = result.get("text", "")
+                    
+                    # Step 6: Generate PDF (even if OCR failed, generate PDF with error message)
+                    pdf_filename = os.path.splitext(file.filename)[0] + "_ocr.pdf"
+                    pdf_path = os.path.join(OCR_OUTPUT_DIR, pdf_filename)
+                    
+                    logger.info(f"   📄 Generating PDF: {pdf_filename}")
+                    try:
+                        # Use reconstructed text if available, otherwise use original text
+                        pdf_results = []
+                        for result in ocr_results:
+                            pdf_result = {
+                                "page_number": result.get("page_number", 1),
+                                "text": result.get("reconstructed_text") or result.get("text", "")
+                            }
+                            pdf_results.append(pdf_result)
+                        
+                        generate_pdf_from_ocr_results(
+                            ocr_results=pdf_results,
+                            output_path=pdf_path,
+                            title=f"OCR Extracted Text: {file.filename}"
+                        )
+                    except Exception as pdf_error:
+                        logger.error(f"   ❌ PDF generation failed: {pdf_error}")
+                        raise Exception(f"Failed to generate PDF: {str(pdf_error)}")
+                    
+                    # Store results
+                    roi_info = {
+                        "roi_preview_path": roi_result.get("roi_preview_path"),
+                        "roi_method": roi_result["roi_method"],
+                        "roi_coordinates": roi_result["roi_coordinates"],
+                        "pdf_path": pdf_path,
+                        "pdf_filename": pdf_filename,
+                        "ocr_results": ocr_results
+                    }
+                    
+                    # Return success with PDF download link
+                    processed_files_summary.append({
+                        "filename": file.filename,
+                        "status": "success",
+                        "pdf_path": pdf_path,
+                        "pdf_filename": pdf_filename,
+                        "pdf_download_url": f"/upload/download/{pdf_filename}",
+                        "roi_preview_path": roi_info["roi_preview_path"],
+                        "roi_method": roi_info["roi_method"],
+                        "ocr_results": [
+                            {
+                                "page_number": r["page_number"],
+                                "text": r.get("text", ""),  # Original merged text from blocks
+                                "full_text": r.get("full_text", ""),  # Full text from Vision API
+                                "reconstructed_text": r.get("reconstructed_text", ""),  # LLM reconstructed prose
+                                "text_length": len(r.get("text", "")),
+                                "full_text_length": len(r.get("full_text", "")),
+                                "reconstructed_length": len(r.get("reconstructed_text", "")),
+                                "num_blocks": len(r.get("blocks", [])),
+                                "width": r.get("width", 0),
+                                "height": r.get("height", 0),
+                                "blocks": r.get("blocks", []),  # Include raw blocks data (with conf) sent to LLM
+                                "ocr_method": "google_vision"
+                            }
+                            for r in ocr_results
+                        ],
+                        "message": f"OCR complete. PDF generated: {pdf_filename}"
+                    })
+                    continue
+                        
+                except Exception as roi_error:
+                    logger.error(f"   ❌ ROI + OCR processing failed: {roi_error}")
+                    processed_files_summary.append({
+                        "filename": file.filename,
+                        "status": "failed",
+                        "reason": f"ROI + OCR processing failed: {str(roi_error)}"
+                    })
+                    continue
             else:
                 processed_files_summary.append({
                     "filename": file.filename,
                     "status": "skipped",
-                    "reason": f"Unsupported file type: {file_ext}. Only PDF and TXT files are supported."
+                    "reason": f"Unsupported file type: {file_ext}. Supported: PDF, TXT, JPG, PNG, GIF, BMP, TIFF"
                 })
                 logger.warning(f"⚠️ Unsupported file type: {file_ext} for {file.filename}")
                 continue
@@ -167,11 +603,23 @@ async def upload_pdfs(request: Request, files: List[UploadFile] = File(...)):
                     
                     # Store enriched chunks
                     chroma_handler.add_documents(enriched_chunks)
-                    processed_files_summary.append({
+                    
+                    # Prepare summary with ROI info if available
+                    summary_item = {
                         "filename": file.filename,
                         "status": "success",
                         "chunks_added": len(enriched_chunks)
-                    })
+                    }
+                    
+                    # Add ROI preview paths if available
+                    if roi_info:
+                        if "roi_preview_paths" in roi_info:
+                            summary_item["roi_preview_paths"] = roi_info["roi_preview_paths"]
+                        elif "roi_preview_path" in roi_info:
+                            summary_item["roi_preview_path"] = roi_info["roi_preview_path"]
+                        summary_item["roi_method"] = roi_info.get("roi_method")
+                    
+                    processed_files_summary.append(summary_item)
                     logger.info(f"✅ Successfully processed and added {len(enriched_chunks)} chunks (with enriched metadata) for {file.filename}")
                 except Exception as embedding_error:
                     # Chunks were created but embedding/storage failed
@@ -206,3 +654,36 @@ async def upload_pdfs(request: Request, files: List[UploadFile] = File(...)):
         raise HTTPException(status_code=400, detail="No files were processed.")
 
     return {"message": "Files processing complete", "summary": processed_files_summary}
+
+@router.get("/download/{filename:path}")
+async def download_ocr_pdf(filename: str):
+    """
+    Download generated OCR PDF file
+    
+    Args:
+        filename: Name of the PDF file to download
+    
+    Returns:
+        PDF file as download
+    """
+    try:
+        pdf_path = os.path.join(OCR_OUTPUT_DIR, filename)
+        
+        if not os.path.exists(pdf_path):
+            raise HTTPException(status_code=404, detail=f"PDF file not found: {filename}")
+        
+        if not filename.endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Invalid file type. Only PDF files can be downloaded.")
+        
+        from fastapi.responses import FileResponse
+        return FileResponse(
+            pdf_path,
+            media_type="application/pdf",
+            filename=filename,
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to download PDF {filename}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to download PDF: {str(e)}")
