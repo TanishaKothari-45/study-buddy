@@ -164,7 +164,26 @@ def detect_roi_lines(img: np.ndarray) -> Tuple[int, int, int, int]:
     
     # Small inner margin (avoid border thickness)
     margin = 10
-    return top_line + margin, bottom_line - margin, left_line + margin, right_line - margin
+    
+    # Ensure we don't crop more than 12% from bottom
+    # Many UPSC answers have last 2-3 lines very close to bottom border
+    h = img.shape[0]
+    detected_bottom = bottom_line - margin
+    max_allowed_bottom = int(h * 0.90)  # Keep at least 90% of height (crop max 10%)
+    
+    # Use the higher value (closer to original bottom) to preserve more content
+    final_bottom = max(detected_bottom, max_allowed_bottom)
+    
+    # Also ensure we don't crop more than 5% from top
+    detected_top = top_line + margin
+    min_allowed_top = int(h * 0.05)  # Crop max 5% from top
+    final_top = min(detected_top, min_allowed_top) if detected_top < min_allowed_top else detected_top
+    
+    logger.info(f"   📐 Hough Lines detection:")
+    logger.info(f"      • Detected top: {detected_top}, final top: {final_top} (crop {final_top/h*100:.1f}% from top)")
+    logger.info(f"      • Detected bottom: {detected_bottom}, final bottom: {final_bottom} (keep {(final_bottom-final_top)/h*100:.1f}% of height)")
+    
+    return final_top, final_bottom, left_line + margin, right_line - margin
 
 def extract_answer_roi(img: np.ndarray, use_fallback: bool = False) -> Tuple[np.ndarray, dict]:
     """
@@ -223,11 +242,13 @@ def extract_answer_roi(img: np.ndarray, use_fallback: bool = False) -> Tuple[np.
         roi_rgb = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2RGB)
         
         h, w = img.shape[:2]
-        # Further reduced top and bottom margins to include more content
-        top = int(h * 0.05)  # Reduced from 0.10 (10%) to 0.05 (5%)
-        bottom = int(h * 0.98)  # Reduced from 0.97 (3% bottom crop) to 0.98 (2% bottom crop)
-        left = int(w * 0.09)
-        right = int(w * 0.91)
+        # Crop only 5% from top, 10% from bottom (keep 90% of height)
+        # This ensures last 2-3 lines near bottom border are preserved
+        top = int(h * 0.06)  # 8% crop from top
+        bottom = int(h * 0.93)  # 10% crop from bottom (keep 90% of height)
+        left = int(w * 0.09)  # 9% crop from left
+        right = int(w * 0.91)  # 9% crop from right
+        logger.info(f"   📐 Fallback crop: keeping {bottom-top}/{h} pixels height ({((bottom-top)/h)*100:.1f}%)")
         
         metadata = {
             "method": "fallback_percent",

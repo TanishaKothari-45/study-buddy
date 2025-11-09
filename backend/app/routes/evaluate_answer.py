@@ -12,13 +12,16 @@ from openai import OpenAI, RateLimitError
 
 from ..core.config import settings
 from ..utils.pdf_reader import extract_text_from_pdf
+from ..utils.answer_evaluator import evaluate_reconstructed_answer, reconstruct_and_evaluate_from_ocr_blocks
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class EvaluateAnswerRequest(BaseModel):
-    question: str
+    question: Optional[str] = None  # Optional if OCR blocks are provided (question will be identified)
     answer_text: Optional[str] = None
+    reconstructed_answer: Optional[str] = None  # Reconstructed answer (preferred over OCR blocks)
+    ocr_data: Optional[Dict[str, Any]] = None  # OCR blocks (deprecated - use reconstructed_answer instead)
 
 class EvaluateAnswerResponse(BaseModel):
     question: str
@@ -28,6 +31,9 @@ class EvaluateAnswerResponse(BaseModel):
     improvements: List[str]
     suggestions: List[str]
     model_answer_excerpt: Optional[str] = None
+    reconstructed_answer: Optional[str] = None  # Reconstructed answer
+    evaluation_details: Optional[Dict[str, Any]] = None  # Detailed evaluation breakdown
+    raw_evaluation_response: Optional[str] = None  # Exact raw response from LLM API
 
 def extract_text_from_uploaded_file(file: UploadFile) -> str:
     """Extract text from uploaded PDF or text file"""
@@ -241,59 +247,177 @@ async def evaluate_extracted_answer(request: Request, question: str, answer_text
 @router.post("/")
 async def evaluate_answer(
     request: Request,
-    question: str = Form(...),
+    question: Optional[str] = Form(None),
     answer_text: Optional[str] = Form(None),
-    answer_file: Optional[UploadFile] = File(None)
+    answer_file: Optional[UploadFile] = File(None),
+    reconstructed_answer: Optional[str] = Form(None),  # Reconstructed answer (preferred)
+    ocr_data_json: Optional[str] = Form(None)  # JSON string of OCR data (deprecated)
 ):
     """
     Evaluate a student's answer using UPSC Mains criteria.
+    
+    Three modes:
+    1. Reconstructed answer evaluation (PREFERRED): Provide question + reconstructed_answer
+    2. OCR-based evaluation (DEPRECATED): Provide ocr_data_json (question will be identified, answer reconstructed, then evaluated)
+    3. Text-based evaluation (legacy): Provide question + answer_text/answer_file
     """
     try:
-        # Extract answer text
-        if answer_file:
-            answer = extract_text_from_uploaded_file(answer_file)
-        elif answer_text:
-            answer = answer_text
-        else:
-            raise HTTPException(status_code=400, detail="Either answer_text or answer_file must be provided")
+        import json
         
-        if not answer.strip():
-            raise HTTPException(status_code=400, detail="Answer cannot be empty")
-        
-        # Switch to the enriched collection
-        chroma_handler = request.app.state.chroma_handler
-        chroma_handler.switch_to_collection("geography_docs_enriched")
-        
-        # Get relevant chunks for context
-        chunks = chroma_handler.query_documents(question, k=8)
-        context = "\n\n".join(chunk["content"] for chunk in chunks) if chunks else "No reference material available."
-
-        # Evaluate answer using GPT if available
+        # Initialize OpenAI client
         api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            evaluation = evaluate_answer_with_gpt(question, answer, context, api_key)
+        if not api_key:
+            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+        
+        openai_client = OpenAI(api_key=api_key)
+        
+        # Mode 1: Reconstructed answer evaluation (PREFERRED - reconstructed answer provided, question optional)
+        if reconstructed_answer:
+            logger.info("📊 Using reconstructed answer evaluation (preferred mode)")
+            logger.info(f"   • Question provided: {bool(question)}")
+            logger.info(f"   • Reconstructed answer length: {len(reconstructed_answer)} chars")
+            
+            # Evaluate using reconstructed answer (no OCR blocks)
+            # Question is optional - will be identified from answer if not provided
+            evaluation_result = evaluate_reconstructed_answer(
+                question=question,  # Optional - can be None
+                reconstructed_answer=reconstructed_answer,
+                llm_client=openai_client,
+                model=settings.LLM_MODEL
+            )
+            
+            # Extract results
+            identified_question = evaluation_result.get("question", question or "")
+            eval_data = evaluation_result.get("evaluation", {})
+            raw_response = evaluation_result.get("raw_response", "")
+            
+            score = eval_data.get("score", 0)
+            max_score = eval_data.get("max_score", 20)
+            what_was_done_well = eval_data.get("what_was_done_well", [])
+            what_was_missing = eval_data.get("what_was_missing", [])
+            high_return_improvements = eval_data.get("high_return_improvements", [])
+            
+            # Convert to response format
+            strengths = what_was_done_well if what_was_done_well else ["Answer provided", "Shows understanding"]
+            improvements = what_was_missing if what_was_missing else ["Add more examples", "Strengthen conclusion"]
+            suggestions = high_return_improvements if high_return_improvements else ["Improve structure"]
+            
+            return EvaluateAnswerResponse(
+                question=identified_question,  # Use identified question (from LLM or provided)
+                score=score,
+                max_score=max_score,
+                strengths=strengths[:10],
+                improvements=improvements[:10],
+                suggestions=suggestions[:10],
+                model_answer_excerpt="Evaluation based on UPSC Mains criteria.",
+                reconstructed_answer=reconstructed_answer,
+                evaluation_details=eval_data,
+                raw_evaluation_response=raw_response  # Exact raw response from LLM
+            )
+        
+        # Mode 2: OCR-based reconstruction + evaluation (ONE LLM CALL - preferred for evaluation)
+        elif ocr_data_json:
+            logger.info("📊 Using OCR blocks for reconstruction + evaluation (ONE LLM call)")
+            
+            try:
+                ocr_data = json.loads(ocr_data_json)
+            except json.JSONDecodeError as e:
+                raise HTTPException(status_code=400, detail=f"Invalid OCR data JSON: {str(e)}")
+            
+            if not ocr_data.get("blocks") and not ocr_data.get("full_text"):
+                raise HTTPException(status_code=400, detail="OCR data must contain blocks or full_text")
+            
+            # Reconstruct AND evaluate using OCR blocks (all 3 tasks in ONE call)
+            evaluation_result = reconstruct_and_evaluate_from_ocr_blocks(
+                ocr_data=ocr_data,
+                llm_client=openai_client,
+                model=settings.LLM_MODEL
+            )
+            
+            # Extract results
+            identified_question = evaluation_result.get("question", question or "Question not identified")
+            reconstructed_answer = evaluation_result.get("reconstructed_answer", "")
+            eval_data = evaluation_result.get("evaluation", {})
+            raw_response = evaluation_result.get("raw_response", "")
+            
+            score = eval_data.get("score", 0)
+            max_score = eval_data.get("max_score", 20)
+            what_was_done_well = eval_data.get("what_was_done_well", [])
+            what_was_missing = eval_data.get("what_was_missing", [])
+            high_return_improvements = eval_data.get("high_return_improvements", [])
+            
+            # Convert to response format
+            strengths = what_was_done_well if what_was_done_well else ["Answer provided", "Shows understanding"]
+            improvements = what_was_missing if what_was_missing else ["Add more examples", "Strengthen conclusion"]
+            suggestions = high_return_improvements if high_return_improvements else ["Improve structure"]
+            
+            return EvaluateAnswerResponse(
+                question=identified_question,
+                score=score,
+                max_score=max_score,
+                strengths=strengths[:10],
+                improvements=improvements[:10],
+                suggestions=suggestions[:10],
+                model_answer_excerpt="Evaluation based on UPSC Mains criteria.",
+                reconstructed_answer=reconstructed_answer,
+                evaluation_details=eval_data,
+                raw_evaluation_response=raw_response  # Exact raw response from LLM
+            )
+        
+        # Mode 2: Text-based evaluation (legacy - backward compatibility)
         else:
-            # Basic evaluation without GPT
-            word_count = len(answer.split())
-            evaluation = {
-                "score": min(15, max(5, word_count // 20)),  # Basic scoring based on length
-                "max_score": 20,
-                "strengths": ["Answer provided", "Shows effort"],
-                "improvements": ["OpenAI API not available for detailed evaluation"],
-                "suggestions": ["Please ensure OpenAI API key is configured for detailed feedback"],
-                "model_answer_excerpt": "Detailed evaluation requires OpenAI API access."
-            }
+            logger.info("📊 Using text-based evaluation (legacy mode)")
+            
+            if not question:
+                raise HTTPException(status_code=400, detail="question is required for text-based evaluation")
+            
+            # Extract answer text
+            if answer_file:
+                answer = extract_text_from_uploaded_file(answer_file)
+            elif answer_text:
+                answer = answer_text
+            else:
+                raise HTTPException(status_code=400, detail="Either answer_text or answer_file must be provided")
+            
+            if not answer.strip():
+                raise HTTPException(status_code=400, detail="Answer cannot be empty")
+            
+            # Switch to the enriched collection
+            chroma_handler = request.app.state.chroma_handler
+            chroma_handler.switch_to_collection("geography_docs_enriched")
+            
+            # Get relevant chunks for context
+            chunks = chroma_handler.query_documents(question, k=8)
+            context = "\n\n".join(chunk["content"] for chunk in chunks) if chunks else "No reference material available."
 
-        return EvaluateAnswerResponse(
-            question=question,
-            score=evaluation["score"],
-            max_score=evaluation["max_score"],
-            strengths=evaluation["strengths"],
-            improvements=evaluation["improvements"],
-            suggestions=evaluation["suggestions"],
-            model_answer_excerpt=evaluation["model_answer_excerpt"]
-        )
+            # Evaluate answer using GPT if available
+            api_key = os.getenv("OPENAI_API_KEY")
+            if api_key:
+                evaluation = evaluate_answer_with_gpt(question, answer, context, api_key)
+            else:
+                # Basic evaluation without GPT
+                word_count = len(answer.split())
+                evaluation = {
+                    "score": min(15, max(5, word_count // 20)),  # Basic scoring based on length
+                    "max_score": 20,
+                    "strengths": ["Answer provided", "Shows effort"],
+                    "improvements": ["OpenAI API not available for detailed evaluation"],
+                    "suggestions": ["Please ensure OpenAI API key is configured for detailed feedback"],
+                    "model_answer_excerpt": "Detailed evaluation requires OpenAI API access."
+                }
 
+            return EvaluateAnswerResponse(
+                question=question,
+                score=evaluation["score"],
+                max_score=evaluation["max_score"],
+                strengths=evaluation["strengths"],
+                improvements=evaluation["improvements"],
+                suggestions=evaluation["suggestions"],
+                model_answer_excerpt=evaluation["model_answer_excerpt"]
+            )
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Answer evaluation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -230,7 +230,7 @@ new_collection_name = "geography_docs_enriched"
 async def upload_pdfs(
     request: Request, 
     files: List[UploadFile] = File(...),
-    dpi: int = Form(600),
+    dpi: Optional[int] = Form(None),
     sample_sheet_path: Optional[str] = Form(None)
 ):
     """
@@ -252,9 +252,13 @@ async def upload_pdfs(
     # Switch to or create the new collection
     chroma_handler.switch_to_collection(new_collection_name)
 
-    # Validate DPI
-    if dpi not in [300, 600]:
+    # Validate DPI (only required for handwritten/image processing)
+    # DPI is optional - only used when processing handwritten content (images or scanned PDFs)
+    if dpi is not None and dpi not in [300, 600]:
         raise HTTPException(status_code=400, detail="DPI must be 300 or 600")
+    # Default DPI for handwritten processing if not provided (will be used only if needed)
+    if dpi is None:
+        dpi = 600  # Default to 600 for handwritten processing (only used if ROI+OCR is needed)
     
     # Find sample sheet if not provided
     if not sample_sheet_path:
@@ -483,9 +487,21 @@ async def upload_pdfs(
                         # Use reconstructed text if available, otherwise use original text
                         pdf_results = []
                         for result in ocr_results:
+                            reconstructed_text = result.get("reconstructed_text", "")
+                            original_text = result.get("text", "")
+                            text_to_use = reconstructed_text if reconstructed_text else original_text
+                            
+                            logger.info(f"   📄 Page {result.get('page_number', 1)}:")
+                            logger.info(f"      • Using {'reconstructed' if reconstructed_text else 'original'} text")
+                            logger.info(f"      • Text length: {len(text_to_use)} chars")
+                            if text_to_use:
+                                logger.info(f"      • Preview: {text_to_use[:100]}...")
+                            else:
+                                logger.warning(f"      • ⚠️ No text available for this page!")
+                            
                             pdf_result = {
                                 "page_number": result.get("page_number", 1),
-                                "text": result.get("reconstructed_text") or result.get("text", "")
+                                "text": text_to_use
                             }
                             pdf_results.append(pdf_result)
                         
@@ -523,6 +539,7 @@ async def upload_pdfs(
                                 "text": r.get("text", ""),  # Original merged text from blocks
                                 "full_text": r.get("full_text", ""),  # Full text from Vision API
                                 "reconstructed_text": r.get("reconstructed_text", ""),  # LLM reconstructed prose
+                                "identified_question": r.get("identified_question", ""),  # Question identified from OCR blocks
                                 "text_length": len(r.get("text", "")),
                                 "full_text_length": len(r.get("full_text", "")),
                                 "reconstructed_length": len(r.get("reconstructed_text", "")),

@@ -74,7 +74,8 @@ Before writing the answer, interpret the directive and shape structure according
 - Illustrate = give examples / mini case illustrations to clarify.
 
 
-3) Body must be arranged in sub-headings + bullet points. Use logical organisation (economic / social / political / environmental / geographic dimensions).
+3) Body must be arranged in sub-headings + bullet points. Use logical organisation (economic / social / political / environmental / geographic dimensions). Use inter-topic integration / inter-disciplinary linkage wherever relevant.
+
 4) Maintain clarity, precision, short sentences, and zero fluff. Avoid jargon unless necessary.
 
 CONTENT QUALITY

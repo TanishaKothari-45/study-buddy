@@ -53,121 +53,61 @@ with st.sidebar:
 # Main content based on tab selection
 if tab_choice == "Upload PDFs":
     st.header("📤 Upload Your Study Materials")
-    st.info("💡 Upload PDF or image files (JPG, PNG, WEBP). Handwritten content will be processed with ROI detection and OCR. Upload a sample sheet first for better ROI detection accuracy.")
     
     # Initialize session state
     if "processed_files" not in st.session_state:
         st.session_state.processed_files = set()
-    if "sample_sheet_path" not in st.session_state:
-        st.session_state.sample_sheet_path = None
+    if "upload_type" not in st.session_state:
+        st.session_state.upload_type = "PDF"
     
-    # Sample Sheet Upload Section
-    with st.container():
-        st.subheader("📋 Sample Sheet (Optional)")
-        st.caption("Upload a sample sheet (empty or with answers) to improve ROI detection accuracy. Format: WEBP, JPG, PNG, PDF")
-        
-        sample_sheet = st.file_uploader(
-            "Upload sample sheet",
-            type=["webp", "jpg", "jpeg", "png", "pdf"],
-            accept_multiple_files=False,
-            disabled=not backend_status,
-            key="sample_sheet_uploader",
-            help="Upload a sample answer sheet to help the system detect ROI boundaries more accurately"
-        )
-        
-        if sample_sheet:
-            st.info(f"📄 Selected: {sample_sheet.name}")
-        
-        if sample_sheet and st.button("📤 Upload Sample Sheet", disabled=not backend_status, type="primary"):
-            with st.spinner("Uploading sample sheet..."):
-                try:
-                    files = {"sample_sheet": sample_sheet}
-                    response = requests.post(f"{BACKEND_URL}/upload/sample-sheet", files=files)
-                    if response.status_code == 200:
-                        data = response.json()
-                        st.session_state.sample_sheet_path = data.get("path")
-                        st.session_state.sample_sheet_preview_url = data.get("preview_url")
-                        st.session_state.sample_sheet_roi_preview_url = data.get("roi_preview_url")
-                        st.success(f"✅ Sample sheet uploaded: {data.get('filename')}")
-                        st.rerun()  # Refresh to show previews
-                    else:
-                        st.error("Failed to upload sample sheet")
-                except Exception as e:
-                    st.error(f"Error: {str(e)}")
+    # Document Type Selection
+    st.subheader("📋 Select Document Type")
+    upload_type = st.radio(
+        "Choose document type:",
+        ["PDF", "Handwritten"],
+        index=0 if st.session_state.upload_type == "PDF" else 1,
+        disabled=not backend_status,
+        key="upload_type_radio",
+        help="PDF: Regular text-based PDFs. Handwritten: Scanned handwritten answers (PDF/images) that will be processed with OCR."
+    )
+    st.session_state.upload_type = upload_type
     
-    # Show sample sheet status and previews
-    if st.session_state.sample_sheet_path:
-        st.success(f"✅ Sample sheet ready: {st.session_state.sample_sheet_path}")
-        
-        # Initialize preview state
-        if "show_sample_previews" not in st.session_state:
-            st.session_state.show_sample_previews = True
-        
-        # Preview toggle button
-        col_btn1, col_btn2 = st.columns([1, 1])
-        with col_btn1:
-            if st.button("👁️ Show/Hide Previews", key="toggle_sample_previews"):
-                st.session_state.show_sample_previews = not st.session_state.show_sample_previews
-                st.rerun()
-        
-        with col_btn2:
-            if st.button("🗑️ Remove Sample Sheet"):
-                st.session_state.sample_sheet_path = None
-                st.session_state.show_sample_previews = False
-                if hasattr(st.session_state, 'sample_sheet_preview_url'):
-                    delattr(st.session_state, 'sample_sheet_preview_url')
-                if hasattr(st.session_state, 'sample_sheet_roi_preview_url'):
-                    delattr(st.session_state, 'sample_sheet_roi_preview_url')
-                st.rerun()
-        
-        # Show previews if toggled on
-        if st.session_state.show_sample_previews:
-            col_preview1, col_preview2 = st.columns(2)
-            with col_preview1:
-                st.markdown("**📄 Original Sample Sheet:**")
-                if hasattr(st.session_state, 'sample_sheet_preview_url'):
-                    preview_url = f"{BACKEND_URL}{st.session_state.sample_sheet_preview_url}"
-                    try:
-                        st.image(preview_url, caption="Original Sample Sheet")
-                    except Exception as e:
-                        st.error(f"Failed to load preview: {e}")
-                        st.text(f"URL: {preview_url}")
-                else:
-                    st.warning("Preview URL not available")
-            
-            with col_preview2:
-                st.markdown("**✂️ ROI Detection Preview:**")
-                if hasattr(st.session_state, 'sample_sheet_roi_preview_url'):
-                    roi_preview_url = f"{BACKEND_URL}{st.session_state.sample_sheet_roi_preview_url}"
-                    try:
-                        st.image(roi_preview_url, caption="Detected ROI (Preprocessed)")
-                    except Exception as e:
-                        st.error(f"Failed to load ROI preview: {e}")
-                        st.text(f"URL: {roi_preview_url}")
-                else:
-                    st.warning("ROI Preview URL not available")
+    if upload_type == "PDF":
+        st.info("💡 Upload regular PDF files. They will be chunked, enriched, and embedded for use in Q&A and answer generation.")
+    else:
+        st.info("💡 Upload handwritten answer sheets (PDF or images). They will be processed with ROI detection, OCR, and LLM reconstruction, then chunked and embedded to strengthen answer generation.")
     
     st.divider()
     
     # Main File Upload Section
     st.subheader("📄 Upload Documents")
     
-    # DPI Selection
-    dpi = st.selectbox(
-        "DPI for PDF conversion (higher = better quality, slower processing):",
-        [300, 600],
-        index=1,  # Default to 600
-        disabled=not backend_status,
-        help="600 DPI provides better clarity for handwritten text but takes longer to process"
-    )
-    
-    uploaded_files = st.file_uploader(
-        "Upload your PDFs or images (JPG, PNG, WEBP)",
-        type=["pdf", "jpg", "jpeg", "png", "webp"],
-        accept_multiple_files=True,
-        disabled=not backend_status,
-        key="file_uploader"
-    )
+    # File upload based on type
+    dpi = None
+    if upload_type == "PDF":
+        uploaded_files = st.file_uploader(
+            "Upload PDF files:",
+            type=["pdf"],
+            accept_multiple_files=True,
+            disabled=not backend_status,
+            key="pdf_uploader"
+        )
+    else:
+        # Handwritten: Show DPI selection and accept PDF/images
+        dpi = st.selectbox(
+            "DPI for PDF conversion (higher = better quality, slower processing):",
+            [300, 600],
+            index=1,  # Default to 600
+            disabled=not backend_status,
+            help="600 DPI provides better clarity for handwritten text but takes longer to process"
+        )
+        uploaded_files = st.file_uploader(
+            "Upload handwritten answer sheets (PDF or images):",
+            type=["pdf", "jpg", "jpeg", "png", "webp"],
+            accept_multiple_files=True,
+            disabled=not backend_status,
+            key="handwritten_uploader"
+        )
     
     # Filter out already processed files
     if uploaded_files:
@@ -219,17 +159,22 @@ if tab_choice == "Upload PDFs":
         # Create status container
         status_container = st.container()
         with status_container:
-            st.info(f"🔄 Processing {file_type_summary} file(s) at {dpi} DPI...")
+            if upload_type == "Handwritten":
+                st.info(f"🔄 Processing {file_type_summary} file(s) at {dpi} DPI...")
+            else:
+                st.info(f"🔄 Processing {file_type_summary} file(s)...")
             progress_bar = st.progress(0)
             status_text = st.empty()
         
-        with st.spinner(f"Processing {file_type_summary} file(s) at {dpi} DPI..."):
+        spinner_text = f"Processing {file_type_summary} file(s)..." if upload_type == "PDF" else f"Processing {file_type_summary} file(s) at {dpi} DPI..."
+        with st.spinner(spinner_text):
             files = [("files", file) for file in uploaded_files]
-            data = {
-                "dpi": dpi
-            }
-            if st.session_state.sample_sheet_path:
-                data["sample_sheet_path"] = st.session_state.sample_sheet_path
+            data = {}
+            
+            # Add DPI only for handwritten documents
+            if upload_type == "Handwritten":
+                data["dpi"] = dpi
+            # Note: No sample_sheet_path for Upload PDFs tab (moved to Evaluate Answer tab)
             
             try:
                 status_text.text("📤 Uploading files to server...")
@@ -942,69 +887,328 @@ elif tab_choice == "UPSC Mains Answer":
 
 elif tab_choice == "Evaluate Answer":
     st.header("📊 Evaluate Your Answer")
-    st.info("Upload your written answer to get UPSC-style evaluation with marks, feedback, and improvement suggestions.")
+    st.info("Upload handwritten answer sheets or paste text to get UPSC-style evaluation with marks, feedback, and improvement suggestions.")
     
-    col1, col2 = st.columns(2)
+    # Initialize session state for sample sheet
+    if "eval_sample_sheet_path" not in st.session_state:
+        st.session_state.eval_sample_sheet_path = None
     
-    with col1:
-        question = st.text_area(
-            "Enter the question you answered:",
-            placeholder="e.g., Discuss the impact of climate change on Indian agriculture...",
+    # Sample Sheet Upload Section (moved from Upload PDFs)
+    with st.container():
+        st.subheader("📋 Sample Sheet (Optional)")
+        st.caption("Upload a sample sheet (empty or with answers) to improve ROI detection accuracy. Format: WEBP, JPG, PNG, PDF")
+        
+        sample_sheet = st.file_uploader(
+            "Upload sample sheet",
+            type=["webp", "jpg", "jpeg", "png", "pdf"],
+            accept_multiple_files=False,
             disabled=not backend_status,
-            height=100
+            key="eval_sample_sheet_uploader",
+            help="Upload a sample answer sheet to help the system detect ROI boundaries more accurately"
         )
+        
+        if sample_sheet:
+            st.info(f"📄 Selected: {sample_sheet.name}")
+        
+        if sample_sheet and st.button("📤 Upload Sample Sheet", disabled=not backend_status, type="primary", key="eval_upload_sample"):
+            with st.spinner("Uploading sample sheet..."):
+                try:
+                    files = {"sample_sheet": sample_sheet}
+                    response = requests.post(f"{BACKEND_URL}/upload/sample-sheet", files=files)
+                    if response.status_code == 200:
+                        data = response.json()
+                        st.session_state.eval_sample_sheet_path = data.get("path")
+                        st.session_state.eval_sample_sheet_preview_url = data.get("preview_url")
+                        st.session_state.eval_sample_sheet_roi_preview_url = data.get("roi_preview_url")
+                        st.success(f"✅ Sample sheet uploaded: {data.get('filename')}")
+                        st.rerun()  # Refresh to show previews
+                    else:
+                        st.error("Failed to upload sample sheet")
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
     
-    with col2:
-        uploaded_file = st.file_uploader(
-            "Upload your answer (PDF or text file):",
-            type=["pdf", "txt"],
-            disabled=not backend_status
-        )
+    # Show sample sheet status and previews
+    if st.session_state.eval_sample_sheet_path:
+        st.success(f"✅ Sample sheet ready: {st.session_state.eval_sample_sheet_path}")
+        
+        # Initialize preview state
+        if "eval_show_sample_previews" not in st.session_state:
+            st.session_state.eval_show_sample_previews = False
+        
+        # Preview toggle button
+        col_btn1, col_btn2 = st.columns([1, 1])
+        with col_btn1:
+            if st.button("👁️ Show/Hide Previews", key="eval_toggle_sample_previews"):
+                st.session_state.eval_show_sample_previews = not st.session_state.eval_show_sample_previews
+                st.rerun()
+        
+        with col_btn2:
+            if st.button("🗑️ Remove Sample Sheet", key="eval_remove_sample"):
+                st.session_state.eval_sample_sheet_path = None
+                st.session_state.eval_show_sample_previews = False
+                if hasattr(st.session_state, 'eval_sample_sheet_preview_url'):
+                    delattr(st.session_state, 'eval_sample_sheet_preview_url')
+                if hasattr(st.session_state, 'eval_sample_sheet_roi_preview_url'):
+                    delattr(st.session_state, 'eval_sample_sheet_roi_preview_url')
+                st.rerun()
+        
+        # Show previews if toggled on
+        if st.session_state.eval_show_sample_previews:
+            col_preview1, col_preview2 = st.columns(2)
+            with col_preview1:
+                st.markdown("**📄 Original Sample Sheet:**")
+                if hasattr(st.session_state, 'eval_sample_sheet_preview_url'):
+                    preview_url = f"{BACKEND_URL}{st.session_state.eval_sample_sheet_preview_url}"
+                    try:
+                        st.image(preview_url, caption="Original Sample Sheet")
+                    except Exception as e:
+                        st.error(f"Failed to load preview: {e}")
+                        st.text(f"URL: {preview_url}")
+                else:
+                    st.warning("Preview URL not available")
+            
+            with col_preview2:
+                st.markdown("**✂️ ROI Detection Preview:**")
+                if hasattr(st.session_state, 'eval_sample_sheet_roi_preview_url'):
+                    roi_preview_url = f"{BACKEND_URL}{st.session_state.eval_sample_sheet_roi_preview_url}"
+                    try:
+                        st.image(roi_preview_url, caption="Detected ROI")
+                    except Exception as e:
+                        st.error(f"Failed to load ROI preview: {e}")
+                        st.text(f"URL: {roi_preview_url}")
+                else:
+                    st.warning("ROI Preview URL not available")
     
-    # Alternative: Direct text input
-    answer_text = st.text_area(
-        "Or paste your answer directly here:",
-        placeholder="Paste your written answer here...",
+    st.divider()
+    
+    # Answer Input Section
+    st.subheader("📝 Enter Question and Answer")
+    
+    # Question is optional when uploading files (will be identified from OCR), required when pasting text
+    question_label = "Enter the question you answered (optional if uploading files - will be identified from OCR):"
+    question_placeholder = "e.g., Discuss the impact of climate change on Indian agriculture... (Optional if uploading handwritten files)"
+    
+    question = st.text_area(
+        question_label,
+        placeholder=question_placeholder,
         disabled=not backend_status,
-        height=200
+        height=100,
+        key="eval_question"
     )
     
-    if st.button("Evaluate Answer", disabled=not backend_status):
-        if question and (uploaded_file or answer_text):
-            with st.spinner("Evaluating your answer..."):
+    # Answer input method selection
+    answer_input_method = st.radio(
+        "Answer input method:",
+        ["Upload File (Handwritten)", "Paste Text"],
+        disabled=not backend_status,
+        key="answer_input_method"
+    )
+    
+    # File upload for handwritten answers (multiple files supported)
+    uploaded_files = None
+    dpi = None
+    if answer_input_method == "Upload File (Handwritten)":
+        uploaded_files = st.file_uploader(
+            "Upload your handwritten answer (PDF or images) - Multiple files supported:",
+            type=["pdf", "jpg", "jpeg", "png", "webp"],
+            accept_multiple_files=True,
+            disabled=not backend_status,
+            key="eval_handwritten_uploader",
+            help="You can upload multiple images or PDFs. All pages will be processed together."
+        )
+        
+        # Show uploaded files count
+        if uploaded_files:
+            st.info(f"📎 {len(uploaded_files)} file(s) selected: {', '.join([f.name for f in uploaded_files])}")
+        
+        # DPI selection for handwritten
+        if uploaded_files:
+            dpi = st.selectbox(
+                "DPI for PDF conversion:",
+                [300, 600],
+                index=1,
+                disabled=not backend_status,
+                key="eval_dpi"
+            )
+    
+    # Alternative: Direct text input
+    answer_text = None
+    if answer_input_method == "Paste Text":
+        answer_text = st.text_area(
+            "Paste your answer directly here:",
+            placeholder="Paste your written answer here...",
+            disabled=not backend_status,
+            height=200,
+            key="eval_answer_text"
+        )
+    
+    if st.button("Evaluate Answer", disabled=not backend_status, type="primary"):
+        # Validation: 
+        # - If uploading files: question is optional (will be identified from OCR blocks)
+        # - If pasting text: both question and answer_text are required
+        if uploaded_files or (question and answer_text):
+            with st.spinner("Processing and evaluating your answer..."):
                 try:
-                    # Prepare evaluation request
-                    if uploaded_file:
-                        # Use regular text file processing (PDF or TXT only)
-                        eval_data = {
-                            "question": question,
-                            "answer_text": answer_text if answer_text else None
-                        }
-                        files = {"answer_file": uploaded_file}
-                        response = requests.post(
-                            f"{BACKEND_URL}/evaluate-answer/",
-                            json=eval_data,
-                            files=files,
-                            timeout=60
-                        )
-                    else:
-                        # Direct text evaluation
+                    response = None
+                    
+                    # Handle handwritten file upload (PDF/images) - ROI -> OCR -> LLM -> Evaluate
+                    if uploaded_files and answer_input_method == "Upload File (Handwritten)":
+                        # Process handwritten answer: upload -> ROI -> OCR -> LLM -> download PDF -> evaluate
+                        status_container = st.container()
+                        with status_container:
+                            st.info(f"🔄 Processing {len(uploaded_files)} file(s): ROI detection → OCR → LLM reconstruction...")
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
+                            # Step 1: Upload and process handwritten answer(s)
+                            status_text.text(f"📤 Uploading {len(uploaded_files)} file(s)...")
+                            progress_bar.progress(10)
+                            
+                            # Prepare multiple files for upload
+                            files = [("files", f) for f in uploaded_files]
+                            upload_data = {
+                                "dpi": dpi
+                            }
+                            if st.session_state.eval_sample_sheet_path:
+                                upload_data["sample_sheet_path"] = st.session_state.eval_sample_sheet_path
+                            
+                            # Upload and process (ROI -> OCR -> LLM -> PDF generation)
+                            upload_response = requests.post(
+                                f"{BACKEND_URL}/upload/",
+                                files=files,
+                                data=upload_data,
+                                timeout=600  # Longer timeout for multiple files
+                            )
+                            
+                            if upload_response.status_code == 200:
+                                upload_results = upload_response.json()["summary"]
+                                
+                                # Extract OCR data and reconstructed text from OCR results
+                                # Combine results from all uploaded files
+                                ocr_data_for_eval = None
+                                reconstructed_answer = ""
+                                identified_question = ""
+                                pdf_download_urls = []
+                                
+                                # Combine OCR results from all files
+                                all_ocr_results = []
+                                for file_result in upload_results:
+                                    file_ocr_results = file_result.get("ocr_results", [])
+                                    all_ocr_results.extend(file_ocr_results)
+                                    pdf_url = file_result.get("pdf_download_url")
+                                    if pdf_url:
+                                        pdf_download_urls.append(pdf_url)
+                                
+                                if all_ocr_results:
+                                    # Combine OCR blocks from all pages and all files for evaluation
+                                    combined_blocks = []
+                                    combined_full_texts = []
+                                    total_width = 0
+                                    total_height = 0
+                                    
+                                    for r in all_ocr_results:
+                                        blocks = r.get("blocks", [])
+                                        full_text = r.get("full_text", "")
+                                        width = r.get("width", 0)
+                                        height = r.get("height", 0)
+                                        
+                                        combined_blocks.extend(blocks)
+                                        if full_text:
+                                            combined_full_texts.append(full_text)
+                                        total_width = max(total_width, width)
+                                        total_height += height
+                                    
+                                    combined_full_text = "\n\n".join(combined_full_texts) if combined_full_texts else ""
+                                    
+                                    # Prepare OCR data for evaluation (all 3 tasks)
+                                    ocr_data_for_eval = {
+                                        "blocks": combined_blocks,
+                                        "full_text": combined_full_text,
+                                        "width": total_width,
+                                        "height": total_height
+                                    }
+                                    
+                                    # Also extract reconstructed text for display
+                                    reconstructed_answer = "\n\n".join([
+                                        r.get("reconstructed_text", "") or r.get("text", "")
+                                        for r in all_ocr_results
+                                    ])
+                                    
+                                    # Extract identified question if available (from first result)
+                                    identified_question = all_ocr_results[0].get("identified_question", "")
+                                
+                                status_text.text(f"✅ OCR and reconstruction complete! Processed {len(all_ocr_results)} page(s) from {len(upload_results)} file(s)")
+                                progress_bar.progress(50)
+                                
+                                # Show download links for PDFs (one per file)
+                                if pdf_download_urls:
+                                    if len(pdf_download_urls) == 1:
+                                        st.success(f"📥 [Download Reconstructed PDF]({BACKEND_URL}{pdf_download_urls[0]})")
+                                    else:
+                                        st.success(f"📥 Download reconstructed PDFs ({len(pdf_download_urls)} files):")
+                                        for i, pdf_url in enumerate(pdf_download_urls, 1):
+                                            filename = upload_results[i-1].get("pdf_filename", f"file_{i}.pdf")
+                                            st.markdown(f"   • [{filename}]({BACKEND_URL}{pdf_url})")
+                                
+                                # Step 2: Reconstruct + Evaluate using OCR blocks (ONE LLM CALL - all 3 tasks)
+                                status_text.text("📊 Reconstructing and evaluating answer (ONE LLM call: identify question + reconstruct + evaluate)...")
+                                progress_bar.progress(70)
+                                
+                                import json
+                                
+                                # Use OCR blocks for reconstruction + evaluation (ONE LLM call)
+                                # This does: Identify question + Reconstruct answer + Evaluate (all in one call)
+                                if ocr_data_for_eval:
+                                    eval_data = {
+                                        "ocr_data_json": json.dumps(ocr_data_for_eval)
+                                    }
+                                    # Question is optional hint (LLM will identify from OCR blocks anyway)
+                                    if question:
+                                        eval_data["question"] = question
+                                    
+                                    response = requests.post(
+                                        f"{BACKEND_URL}/evaluate-answer/",
+                                        data=eval_data,
+                                        timeout=120
+                                    )
+                                else:
+                                    st.error("No OCR data available for evaluation")
+                                    response = None
+                                
+                                progress_bar.progress(100)
+                                status_text.text("✅ Evaluation complete!")
+                            else:
+                                st.error("Failed to process handwritten answer")
+                                
+                    elif answer_text:
+                        # Direct text evaluation (legacy mode - no OCR)
                         eval_data = {
                             "question": question,
                             "answer_text": answer_text
                         }
                         response = requests.post(
                             f"{BACKEND_URL}/evaluate-answer/",
-                            json=eval_data,
+                            data=eval_data,  # Use data for Form data
                             timeout=60
                         )
+                    else:
+                        st.warning("Please provide either a file upload or paste your answer text")
                     
-                    if response.status_code == 200:
+                    if response and response.status_code == 200:
                         data = response.json()
                         
                         # Display evaluation results
                         st.subheader("📊 Evaluation Results")
                         st.markdown("---")
+                        
+                        # Show question
+                        identified_q = data.get("question", question)
+                        st.info(f"📋 **Question:** {identified_q}")
+                        
+                        # Show reconstructed answer
+                        if data.get("reconstructed_answer"):
+                            with st.expander("📝 View Reconstructed Answer", expanded=False):
+                                st.markdown(data["reconstructed_answer"])
                         
                         # Overall score
                         score = data.get("score", 0)
@@ -1023,28 +1227,35 @@ elif tab_choice == "Evaluate Answer":
                         # Detailed feedback
                         st.subheader("📝 Detailed Feedback")
                         
-                        # Strengths
+                        # Strengths (What was done well)
                         if data.get("strengths"):
-                            st.success("✅ **Strengths:**")
+                            st.success("✅ **What Was Done Well:**")
                             for strength in data["strengths"]:
                                 st.markdown(f"- {strength}")
                         
-                        # Areas for improvement
+                        # Areas for improvement (What was missing)
                         if data.get("improvements"):
-                            st.warning("⚠️ **Areas for Improvement:**")
+                            st.warning("⚠️ **What Was Missing / Can Be Improved:**")
                             for improvement in data["improvements"]:
                                 st.markdown(f"- {improvement}")
                         
-                        # Specific suggestions
+                        # Specific suggestions (High return improvements)
                         if data.get("suggestions"):
-                            st.info("💡 **Specific Suggestions:**")
+                            st.info("💡 **High Return Improvements:**")
                             for suggestion in data["suggestions"]:
                                 st.markdown(f"- {suggestion}")
                         
-                        # Model answer excerpt
-                        if data.get("model_answer_excerpt"):
-                            st.subheader("📚 Model Answer Excerpt")
-                            st.markdown(data["model_answer_excerpt"])
+                        # Show exact raw evaluation response from API
+                        if data.get("raw_evaluation_response"):
+                            st.subheader("🔍 Raw Evaluation Response (Exact API Output)")
+                            with st.expander("📄 View Raw LLM Response", expanded=False):
+                                st.code(data["raw_evaluation_response"], language="markdown")
+                        
+                        # Evaluation details (structured data)
+                        eval_details = data.get("evaluation_details")
+                        if eval_details:
+                            with st.expander("📊 View Structured Evaluation Details", expanded=False):
+                                st.json(eval_details)
                     
                     else:
                         st.error("Failed to evaluate answer")
@@ -1054,7 +1265,12 @@ elif tab_choice == "Evaluate Answer":
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
         else:
-            st.warning("Please provide both a question and an answer to evaluate")
+            if not uploaded_files and not answer_text:
+                st.warning("Please provide either a file upload or paste your answer text")
+            elif answer_text and not question:
+                st.warning("Please provide both a question and an answer to evaluate")
+            else:
+                st.warning("Please provide either a file upload or paste your answer text")
 
 # Footer
 st.markdown("---")

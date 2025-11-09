@@ -121,15 +121,23 @@ def generate_pdf_from_ocr_results(
         # Process text: preserve line breaks
         # Replace newlines with <br/> tags for ReportLab
         if text:
+            # Log what we're putting in PDF
+            logger.debug(f"   Page {page_number}: Adding text to PDF ({len(text)} chars)")
+            logger.debug(f"      Preview: {text[:100]}...")
+            
             # Escape HTML special characters
             text_escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            # Replace newlines with <br/> tags
+            # Replace newlines with <br/> tags to preserve line breaks
             text_formatted = text_escaped.replace("\n", "<br/>")
+            
+            # Also replace double newlines with paragraph breaks
+            text_formatted = text_formatted.replace("<br/><br/>", "<br/><br/>")
             
             # Add text paragraph
             story.append(Paragraph(text_formatted, body_style))
         else:
             # Empty page
+            logger.warning(f"   Page {page_number}: No text to add to PDF!")
             story.append(Paragraph("<i>No text extracted from this page</i>", body_style))
         
         # Add page break (except for last page)

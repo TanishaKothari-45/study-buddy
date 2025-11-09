@@ -76,23 +76,31 @@ def vision_blocks_and_fulltext(roi_np: np.ndarray) -> Dict[str, Any]:
         raise Exception("Google Vision client not initialized. Check GOOGLE_APPLICATION_CREDENTIALS")
     
     try:
-        logger.debug(f"      📸 Sending FULL ROI image to Google Vision (shape: {roi_np.shape})")
-        logger.debug(f"      ⚠️  NO line segmentation - sending entire page ROI")
+        logger.info(f"      📸 Sending FULL ROI image to Google Vision")
+        logger.info(f"         • Shape: {roi_np.shape}")
+        logger.info(f"         • Dtype: {roi_np.dtype}")
+        logger.info(f"         • Min/Max values: {roi_np.min()}/{roi_np.max()}")
+        logger.info(f"         • ⚠️  NO preprocessing - sending RAW RGB ROI image")
+        logger.info(f"         • ⚠️  NO line segmentation - sending entire page ROI")
         
         # Convert numpy array to PIL Image
         # ROI is already RGB (from ROI extraction), no preprocessing applied
         # Handle different image formats
         if roi_np.ndim == 2:
             # Grayscale (shouldn't happen, but handle it)
-            pil = Image.fromarray(roi_np)
+            logger.warning(f"      ⚠️  Grayscale image detected (ndim=2) - converting to RGB")
+            pil = Image.fromarray(roi_np).convert('RGB')
         elif roi_np.ndim == 3:
             # RGB image (already RGB from ROI extraction, no conversion needed)
             if roi_np.shape[2] == 3:
                 # Already RGB, use directly
                 pil = Image.fromarray(roi_np)
+                logger.info(f"         • ✅ RGB image confirmed (3 channels)")
             else:
+                logger.warning(f"      ⚠️  Unexpected channel count: {roi_np.shape[2]}")
                 pil = Image.fromarray(roi_np)
         else:
+            logger.error(f"      ❌ Unexpected image dimensions: {roi_np.ndim}")
             pil = Image.fromarray(roi_np)
         
         # Convert PIL Image → PNG bytes in memory
@@ -100,7 +108,7 @@ def vision_blocks_and_fulltext(roi_np: np.ndarray) -> Dict[str, Any]:
         pil.save(buf, format="PNG")
         content = buf.getvalue()
         
-        logger.debug(f"      📤 Sending {len(content)} bytes to Google Vision API")
+        logger.info(f"      📤 Sending {len(content)} bytes ({len(content)/1024:.2f} KB) to Google Vision API")
         
         # Send FULL ROI image to Google Vision API (no segmentation)
         image = vision.Image(content=content)
@@ -112,6 +120,11 @@ def vision_blocks_and_fulltext(roi_np: np.ndarray) -> Dict[str, Any]:
         W, H = pil.size
         blocks = []
         full_text = resp.full_text_annotation.text or ""
+        
+        logger.info(f"      ✅ Google Vision API response received")
+        logger.info(f"         • Image dimensions: {W}x{H} pixels")
+        logger.info(f"         • Full text length: {len(full_text)} chars")
+        logger.info(f"         • Number of pages in response: {len(resp.full_text_annotation.pages)}")
         
         # Extract blocks: page → block → paragraph → words
         # Build blocks with confidence scores
@@ -144,9 +157,17 @@ def vision_blocks_and_fulltext(roi_np: np.ndarray) -> Dict[str, Any]:
         # Sort primarily by Y then X (reading order)
         blocks.sort(key=lambda b: (b["bbox"][0][1], b["bbox"][0][0]))
         
+        logger.info(f"         • Total blocks extracted: {len(blocks)} (before filtering)")
+        
         # Optional: Filter very small noise blocks (len > 2)
         # DO NOT merge/reconstruct - preserve spatial structure
         blocks = [b for b in blocks if len(b["text"]) > 2]
+        
+        logger.info(f"         • Blocks after filtering (len > 2): {len(blocks)}")
+        if blocks:
+            logger.info(f"         • Sample blocks:")
+            for i, block in enumerate(blocks[:3], 1):
+                logger.info(f"            {i}. '{block['text'][:50]}...' (conf={block['conf']:.2f})")
         
         logger.debug(f"      ✅ Extracted {len(blocks)} text blocks from Google Vision")
         logger.debug(f"      📏 Image dimensions: {W}x{H} pixels")

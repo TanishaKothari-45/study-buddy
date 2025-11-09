@@ -11,7 +11,10 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-# System prompt for reconstruction
+# Import the new reconstruction function
+from .answer_evaluator import reconstruct_with_question_identification
+
+# System prompt for reconstruction (legacy - kept for backward compatibility)
 RECONSTRUCT_SYSTEM_PROMPT = """You are a faithful transcriber. Your ONLY task is to reconstruct the student's original UPSC handwritten answer using the raw OCR blocks and raw OCR full text provided.
 
 RULES:
@@ -239,17 +242,40 @@ def reconstruct_pages_blocks(
         logger.info(f"   📊 Combined: {len(combined_blocks)} blocks, {len(combined_full_text)} chars")
         
         try:
-            reconstructed_text = reconstruct_answer_from_ocr_data(
+            # Use new reconstruction function that identifies question and reconstructs answer
+            reconstruction_result = reconstruct_with_question_identification(
                 ocr_data=combined_ocr_data,
                 llm_client=llm_client,
                 model=model
             )
             
-            # Assign reconstructed text to all pages
+            reconstructed_text = reconstruction_result.get("reconstructed_answer", "")
+            identified_question = reconstruction_result.get("question", "")
+            
+            # Log LLM reconstruction output for debugging
+            logger.info("")
+            logger.info("   " + "="*70)
+            logger.info("   📝 LLM RECONSTRUCTION OUTPUT")
+            logger.info("   " + "="*70)
+            logger.info(f"   📋 Identified Question:")
+            logger.info(f"      {identified_question}")
+            logger.info("")
+            logger.info(f"   📝 Reconstructed Answer ({len(reconstructed_text)} chars):")
+            logger.info("   " + "-"*70)
+            # Log first 500 chars, then show total length
+            preview_text = reconstructed_text[:500] if len(reconstructed_text) > 500 else reconstructed_text
+            logger.info(f"      {preview_text}")
+            if len(reconstructed_text) > 500:
+                logger.info(f"      ... (truncated, total length: {len(reconstructed_text)} chars)")
+            logger.info("   " + "-"*70)
+            logger.info("")
+            
+            # Assign reconstructed text and question to all pages
             for result in ocr_results:
                 reconstructed_results.append({
                     **result,
-                    "reconstructed_text": reconstructed_text
+                    "reconstructed_text": reconstructed_text,
+                    "identified_question": identified_question
                 })
             
             logger.info("   ✅ Combined reconstruction complete")
@@ -263,50 +289,136 @@ def reconstruct_pages_blocks(
                     "reconstructed_text": result.get("text", "")
                 })
     else:
-        # Reconstruct each page separately
-        for result in ocr_results:
-            page_no = result.get("page_number", 0)
-            blocks = result.get("blocks", [])
-            full_text = result.get("full_text", "")
+        # Single page or combine_pages=False - but we should still combine if multiple pages exist
+        if len(ocr_results) > 1:
+            logger.warning("   ⚠️ Multiple pages detected but combine_pages=False. Combining anyway to avoid partial reconstruction.")
+            # Force combination for multi-page answers
+            combined_blocks = []
+            combined_full_texts = []
+            total_width = 0
+            total_height = 0
             
-            if not blocks and not full_text:
-                logger.warning(f"   ⚠️ Page {page_no}: No blocks or full_text to reconstruct")
-                reconstructed_results.append({
-                    **result,
-                    "reconstructed_text": result.get("text", "")
-                })
-                continue
+            for result in ocr_results:
+                blocks = result.get("blocks", [])
+                full_text = result.get("full_text", "")
+                width = result.get("width", 0)
+                height = result.get("height", 0)
+                
+                combined_blocks.extend(blocks)
+                if full_text:
+                    combined_full_texts.append(full_text)
+                total_width = max(total_width, width)
+                total_height += height
             
-            logger.info(f"   📄 Reconstructing page {page_no} ({len(blocks)} blocks, {len(full_text)} chars full_text)...")
+            combined_full_text = "\n\n".join(combined_full_texts) if combined_full_texts else ""
             
-            ocr_data = {
-                "blocks": blocks,
-                "full_text": full_text,
-                "width": result.get("width", 0),
-                "height": result.get("height", 0)
+            combined_ocr_data = {
+                "blocks": combined_blocks,
+                "full_text": combined_full_text,
+                "width": total_width,
+                "height": total_height
             }
             
+            logger.info(f"   📊 Combined: {len(combined_blocks)} blocks, {len(combined_full_text)} chars")
+            
             try:
-                reconstructed_text = reconstruct_answer_from_ocr_data(
-                    ocr_data=ocr_data,
+                reconstruction_result = reconstruct_with_question_identification(
+                    ocr_data=combined_ocr_data,
                     llm_client=llm_client,
                     model=model
                 )
                 
-                reconstructed_results.append({
-                    **result,
-                    "reconstructed_text": reconstructed_text
-                })
+                reconstructed_text = reconstruction_result.get("reconstructed_answer", "")
+                identified_question = reconstruction_result.get("question", "")
                 
-                logger.info(f"   ✅ Page {page_no}: Reconstruction complete")
+                # Log LLM reconstruction output
+                logger.info("")
+                logger.info("   " + "="*70)
+                logger.info("   📝 LLM RECONSTRUCTION OUTPUT (Multi-page combined)")
+                logger.info("   " + "="*70)
+                logger.info(f"   📋 Identified Question: {identified_question}")
+                logger.info(f"   📝 Reconstructed Answer ({len(reconstructed_text)} chars):")
+                preview_text = reconstructed_text[:500] if len(reconstructed_text) > 500 else reconstructed_text
+                logger.info(f"      {preview_text}")
+                if len(reconstructed_text) > 500:
+                    logger.info(f"      ... (truncated, total length: {len(reconstructed_text)} chars)")
+                logger.info("")
                 
+                # Assign to all pages
+                for result in ocr_results:
+                    reconstructed_results.append({
+                        **result,
+                        "reconstructed_text": reconstructed_text,
+                        "identified_question": identified_question
+                    })
+                
+                logger.info("   ✅ Multi-page reconstruction complete")
             except Exception as e:
-                logger.error(f"   ❌ Page {page_no}: Reconstruction failed - {e}")
-                # Use original merged text as fallback
-                reconstructed_results.append({
-                    **result,
-                    "reconstructed_text": result.get("text", "")
-                })
+                logger.error(f"   ❌ Multi-page reconstruction failed - {e}")
+                # Fallback to original text
+                for result in ocr_results:
+                    reconstructed_results.append({
+                        **result,
+                        "reconstructed_text": result.get("text", "")
+                    })
+        else:
+            # Single page - reconstruct individually
+            for result in ocr_results:
+                page_no = result.get("page_number", 0)
+                blocks = result.get("blocks", [])
+                full_text = result.get("full_text", "")
+                
+                if not blocks and not full_text:
+                    logger.warning(f"   ⚠️ Page {page_no}: No blocks or full_text to reconstruct")
+                    reconstructed_results.append({
+                        **result,
+                        "reconstructed_text": result.get("text", "")
+                    })
+                    continue
+                
+                logger.info(f"   📄 Reconstructing page {page_no} ({len(blocks)} blocks, {len(full_text)} chars full_text)...")
+                
+                ocr_data = {
+                    "blocks": blocks,
+                    "full_text": full_text,
+                    "width": result.get("width", 0),
+                    "height": result.get("height", 0)
+                }
+                
+                try:
+                    # Use new reconstruction function that identifies question and reconstructs answer
+                    reconstruction_result = reconstruct_with_question_identification(
+                        ocr_data=ocr_data,
+                        llm_client=llm_client,
+                        model=model
+                    )
+                    
+                    reconstructed_text = reconstruction_result.get("reconstructed_answer", "")
+                    identified_question = reconstruction_result.get("question", "")
+                    
+                    # Log LLM reconstruction output for debugging
+                    logger.info(f"   📋 Page {page_no} - Identified Question: {identified_question}")
+                    logger.info(f"   📝 Page {page_no} - Reconstructed Answer ({len(reconstructed_text)} chars):")
+                    preview_text = reconstructed_text[:300] if len(reconstructed_text) > 300 else reconstructed_text
+                    logger.info(f"      {preview_text}")
+                    if len(reconstructed_text) > 300:
+                        logger.info(f"      ... (truncated, total length: {len(reconstructed_text)} chars)")
+                    
+                    reconstructed_results.append({
+                        **result,
+                        "reconstructed_text": reconstructed_text,
+                        "identified_question": identified_question
+                    })
+                    
+                    logger.info(f"   ✅ Page {page_no}: Reconstruction complete")
+                    
+                except Exception as e:
+                    logger.error(f"   ❌ Page {page_no}: Reconstruction failed - {e}")
+                    # Use original merged text as fallback
+                    reconstructed_results.append({
+                        **result,
+                        "reconstructed_text": result.get("text", "")
+                    })
     
     logger.info("")
     logger.info("   " + "="*70)
