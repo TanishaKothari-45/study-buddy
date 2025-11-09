@@ -1245,12 +1245,6 @@ elif tab_choice == "Evaluate Answer":
                             for suggestion in data["suggestions"]:
                                 st.markdown(f"- {suggestion}")
                         
-                        # Show exact raw evaluation response from API
-                        if data.get("raw_evaluation_response"):
-                            st.subheader("🔍 Raw Evaluation Response (Exact API Output)")
-                            with st.expander("📄 View Raw LLM Response", expanded=False):
-                                st.code(data["raw_evaluation_response"], language="markdown")
-                        
                         # Evaluation details (structured data)
                         eval_details = data.get("evaluation_details")
                         if eval_details:
