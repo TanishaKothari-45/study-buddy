@@ -209,10 +209,24 @@ def classify_chunks_batch(chunks: List[Dict[str, Any]], client: OpenAI) -> List[
             
             # Validate major_domain
             if major_domain and major_domain not in GEOGRAPHY_DOMAINS:
-                logger.warning(f"⚠️ Invalid major_domain '{major_domain}', using rule-based fallback")
-                rule_meta = detect_topic(chunk['content'])
-                major_domain = rule_meta.get("major_domain") or "Unclassified"
-                sub_domain = rule_meta.get("sub_domain") or sub_domain or "Unknown"
+                # Check if LLM confused a sub_domain as major_domain
+                corrected = False
+                for valid_major, sub_domains in GEOGRAPHY_DOMAINS.items():
+                    if major_domain in sub_domains:
+                        logger.warning(f"⚠️ LLM returned sub_domain '{major_domain}' as major_domain, correcting to '{valid_major}'")
+                        # If sub_domain wasn't provided, use the one LLM returned
+                        if not sub_domain:
+                            sub_domain = major_domain
+                        major_domain = valid_major
+                        corrected = True
+                        break
+                
+                # If not a sub_domain either, use rule-based fallback
+                if not corrected:
+                    logger.warning(f"⚠️ Invalid major_domain '{major_domain}', using rule-based fallback")
+                    rule_meta = detect_topic(chunk['content'])
+                    major_domain = rule_meta.get("major_domain") or "Unclassified"
+                    sub_domain = rule_meta.get("sub_domain") or sub_domain or "Unknown"
             
             # Fallback to rule-based if GPT didn't provide domain
             if not major_domain:

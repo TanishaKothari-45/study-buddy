@@ -44,21 +44,85 @@ class Embedder:
             return []
         
         # Filter out empty strings and ensure all are strings
-        # Also truncate texts that are too long (OpenAI limit: 8192 tokens ≈ 6000 words)
+        # Split texts that are too long (OpenAI limit: 8192 tokens ≈ 6000 words)
         # Use VERY conservative limit: 1500 words ≈ 1950 tokens (very safe)
         cleaned_texts = []
         MAX_WORDS = 1500  # Very conservative limit: ~1950 tokens (well under 8192)
+        
+        def split_text_by_sentences(text: str, max_words: int, overlap_words: int = 100) -> List[str]:
+            """Split long text by sentences with overlap"""
+            import re
+            
+            words = text.split()
+            word_count = len(words)
+            
+            if word_count <= max_words:
+                return [text]
+            
+            # Split by sentences
+            sentences = re.split(r'([.!?]+\s+)', text)
+            sentence_list = []
+            for i in range(0, len(sentences) - 1, 2):
+                if i + 1 < len(sentences):
+                    sentence_list.append(sentences[i] + sentences[i + 1])
+                else:
+                    sentence_list.append(sentences[i])
+            
+            # Fallback to word-based if no sentences
+            if len(sentence_list) <= 1:
+                chunks = []
+                for i in range(0, word_count, max_words - overlap_words):
+                    chunk = " ".join(words[i:i + max_words])
+                    if chunk.strip():
+                        chunks.append(chunk)
+                return chunks
+            
+            # Build chunks from sentences
+            chunks = []
+            current_chunk = []
+            current_word_count = 0
+            
+            for sentence in sentence_list:
+                sentence_words = sentence.split()
+                sentence_word_count = len(sentence_words)
+                
+                if current_word_count + sentence_word_count > max_words and current_chunk:
+                    chunk_text = "".join(current_chunk).strip()
+                    if chunk_text:
+                        chunks.append(chunk_text)
+                    
+                    # Overlap: last N words
+                    overlap_text = " ".join(words[max(0, current_word_count - overlap_words):current_word_count])
+                    current_chunk = [overlap_text + " "] if overlap_text else []
+                    current_word_count = len(overlap_text.split()) if overlap_text else 0
+                
+                current_chunk.append(sentence)
+                current_word_count += sentence_word_count
+            
+            if current_chunk:
+                chunk_text = "".join(current_chunk).strip()
+                if chunk_text:
+                    chunks.append(chunk_text)
+            
+            return chunks if chunks else [text]
+        
+        # Track which original texts were split (for metadata handling by caller)
+        text_split_map = {}  # Maps original index -> list of split indices
         
         for i, text in enumerate(texts):
             if isinstance(text, str) and text.strip():
                 words = text.split()
                 word_count = len(words)
-                # If text is too long, truncate it aggressively
+                # If text is too long, split it instead of truncating
                 if word_count > MAX_WORDS:
-                    logger.error(f"❌ Text {i+1} too long ({word_count} words), truncating to {MAX_WORDS} words")
-                    logger.error(f"   This should not happen - chunking should prevent this!")
-                    truncated = " ".join(words[:MAX_WORDS])
-                    cleaned_texts.append(truncated.strip())
+                    logger.warning(f"⚠️ Text {i+1} too long ({word_count} words), splitting into smaller chunks...")
+                    split_chunks = split_text_by_sentences(text, MAX_WORDS, overlap_words=100)
+                    logger.info(f"   ✅ Split into {len(split_chunks)} chunks")
+                    # Store split info for caller
+                    start_idx = len(cleaned_texts)
+                    cleaned_texts.extend([chunk.strip() for chunk in split_chunks if chunk.strip()])
+                    end_idx = len(cleaned_texts)
+                    text_split_map[i] = list(range(start_idx, end_idx))
                 else:
                     cleaned_texts.append(text.strip())
             elif text:  # Non-empty but not string - convert to string
@@ -66,9 +130,13 @@ class Embedder:
                 words = text_str.split()
                 word_count = len(words)
                 if word_count > MAX_WORDS:
-                    logger.error(f"❌ Text {i+1} too long ({word_count} words), truncating to {MAX_WORDS} words")
-                    logger.error(f"   This should not happen - chunking should prevent this!")
-                    cleaned_texts.append(" ".join(words[:MAX_WORDS]).strip())
+                    logger.warning(f"⚠️ Text {i+1} too long ({word_count} words), splitting into smaller chunks...")
+                    split_chunks = split_text_by_sentences(text_str, MAX_WORDS, overlap_words=100)
+                    logger.info(f"   ✅ Split into {len(split_chunks)} chunks")
+                    start_idx = len(cleaned_texts)
+                    cleaned_texts.extend([chunk.strip() for chunk in split_chunks if chunk.strip()])
+                    end_idx = len(cleaned_texts)
+                    text_split_map[i] = list(range(start_idx, end_idx))
                 else:
                     cleaned_texts.append(text_str)
         

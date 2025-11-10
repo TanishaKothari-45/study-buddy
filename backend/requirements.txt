@@ -39,6 +39,7 @@ langchain-pinecone>=0.0.3  # LangChain integration for Pinecone
 # Utilities
 python-magic==0.4.27
 tiktoken==0.5.2
+chardet>=5.0.0  # Character encoding detection
 numpy>=1.24.3,<2.0  # ChromaDB compatibility - numpy 2.0 breaks chromadb
 pandas==2.0.3
 nltk>=3.8.0  # Natural language processing

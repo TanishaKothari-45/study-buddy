@@ -8,6 +8,7 @@ from typing import List, Dict, Any
 import pdfplumber
 from tqdm import tqdm
 from .text_cleaner import clean_text_advanced
+from .pdf_precleaner import clean_text_basic
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -121,8 +122,10 @@ def extract_text_from_pdf(pdf_path: str) -> List[Dict[str, Any]]:
                     page_text += "\n" + text
                 
                 if page_text.strip():
-                    # Clean the text with advanced cleaning
-                    cleaned_text = clean_text_advanced(page_text, pages_content=None)  # Will clean per-page first
+                    # First apply basic pre-cleaning (removes obvious garbage)
+                    precleaned_text = clean_text_basic(page_text)
+                    # Then apply advanced cleaning (removes headers/footers, etc.)
+                    cleaned_text = clean_text_advanced(precleaned_text, pages_content=None)  # Will clean per-page first
                     if cleaned_text.strip():  # Only add if there's content after cleaning
                         pages_content.append({
                             "page_number": i + 1,

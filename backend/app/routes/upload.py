@@ -288,6 +288,11 @@ async def upload_pdfs(
 
             # Determine file type and process accordingly
             if file_ext == '.pdf':
+                # Optional: Compress PDF if it's too large (disabled by default to avoid issues)
+                # Uncomment the lines below if you want compression enabled
+                # from ..utils.pdf_compressor import compress_pdf_if_needed
+                # file_path = compress_pdf_if_needed(file_path, threshold_mb=40)
+                
                 # First try to extract text directly from PDF
                 pages_content = extract_text_from_pdf(file_path)
                 text = "\n".join(page["text"] for page in pages_content if page.get("text"))

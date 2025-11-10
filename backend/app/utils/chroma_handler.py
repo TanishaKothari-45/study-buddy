@@ -6,6 +6,10 @@ from typing import List, Dict, Any, Optional
 import chromadb
 from chromadb.config import Settings
 try:
+    import numpy as np
+except ImportError:
+    np = None
+try:
     from chromadb.errors import NotFoundError
 except ImportError:
     # ChromaDB version compatibility - NotFoundError might not exist in older versions
@@ -13,15 +17,32 @@ except ImportError:
         pass
 from fastapi import HTTPException
 
+# LangChain imports for MMR retriever
+try:
+    from langchain_community.vectorstores import Chroma as LangChainChroma
+    from langchain_core.embeddings import Embeddings
+    LANGCHAIN_AVAILABLE = True
+except ImportError:
+    LANGCHAIN_AVAILABLE = False
+
 from ..core.config import settings
 from .embedder import Embedder
 
 logger = logging.getLogger(__name__)
 
+# Log LangChain availability after logger is initialized
+if not LANGCHAIN_AVAILABLE:
+    logger.warning("LangChain not available - MMR retriever will not work")
+
 class ChromaHandler:
     def __init__(self):
         """Initialize ChromaDB client and collection"""
         # Initialize client with telemetry disabled
+        # Disable telemetry to avoid posthog errors
+        import os
+        os.environ["ANONYMIZED_TELEMETRY"] = "False"
+        os.environ["CHROMA_TELEMETRY_DISABLED"] = "True"
+        
         self.client = chromadb.PersistentClient(
             path=str(settings.DB_DIR),
             settings=Settings(
@@ -39,8 +60,40 @@ class ChromaHandler:
 
         # Check if collection exists
         try:
-            self.collection = self.client.get_collection(name=settings.COLLECTION_NAME)
-            logger.info(f"Found existing collection: {settings.COLLECTION_NAME}")
+            try:
+                self.collection = self.client.get_collection(name=settings.COLLECTION_NAME)
+                logger.info(f"Found existing collection: {settings.COLLECTION_NAME}")
+            except AttributeError as attr_err:
+                error_msg = str(attr_err)
+                # Check if it's the ChromaDB internal dimensionality error
+                if "dimensionality" in error_msg.lower() and ("dict" in error_msg.lower() or "attribute" in error_msg.lower()):
+                    logger.error(f"❌ ChromaDB collection metadata corruption detected: {attr_err}")
+                    logger.error("   The collection's persisted metadata has dimensionality stored as dict")
+                    logger.error("   This is a ChromaDB version compatibility issue")
+                    logger.warning("   Attempting to fix by deleting and recreating collection...")
+                    logger.warning("   ⚠️ ALL DATA IN THIS COLLECTION WILL BE LOST!")
+                    
+                    # Delete the corrupted collection
+                    try:
+                        self.client.delete_collection(name=settings.COLLECTION_NAME)
+                        logger.info(f"✅ Deleted corrupted collection: {settings.COLLECTION_NAME}")
+                    except Exception as del_err:
+                        logger.error(f"❌ Failed to delete corrupted collection: {del_err}")
+                        raise HTTPException(
+                            status_code=500,
+                            detail=f"Collection metadata is corrupted and cannot be fixed automatically. Please manually delete the collection '{settings.COLLECTION_NAME}' from the database directory: {settings.DB_DIR}"
+                        )
+                    
+                    # Create a fresh collection
+                    self.collection = self.client.create_collection(
+                        name=settings.COLLECTION_NAME,
+                        metadata={"hnsw:space": settings.DISTANCE_METRIC}
+                    )
+                    logger.info(f"✅ Created fresh collection: {settings.COLLECTION_NAME}")
+                    logger.warning("   ⚠️ Collection is now empty - you'll need to re-upload your documents")
+                else:
+                    # Re-raise if it's a different AttributeError
+                    raise
             
             # Check existing dimension to ensure consistency
             try:
@@ -370,8 +423,33 @@ class ChromaHandler:
             logger.info(f"✅ Found {len(formatted_results)} relevant chunks")
             return formatted_results[:k]  # Return only requested k
 
+        except AttributeError as attr_err:
+            error_msg = str(attr_err)
+            # Check if it's the ChromaDB internal dimensionality error
+            if "dimensionality" in error_msg.lower() and ("dict" in error_msg.lower() or "attribute" in error_msg.lower()):
+                logger.error(f"❌ ChromaDB collection metadata corruption detected during query: {attr_err}")
+                logger.error("   The collection's persisted metadata has dimensionality stored as dict")
+                logger.error("   This is a ChromaDB version compatibility issue with the persisted collection")
+                logger.error("   The collection metadata needs to be fixed or the collection recreated")
+                import traceback
+                logger.error(f"   Stack trace:\n{traceback.format_exc()}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Collection metadata is corrupted. The collection '{self.collection.name}' has incompatible metadata format. Please delete and recreate the collection, or contact support for a migration script."
+                )
+            # Re-raise if it's a different AttributeError
+            raise
         except Exception as e:
+            error_msg = str(e)
+            error_type = type(e).__name__
             logger.error(f"❌ Query failed: {e}")
+            logger.error(f"   Error type: {error_type}")
+            # Check if it's the dimensionality error
+            if "dimensionality" in error_msg.lower() or ("dict" in error_msg.lower() and "attribute" in error_msg.lower()):
+                logger.error("   ⚠️ This is a dimensionality error - unexpected in query_documents()!")
+                logger.error("   query_documents() doesn't use LangChain, so this shouldn't happen here")
+                import traceback
+                logger.error(f"   Stack trace:\n{traceback.format_exc()}")
             raise
 
     def delete_all_collections(self) -> None:
@@ -449,23 +527,70 @@ class ChromaHandler:
         """Fetch all documents from the collection in small batches."""
         try:
             total_count = self.collection.count()
+            if total_count == 0:
+                logger.info("📦 Collection is empty, no documents to retrieve")
+                return []
+            
+            logger.info(f"📦 Fetching {total_count} documents using query method...")
             all_docs = []
-            for offset in range(0, total_count, batch_size):
-                results = self.collection.get(
-                    include=['documents', 'metadatas'],
-                    limit=batch_size,
-                    offset=offset
+            
+            # Simple approach: Query with a generic term and get max results
+            try:
+                query_text = "geography"
+                logger.info(f"   Generating embedding for query: '{query_text}'")
+                query_embedding = self.embedder.get_embeddings([query_text])[0]
+                logger.info(f"   Embedding dimension: {len(query_embedding)}")
+                
+                # Query for maximum results
+                max_results = min(total_count, 10000)
+                logger.info(f"   Querying for up to {max_results} results...")
+                
+                query_results = self.collection.query(
+                    query_embeddings=[query_embedding],
+                    n_results=max_results,
+                    include=['documents', 'metadatas']  # IDs are always returned, don't include in include list
                 )
-                for i in range(len(results['documents'])):
-                    all_docs.append({
-                        "id": results['ids'][i],
-                        "content": results['documents'][i],
-                        "metadata": results['metadatas'][i]
-                    })
-                logger.info(f"📦 Retrieved {len(all_docs)}/{total_count} so far...")
+                
+                logger.info(f"   Query returned keys: {list(query_results.keys()) if query_results else 'None'}")
+                
+                if query_results and 'documents' in query_results:
+                    documents_list = query_results['documents']
+                    if documents_list and len(documents_list) > 0:
+                        documents = documents_list[0]
+                        metadatas = query_results.get('metadatas', [[]])
+                        ids = query_results.get('ids', [[]])
+                        
+                        meta_list = metadatas[0] if metadatas and len(metadatas) > 0 else []
+                        id_list = ids[0] if ids and len(ids) > 0 else []
+                        
+                        logger.info(f"   Found {len(documents)} documents")
+                        
+                        for i in range(len(documents)):
+                            doc_id = id_list[i] if i < len(id_list) else f"doc_{i}"
+                            meta = meta_list[i] if i < len(meta_list) else {}
+                            all_docs.append({
+                                "id": doc_id,
+                                "content": documents[i],
+                                "metadata": meta
+                            })
+                    else:
+                        logger.warning(f"   Documents list is empty")
+                else:
+                    logger.error(f"   Query did not return 'documents' key")
+                    
+            except Exception as query_err:
+                logger.error(f"❌ Error in query: {query_err}")
+                import traceback
+                logger.error(traceback.format_exc())
+                raise
+            
+            logger.info(f"✅ Retrieved {len(all_docs)} total documents")
             return all_docs
+            
         except Exception as e:
             logger.error(f"❌ Failed to fetch all documents in batches: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             raise
 
     def update_metadata_batch(self, docs_with_metadata: List[Dict[str, Any]]) -> None:
@@ -515,31 +640,38 @@ class ChromaHandler:
                         # Check if embeddings exists and is not empty (avoid numpy array truthiness)
                         if embeddings is not None:
                             try:
-                                embeddings_len = len(embeddings)
-                                if embeddings_len > 0:
+                                # Check if embeddings is a list/array
+                                if isinstance(embeddings, (list, tuple)) and len(embeddings) > 0:
                                     embedding_list = embeddings[0]
-                                    # Handle numpy arrays - check length without truthiness check
+                                    # Check if embedding_list is actually a list/array (not an int)
                                     try:
-                                        embedding_length = len(embedding_list)
-                                        if embedding_length > 0:
-                                            existing_dimension = embedding_length
-                                            logger.info(f"📏 Collection '{collection_name}' has {count} chunks with {existing_dimension}-dim embeddings")
-                                            
-                                            # If existing is 384-dim, warn but we'll still try OpenAI first
-                                            if existing_dimension == 384:
-                                                logger.warning(f"   ⚠️ Collection has 384-dim embeddings (Sentence Transformers)")
-                                                logger.warning(f"   ⚠️ Will try OpenAI (1536-dim) first - if mismatch occurs, old chunks may need to be deleted")
-                                            elif existing_dimension == 1536:
-                                                logger.info(f"   ✅ Collection already uses 1536-dim embeddings (OpenAI) - perfect match!")
+                                        if isinstance(embedding_list, (list, tuple)) or (np is not None and isinstance(embedding_list, np.ndarray)):
+                                            embedding_length = len(embedding_list)
+                                            if embedding_length > 0:
+                                                existing_dimension = embedding_length
+                                                logger.info(f"📏 Collection '{collection_name}' has {count} chunks with {existing_dimension}-dim embeddings")
+                                                
+                                                # If existing is 384-dim, warn but we'll still try OpenAI first
+                                                if existing_dimension == 384:
+                                                    logger.warning(f"   ⚠️ Collection has 384-dim embeddings (Sentence Transformers)")
+                                                    logger.warning(f"   ⚠️ Will try OpenAI (1536-dim) first - if mismatch occurs, old chunks may need to be deleted")
+                                                elif existing_dimension == 1536:
+                                                    logger.info(f"   ✅ Collection already uses 1536-dim embeddings (OpenAI) - perfect match!")
+                                                else:
+                                                    logger.warning(f"   ⚠️ Collection has {existing_dimension}-dim embeddings (unexpected dimension)")
                                             else:
-                                                logger.warning(f"   ⚠️ Collection has {existing_dimension}-dim embeddings (unexpected dimension)")
-                                        else:
+                                                logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't determine dimension")
+                                        elif isinstance(embedding_list, (int, float)):
+                                            # If it's a number, it might be the dimension itself (unlikely but handle it)
+                                            logger.warning(f"⚠️ Unexpected embedding format: got number instead of array")
                                             logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't determine dimension")
+                                        else:
+                                            logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't determine dimension (unexpected type: {type(embedding_list)})")
                                     except (TypeError, ValueError) as len_error:
                                         logger.debug(f"Could not get embedding length: {len_error}")
                                         logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't determine dimension")
                                 else:
-                                    logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't retrieve embeddings")
+                                    logger.info(f"📏 Collection '{collection_name}' has {count} chunks but embeddings format is unexpected")
                             except (TypeError, ValueError) as len_error:
                                 logger.debug(f"Could not get embeddings length: {len_error}")
                                 logger.info(f"📏 Collection '{collection_name}' has {count} chunks but couldn't retrieve embeddings")
@@ -603,3 +735,609 @@ class ChromaHandler:
         except Exception as e:
             logger.error(f"❌ Failed to delete documents by filename: {e}")
             raise
+
+    def get_mmr_retriever(self, fetch_k: int = 50, k: int = 10, lambda_mult: float = 0.7):
+        """
+        ⚠️ DEPRECATED: This method has compatibility issues with ChromaDB persistent collections.
+        
+        ChromaDB stores embedding function metadata as a dict, but LangChain expects an object
+        with a .dimensionality attribute, causing 'dict' object has no attribute 'dimensionality' errors.
+        
+        Use mmr_select_from_chunks() instead, which uses FAISS for MMR and avoids this issue.
+        
+        Create an MMR (Maximum Marginal Relevance) retriever using LangChain.
+        
+        MMR balances relevance and diversity by selecting documents that are:
+        - Relevant to the query
+        - Diverse from each other (not redundant)
+        
+        Args:
+            fetch_k: Number of documents to fetch before applying MMR (default: 50)
+            k: Number of documents to return after MMR (default: 10)
+            lambda_mult: Diversity parameter (0.0 = max diversity, 1.0 = max relevance)
+                        Default 0.7 balances both
+        
+        Returns:
+            LangChain MMR retriever instance
+        
+        Raises:
+            ValueError: If ChromaDB/LangChain compatibility issues prevent retriever creation
+        """
+        if not LANGCHAIN_AVAILABLE:
+            raise HTTPException(
+                status_code=500,
+                detail="LangChain is not available. Please install langchain and langchain-community."
+            )
+        
+        try:
+            # Create a LangChain-compatible embeddings wrapper
+            class ChromaEmbeddings(Embeddings):
+                """Wrapper to make our embedder compatible with LangChain"""
+                def __init__(self, embedder):
+                    self.embedder = embedder
+                    # Determine dimensionality by actually generating a test embedding
+                    # This ensures accuracy regardless of which embedder is used
+                    try:
+                        # Generate a test embedding to determine actual dimension
+                        test_embedding = embedder.get_embeddings(["test"])[0]
+                        # Set as regular attribute (not property) for LangChain compatibility
+                        self.dimensionality = len(test_embedding)
+                        logger.debug(f"✅ Detected embedding dimensionality: {self.dimensionality}")
+                    except Exception as dim_error:
+                        # Fallback to expected dimensions based on embedder availability
+                        logger.warning(f"⚠️ Could not detect dimensionality from test embedding: {dim_error}")
+                        if embedder.openai_client:
+                            self.dimensionality = 1536  # OpenAI text-embedding-3-small
+                        else:
+                            self.dimensionality = 384  # Sentence Transformers default
+                        logger.debug(f"   Using fallback dimensionality: {self.dimensionality}")
+                
+                def embed_documents(self, texts: List[str]) -> List[List[float]]:
+                    """Embed a list of documents"""
+                    return self.embedder.get_embeddings(texts)
+                
+                def embed_query(self, text: str) -> List[float]:
+                    """Embed a single query"""
+                    return self.embedder.get_embeddings([text])[0]
+            
+            # Create LangChain embeddings wrapper
+            langchain_embeddings = ChromaEmbeddings(self.embedder)
+            
+            # CRITICAL FIX: Reset collection's embedding_function attributes if they're dicts
+            # The issue: ChromaDB stores embedding_function metadata as a dict when collection
+            # was created without a LangChain embeddings object. LangChain tries to use this dict
+            # and fails when accessing .dimensionality attribute.
+            # Solution: Reset ALL possible embedding_function attributes to None so LangChain uses our explicit embedding_function instead.
+            collection_obj = self.client.get_collection(name=self.collection.name)
+            
+            # Check and reset _embedding_function (private attribute)
+            if hasattr(collection_obj, "_embedding_function"):
+                if isinstance(collection_obj._embedding_function, dict):
+                    logger.debug("⚠️ Collection has _embedding_function as dict, resetting to None")
+                    collection_obj._embedding_function = None
+                elif hasattr(collection_obj._embedding_function, '__dict__'):
+                    # Check if it's an object with dict-like attributes
+                    try:
+                        if isinstance(collection_obj._embedding_function, dict) or str(type(collection_obj._embedding_function)) == "<class 'dict'>":
+                            logger.debug("⚠️ Collection _embedding_function is dict-like, resetting to None")
+                            collection_obj._embedding_function = None
+                    except:
+                        pass
+            
+            # Check and reset embedding_function (public attribute, if it exists)
+            if hasattr(collection_obj, "embedding_function"):
+                if isinstance(collection_obj.embedding_function, dict):
+                    logger.debug("⚠️ Collection has embedding_function as dict, resetting to None")
+                    collection_obj.embedding_function = None
+            
+            # Check collection metadata for embedding_function info
+            if hasattr(collection_obj, "metadata") and isinstance(collection_obj.metadata, dict):
+                if "embedding_function" in collection_obj.metadata:
+                    logger.debug("⚠️ Collection metadata contains embedding_function, removing it")
+                    # Don't modify metadata directly, but log it
+                    # The metadata is read-only, but we've already reset the attributes above
+            
+            # CRITICAL FIX: Always pass embedding_function explicitly
+            # The issue: When LangChainChroma is created without embedding_function,
+            # it tries to read from collection metadata (which is a dict), causing
+            # 'dict' object has no attribute 'dimensionality' error.
+            # Solution: Always pass embedding_function explicitly so LangChain doesn't
+            # try to read from stored metadata.
+            
+            # DEBUG: Log types before creating LangChainChroma
+            logger.debug(f"🔍 Type of langchain_embeddings: {type(langchain_embeddings)}")
+            logger.debug(f"   Has dim? {hasattr(langchain_embeddings, 'dimensionality')}")
+            if hasattr(langchain_embeddings, 'dimensionality'):
+                try:
+                    dim_val = langchain_embeddings.dimensionality
+                    logger.debug(f"   dimensionality value: {dim_val} (type: {type(dim_val)})")
+                except Exception as dim_err:
+                    logger.debug(f"   Error accessing dimensionality: {dim_err}")
+            
+            try:
+                sample_col = self.client.get_collection(name=self.collection.name)
+                ef = getattr(sample_col, '_embedding_function', None)
+                logger.debug(f"🔍 Type of collection._embedding_function: {type(ef)} value: {ef}")
+                if isinstance(ef, dict):
+                    logger.debug(f"   ⚠️ collection._embedding_function is a dict with keys: {list(ef.keys()) if ef else 'None'}")
+            except Exception as err:
+                logger.debug(f"Could not inspect collection._embedding_function: {err}")
+            
+            try:
+                # Create vectorstore with explicit embedding_function
+                # This prevents LangChain from trying to read embedding_function from collection metadata
+                logger.debug(f"🔍 Creating LangChainChroma with collection_name='{self.collection.name}' and embedding_function={type(langchain_embeddings)}")
+                vectorstore = LangChainChroma(
+                    client=self.client,
+                    collection_name=self.collection.name,
+                    embedding_function=langchain_embeddings  # CRITICAL: Always pass this explicitly
+                )
+                logger.debug(f"✅ LangChainChroma created successfully")
+                
+                # Verify embeddings were set correctly
+                if not hasattr(vectorstore, 'embeddings') or vectorstore.embeddings is None:
+                    logger.warning("⚠️ LangChainChroma.embeddings is None, setting it explicitly")
+                    vectorstore.embeddings = langchain_embeddings
+                elif isinstance(vectorstore.embeddings, dict):
+                    # If it's a dict (read from metadata), replace it immediately
+                    logger.warning("⚠️ LangChainChroma.embeddings is a dict! Replacing with our embeddings")
+                    vectorstore.embeddings = langchain_embeddings
+                elif vectorstore.embeddings != langchain_embeddings:
+                    # If it's different, replace it
+                    logger.warning("⚠️ LangChainChroma.embeddings differs from our embeddings, replacing it")
+                    vectorstore.embeddings = langchain_embeddings
+                
+                # Also check _embedding_function attribute
+                if hasattr(vectorstore, '_embedding_function'):
+                    if isinstance(vectorstore._embedding_function, dict):
+                        logger.warning("⚠️ LangChainChroma._embedding_function is a dict! Replacing with our embeddings")
+                        vectorstore._embedding_function = langchain_embeddings
+                    elif vectorstore._embedding_function is None:
+                        logger.debug("⚠️ LangChainChroma._embedding_function is None, setting it")
+                        vectorstore._embedding_function = langchain_embeddings
+                    
+            except (AttributeError, TypeError, KeyError) as e1:
+                error_msg = str(e1)
+                if "dimensionality" in error_msg or ("dict" in error_msg.lower() and "attribute" in error_msg.lower()):
+                    logger.warning(f"⚠️ Failed to create MMR retriever from existing collection: {e1}")
+                    logger.warning("   This is due to ChromaDB/LangChain compatibility issue")
+                    logger.warning("   MMR retriever will not be available - use mmr_select_from_chunks instead")
+                    raise ValueError(f"Cannot create MMR retriever from existing collection due to compatibility issue: {error_msg}")
+                raise
+            
+            # Create MMR retriever - wrap in try-catch to handle dimensionality errors during retriever creation
+            try:
+                retriever = vectorstore.as_retriever(
+                    search_type="mmr",
+                    search_kwargs={
+                        "fetch_k": fetch_k,
+                        "k": k,
+                        "lambda_mult": lambda_mult
+                    }
+                )
+            except AttributeError as retriever_attr_error:
+                error_msg = str(retriever_attr_error).lower()
+                if "dimensionality" in error_msg or ("dict" in error_msg and "attribute" in error_msg):
+                    logger.error(f"❌ Failed to create retriever due to dimensionality error: {retriever_attr_error}")
+                    logger.error("   This happens when LangChain tries to access dimensionality during retriever creation")
+                    logger.warning("   MMR retriever will not be available - use mmr_select_from_chunks instead")
+                    raise ValueError(f"Cannot create MMR retriever: ChromaDB/LangChain compatibility issue - {str(retriever_attr_error)}")
+                raise
+            
+            logger.info(f"✅ Created MMR retriever: fetch_k={fetch_k}, k={k}, lambda_mult={lambda_mult}")
+            return retriever
+            
+        except AttributeError as ae:
+            # Specifically catch dimensionality attribute errors
+            error_msg = str(ae).lower()
+            if "dimensionality" in error_msg or ("dict" in error_msg and "attribute" in error_msg):
+                logger.error(f"❌ Failed to create MMR retriever due to dimensionality error: {ae}")
+                raise ValueError(f"Cannot create MMR retriever: ChromaDB/LangChain compatibility issue - {str(ae)}")
+            raise  # Re-raise if it's a different AttributeError
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "dimensionality" in error_msg or ("dict" in error_msg and "attribute" in error_msg):
+                logger.error(f"❌ Failed to create MMR retriever due to dimensionality error: {e}")
+                raise ValueError(f"Cannot create MMR retriever: ChromaDB/LangChain compatibility issue - {str(e)}")
+            logger.error(f"❌ Failed to create MMR retriever: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create MMR retriever: {str(e)}"
+            )
+
+    def query_documents_mmr(self, query_text: str, fetch_k: int = 50, k: int = 10, 
+                           lambda_mult: float = 0.65,
+                           filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Query documents using MMR (Maximum Marginal Relevance) retriever.
+        
+        This method provides better diversity in results compared to standard similarity search.
+        
+        Uses FAISS-based MMR internally (via mmr_select_from_chunks) to avoid ChromaDB/LangChain
+        compatibility issues with persistent collections.
+        
+        Args:
+            query_text: Text to search for
+            fetch_k: Number of documents to fetch before applying MMR (default: 50)
+            k: Number of documents to return after MMR (default: 10)
+            lambda_mult: Diversity parameter (0.0 = max diversity, 1.0 = max relevance)
+                        Default 0.65 balances factual grounding + variety for UPSC Qs
+            filter_metadata: Optional dict to filter by metadata fields (applied before MMR)
+        
+        Returns:
+            List of document chunks with content, metadata, and distance
+        """
+        # NUCLEAR OPTION: Skip LangChainChroma entirely and always use FAISS-based MMR
+        # This avoids all ChromaDB/LangChain compatibility issues
+        # Set to True to force FAISS-only MMR (recommended if errors persist)
+        FORCE_FAISS_ONLY = True  # Enabled: bypass LangChainChroma completely, use FAISS-based MMR
+        
+        if FORCE_FAISS_ONLY:
+            logger.info("🔄 Using FAISS-only MMR (LangChainChroma bypassed)")
+            return self._query_documents_mmr_faiss_only(query_text, fetch_k, k, lambda_mult, filter_metadata)
+        
+        try:
+            # Try to use LangChain MMR retriever first (for backward compatibility)
+            # But if it fails, we'll fall back to FAISS-based MMR
+            try:
+                retriever = self.get_mmr_retriever(fetch_k=fetch_k, k=k, lambda_mult=lambda_mult)
+                # If we got a retriever, use it
+                docs = retriever.get_relevant_documents(query_text)
+                
+                # Format results
+                formatted_results = []
+                for doc in docs:
+                    chunk = {
+                        "content": doc.page_content,
+                        "metadata": doc.metadata,
+                        "distance": 0.0  # MMR doesn't return distances
+                    }
+                    
+                    # Apply metadata filtering if specified
+                    if filter_metadata:
+                        metadata = chunk["metadata"]
+                        matches = True
+                        for key, value in filter_metadata.items():
+                            if key not in metadata:
+                                matches = False
+                                break
+                            if isinstance(metadata[key], str) and isinstance(value, str):
+                                if value.lower() not in metadata[key].lower():
+                                    matches = False
+                                    break
+                            elif metadata[key] != value:
+                                matches = False
+                                break
+                        
+                        if matches:
+                            formatted_results.append(chunk)
+                    else:
+                        formatted_results.append(chunk)
+                
+                logger.info(f"✅ MMR retrieval found {len(formatted_results)} relevant chunks")
+                return formatted_results[:k]
+                
+            except (ValueError, AttributeError) as ve:
+                # If LangChain/Chroma compatibility issue detected, fallback to FAISS-based MMR
+                msg = str(ve).lower()
+                if "dimensionality" in msg or "compatibility" in msg or "embedding" in msg or ("dict" in msg and "attribute" in msg):
+                    logger.warning(f"⚠️ LangChain/Chroma MMR not available: {ve}")
+                    logger.info("   Falling back to FAISS-based MMR selection")
+                    # Fallback to FAISS-based MMR: fetch candidate chunks then call mmr_select_from_chunks
+                    candidate_chunks = self.query_documents(query_text, k=fetch_k, filter_metadata=filter_metadata)
+                    if not candidate_chunks:
+                        logger.warning("⚠️ No documents found for MMR selection")
+                        return []
+                    return self.mmr_select_from_chunks(candidate_chunks, query_text, k=k, lambda_mult=lambda_mult)
+                raise  # Re-raise if it's a different ValueError/AttributeError
+            
+        except AttributeError as ae:
+            # Catch the '.dimensionality' attribute errors explicitly and fallback
+            error_msg = str(ae).lower()
+            if "dimensionality" in error_msg or ("dict" in error_msg and "attribute" in error_msg):
+                logger.warning(f"⚠️ AttributeError during MMR creation: {ae}. Falling back to FAISS-based MMR.")
+                candidate_chunks = self.query_documents(query_text, k=fetch_k, filter_metadata=filter_metadata)
+                if not candidate_chunks:
+                    return []
+                return self.mmr_select_from_chunks(candidate_chunks, query_text, k=k, lambda_mult=lambda_mult)
+            raise  # Re-raise if it's a different AttributeError
+        except Exception as e:
+            logger.error(f"❌ MMR query failed (final): {e} - falling back to standard query")
+            # Fallback to standard query if MMR fails
+            logger.warning("⚠️ Falling back to standard similarity search")
+            return self.query_documents(query_text, k=k, filter_metadata=filter_metadata)
+    
+    def _query_documents_mmr_faiss_only(self, query_text: str, fetch_k: int = 50, k: int = 10,
+                                       lambda_mult: float = 0.65,
+                                       filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        FAISS-only MMR implementation - bypasses LangChainChroma entirely.
+        Use this if LangChainChroma compatibility issues persist.
+        """
+        logger.info("🔄 Using FAISS-only MMR (bypassing LangChainChroma)")
+        # Step 1: Query initial set of documents
+        initial_chunks = self.query_documents(
+            query_text=query_text,
+            k=fetch_k,
+            filter_metadata=filter_metadata
+        )
+        
+        if not initial_chunks:
+            logger.warning("⚠️ No documents found for MMR selection")
+            return []
+        
+        # Step 2: Apply MMR diversity selection using FAISS
+        diverse_chunks = self.mmr_select_from_chunks(
+            chunks=initial_chunks,
+            query_text=query_text,
+            k=k,
+            lambda_mult=lambda_mult
+        )
+        
+        logger.info(f"✅ FAISS MMR retrieval: {len(initial_chunks)} candidates → {len(diverse_chunks)} diverse chunks")
+        return diverse_chunks
+
+    def mmr_select_from_chunks(self, chunks: List[Dict[str, Any]], query_text: str, 
+                               k: int = 10, lambda_mult: float = 0.65) -> List[Dict[str, Any]]:
+        """
+        Apply MMR diversity selection to a combined list of chunks from multiple sources.
+        
+        This ensures cross-source diversity - getting a mix of different source types
+        (e.g., PYQ style examples + factual content) in the final selection.
+        
+        Args:
+            chunks: List of chunks to select from (already retrieved from multiple sources)
+            query_text: Query text for MMR relevance calculation
+            k: Number of chunks to return after MMR (default: 10)
+            lambda_mult: Diversity parameter (0.0 = max diversity, 1.0 = max relevance)
+                        Default 0.65 balances factual grounding + variety
+        
+        Returns:
+            List of diverse chunks selected via MMR
+        """
+        logger.info(f"🔄 [mmr_select_from_chunks] Starting MMR selection with {len(chunks)} chunks, k={k}")
+        
+        if not chunks:
+            logger.warning("⚠️ No chunks provided for MMR selection")
+            return []
+        
+        if not LANGCHAIN_AVAILABLE:
+            logger.warning("⚠️ LangChain not available - returning first k chunks without MMR")
+            return chunks[:k]
+        
+        # Wrap entire MMR operation in try-catch to handle dimensionality errors gracefully
+        try:
+            from langchain_core.documents import Document
+            
+            # Convert chunks to LangChain Documents
+            documents = []
+            for chunk in chunks:
+                doc = Document(
+                    page_content=chunk.get("content", ""),
+                    metadata=chunk.get("metadata", {})
+                )
+                documents.append(doc)
+            
+            # Create temporary vectorstore from these documents
+            # We'll use the existing embedder to create embeddings
+            class ChromaEmbeddings(Embeddings):
+                """Wrapper to make our embedder compatible with LangChain"""
+                def __init__(self, embedder):
+                    self.embedder = embedder
+                    # Determine dimensionality by actually generating a test embedding
+                    # This ensures accuracy regardless of which embedder is used
+                    try:
+                        # Generate a test embedding to determine actual dimension
+                        test_embedding = embedder.get_embeddings(["test"])[0]
+                        # Set as regular attribute (not property) for LangChain compatibility
+                        self.dimensionality = len(test_embedding)
+                        logger.debug(f"✅ Detected embedding dimensionality: {self.dimensionality}")
+                    except Exception as dim_error:
+                        # Fallback to expected dimensions based on embedder availability
+                        logger.warning(f"⚠️ Could not detect dimensionality from test embedding: {dim_error}")
+                        if embedder.openai_client:
+                            self.dimensionality = 1536  # OpenAI text-embedding-3-small
+                        else:
+                            self.dimensionality = 384  # Sentence Transformers default
+                        logger.debug(f"   Using fallback dimensionality: {self.dimensionality}")
+                
+                def embed_documents(self, texts: List[str]) -> List[List[float]]:
+                    """Embed a list of documents"""
+                    return self.embedder.get_embeddings(texts)
+                
+                def embed_query(self, text: str) -> List[float]:
+                    """Embed a single query"""
+                    return self.embedder.get_embeddings([text])[0]
+            
+            langchain_embeddings = ChromaEmbeddings(self.embedder)
+            
+            # Verify dimensionality is set correctly before proceeding
+            if not hasattr(langchain_embeddings, 'dimensionality'):
+                logger.error("❌ ChromaEmbeddings missing dimensionality attribute!")
+                import random
+                return random.sample(chunks, min(k, len(chunks))) if len(chunks) >= k else chunks
+            
+            # Ensure dimensionality is a regular attribute (not property) and is an integer
+            try:
+                dim_value = langchain_embeddings.dimensionality
+                if not isinstance(dim_value, int):
+                    logger.warning(f"⚠️ Dimensionality is not an integer: {type(dim_value)}, fixing...")
+                    # Re-detect dimensionality
+                    test_emb = langchain_embeddings.embed_query("test")
+                    langchain_embeddings.dimensionality = len(test_emb)
+                    logger.debug(f"   Fixed dimensionality to {langchain_embeddings.dimensionality}")
+            except Exception as dim_check_error:
+                logger.error(f"❌ Error checking dimensionality: {dim_check_error}")
+                import random
+                return random.sample(chunks, min(k, len(chunks))) if len(chunks) >= k else chunks
+            
+            # Create a temporary in-memory vectorstore
+            # Use FAISS only (avoid ChromaDB due to dimensionality compatibility issues)
+            vectorstore = None
+            try:
+                from langchain_community.vectorstores import FAISS
+                
+                # DEBUG: Verify embeddings before FAISS creation
+                logger.debug(f"🔍 [mmr_select_from_chunks] Type of langchain_embeddings: {type(langchain_embeddings)}")
+                logger.debug(f"   Has dimensionality? {hasattr(langchain_embeddings, 'dimensionality')}")
+                if hasattr(langchain_embeddings, 'dimensionality'):
+                    try:
+                        dim_val = langchain_embeddings.dimensionality
+                        logger.debug(f"   dimensionality value: {dim_val} (type: {type(dim_val)})")
+                    except Exception as dim_err:
+                        logger.error(f"   ❌ Error accessing dimensionality: {dim_err}")
+                        import random
+                        return random.sample(chunks, min(k, len(chunks))) if len(chunks) >= k else chunks
+                
+                # Wrap FAISS creation in try-catch to handle dimensionality errors
+                try:
+                    logger.debug(f"🔍 [mmr_select_from_chunks] Creating FAISS vectorstore with {len(documents)} documents")
+                    vectorstore = FAISS.from_documents(documents, langchain_embeddings)
+                    logger.debug("✅ Created temporary FAISS vectorstore for MMR")
+                except AttributeError as attr_err:
+                    error_msg = str(attr_err)
+                    if "dimensionality" in error_msg or ("dict" in error_msg.lower() and "attribute" in error_msg.lower()):
+                        logger.error(f"❌ FAISS creation failed due to dimensionality error: {attr_err}")
+                        logger.error("   LangChain/FAISS tried to access dimensionality on a dict object")
+                        logger.warning("   Falling back to random sampling without MMR")
+                        import random
+                        return random.sample(chunks, min(k, len(chunks))) if len(chunks) >= k else chunks
+                    raise  # Re-raise if it's a different AttributeError
+            except ImportError:
+                logger.warning("⚠️ FAISS not available - cannot create temporary vectorstore for MMR")
+                logger.warning("   Falling back to random sampling without MMR")
+                import random
+                return random.sample(chunks, min(k, len(chunks))) if len(chunks) >= k else chunks
+            except Exception as faiss_error:
+                error_msg = str(faiss_error)
+                logger.error(f"❌ Failed to create FAISS vectorstore: {faiss_error}")
+                # Check for dimensionality or compatibility issues
+                if "dimensionality" in error_msg or ("dict" in error_msg.lower() and "attribute" in error_msg.lower()):
+                    logger.error("   Dimensionality/compatibility issue detected - falling back to random sampling")
+                else:
+                    logger.error("   Unknown error - falling back to random sampling")
+                import random
+                return random.sample(chunks, min(k, len(chunks))) if len(chunks) >= k else chunks
+            
+            # Ensure vectorstore was created successfully
+            if vectorstore is None:
+                logger.error("❌ Failed to create vectorstore, falling back to random sampling")
+                import random
+                return random.sample(chunks, min(k, len(chunks))) if len(chunks) >= k else chunks
+            
+            # Verify embedding function has dimensionality attribute before creating retriever
+            try:
+                if hasattr(vectorstore, 'embeddings') and vectorstore.embeddings:
+                    if not hasattr(vectorstore.embeddings, 'dimensionality'):
+                        logger.warning("⚠️ Embedding function missing dimensionality attribute, setting it...")
+                        # Try to detect and set dimensionality
+                        test_emb = vectorstore.embeddings.embed_query("test")
+                        vectorstore.embeddings.dimensionality = len(test_emb)
+                        logger.debug(f"   Set dimensionality to {vectorstore.embeddings.dimensionality}")
+                elif hasattr(vectorstore, '_embedding_function') and vectorstore._embedding_function:
+                    if not hasattr(vectorstore._embedding_function, 'dimensionality'):
+                        logger.warning("⚠️ Embedding function missing dimensionality attribute, setting it...")
+                        test_emb = vectorstore._embedding_function.embed_query("test")
+                        vectorstore._embedding_function.dimensionality = len(test_emb)
+                        logger.debug(f"   Set dimensionality to {vectorstore._embedding_function.dimensionality}")
+            except Exception as verify_error:
+                logger.warning(f"⚠️ Could not verify/set dimensionality: {verify_error}")
+                # Continue anyway - might still work
+            
+            # Create MMR retriever
+            try:
+                retriever = vectorstore.as_retriever(
+                    search_type="mmr",
+                    search_kwargs={
+                        "fetch_k": min(len(chunks), 50),  # Don't fetch more than available
+                        "k": k,
+                        "lambda_mult": lambda_mult
+                    }
+                )
+                
+                # Retrieve diverse chunks
+                diverse_docs = retriever.get_relevant_documents(query_text)
+            except Exception as retriever_error:
+                error_msg = str(retriever_error)
+                logger.error(f"❌ Failed to create/use MMR retriever: {retriever_error}")
+                # Check for dimensionality or compatibility issues
+                if "dimensionality" in error_msg or ("dict" in error_msg.lower() and "attribute" in error_msg.lower()):
+                    logger.error("   Dimensionality/compatibility issue detected - falling back to random sampling")
+                else:
+                    logger.error("   Unknown error - falling back to random sampling")
+                import random
+                return random.sample(chunks, min(k, len(chunks))) if len(chunks) >= k else chunks
+            
+            # Recommendation #4: Fallback if MMR returns < k results
+            if len(diverse_docs) < k:
+                logger.warning(f"⚠️ MMR returned only {len(diverse_docs)} chunks (requested {k}), using fallback")
+                # Fallback: randomly sample from original chunks to reach k
+                import random
+                if len(chunks) >= k:
+                    # Use MMR results + random sample from remaining chunks
+                    diverse_docs_set = {doc.page_content for doc in diverse_docs}
+                    remaining_chunks = [c for c in chunks if c.get("content") not in diverse_docs_set]
+                    needed = k - len(diverse_docs)
+                    if remaining_chunks:
+                        sampled = random.sample(remaining_chunks, min(needed, len(remaining_chunks)))
+                        # Convert sampled chunks to Document format
+                        for chunk in sampled:
+                            doc = Document(
+                                page_content=chunk.get("content", ""),
+                                metadata=chunk.get("metadata", {})
+                            )
+                            diverse_docs.append(doc)
+                else:
+                    # Not enough chunks available, use all we have
+                    logger.warning(f"⚠️ Only {len(chunks)} chunks available, returning all")
+                    diverse_docs = documents[:k]
+            
+            # Convert back to our chunk format
+            diverse_chunks = []
+            for doc in diverse_docs:
+                chunk = {
+                    "content": doc.page_content,
+                    "metadata": doc.metadata,
+                    "distance": 0.0
+                }
+                diverse_chunks.append(chunk)
+            
+            # Cleanup temporary collection if we used ChromaDB
+            try:
+                if hasattr(vectorstore, 'collection_name') and 'temp_mmr' in vectorstore.collection_name:
+                    self.client.delete_collection(vectorstore.collection_name)
+                    logger.debug(f"🧹 Cleaned up temporary collection: {vectorstore.collection_name}")
+            except Exception as cleanup_error:
+                logger.debug(f"Could not cleanup temporary collection: {cleanup_error}")
+            
+            logger.info(f"✅ MMR selection: {len(chunks)} chunks → {len(diverse_chunks)} diverse chunks")
+            return diverse_chunks
+            
+        except AttributeError as attr_error:
+            error_msg = str(attr_error)
+            # Specifically catch 'dict' object has no attribute 'dimensionality'
+            if "dimensionality" in error_msg or ("dict" in error_msg.lower() and "attribute" in error_msg.lower()):
+                logger.error(f"❌ MMR selection failed due to dimensionality error: {attr_error}")
+                logger.error("   This is a LangChain/FAISS compatibility issue with embedding function")
+                logger.error(f"   Full error: {type(attr_error).__name__}: {attr_error}")
+                import traceback
+                logger.error(f"   Stack trace:\n{traceback.format_exc()}")
+                logger.warning("   Falling back to random sampling without MMR")
+                import random
+                return random.sample(chunks, min(k, len(chunks))) if len(chunks) >= k else chunks
+            # Re-raise if it's a different AttributeError
+            raise
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"❌ MMR selection failed: {e}")
+            logger.error(f"   Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"   Stack trace:\n{traceback.format_exc()}")
+            # Check if it's the dimensionality error
+            if "dimensionality" in error_msg or ("dict" in error_msg.lower() and "attribute" in error_msg.lower()):
+                logger.error("   This is a ChromaDB/LangChain compatibility issue with embedding function")
+                logger.warning("   Falling back to random sampling without MMR")
+                import random
+                return random.sample(chunks, min(k, len(chunks))) if len(chunks) >= k else chunks
+            logger.warning("⚠️ Falling back to first k chunks")
+            return chunks[:k]
