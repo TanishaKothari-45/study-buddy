@@ -159,16 +159,146 @@ class PineconeHandler:
         documents = [item["content"] for item in chunks_with_metadata]
         metadatas = [item["metadata"] for item in chunks_with_metadata]
         
-        # Filter out empty or invalid documents
+        # Final cleanup function to remove null bytes and control characters
+        def final_cleanup(text: str) -> str:
+            """Final aggressive cleanup before storing"""
+            if not isinstance(text, str):
+                return str(text) if text else ""
+            import re
+            from ..utils.pdf_precleaner import garbage_patterns
+            
+            # Remove ALL null bytes (multiple passes)
+            while '\x00' in text:
+                text = text.replace('\x00', '')
+            while '\u0000' in text:
+                text = text.replace('\u0000', '')
+            # Remove control characters
+            text = re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]', '', text)
+            # Fix thorn character
+            text = text.replace('þ', 'th').replace('Þ', 'Th')
+            
+            # Apply garbage patterns one more time (final pass)
+            for p in garbage_patterns:
+                text = re.sub(p, "", text, flags=re.I)
+            
+            # Remove lines with garbage keywords
+            lines = text.split('\n')
+            cleaned_lines = []
+            for line in lines:
+                line_lower = line.lower()
+                if any(garbage in line_lower for garbage in ['t.me', 'telegram', 'website', 'nttp', 'vs://', 'ÿth', 'upscpdf', 'ilttp']):
+                    continue
+                cleaned_lines.append(line)
+            text = '\n'.join(cleaned_lines)
+            
+            return text.strip()
+        
+        # Helper function to split long chunks by sentences
+        def split_long_chunk_by_sentences(text: str, max_words: int = 1500, overlap_words: int = 100) -> List[str]:
+            """
+            Split long text into smaller chunks by sentences.
+            Preserves sentence boundaries and adds overlap.
+            """
+            import re
+            
+            words = text.split()
+            word_count = len(words)
+            
+            if word_count <= max_words:
+                return [text]
+            
+            # Split by sentences (simple regex-based approach)
+            # Match sentence endings: . ! ? followed by space or newline
+            sentences = re.split(r'([.!?]+\s+)', text)
+            # Recombine sentences with their punctuation
+            sentence_list = []
+            for i in range(0, len(sentences) - 1, 2):
+                if i + 1 < len(sentences):
+                    sentence_list.append(sentences[i] + sentences[i + 1])
+                else:
+                    sentence_list.append(sentences[i])
+            
+            # If no sentence boundaries found, fall back to word-based splitting
+            if len(sentence_list) <= 1:
+                logger.warning(f"⚠️ No sentence boundaries found, using word-based split")
+                chunks = []
+                for i in range(0, word_count, max_words - overlap_words):
+                    chunk = " ".join(words[i:i + max_words])
+                    if chunk.strip():
+                        chunks.append(chunk)
+                return chunks
+            
+            # Build chunks from sentences
+            chunks = []
+            current_chunk = []
+            current_word_count = 0
+            
+            for sentence in sentence_list:
+                sentence_words = sentence.split()
+                sentence_word_count = len(sentence_words)
+                
+                # If adding this sentence would exceed limit, save current chunk
+                if current_word_count + sentence_word_count > max_words and current_chunk:
+                    chunk_text = "".join(current_chunk).strip()
+                    if chunk_text:
+                        chunks.append(chunk_text)
+                    
+                    # Start new chunk with overlap (last N words from previous chunk)
+                    overlap_text = " ".join(words[max(0, current_word_count - overlap_words):current_word_count])
+                    if overlap_text:
+                        current_chunk = [overlap_text + " "]
+                        current_word_count = len(overlap_text.split())
+                    else:
+                        current_chunk = []
+                        current_word_count = 0
+                
+                current_chunk.append(sentence)
+                current_word_count += sentence_word_count
+            
+            # Add final chunk
+            if current_chunk:
+                chunk_text = "".join(current_chunk).strip()
+                if chunk_text:
+                    chunks.append(chunk_text)
+            
+            return chunks if chunks else [text]
+        
+        # Filter out empty or invalid documents, apply final cleanup, and split long chunks
         valid_indices = []
         filtered_documents = []
         filtered_metadatas = []
+        MAX_WORDS_PER_CHUNK = 1500  # Match embedder limit
         
         for i, doc in enumerate(documents):
             if isinstance(doc, str) and doc.strip() and len(doc.strip()) > 10:
-                valid_indices.append(i)
-                filtered_documents.append(doc.strip())
-                filtered_metadatas.append(metadatas[i])
+                # Apply final cleanup before storing
+                cleaned_doc = final_cleanup(doc)
+                if not cleaned_doc or len(cleaned_doc.strip()) <= 10:
+                    continue
+                
+                # Check if chunk is too long and split if needed
+                word_count = len(cleaned_doc.split())
+                if word_count > MAX_WORDS_PER_CHUNK:
+                    logger.warning(f"⚠️ Chunk {i+1} is too long ({word_count} words), splitting into smaller chunks...")
+                    split_chunks = split_long_chunk_by_sentences(cleaned_doc, MAX_WORDS_PER_CHUNK, overlap_words=100)
+                    logger.info(f"   ✅ Split into {len(split_chunks)} chunks")
+                    
+                    # Add each split chunk with its metadata
+                    for split_idx, split_chunk in enumerate(split_chunks):
+                        if split_chunk.strip() and len(split_chunk.strip()) > 10:
+                            # Create metadata copy for split chunk
+                            split_meta = metadatas[i].copy()
+                            # Add split indicator to chunk_id if it exists
+                            if 'chunk_id' in split_meta:
+                                split_meta['chunk_id'] = f"{split_meta['chunk_id']}_split{split_idx + 1}"
+                            valid_indices.append(i)  # Keep original index for tracking
+                            filtered_documents.append(split_chunk.strip())
+                            filtered_metadatas.append(split_meta)
+                else:
+                    # Chunk is fine, add as-is
+                    valid_indices.append(i)
+                    filtered_documents.append(cleaned_doc.strip())
+                    filtered_metadatas.append(metadatas[i])
         
         if not filtered_documents:
             logger.warning("⚠️ No valid documents to embed after filtering")
@@ -193,8 +323,17 @@ class PineconeHandler:
                 logger.debug(f"   📊 Batch {batch_num}/{total_batches}: Generating embeddings for {len(batch_docs)} chunks...")
                 embeddings = self.embedder.get_openai_embeddings(batch_docs)
                 
-                if len(embeddings) != len(batch_docs):
-                    logger.error(f"❌ Embedding count mismatch: {len(embeddings)} embeddings for {len(batch_docs)} documents")
+                # Handle case where embedder split some texts (shouldn't happen since we split in handler)
+                # If embedder split, we'll have more embeddings than docs - need to duplicate metadata
+                if len(embeddings) > len(batch_docs):
+                    logger.warning(f"⚠️ Embedder split some texts: {len(embeddings)} embeddings for {len(batch_docs)} documents")
+                    logger.warning(f"   This shouldn't happen (handler should split first). Handling mismatch...")
+                    # This is a safety net - ideally shouldn't happen
+                    # For now, use first N embeddings (better than crashing)
+                    embeddings = embeddings[:len(batch_docs)]
+                elif len(embeddings) < len(batch_docs):
+                    logger.error(f"❌ Fewer embeddings than documents: {len(embeddings)} < {len(batch_docs)}")
+                    # Skip this batch
                     continue
                 
             except Exception as e:
@@ -208,7 +347,7 @@ class PineconeHandler:
             vectors = []
             for idx, emb in enumerate(embeddings):
                 doc_meta = batch_meta[idx].copy()
-                doc_content = batch_docs[idx]  # Get the original content for preview
+                doc_content = batch_docs[idx]  # Get the original content for preview (already cleaned)
                 
                 # Generate unique ID
                 doc_id = doc_meta.get("chunk_id") or f"doc_{i + idx}"
@@ -231,6 +370,8 @@ class PineconeHandler:
                 # Add content preview (first 400 characters) instead of full text
                 # This saves space while still providing context in metadata
                 content_preview = doc_content[:400] if doc_content else ""
+                # Clean the preview as well (remove null bytes, control chars, thorn)
+                content_preview = final_cleanup(content_preview)
                 flat_metadata["content_preview"] = content_preview
                 
                 vectors.append((doc_id, emb, flat_metadata))
@@ -337,12 +478,8 @@ class PineconeHandler:
             # Format results
             formatted_results = []
             for doc in docs:
-                # Use content_preview from metadata if available (since we store preview, not full text)
-                # Fall back to page_content for backward compatibility
-                content = doc.metadata.get("content_preview") or doc.page_content or ""
-                
                 chunk = {
-                    "content": content,
+                    "content": doc.page_content,
                     "metadata": doc.metadata,
                     "distance": 0.0  # Pinecone doesn't return distances in similarity_search
                 }
@@ -435,7 +572,7 @@ class PineconeHandler:
             formatted_results = []
             for doc in docs:
                 chunk = {
-                    "content": doc.metadata.get("content_preview") or doc.page_content or "",
+                    "content": doc.page_content,
                     "metadata": doc.metadata,
                     "distance": 0.0
                 }
@@ -655,7 +792,7 @@ class PineconeHandler:
             diverse_chunks = []
             for doc in diverse_docs:
                 chunk = {
-                    "content": doc.metadata.get("content_preview") or doc.page_content or "",
+                    "content": doc.page_content,
                     "metadata": doc.metadata,
                     "distance": 0.0
                 }
@@ -735,7 +872,7 @@ class PineconeHandler:
                 
                 all_docs.append({
                     "id": doc_id,
-                    "content": doc.metadata.get("content_preview") or doc.page_content or "",
+                    "content": doc.page_content,
                     "metadata": doc.metadata
                 })
             
