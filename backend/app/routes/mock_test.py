@@ -647,7 +647,7 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
     """Generate a UPSC-style mock test using dual retrieval strategy"""
     try:
         chroma_handler = request.app.state.chroma_handler
-        chroma_handler.switch_to_collection("geography_docs_enriched")
+        # Using single Pinecone index (no need to switch)
         
         # Build queries based on topics
         if test_request.topics:
@@ -658,8 +658,8 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
             pyq_query = "UPSC prelims geography questions which of the following consider select"
             content_query = "important geography topics for UPSC NCERT vision notes"
         
-        # Step 1: Dual Retrieval Strategy with Topic-Aware Filtering
-        # Get PYQ chunks for style learning (query more, then filter for actual questions + topic)
+        # Step 1: Dual Retrieval Strategy with Joint MMR Orchestration
+        # Get PYQ chunks for style learning
         logger.info("🔍 Retrieving PYQ chunks for style learning...")
         # Query more candidates to ensure we get actual questions
         all_pyq_candidates = chroma_handler.query_documents(pyq_query, k=30)
@@ -681,7 +681,7 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
         
         # Get content chunks for knowledge (exclude PYQ files, filter by topic)
         logger.info("🔍 Retrieving content chunks for question generation...")
-        all_content_candidates = chroma_handler.query_documents(content_query, k=20)  # Query more for better filtering
+        all_content_candidates = chroma_handler.query_documents(content_query, k=20)
         content_file_chunks = [c for c in all_content_candidates if not is_pyq_chunk(c)]
         
         # Filter content chunks by topic if topics provided
@@ -691,8 +691,52 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
         else:
             content_chunks = content_file_chunks[:12]
         
+        # Step 2: Tag chunks with source metadata (Recommendation #2)
+        logger.info("🏷️  Tagging chunks with source metadata...")
+        for chunk in pyq_chunks:
+            if "metadata" not in chunk:
+                chunk["metadata"] = {}
+            chunk["metadata"]["source"] = "pyq"
+        
+        for chunk in content_chunks:
+            if "metadata" not in chunk:
+                chunk["metadata"] = {}
+            chunk["metadata"]["source"] = "content"
+        
+        # Step 3: Joint Retrieval Orchestration - Combine both sources, then apply MMR
+        logger.info("🔄 Applying joint MMR orchestration for cross-source diversity...")
+        combined_chunks = pyq_chunks + content_chunks
+        logger.info(f"   • Combined: {len(pyq_chunks)} PYQ chunks + {len(content_chunks)} content chunks = {len(combined_chunks)} total")
+        
+        # Create a combined query for MMR relevance calculation
+        combined_query = f"{pyq_query} {content_query}" if test_request.topics else pyq_query
+        
+        # Apply MMR selection to combined chunks for cross-source diversity
+        diverse_context = chroma_handler.mmr_select_from_chunks(
+            chunks=combined_chunks,
+            query_text=combined_query,
+            k=10,  # Final diverse selection
+            lambda_mult=0.65  # Optimal balance for UPSC Qs: factual grounding + variety
+        )
+        
+        # Step 4: Separate back into PYQ and content using source metadata (Recommendation #2)
+        # This is more reliable than using is_pyq_chunk() function
+        diverse_pyq_chunks = [c for c in diverse_context if c.get("metadata", {}).get("source") == "pyq"]
+        diverse_content_chunks = [c for c in diverse_context if c.get("metadata", {}).get("source") == "content"]
+        
+        # Use diverse chunks, but fallback to original if MMR didn't preserve enough of each type
+        if len(diverse_pyq_chunks) >= 2:
+            pyq_chunks = diverse_pyq_chunks
+        else:
+            logger.warning(f"⚠️ MMR didn't preserve enough PYQ chunks ({len(diverse_pyq_chunks)}), using original")
+        
+        if len(diverse_content_chunks) >= 3:
+            content_chunks = diverse_content_chunks
+        else:
+            logger.warning(f"⚠️ MMR didn't preserve enough content chunks ({len(diverse_content_chunks)}), using original")
+        
         # Log retrieval stats
-        logger.info(f"📊 Retrieved {len(pyq_chunks)} PYQ chunks and {len(content_chunks)} content chunks")
+        logger.info(f"📊 Final selection: {len(pyq_chunks)} PYQ chunks and {len(content_chunks)} content chunks (cross-source diverse)")
         
         # Fallback: if no PYQ chunks found, use all chunks but warn
         if not pyq_chunks:

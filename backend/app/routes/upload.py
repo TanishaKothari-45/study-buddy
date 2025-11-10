@@ -20,8 +20,8 @@ router = APIRouter()
 async def reset_database(request: Request):
     """Delete all collections and start fresh"""
     try:
-        chroma_handler = request.app.state.chroma_handler
-        chroma_handler.delete_all_collections()
+        vector_handler = request.app.state.vector_handler
+        vector_handler.delete_all_collections()
         return {"message": "Successfully deleted all collections and created a fresh one"}
     except Exception as e:
         logger.error(f"Failed to reset database: {e}")
@@ -31,8 +31,8 @@ async def reset_database(request: Request):
 async def delete_collection(request: Request, collection_name: str):
     """Delete a specific collection by name"""
     try:
-        chroma_handler = request.app.state.chroma_handler
-        chroma_handler.delete_collection(collection_name)
+        vector_handler = request.app.state.vector_handler
+        vector_handler.delete_collection(collection_name)
         return {"message": f"Successfully deleted collection: {collection_name}"}
     except Exception as e:
         logger.error(f"Failed to delete collection {collection_name}: {e}")
@@ -220,9 +220,6 @@ os.makedirs(OCR_OUTPUT_DIR, exist_ok=True)
 # Initialize the hierarchical chunker
 chunker = HierarchicalChunker(llm_client=OpenAI(api_key=os.getenv("OPENAI_API_KEY")))
 
-# Specify the name of the new collection for enriched chunks
-new_collection_name = "geography_docs_enriched"
-
 # Store sample sheet path in app state (will be set per session)
 # In production, you might want to use a database or session storage
 
@@ -234,23 +231,26 @@ async def upload_pdfs(
     sample_sheet_path: Optional[str] = Form(None)
 ):
     """
-    Uploads multiple PDF or image files, processes them with ROI detection and OCR for handwritten content,
-    chunks it, creates embeddings, and stores them in a new ChromaDB collection.
+    Uploads multiple PDF, TXT, or image files, processes them, chunks them,
+    creates embeddings, and stores them in Pinecone.
     
     Args:
-        files: List of PDF or image files to upload
-        dpi: DPI for PDF conversion (300 or 600, default: 600)
-        sample_sheet_path: Optional path to sample sheet for ROI detection
+        files: List of PDF, TXT, or image files to upload
+        dpi: DPI for PDF conversion (300 or 600, default: 600) - only used for images/scanned PDFs
+        sample_sheet_path: Optional path to sample sheet for ROI detection (for images/scanned PDFs)
     
     Supported formats:
     - PDF: Text-based PDFs (extracted directly) or scanned/image-based PDFs (OCR with ROI)
-    - Images: JPG, JPEG, PNG, WEBP (processed with OCR and ROI)
+    - TXT: Plain text files (processed directly with hierarchical chunker)
+    - Images: JPG, JPEG, PNG, WEBP, GIF, BMP, TIFF (processed with OCR and ROI)
     """
     processed_files_summary = []
-    chroma_handler = request.app.state.chroma_handler
+    # Use vector_handler (which is PineconeHandler when USE_PINECONE=True)
+    vector_handler = request.app.state.vector_handler
+    # Keep backward compatibility
+    chroma_handler = vector_handler
 
-    # Switch to or create the new collection
-    chroma_handler.switch_to_collection(new_collection_name)
+    # No need to switch collection - using single Pinecone index from config
 
     # Validate DPI (only required for handwritten/image processing)
     # DPI is optional - only used when processing handwritten content (images or scanned PDFs)
@@ -589,43 +589,55 @@ async def upload_pdfs(
                 if len(chunks) > 3:
                     logger.info(f"   • ... and {len(chunks) - 3} more chunks")
 
-            # Add chunks to ChromaDB (chunks already have "content" and "metadata" keys)
+            # Classify chunks with GPT-4o-mini and store in Pinecone
             if chunks:
                 try:
-                    # Enrich metadata automatically before storing
-                    logger.info(f"🔍 Enriching metadata for {len(chunks)} chunks...")
+                    # Print diagnostics for chunks before classification
+                    logger.info(f"\n📊 Chunking Diagnostics:")
+                    logger.info(f"   • Total chunks created: {len(chunks)}")
+                    if chunks:
+                        sample = chunks[0]
+                        logger.info(f"   • Sample chunk metadata keys: {list(sample.get('metadata', {}).keys())}")
+                        logger.info(f"   • Sample chunk size: {len(sample['content'].split())} words")
+                        logger.info(f"   • Sample chapter: {sample.get('metadata', {}).get('chapter', 'N/A')}")
+                        logger.info(f"   • Sample section: {sample.get('metadata', {}).get('section', 'N/A')}")
+                    
+                    # Step 1: Classify chunks with GPT-4o-mini (batch processing)
+                    logger.info(f"\n🤖 Classifying {len(chunks)} chunks with GPT-4o-mini (batch processing)...")
+                    from ..utils.metadata_enricher import classify_chunks_batch
                     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-                    enriched_chunks = []
                     
-                    for chunk in chunks:
-                        chunk_text = chunk['content']
-                        existing_meta = chunk.get('metadata', {})
-                        filename = existing_meta.get('filename', file.filename)
-                        chapter = existing_meta.get('chapter', 'Unknown')
-                        section = existing_meta.get('section', 'Unknown')
-                        
-                        # Enrich metadata
-                        try:
-                            enriched_meta = enrich_metadata(chunk_text, filename, chapter, section, openai_client)
-                            # Merge enriched metadata with existing metadata
-                            existing_meta.update(enriched_meta)
-                            chunk['metadata'] = existing_meta
-                        except Exception as enrich_error:
-                            logger.warning(f"⚠️ Metadata enrichment failed for one chunk: {enrich_error}")
-                            # Continue with original metadata if enrichment fails
-                        
-                        enriched_chunks.append(chunk)
+                    # Classify all chunks in batches
+                    classified_chunks = classify_chunks_batch(chunks, openai_client)
                     
-                    logger.info(f"✅ Metadata enrichment complete for {len(enriched_chunks)} chunks")
+                    logger.info(f"✅ Classification complete for {len(classified_chunks)} chunks")
                     
-                    # Store enriched chunks
-                    chroma_handler.add_documents(enriched_chunks)
+                    # Show first 3 chunks with classification
+                    logger.info(f"\n📝 First 3 chunks with classification:")
+                    for i, chunk in enumerate(classified_chunks[:3], 1):
+                        meta = chunk.get('metadata', {})
+                        logger.info(f"\n   Chunk {i}:")
+                        logger.info(f"      • Content preview: {chunk['content'][:150].replace(chr(10), ' ')}...")
+                        logger.info(f"      • Word count: {len(chunk['content'].split())} words")
+                        logger.info(f"      • Major Domain: {meta.get('major_domain', 'N/A')}")
+                        logger.info(f"      • Sub Domain: {meta.get('sub_domain', 'N/A')}")
+                        logger.info(f"      • Micro Topic: {meta.get('micro_topic', 'N/A')}")
+                        if meta.get('sub_topics'):
+                            logger.info(f"      • Sub Topics: {', '.join(meta.get('sub_topics', []))}")
+                        logger.info(f"      • Full Metadata: {meta}")
                     
-                    # Prepare summary with ROI info if available
+                    # Step 2: Store classified chunks in Pinecone (this will generate embeddings automatically)
+                    logger.info(f"\n💾 Storing {len(classified_chunks)} chunks in Pinecone (generating embeddings)...")
+                    vector_handler.add_documents(classified_chunks)
+                    logger.info(f"✅ Successfully stored {len(classified_chunks)} chunks in Pinecone")
+                    
+                    # Prepare summary
                     summary_item = {
                         "filename": file.filename,
                         "status": "success",
-                        "chunks_added": len(enriched_chunks)
+                        "chunks_created": len(chunks),
+                        "chunks_stored": len(chunks),
+                        "message": "Chunks created and stored successfully in Pinecone"
                     }
                     
                     # Add ROI preview paths if available
@@ -637,15 +649,17 @@ async def upload_pdfs(
                         summary_item["roi_method"] = roi_info.get("roi_method")
                     
                     processed_files_summary.append(summary_item)
-                    logger.info(f"✅ Successfully processed and added {len(enriched_chunks)} chunks (with enriched metadata) for {file.filename}")
-                except Exception as embedding_error:
-                    # Chunks were created but embedding/storage failed
-                    logger.error(f"❌ Chunks created but embedding failed for {file.filename}: {embedding_error}")
+                    logger.info(f"✅ Successfully processed and stored {len(chunks)} chunks for {file.filename}")
+                    
+                except Exception as storage_error:
+                    # Chunks were created but storage failed
+                    logger.error(f"❌ Chunks created but storage failed for {file.filename}: {storage_error}")
                     processed_files_summary.append({
                         "filename": file.filename,
                         "status": "failed",
-                        "reason": f"Embedding failed: {str(embedding_error)}",
-                        "chunks_created": len(chunks)  # Info: chunks were created but not stored
+                        "reason": f"Storage failed: {str(storage_error)}",
+                        "chunks_created": len(chunks),
+                        "chunks_stored": 0
                     })
                     raise  # Re-raise to be caught by outer exception handler
             else:

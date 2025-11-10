@@ -1,6 +1,7 @@
 """
 Main FastAPI application
 """
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -11,15 +12,28 @@ load_env_vars()
 
 from .core.config import settings
 from .routes import upload, query, mock_test, mains_answer, evaluate_answer
-from .utils.chroma_handler import ChromaHandler
+
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize resources on startup"""
-    # Initialize ChromaDB handler
-    app.state.chroma_handler = ChromaHandler()
+    # Initialize vector store handler (Pinecone or ChromaDB based on config)
+    if settings.USE_PINECONE:
+        from .utils.pinecone_handler import PineconeHandler
+        app.state.vector_handler = PineconeHandler()
+        logger.info("✅ Using Pinecone as vector store")
+    else:
+        from .utils.chroma_handler import ChromaHandler
+        app.state.vector_handler = ChromaHandler()
+        logger.info("✅ Using ChromaDB as vector store")
+    
+    # Keep backward compatibility
+    app.state.chroma_handler = app.state.vector_handler
+    
     yield
     # Clean up on shutdown
+    app.state.vector_handler = None
     app.state.chroma_handler = None
 
 app = FastAPI(

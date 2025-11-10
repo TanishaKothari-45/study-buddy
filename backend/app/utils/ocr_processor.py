@@ -7,25 +7,25 @@ import os
 from typing import List, Dict, Any, Optional
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
-import easyocr
-from pdf2image import convert_from_path
+# import easyocr  # Commented out - not using EasyOCR for now (using Google Vision API instead)
+# from pdf2image import convert_from_path  # Commented out - not using EasyOCR for now
 import cv2
 
 logger = logging.getLogger(__name__)
 
-# Initialize EasyOCR reader (lazy loading)
-_ocr_reader = None
+# Initialize EasyOCR reader (lazy loading) - COMMENTED OUT (not using EasyOCR)
+# _ocr_reader = None
 
-def get_ocr_reader():
-    """Initialize and return EasyOCR reader (singleton pattern)"""
-    global _ocr_reader
-    if _ocr_reader is None:
-        logger.info("🔧 Initializing EasyOCR reader for English...")
-        # Initialize EasyOCR with English language support
-        # gpu=False uses CPU (set to True if you have CUDA GPU)
-        _ocr_reader = easyocr.Reader(['en'], gpu=False)
-        logger.info("✅ EasyOCR reader initialized")
-    return _ocr_reader
+# def get_ocr_reader():
+#     """Initialize and return EasyOCR reader (singleton pattern)"""
+#     global _ocr_reader
+#     if _ocr_reader is None:
+#         logger.info("🔧 Initializing EasyOCR reader for English...")
+#         # Initialize EasyOCR with English language support
+#         # gpu=False uses CPU (set to True if you have CUDA GPU)
+#         _ocr_reader = easyocr.Reader(['en'], gpu=False)
+#         logger.info("✅ EasyOCR reader initialized")
+#     return _ocr_reader
 
 def preprocess_image(image: Image.Image, enhance_contrast: bool = True, 
                      denoise: bool = True, deskew: bool = True) -> Image.Image:
@@ -115,12 +115,14 @@ def extract_text_from_image(image_path: str, preprocess: bool = True,
             logger.info("🔧 Preprocessing image (contrast, denoise, deskew)...")
             image = preprocess_image(image)
         
-        # Get OCR reader
-        reader = get_ocr_reader()
+        # Get OCR reader - COMMENTED OUT (not using EasyOCR)
+        # reader = get_ocr_reader()
         
-        # Perform OCR
-        logger.info("🔍 Running OCR on image...")
-        results = reader.readtext(np.array(image))
+        # Perform OCR - COMMENTED OUT (not using EasyOCR)
+        logger.error("❌ EasyOCR is not available. Please use Google Vision API instead.")
+        raise NotImplementedError("EasyOCR is disabled. Use Google Vision API for OCR processing.")
+        # logger.info("🔍 Running OCR on image...")
+        # results = reader.readtext(np.array(image))
         
         # Extract text and confidence scores
         extracted_text = []
@@ -173,34 +175,36 @@ def extract_text_from_pdf_images(pdf_path: str, preprocess: bool = True,
     
     try:
         logger.info(f"📄 Converting PDF to images: {pdf_path}")
-        # Convert PDF pages to images (300 DPI for good quality)
-        images = convert_from_path(pdf_path, dpi=300, fmt='png')
-        logger.info(f"   • Converted {len(images)} pages to images")
-        
-        for i, image in enumerate(images):
-            logger.info(f"   • Processing page {i + 1}/{len(images)}...")
-            
-            # Save temporary image
-            temp_image_path = f"/tmp/pdf_page_{i}.png"
-            image.save(temp_image_path, 'PNG')
-            
-            try:
-                # Extract text from image
-                result = extract_text_from_image(temp_image_path, preprocess, sample_reference)
-                
-                pages_content.append({
-                    "page_number": i + 1,
-                    "text": result["text"],
-                    "confidence": result["confidence"],
-                    "num_regions": result["num_regions"]
-                })
-                
-            finally:
-                # Clean up temporary image
-                if os.path.exists(temp_image_path):
-                    os.remove(temp_image_path)
-        
-        logger.info(f"✅ Successfully processed {len(pages_content)} pages")
+        # Convert PDF pages to images (300 DPI for good quality) - COMMENTED OUT (not using EasyOCR)
+        logger.error("❌ EasyOCR is not available. Please use Google Vision API instead.")
+        raise NotImplementedError("EasyOCR is disabled. Use Google Vision API for OCR processing.")
+        # images = convert_from_path(pdf_path, dpi=300, fmt='png')
+        # logger.info(f"   • Converted {len(images)} pages to images")
+        # 
+        # for i, image in enumerate(images):
+        #     logger.info(f"   • Processing page {i + 1}/{len(images)}...")
+        #     
+        #     # Save temporary image
+        #     temp_image_path = f"/tmp/pdf_page_{i}.png"
+        #     image.save(temp_image_path, 'PNG')
+        #     
+        #     try:
+        #         # Extract text from image
+        #         result = extract_text_from_image(temp_image_path, preprocess, sample_reference)
+        #         
+        #         pages_content.append({
+        #             "page_number": i + 1,
+        #             "text": result["text"],
+        #             "confidence": result["confidence"],
+        #             "num_regions": result["num_regions"]
+        #         })
+        #         
+        #     finally:
+        #         # Clean up temporary image
+        #         if os.path.exists(temp_image_path):
+        #             os.remove(temp_image_path)
+        # 
+        # logger.info(f"✅ Successfully processed {len(pages_content)} pages")
         
     except Exception as e:
         logger.error(f"❌ Error processing PDF images {pdf_path}: {e}")

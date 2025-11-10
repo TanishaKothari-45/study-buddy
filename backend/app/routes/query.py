@@ -84,11 +84,10 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
     Query the enriched ChromaDB collection for answers.
     """
     try:
-        # Switch to the new collection for enriched chunks
+        # Use the single Pinecone index (no need to switch)
         chroma_handler = request.app.state.chroma_handler
-        chroma_handler.switch_to_collection("geography_docs_enriched")
         
-        # Get relevant chunks using Sentence Transformers (local)
+        # Get relevant chunks
         chunks = chroma_handler.query_documents(
             query_request.question, 
             query_request.k

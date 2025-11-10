@@ -68,12 +68,12 @@ if tab_choice == "Upload PDFs":
         index=0 if st.session_state.upload_type == "PDF" else 1,
         disabled=not backend_status,
         key="upload_type_radio",
-        help="PDF: Regular text-based PDFs. Handwritten: Scanned handwritten answers (PDF/images) that will be processed with OCR."
+        help="PDF: Regular text-based PDFs or TXT files. Handwritten: Scanned handwritten answers (PDF/images) that will be processed with OCR."
     )
     st.session_state.upload_type = upload_type
     
     if upload_type == "PDF":
-        st.info("💡 Upload regular PDF files. They will be chunked, enriched, and embedded for use in Q&A and answer generation.")
+        st.info("💡 Upload regular PDF or TXT files. They will be chunked, enriched, and embedded for use in Q&A and answer generation.")
     else:
         st.info("💡 Upload handwritten answer sheets (PDF or images). They will be processed with ROI detection, OCR, and LLM reconstruction, then chunked and embedded to strengthen answer generation.")
     
@@ -86,8 +86,8 @@ if tab_choice == "Upload PDFs":
     dpi = None
     if upload_type == "PDF":
         uploaded_files = st.file_uploader(
-            "Upload PDF files:",
-            type=["pdf"],
+            "Upload PDF or TXT files:",
+            type=["pdf", "txt"],
             accept_multiple_files=True,
             disabled=not backend_status,
             key="pdf_uploader"

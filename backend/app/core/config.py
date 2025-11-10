@@ -23,13 +23,23 @@ class Settings(BaseSettings):
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
     DB_DIR: Path = BASE_DIR / "data" / "chroma"
     
-    # PDF Settings
-    CHUNK_SIZE: int = 300  # words
-    CHUNK_OVERLAP: int = 50  # words
+    # PDF Chunking Settings
+    CHUNK_SIZE_WORDS: int = 500  # Standard chunk size in words
+    CHUNK_OVERLAP_PERCENT: float = 0.15  # 15% overlap between chunks
+    MIN_WORDS_PER_CHUNK: int = 20  # Minimum words to consider a chunk valid
+    
+    # Semantic Chunking Settings (fallback)
+    USE_SEMANTIC_FALLBACK: bool = True  # Enable semantic chunking fallback
+    SEMANTIC_THRESHOLD: float = 0.80  # Similarity threshold for semantic splitting
+    EMBED_BATCH_SIZE: int = 200  # Words per embedding window for semantic fallback
     
     # Vector Store Settings
-    COLLECTION_NAME: str = "geography_docs_enriched"  # Default to enriched collection
+    COLLECTION_NAME: str = "geography_docs_enriched"  # Default to enriched collection (ChromaDB)
     DISTANCE_METRIC: str = "cosine"
+    
+    # Pinecone Settings
+    PINECONE_INDEX_NAME: str = "study-buddy"  # Pinecone index name (from env or default)
+    USE_PINECONE: bool = True  # Set to True to use Pinecone, False to use ChromaDB
     
     # OpenAI Settings
     EMBEDDING_MODEL: str = "text-embedding-3-small"

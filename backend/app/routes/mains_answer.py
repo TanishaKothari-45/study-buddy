@@ -164,9 +164,8 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
     Generate a comprehensive UPSC Mains style answer for Geography questions.
     """
     try:
-        # Switch to the enriched collection
+        # Using single Pinecone index (no need to switch)
         chroma_handler = request.app.state.chroma_handler
-        chroma_handler.switch_to_collection("geography_docs_enriched")
         
         # Get relevant chunks using enhanced retrieval
         chunks = chroma_handler.query_documents(

@@ -208,7 +208,7 @@ async def evaluate_extracted_answer(request: Request, question: str, answer_text
     try:
         # Switch to the enriched collection
         chroma_handler = request.app.state.chroma_handler
-        chroma_handler.switch_to_collection("geography_docs_enriched")
+        # Using single Pinecone index (no need to switch)
         
         # Get relevant chunks for context
         chunks = chroma_handler.query_documents(question, k=8)
