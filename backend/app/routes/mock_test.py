@@ -3,7 +3,7 @@ Mock test generation endpoint
 """
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import os
 import random
 import logging
@@ -12,8 +12,9 @@ from openai import OpenAI, RateLimitError
 
 from ..core.config import settings
 from ..utils.upsc_patterns.loader import get_examples, format_fewshot, get_all_patterns
-from ..utils.metadata_enricher import GEOGRAPHY_TOPICS
+from ..utils.metadata_enricher import GEOGRAPHY_TOPICS, GEOGRAPHY_DOMAINS
 from ..routes.query import deduplicate_chunks
+from ..utils.mm_utils import enforce_source_diversity
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -673,123 +674,239 @@ def is_actual_question_chunk(chunk: Dict[str, Any]) -> bool:
     # Consider it a question if it has question indicators and few exclude indicators
     return has_question and exclude_count < 3
 
-@router.post("/generate", response_model=MockTestResponse)
-async def generate_mock_test(request: Request, test_request: MockTestRequest):
-    """Generate a UPSC-style mock test using dual retrieval strategy"""
+def extract_domains_from_topics(topics: List[str]) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Extract major_domain and sub_domain from topics list.
+    
+    Since topics now come from dropdowns, they should match exactly with GEOGRAPHY_DOMAINS.
+    Returns the first matching major_domain and sub_domain found.
+    
+    Args:
+        topics: List of topic strings (can be sub-domains or major domains)
+    
+    Returns:
+        Tuple of (major_domain, sub_domain) or (None, None) if not found
+    """
+    if not topics:
+        return None, None
+    
+    major_domain = None
+    sub_domain = None
+    
+    topics_lower = [t.lower() for t in topics]
+    
+    # First, check if any topic is a direct major domain match
+    for domain in GEOGRAPHY_DOMAINS.keys():
+        if domain.lower() in topics_lower or any(domain.lower() == t for t in topics_lower):
+            major_domain = domain
+            break
+    
+    # Then, check if any topic is a sub-domain
+    for domain, subdomains in GEOGRAPHY_DOMAINS.items():
+        for sub in subdomains:
+            if sub.lower() in topics_lower or any(sub.lower() == t for t in topics_lower):
+                sub_domain = sub
+                # If we found a sub-domain, its parent is the major domain
+                if not major_domain:
+                    major_domain = domain
+                break
+        if sub_domain:
+            break
+    
+    # If we found a sub-domain but no major domain, find the parent
+    if sub_domain and not major_domain:
+        for domain, subdomains in GEOGRAPHY_DOMAINS.items():
+            if sub_domain in subdomains:
+                major_domain = domain
+                break
+    
+    logger.info(f"📌 Extracted domains from topics {topics}: major_domain={major_domain}, sub_domain={sub_domain}")
+    return major_domain, sub_domain
+
+def hybrid_retrieve_for_mock_test(
+    pinecone_handler,
+    topics: List[str],
+    num_questions: int = 10
+) -> Tuple[List[Dict], List[Dict]]:
+    """
+    Hybrid retrieval with progressive fallback, source diversity, and domain-aware strategies.
+    
+    This function implements:
+    1. Progressive fallback for PYQ retrieval (sub-domain → major-domain → general)
+    2. Domain-aware content retrieval with different strategies based on granularity
+    3. Source diversity enforcement (max 2 chunks per file)
+    4. Final MMR re-ranking for cross-source diversity
+    
+    Args:
+        pinecone_handler: PineconeHandler instance
+        topics: List of topics (sub-domains or major domains from dropdowns)
+        num_questions: Number of questions to generate (for context sizing)
+    
+    Returns:
+        Tuple of (pyq_chunks, content_chunks) ready for question generation
+    """
+    # Extract domains from topics
+    major_domain, sub_domain = extract_domains_from_topics(topics)
+    
+    logger.info(f"🎯 [HYBRID_RETRIEVE] Starting retrieval: major_domain={major_domain}, sub_domain={sub_domain}")
+    
+    # ================================
+    # 1️⃣ Progressive PYQ Retrieval (Style Learning)
+    # ================================
+    pyq_chunks = []
+    
+    def retrieve_pyqs(query_text: str, k: int = 5):
+        """Helper to retrieve and filter PYQ chunks"""
+        try:
+            retriever = pinecone_handler.get_retriever_for_mode("prelims", use_content_store=True)
+            if hasattr(retriever, 'invoke'):
+                docs = retriever.invoke(query_text)
+            else:
+                docs = retriever.get_relevant_documents(query_text)
+            
+            # Convert to chunk format
+            chunks = [{"content": d.page_content, "metadata": d.metadata} for d in docs]
+            
+            # Filter: PYQ files + actual questions
+            pyq_file_chunks = [c for c in chunks if is_pyq_chunk(c)]
+            pyq_question_chunks = [c for c in pyq_file_chunks if is_actual_question_chunk(c)]
+            
+            # Prefer actual questions, fallback to all PYQ chunks
+            return pyq_question_chunks if pyq_question_chunks else pyq_file_chunks[:k]
+        except Exception as e:
+            logger.warning(f"⚠️ PYQ retrieval failed for '{query_text}': {e}")
+            return []
+    
+    # Progressive fallback: sub-domain → major-domain → general
+    # Goal: Ensure at least 5 PYQ chunks for stylistic variation
+    TARGET_PYQ_CHUNKS = 5
+    
+    if sub_domain:
+        logger.info(f"   🔍 Retrieving PYQs for sub-domain: {sub_domain}")
+        retrieved = retrieve_pyqs(f"UPSC prelims geography questions {sub_domain} which of the following consider")
+        pyq_chunks.extend(retrieved)
+        logger.info(f"      → Got {len(retrieved)} chunks from sub-domain search (total: {len(pyq_chunks)})")
+    
+    # Deduplicate after each step to avoid counting duplicates
+    seen_content = set()
+    unique_pyq_chunks = []
+    for chunk in pyq_chunks:
+        content_hash = hash(chunk["content"][:100])  # Use first 100 chars as hash
+        if content_hash not in seen_content:
+            seen_content.add(content_hash)
+            unique_pyq_chunks.append(chunk)
+    pyq_chunks = unique_pyq_chunks
+    
+    # If we don't have enough, try major-domain
+    if len(pyq_chunks) < TARGET_PYQ_CHUNKS and major_domain:
+        logger.info(f"   🔍 Retrieving PYQs for major-domain: {major_domain} (need {TARGET_PYQ_CHUNKS - len(pyq_chunks)} more)")
+        retrieved = retrieve_pyqs(f"UPSC prelims geography questions {major_domain} which of the following consider")
+        # Add only new chunks
+        for chunk in retrieved:
+            content_hash = hash(chunk["content"][:100])
+            if content_hash not in seen_content:
+                seen_content.add(content_hash)
+                pyq_chunks.append(chunk)
+        logger.info(f"      → Got {len(retrieved)} chunks from major-domain search (total: {len(pyq_chunks)})")
+    
+    # If still not enough, try general PYQ retrieval
+    if len(pyq_chunks) < TARGET_PYQ_CHUNKS:
+        logger.info(f"   🔍 Retrieving general PYQs (fallback, need {TARGET_PYQ_CHUNKS - len(pyq_chunks)} more)")
+        retrieved = retrieve_pyqs("UPSC prelims geography questions which of the following consider select")
+        # Add only new chunks
+        for chunk in retrieved:
+            content_hash = hash(chunk["content"][:100])
+            if content_hash not in seen_content:
+                seen_content.add(content_hash)
+                pyq_chunks.append(chunk)
+        logger.info(f"      → Got {len(retrieved)} chunks from general search (total: {len(pyq_chunks)})")
+    
+    # Limit to reasonable max but ensure we have at least what we got (up to 8 for prompt focus)
+    pyq_chunks = pyq_chunks[:8]  # Upper limit for prompt focus
+    logger.info(f"✅ Retrieved {len(pyq_chunks)} PYQ chunks for style reference (target was {TARGET_PYQ_CHUNKS})")
+    
+    # ================================
+    # 2️⃣ Domain-Aware Content Retrieval (Knowledge)
+    # ================================
+    logger.info("📘 Retrieving factual content chunks...")
+    
+    # Adjust retrieval strategy based on granularity
+    if sub_domain:
+        # Micro-topic diversity under sub-domain
+        query = f"{sub_domain} geography concepts NCERT vision notes important topics"
+        k_target = 10
+        lambda_mult = 0.65
+        logger.info(f"   🎯 Sub-domain mode: focusing on micro-topics within {sub_domain}")
+    elif major_domain:
+        # Diversify across sub-domains within major domain
+        query = f"{major_domain} major subtopics theories NCERT vision notes"
+        k_target = 10
+        lambda_mult = 0.65
+        logger.info(f"   🎯 Major-domain mode: diversifying across sub-domains in {major_domain}")
+    else:
+        # Very general query → broad coverage
+        query = "important geography topics for UPSC NCERT vision notes static and current"
+        k_target = 12
+        lambda_mult = 0.6
+        logger.info(f"   🎯 General mode: broad coverage")
+    
     try:
-        logger.info(f"🚀 [MOCK_TEST] Received request: {test_request.num_questions} questions, topics={test_request.topics}, difficulty={test_request.difficulty}")
-        
-        pinecone_handler = request.app.state.vector_handler
-        
-        # Build queries based on topics
-        if test_request.topics:
-            topic_query = " ".join(test_request.topics)
-            pyq_query = f"UPSC prelims geography questions {topic_query} which of the following consider"
-            content_query = f"{topic_query} geography concepts NCERT vision notes"
-        else:
-            pyq_query = "UPSC prelims geography questions which of the following consider select"
-            content_query = "important geography topics for UPSC NCERT vision notes"
-        
-        # Step 1: Dual Retrieval Strategy with Joint MMR Orchestration
-        # Get PYQ chunks for style learning using prelims retriever
-        logger.info("🔍 [MOCK_TEST] Retrieving PYQ chunks for style learning...")
-        pyq_retriever = pinecone_handler.get_retriever_for_mode("prelims", use_content_store=True)
-        
-        try:
-            if hasattr(pyq_retriever, 'invoke'):
-                pyq_docs = pyq_retriever.invoke(pyq_query)
-            else:
-                pyq_docs = pyq_retriever.get_relevant_documents(pyq_query)
-        except Exception as e:
-            logger.warning(f"⚠️ [MOCK_TEST] PYQ retrieval failed: {e}")
-            pyq_docs = pyq_retriever.get_relevant_documents(pyq_query)
-        
-        # Convert docs to chunk format for compatibility
-        all_pyq_candidates = []
-        for doc in pyq_docs:
-            all_pyq_candidates.append({
-                "content": doc.page_content,
-                "metadata": doc.metadata
-            })
-        # Filter: first by PYQ file, then by actual question content
-        pyq_file_chunks = [c for c in all_pyq_candidates if is_pyq_chunk(c)]
-        pyq_question_chunks = [c for c in pyq_file_chunks if is_actual_question_chunk(c)]
-        
-        # Filter PYQ chunks by topic if topics provided
-        if test_request.topics:
-            pyq_question_chunks = filter_chunks_by_topic(pyq_question_chunks, test_request.topics)
-            logger.info(f"📌 Filtered PYQ chunks by topics: {test_request.topics}")
-        
-        # If we don't have enough actual question chunks, use all PYQ chunks but prioritize question-like ones
-        if len(pyq_question_chunks) < 3:
-            logger.warning(f"⚠️ Only found {len(pyq_question_chunks)} actual question chunks, using all PYQ chunks")
-            pyq_chunks = filter_chunks_by_topic(pyq_file_chunks[:10], test_request.topics) if test_request.topics else pyq_file_chunks[:10]
-        else:
-            pyq_chunks = pyq_question_chunks
-        
-        # Get content chunks for knowledge (exclude PYQ files, filter by topic)
-        logger.info("🔍 [MOCK_TEST] Retrieving content chunks for question generation...")
         content_retriever = pinecone_handler.get_retriever_for_mode("prelims", use_content_store=True)
-        
-        try:
-            if hasattr(content_retriever, 'invoke'):
-                content_docs = content_retriever.invoke(content_query)
-            else:
-                content_docs = content_retriever.get_relevant_documents(content_query)
-        except Exception as e:
-            logger.warning(f"⚠️ [MOCK_TEST] Content retrieval failed: {e}")
-            content_docs = content_retriever.get_relevant_documents(content_query)
-        
-        # Convert docs to chunk format for compatibility
-        all_content_candidates = []
-        for doc in content_docs:
-            all_content_candidates.append({
-                "content": doc.page_content,
-                "metadata": doc.metadata
-            })
-        content_file_chunks = [c for c in all_content_candidates if not is_pyq_chunk(c)]
-        
-        # Filter content chunks by topic if topics provided
-        if test_request.topics:
-            content_chunks = filter_chunks_by_topic(content_file_chunks, test_request.topics)
-            logger.info(f"📌 Filtered content chunks by topics: {test_request.topics}")
+        if hasattr(content_retriever, 'invoke'):
+            content_docs = content_retriever.invoke(query)
         else:
-            content_chunks = content_file_chunks[:12]
+            content_docs = content_retriever.get_relevant_documents(query)
+    except Exception as e:
+        logger.warning(f"⚠️ Content retrieval failed: {e}")
+        content_docs = []
+    
+    # Convert to chunk format and filter out PYQ files
+    content_chunks = [
+        {"content": doc.page_content, "metadata": doc.metadata}
+        for doc in content_docs
+        if not is_pyq_chunk({"metadata": doc.metadata})
+    ]
+    
+    # Apply source diversity enforcement (max 2 chunks per file)
+    content_chunks = enforce_source_diversity(content_chunks, max_per_file=2)
+    
+    logger.info(f"✅ Retrieved {len(content_chunks)} content chunks for factual grounding")
+    
+    # ================================
+    # 3️⃣ Tag Chunks with Source Metadata
+    # ================================
+    for chunk in pyq_chunks:
+        if "metadata" not in chunk:
+            chunk["metadata"] = {}
+        chunk["metadata"]["source"] = "pyq"
+    
+    for chunk in content_chunks:
+        if "metadata" not in chunk:
+            chunk["metadata"] = {}
+        chunk["metadata"]["source"] = "content"
+    
+    # ================================
+    # 4️⃣ Final MMR Re-ranking for Cross-Source Diversity
+    # ================================
+    logger.info("🔄 Applying final cross-source MMR diversity selection...")
+    combined_chunks = pyq_chunks + content_chunks
+    
+    if combined_chunks:
+        # Create combined query for MMR relevance calculation
+        combined_query = query if query else "UPSC Geography important topics"
         
-        # Step 2: Tag chunks with source metadata (Recommendation #2)
-        logger.info("🏷️  Tagging chunks with source metadata...")
-        for chunk in pyq_chunks:
-            if "metadata" not in chunk:
-                chunk["metadata"] = {}
-            chunk["metadata"]["source"] = "pyq"
-        
-        for chunk in content_chunks:
-            if "metadata" not in chunk:
-                chunk["metadata"] = {}
-            chunk["metadata"]["source"] = "content"
-        
-        # Step 3: Joint Retrieval Orchestration - Combine both sources, then apply MMR
-        logger.info("🔄 Applying joint MMR orchestration for cross-source diversity...")
-        combined_chunks = pyq_chunks + content_chunks
-        logger.info(f"   • Combined: {len(pyq_chunks)} PYQ chunks + {len(content_chunks)} content chunks = {len(combined_chunks)} total")
-        
-        # Create a combined query for MMR relevance calculation
-        combined_query = f"{pyq_query} {content_query}" if test_request.topics else pyq_query
-        
-        # Apply MMR selection to combined chunks for cross-source diversity
-        diverse_context = pinecone_handler.mmr_select_from_chunks(
+        diverse_chunks = pinecone_handler.mmr_select_from_chunks(
             chunks=combined_chunks,
             query_text=combined_query,
-            k=10,  # Final diverse selection
-            lambda_mult=0.65  # Optimal balance for UPSC Qs: factual grounding + variety
+            k=min(k_target + 2, len(combined_chunks)),  # +2 to ensure we have enough after separation
+            lambda_mult=lambda_mult
         )
         
-        # Step 4: Separate back into PYQ and content using source metadata (Recommendation #2)
-        # This is more reliable than using is_pyq_chunk() function
-        diverse_pyq_chunks = [c for c in diverse_context if c.get("metadata", {}).get("source") == "pyq"]
-        diverse_content_chunks = [c for c in diverse_context if c.get("metadata", {}).get("source") == "content"]
+        # Separate back into PYQ and content using source metadata
+        diverse_pyq_chunks = [c for c in diverse_chunks if c.get("metadata", {}).get("source") == "pyq"]
+        diverse_content_chunks = [c for c in diverse_chunks if c.get("metadata", {}).get("source") == "content"]
         
-        # Use diverse chunks, but fallback to original if MMR didn't preserve enough of each type
+        # Use diverse chunks, but fallback to original if MMR didn't preserve enough
         if len(diverse_pyq_chunks) >= 2:
             pyq_chunks = diverse_pyq_chunks
         else:
@@ -799,9 +916,34 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
             content_chunks = diverse_content_chunks
         else:
             logger.warning(f"⚠️ MMR didn't preserve enough content chunks ({len(diverse_content_chunks)}), using original")
+    
+    logger.info(f"📊 Final selection: {len(pyq_chunks)} PYQ chunks and {len(content_chunks)} content chunks")
+    
+    return pyq_chunks, content_chunks
+
+@router.get("/domains")
+async def get_geography_domains():
+    """Get the geography domain structure for dropdowns"""
+    return {"domains": GEOGRAPHY_DOMAINS}
+
+@router.post("/generate", response_model=MockTestResponse)
+async def generate_mock_test(request: Request, test_request: MockTestRequest):
+    """Generate a UPSC-style mock test using hybrid retrieval with progressive fallback and source diversity"""
+    try:
+        logger.info(f"🚀 [MOCK_TEST] Received request: {test_request.num_questions} questions, topics={test_request.topics}, difficulty={test_request.difficulty}")
         
-        # Log retrieval stats
-        logger.info(f"📊 Final selection: {len(pyq_chunks)} PYQ chunks and {len(content_chunks)} content chunks (cross-source diverse)")
+        pinecone_handler = request.app.state.vector_handler
+        
+        # Extract major_domain and sub_domain from topics (from dropdowns)
+        major_domain, sub_domain = extract_domains_from_topics(test_request.topics)
+        logger.info(f"📌 Using domains for retrieval: major_domain={major_domain}, sub_domain={sub_domain}")
+        
+        # Use hybrid retrieval pipeline with all enhancements
+        pyq_chunks, content_chunks = hybrid_retrieve_for_mock_test(
+            pinecone_handler=pinecone_handler,
+            topics=test_request.topics,
+            num_questions=test_request.num_questions
+        )
         
         # Fallback: if no PYQ chunks found, use all chunks but warn
         if not pyq_chunks:

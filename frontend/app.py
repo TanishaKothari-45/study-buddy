@@ -619,35 +619,86 @@ elif tab_choice == "Generate Mock Test":
         )
     
     with col2:
-        # Topic selection with both dropdown and text input
-        st.markdown("**Select topics (optional):**")
-        topic_options = [
-            "Monsoon", "Climate", "Physical Geography",
-            "Indian Geography", "World Geography",
-            "Geomorphology", "Oceanography", "Climatology",
-            "Agriculture", "Economic Geography", "Cultural Geography",
-            "Natural Disasters", "Biogeography", "Oceanography"
-        ]
+        # Domain and Sub-domain selection
+        st.markdown("**Select domain and sub-domain (optional):**")
         
-        selected_topics = st.multiselect(
-            "Choose from list:",
-            topic_options,
+        # Fetch geography domains from backend
+        geography_domains = {}
+        try:
+            if backend_status:
+                response = requests.get(f"{BACKEND_URL}/mock-test/domains", timeout=5)
+                if response.status_code == 200:
+                    geography_domains = response.json().get("domains", {})
+        except Exception as e:
+            st.warning(f"Could not load domains: {e}")
+            # Fallback to hardcoded domains
+            geography_domains = {
+                "Physical Geography": [
+                    "Geomorphology", "Climatology", "Oceanography",
+                    "Biogeography", "Natural Disasters"
+                ],
+                "Human Geography": [
+                    "Economic Geography", "Cultural Geography", "Models and Theories",
+                    "Population Geography", "Settlements", "Migration"
+                ],
+                "Indian Geography": [
+                    "Indian Physiography", "Indian Drainage System", "Indian Climate",
+                    "Indian Soils", "Indian Agriculture", "Indian Natural Resources",
+                    "Indian Industries", "Transport and Communication", "Regional Planning"
+                ],
+                "World Geography": [
+                    "Continents and Countries", "Major Physical Features",
+                    "Environmental Challenges", "Political and Physical Features",
+                    "Mapping and Cartography"
+                ]
+            }
+        
+        # Domain dropdown
+        domain_options = [""] + list(geography_domains.keys())
+        selected_domain = st.selectbox(
+            "Domain:",
+            options=domain_options,
+            index=0,
             disabled=not backend_status,
-            label_visibility="collapsed"
+            key="domain_select"
         )
         
-        # Allow typing custom topics
-        custom_topic = st.text_input(
-            "Or type a custom topic:",
-            placeholder="e.g., Cyclones, Monsoon Variability, etc.",
-            disabled=not backend_status,
-            key="custom_topic_input"
-        )
-        
-        # Combine selected and custom topics
-        topics = selected_topics.copy()
-        if custom_topic and custom_topic.strip():
-            topics.append(custom_topic.strip())
+        # Sub-domain dropdown (populated based on selected domain)
+        topics = []
+        if selected_domain and selected_domain in geography_domains:
+            sub_domain_options = [""] + geography_domains[selected_domain]
+            selected_sub_domain = st.selectbox(
+                "Sub-domain:",
+                options=sub_domain_options,
+                index=0,
+                disabled=not backend_status,
+                key="sub_domain_select"
+            )
+            
+            if selected_sub_domain:
+                topics.append(selected_sub_domain)
+            
+            # Allow typing custom sub-domain
+            custom_sub_domain = st.text_input(
+                "Or type a custom sub-domain:",
+                placeholder="e.g., Cyclones, Monsoon Variability, etc.",
+                disabled=not backend_status,
+                key="custom_sub_domain_input"
+            )
+            
+            if custom_sub_domain and custom_sub_domain.strip():
+                topics.append(custom_sub_domain.strip())
+        else:
+            # If no domain selected, allow free-form topic input
+            custom_topic = st.text_input(
+                "Or type a custom topic:",
+                placeholder="e.g., Cyclones, Monsoon Variability, etc.",
+                disabled=not backend_status,
+                key="custom_topic_input"
+            )
+            
+            if custom_topic and custom_topic.strip():
+                topics.append(custom_topic.strip())
     
     # Generate new test button
     col_gen, col_clear = st.columns([1, 1])

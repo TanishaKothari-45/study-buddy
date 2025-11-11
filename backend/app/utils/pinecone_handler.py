@@ -1286,7 +1286,8 @@ class PineconeHandler:
         """
         Apply MMR diversity selection to a combined list of chunks from multiple sources.
         
-        This uses FAISS internally (same as ChromaDB version) to avoid compatibility issues.
+        Uses LangChain's native MMR algorithm with embeddings - no FAISS required.
+        This is a pure Python implementation that works with any embedding model.
         
         Args:
             chunks: List of chunks to select from (already retrieved from multiple sources)
@@ -1308,45 +1309,79 @@ class PineconeHandler:
             return chunks[:k]
         
         try:
-            from langchain_core.documents import Document
-            from langchain_community.vectorstores import FAISS
+            import numpy as np
             
-            # Convert chunks to LangChain Documents
-            documents = []
-            for chunk in chunks:
-                doc = Document(
-                    page_content=chunk.get("content", ""),
-                    metadata=chunk.get("metadata", {})
-                )
-                documents.append(doc)
+            # Pure Python MMR implementation - no FAISS or vectorstore needed
+            # Step 1: Embed query and all chunks
+            logger.debug(f"   → Embedding query and {len(chunks)} chunks...")
+            query_embedding = np.array(self.langchain_embeddings.embed_query(query_text))
             
-            # Create temporary FAISS vectorstore
-            vectorstore = FAISS.from_documents(documents, self.langchain_embeddings)
+            chunk_texts = [chunk.get("content", "") for chunk in chunks]
+            chunk_embeddings = [np.array(emb) for emb in self.langchain_embeddings.embed_documents(chunk_texts)]
             
-            # Create MMR retriever
-            retriever = vectorstore.as_retriever(
-                search_type="mmr",
-                search_kwargs={
-                    "fetch_k": min(len(chunks), 50),
-                    "k": k,
-                    "lambda_mult": lambda_mult
-                }
-            )
+            # Step 2: Calculate query-document similarities
+            def cosine_similarity(a, b):
+                """Calculate cosine similarity between two vectors"""
+                return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
             
-            # Retrieve diverse chunks
-            diverse_docs = retriever.get_relevant_documents(query_text)
+            query_similarities = [cosine_similarity(query_embedding, emb) for emb in chunk_embeddings]
             
-            # Convert back to our chunk format
-            diverse_chunks = []
-            for doc in diverse_docs:
-                chunk = {
-                    "content": doc.page_content,
-                    "metadata": doc.metadata,
-                    "distance": 0.0
-                }
-                diverse_chunks.append(chunk)
+            # Step 3: MMR algorithm
+            # Start with most relevant document
+            selected_indices = []
+            remaining_indices = list(range(len(chunks)))
+            
+            # Select first document (most relevant)
+            first_idx = max(remaining_indices, key=lambda i: query_similarities[i])
+            selected_indices.append(first_idx)
+            remaining_indices.remove(first_idx)
+            
+            # Select remaining k-1 documents using MMR
+            fetch_k = min(len(chunks), 50)  # Consider top fetch_k by relevance
+            top_candidates = sorted(remaining_indices, key=lambda i: query_similarities[i], reverse=True)[:fetch_k]
+            
+            for _ in range(min(k - 1, len(remaining_indices))):
+                if not top_candidates:
+                    break
+                
+                best_score = -float('inf')
+                best_idx = None
+                
+                for candidate_idx in top_candidates:
+                    # Calculate relevance to query
+                    relevance = query_similarities[candidate_idx]
+                    
+                    # Calculate max similarity to already selected documents
+                    max_similarity = 0.0
+                    for selected_idx in selected_indices:
+                        similarity = cosine_similarity(
+                            chunk_embeddings[candidate_idx],
+                            chunk_embeddings[selected_idx]
+                        )
+                        max_similarity = max(max_similarity, similarity)
+                    
+                    # MMR score: balance relevance and diversity
+                    mmr_score = lambda_mult * relevance - (1 - lambda_mult) * max_similarity
+                    
+                    if mmr_score > best_score:
+                        best_score = mmr_score
+                        best_idx = candidate_idx
+                
+                if best_idx is not None:
+                    selected_indices.append(best_idx)
+                    top_candidates.remove(best_idx)
+            
+            # Step 4: Return selected chunks in order
+            diverse_chunks = [chunks[i] for i in selected_indices]
             
             logger.info(f"✅ MMR selection: {len(chunks)} chunks → {len(diverse_chunks)} diverse chunks")
+            return diverse_chunks
+            
+        except ImportError as import_error:
+            logger.warning(f"⚠️ NumPy not available ({import_error}), using simple similarity selection")
+            # Fallback: Simple top-k by content length (very basic)
+            diverse_chunks = sorted(chunks, key=lambda c: len(c.get("content", "")), reverse=True)[:k]
+            logger.info(f"✅ Simple selection: {len(chunks)} chunks → {len(diverse_chunks)} chunks")
             return diverse_chunks
             
         except Exception as e:
