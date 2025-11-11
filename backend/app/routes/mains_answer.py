@@ -10,6 +10,7 @@ import time
 from openai import OpenAI, RateLimitError
 
 from ..core.config import settings
+from ..routes.query import deduplicate_chunks
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -164,29 +165,57 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
     Generate a comprehensive UPSC Mains style answer for Geography questions.
     """
     try:
-        # Using single Pinecone index (no need to switch)
-        chroma_handler = request.app.state.chroma_handler
+        logger.info(f"🚀 [MAINS] Received request: '{mains_request.question[:100]}...' (word_count={mains_request.word_count})")
         
-        # Get relevant chunks using enhanced retrieval
-        chunks = chroma_handler.query_documents(
-            mains_request.question, 
-            k=10  # Get more chunks for comprehensive answer
-        )
+        # Get Pinecone handler
+        pinecone_handler = request.app.state.vector_handler
         
-        if not chunks:
+        # Get retriever configured for mains mode
+        logger.info(f"🔧 [MAINS] Creating retriever for 'mains' mode...")
+        retriever = pinecone_handler.get_retriever_for_mode("mains", use_content_store=True)
+        
+        # Retrieve documents
+        logger.info(f"🔍 [MAINS] Retrieving documents...")
+        try:
+            if hasattr(retriever, 'invoke'):
+                docs = retriever.invoke(mains_request.question)
+            else:
+                docs = retriever.get_relevant_documents(mains_request.question)
+        except Exception as e:
+            logger.warning(f"⚠️ [MAINS] invoke() failed, trying get_relevant_documents(): {e}")
+            docs = retriever.get_relevant_documents(mains_request.question)
+        
+        if not docs:
+            logger.warning(f"⚠️ [MAINS] No documents retrieved")
             return MainsAnswerResponse(
                 question=mains_request.question,
                 answer="No relevant information found in the uploaded documents for this question.",
                 sources=[],
                 word_count_actual=0
             )
-
-        # Prepare context and sources
-        context = "\n\n".join(chunk["content"] for chunk in chunks)
+        
+        logger.info(f"✅ [MAINS] Retrieved {len(docs)} documents")
+        
+        # Deduplicate overlapping text before combining
+        logger.info(f"📝 [MAINS] Removing overlapping text...")
+        original_context_length = sum(len(doc.page_content) for doc in docs)
+        context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
+        overlap_removed = original_context_length - len(context)
+        
+        if overlap_removed > 0:
+            estimated_tokens_saved = overlap_removed // 4
+            logger.info(f"   ✅ Removed {overlap_removed} chars (~{estimated_tokens_saved} tokens) of overlap")
+        else:
+            logger.info(f"   → No significant overlap detected")
+        
+        logger.info(f"   → Final context length: {len(context)} characters")
+        
+        # Prepare sources from document metadata
+        logger.info(f"📋 [MAINS] Extracting source metadata...")
         sources = []
         seen = set()
-        for chunk in chunks:
-            metadata = chunk.get("metadata", {})
+        for doc in docs:
+            metadata = doc.metadata
             filename = metadata.get("filename", "Unknown")
             chapter = metadata.get("chapter", "Unknown")
             section = metadata.get("section", "Unknown")
@@ -204,6 +233,7 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
                 seen.add(key)
 
         # Generate answer using GPT if available
+        logger.info(f"🤖 [MAINS] Generating answer using GPT...")
         api_key = os.getenv("OPENAI_API_KEY")
         if api_key:
             result = generate_mains_answer_with_gpt(
@@ -213,7 +243,9 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
                 api_key
             )
             answer = result["answer"]
+            logger.info(f"✅ [MAINS] Answer generated: {len(answer)} characters")
         else:
+            logger.warning(f"⚠️ [MAINS] No OpenAI API key - returning raw context")
             answer = f"**UPSC Mains Answer**\n\n{context}\n\n*Note: OpenAI API key not available. This is a basic response.*"
 
         # Calculate actual word count

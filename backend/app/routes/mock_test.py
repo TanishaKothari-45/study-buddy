@@ -13,6 +13,7 @@ from openai import OpenAI, RateLimitError
 from ..core.config import settings
 from ..utils.upsc_patterns.loader import get_examples, format_fewshot, get_all_patterns
 from ..utils.metadata_enricher import GEOGRAPHY_TOPICS
+from ..routes.query import deduplicate_chunks
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -207,15 +208,45 @@ def generate_question_paper(pyq_chunks: List[Dict], content_chunks: List[Dict],
     )
     
     # Prepare content context with explicit markers for Current Affairs vs Static Material
-    context_knowledge_parts = []
+    # Deduplicate overlapping text before combining
+    logger.info(f"📝 [MOCK_TEST] Removing overlapping text from content chunks...")
+    content_docs_for_dedup = []
     for chunk in content_chunks[:8]:
-        meta = chunk.get("metadata", {})
-        filename = meta.get("filename", "").lower()
-        if "current" in filename or "2025" in filename:
-            context_knowledge_parts.append(f"🗞️ [CURRENT AFFAIRS CONTEXT]: {chunk['content']}")
-        else:
-            context_knowledge_parts.append(f"📘 [STATIC MATERIAL]: {chunk['content']}")
-    context_knowledge = "\n\n".join(context_knowledge_parts)
+        from langchain_core.documents import Document
+        content_docs_for_dedup.append(Document(
+            page_content=chunk['content'],
+            metadata=chunk.get('metadata', {})
+        ))
+    
+    # Deduplicate content chunks
+    if content_docs_for_dedup:
+        original_content_length = sum(len(doc.page_content) for doc in content_docs_for_dedup)
+        deduplicated_content = deduplicate_chunks(content_docs_for_dedup, min_overlap_words=20, similarity_threshold=0.6)
+        overlap_removed = original_content_length - len(deduplicated_content)
+        if overlap_removed > 0:
+            logger.info(f"   ✅ Removed {overlap_removed} chars (~{overlap_removed//4} tokens) of overlap from content chunks")
+        
+        # Mark content based on first chunk's metadata
+        context_knowledge_parts = []
+        if content_chunks:
+            first_meta = content_chunks[0].get("metadata", {})
+            filename = first_meta.get("filename", "").lower()
+            if "current" in filename or "2025" in filename:
+                context_knowledge_parts.append(f"🗞️ [CURRENT AFFAIRS CONTEXT]: {deduplicated_content}")
+            else:
+                context_knowledge_parts.append(f"📘 [STATIC MATERIAL]: {deduplicated_content}")
+        context_knowledge = "\n\n".join(context_knowledge_parts)
+    else:
+        # Fallback: use original chunks if deduplication fails
+        context_knowledge_parts = []
+        for chunk in content_chunks[:8]:
+            meta = chunk.get("metadata", {})
+            filename = meta.get("filename", "").lower()
+            if "current" in filename or "2025" in filename:
+                context_knowledge_parts.append(f"🗞️ [CURRENT AFFAIRS CONTEXT]: {chunk['content']}")
+            else:
+                context_knowledge_parts.append(f"📘 [STATIC MATERIAL]: {chunk['content']}")
+        context_knowledge = "\n\n".join(context_knowledge_parts)
     
     # Fallback: prepare retrieved PYQ chunks if few-shot not available
     context_style = "\n\n---\n\n".join([chunk["content"] for chunk in pyq_chunks[:8]]) if not fewshot_examples else ""
@@ -646,8 +677,9 @@ def is_actual_question_chunk(chunk: Dict[str, Any]) -> bool:
 async def generate_mock_test(request: Request, test_request: MockTestRequest):
     """Generate a UPSC-style mock test using dual retrieval strategy"""
     try:
-        chroma_handler = request.app.state.chroma_handler
-        # Using single Pinecone index (no need to switch)
+        logger.info(f"🚀 [MOCK_TEST] Received request: {test_request.num_questions} questions, topics={test_request.topics}, difficulty={test_request.difficulty}")
+        
+        pinecone_handler = request.app.state.vector_handler
         
         # Build queries based on topics
         if test_request.topics:
@@ -659,10 +691,26 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
             content_query = "important geography topics for UPSC NCERT vision notes"
         
         # Step 1: Dual Retrieval Strategy with Joint MMR Orchestration
-        # Get PYQ chunks for style learning
-        logger.info("🔍 Retrieving PYQ chunks for style learning...")
-        # Query more candidates to ensure we get actual questions
-        all_pyq_candidates = chroma_handler.query_documents(pyq_query, k=30)
+        # Get PYQ chunks for style learning using prelims retriever
+        logger.info("🔍 [MOCK_TEST] Retrieving PYQ chunks for style learning...")
+        pyq_retriever = pinecone_handler.get_retriever_for_mode("prelims", use_content_store=True)
+        
+        try:
+            if hasattr(pyq_retriever, 'invoke'):
+                pyq_docs = pyq_retriever.invoke(pyq_query)
+            else:
+                pyq_docs = pyq_retriever.get_relevant_documents(pyq_query)
+        except Exception as e:
+            logger.warning(f"⚠️ [MOCK_TEST] PYQ retrieval failed: {e}")
+            pyq_docs = pyq_retriever.get_relevant_documents(pyq_query)
+        
+        # Convert docs to chunk format for compatibility
+        all_pyq_candidates = []
+        for doc in pyq_docs:
+            all_pyq_candidates.append({
+                "content": doc.page_content,
+                "metadata": doc.metadata
+            })
         # Filter: first by PYQ file, then by actual question content
         pyq_file_chunks = [c for c in all_pyq_candidates if is_pyq_chunk(c)]
         pyq_question_chunks = [c for c in pyq_file_chunks if is_actual_question_chunk(c)]
@@ -680,8 +728,25 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
             pyq_chunks = pyq_question_chunks
         
         # Get content chunks for knowledge (exclude PYQ files, filter by topic)
-        logger.info("🔍 Retrieving content chunks for question generation...")
-        all_content_candidates = chroma_handler.query_documents(content_query, k=20)
+        logger.info("🔍 [MOCK_TEST] Retrieving content chunks for question generation...")
+        content_retriever = pinecone_handler.get_retriever_for_mode("prelims", use_content_store=True)
+        
+        try:
+            if hasattr(content_retriever, 'invoke'):
+                content_docs = content_retriever.invoke(content_query)
+            else:
+                content_docs = content_retriever.get_relevant_documents(content_query)
+        except Exception as e:
+            logger.warning(f"⚠️ [MOCK_TEST] Content retrieval failed: {e}")
+            content_docs = content_retriever.get_relevant_documents(content_query)
+        
+        # Convert docs to chunk format for compatibility
+        all_content_candidates = []
+        for doc in content_docs:
+            all_content_candidates.append({
+                "content": doc.page_content,
+                "metadata": doc.metadata
+            })
         content_file_chunks = [c for c in all_content_candidates if not is_pyq_chunk(c)]
         
         # Filter content chunks by topic if topics provided
@@ -712,7 +777,7 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
         combined_query = f"{pyq_query} {content_query}" if test_request.topics else pyq_query
         
         # Apply MMR selection to combined chunks for cross-source diversity
-        diverse_context = chroma_handler.mmr_select_from_chunks(
+        diverse_context = pinecone_handler.mmr_select_from_chunks(
             chunks=combined_chunks,
             query_text=combined_query,
             k=10,  # Final diverse selection

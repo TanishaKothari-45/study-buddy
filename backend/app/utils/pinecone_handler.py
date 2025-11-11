@@ -1006,6 +1006,51 @@ class PineconeHandler:
                 detail=f"Failed to create retriever: {str(e)}"
             )
     
+    def get_retriever_for_mode(self, mode: str, use_content_store: bool = True) -> BaseRetriever:
+        """
+        Get a retriever configured for a specific mode (prelims, mains, or topic).
+        
+        Args:
+            mode: "prelims", "mains", or "topic" (case-insensitive)
+            use_content_store: If True, enrich documents with full content from SQLite (default: True)
+        
+        Returns:
+            LangChain retriever instance configured for the specified mode
+            
+        Raises:
+            ValueError: If mode is not recognized
+        """
+        mode_lower = mode.lower()
+        
+        if mode_lower == "prelims":
+            # Prelims: MMR with higher diversity for broader coverage
+            logger.info(f"🔧 [PineconeHandler] Creating PRELIMS retriever (MMR, fetch_k=50, k=12, lambda_mult=0.55)")
+            return self.get_retriever(
+                search_type="mmr",
+                k=12,
+                fetch_k=50,
+                lambda_mult=0.55,  # Higher diversity for prelims
+                use_content_store=use_content_store
+            )
+        elif mode_lower == "mains":
+            # Mains: Similarity search with fewer, more focused results
+            logger.info(f"🔧 [PineconeHandler] Creating MAINS retriever (similarity, k=8)")
+            return self.get_retriever(
+                search_type="similarity",
+                k=8,
+                use_content_store=use_content_store
+            )
+        elif mode_lower == "topic":
+            # Topic: Similarity search with moderate k (default query behavior)
+            logger.info(f"🔧 [PineconeHandler] Creating TOPIC retriever (similarity, k=5)")
+            return self.get_retriever(
+                search_type="similarity",
+                k=5,
+                use_content_store=use_content_store
+            )
+        else:
+            raise ValueError(f"Unknown mode: '{mode}'. Choose 'prelims', 'mains', or 'topic'")
+    
     def get_qa_chain(self, search_type: str = "similarity", k: int = 6,
                     fetch_k: int = 50, lambda_mult: float = 0.65,
                     model: str = "gpt-4o-mini", temperature: float = 0.3) -> Optional[Any]:
