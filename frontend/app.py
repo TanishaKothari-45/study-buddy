@@ -138,271 +138,376 @@ if tab_choice == "Upload PDFs":
     # Initialize processing state
     if "processing_files" not in st.session_state:
         st.session_state.processing_files = False
+    if "processing_content_store" not in st.session_state:
+        st.session_state.processing_content_store = False
     if "last_roi_previews" not in st.session_state:
         st.session_state.last_roi_previews = {}
     
-    # Process Files button with state
-    process_button_label = "⏳ Processing..." if st.session_state.processing_files else "🚀 Process Files"
+    # Upload Type Selection (Pinecone vs Content Store)
+    st.divider()
+    st.subheader("🎯 Upload Destination")
+    upload_destination = st.radio(
+        "Choose where to upload:",
+        ["Pinecone (Normal Upload)", "Content Store (Full Text Storage)"],
+        disabled=not backend_status,
+        help="Pinecone: Normal upload with embeddings. Content Store: Store full text for RetrievalQA (no embeddings, faster)."
+    )
     
-    if uploaded_files and st.button(process_button_label, disabled=(not backend_status or st.session_state.processing_files), type="primary"):
-        # Set processing state
-        st.session_state.processing_files = True
-        
-        # Show file types being processed
-        file_types = {}
-        for file in uploaded_files:
-            ext = file.name.split('.')[-1].lower()
-            file_types[ext] = file_types.get(ext, 0) + 1
-        
-        file_type_summary = ", ".join([f"{count} {ext.upper()}" for ext, count in file_types.items()])
-        
-        # Create status container
-        status_container = st.container()
-        with status_container:
-            if upload_type == "Handwritten":
-                st.info(f"🔄 Processing {file_type_summary} file(s) at {dpi} DPI...")
-            else:
-                st.info(f"🔄 Processing {file_type_summary} file(s)...")
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-        
-        spinner_text = f"Processing {file_type_summary} file(s)..." if upload_type == "PDF" else f"Processing {file_type_summary} file(s) at {dpi} DPI..."
-        with st.spinner(spinner_text):
-            files = [("files", file) for file in uploaded_files]
-            data = {}
+    # Process Files button with state
+    if upload_destination == "Pinecone (Normal Upload)":
+        process_button_label = "⏳ Processing..." if st.session_state.processing_files else "🚀 Process Files to Pinecone"
+        process_button_disabled = (not backend_status or st.session_state.processing_files or st.session_state.processing_content_store)
+    else:
+        process_button_label = "⏳ Processing..." if st.session_state.processing_content_store else "💾 Store Full Text in Content Store"
+        process_button_disabled = (not backend_status or st.session_state.processing_files or st.session_state.processing_content_store)
+    
+    if uploaded_files and st.button(process_button_label, disabled=process_button_disabled, type="primary"):
+        # Route to appropriate endpoint based on selection
+        if upload_destination == "Content Store (Full Text Storage)":
+            # Content Store Upload (no embeddings, just full text storage)
+            st.session_state.processing_content_store = True
             
-            # Add DPI only for handwritten documents
-            if upload_type == "Handwritten":
-                data["dpi"] = dpi
-            # Note: No sample_sheet_path for Upload PDFs tab (moved to Evaluate Answer tab)
+            # Show file types being processed
+            file_types = {}
+            for file in uploaded_files:
+                ext = file.name.split('.')[-1].lower()
+                file_types[ext] = file_types.get(ext, 0) + 1
             
-            try:
-                status_text.text("📤 Uploading files to server...")
-                progress_bar.progress(10)
+            file_type_summary = ", ".join([f"{count} {ext.upper()}" for ext, count in file_types.items()])
+            
+            # Create status container
+            status_container = st.container()
+            with status_container:
+                st.info(f"💾 Storing full text in Content Store: {file_type_summary} file(s)...")
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+            
+            with st.spinner(f"Storing full text for {file_type_summary} file(s)..."):
+                files = [("files", file) for file in uploaded_files]
                 
-                # Timeout set to 300 seconds (5 minutes) to allow OCR processing time
-                # OCR can take 12-25 seconds per page on CPU, so longer timeout is needed
-                response = requests.post(f"{BACKEND_URL}/upload/", files=files, data=data, timeout=300)
+                try:
+                    status_text.text("📤 Uploading files to content store...")
+                    progress_bar.progress(20)
+                    
+                    # Call content store upload endpoint
+                    # Route: POST /upload-content-store/ (prefix + route)
+                    response = requests.post(f"{BACKEND_URL}/upload-content-store/", files=files, timeout=300)
+                    
+                    status_text.text("📥 Receiving response...")
+                    progress_bar.progress(80)
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        progress_bar.progress(100)
+                        status_text.text("✅ Content store upload complete!")
+                        
+                        # Show results
+                        st.success(f"✅ Successfully stored chunks in content store!")
+                        st.info(f"📊 **Summary:** {result.get('message', '')}")
+                        
+                        # Show processed files
+                        processed_files_list = result.get('processed_files', [])
+                        for pf in processed_files_list:
+                            if 'error' in pf:
+                                st.error(f"❌ {pf['filename']}: {pf['error']}")
+                            else:
+                                st.success(f"✅ {pf['filename']}: {pf.get('chunks_stored', 0)} chunks stored")
+                        
+                        # Show content store stats
+                        stats = result.get('content_store_stats', {})
+                        if stats:
+                            with st.expander("📊 Content Store Statistics", expanded=False):
+                                st.json(stats)
+                        
+                        # Show matching results (for first 5 uploads)
+                        matching = result.get('matching_results')
+                        if matching and result.get('sample_check'):
+                            st.divider()
+                            st.subheader("🔍 Sample Matching Results (First 5 Uploads)")
+                            st.info(f"**Match Rate:** {matching.get('match_rate', 0):.1%} ({matching.get('samples_checked', 0)} samples checked)")
+                            
+                            if matching.get('matches'):
+                                st.success(f"✅ **Matches:** {len(matching['matches'])}")
+                                with st.expander("View Sample Matches", expanded=False):
+                                    for match in matching['matches'][:5]:
+                                        st.text(f"• {match['content_chunk_id']} (score: {match['match']['score']})")
+                            
+                            if matching.get('no_matches'):
+                                st.warning(f"⚠️ **No Matches:** {len(matching['no_matches'])}")
+                                with st.expander("View Non-Matches", expanded=False):
+                                    for no_match in matching['no_matches'][:5]:
+                                        st.text(f"• {no_match['chunk_id']} (best score: {no_match.get('best_score', 0)})")
+                        
+                        st.session_state.processing_content_store = False
+                        st.rerun()
+                    else:
+                        error_msg = response.text
+                        st.error(f"❌ Content store upload failed: {error_msg}")
+                        st.session_state.processing_content_store = False
                 
-                status_text.text("📥 Receiving response...")
-                progress_bar.progress(50)
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+                    st.session_state.processing_content_store = False
+        
+        else:
+            # Normal Pinecone Upload (existing code)
+            st.session_state.processing_files = True
+            
+            # Show file types being processed
+            file_types = {}
+            for file in uploaded_files:
+                ext = file.name.split('.')[-1].lower()
+                file_types[ext] = file_types.get(ext, 0) + 1
+            
+            file_type_summary = ", ".join([f"{count} {ext.upper()}" for ext, count in file_types.items()])
+            
+            # Create status container
+            status_container = st.container()
+            with status_container:
+                if upload_type == "Handwritten":
+                    st.info(f"🔄 Processing {file_type_summary} file(s) at {dpi} DPI...")
+                else:
+                    st.info(f"🔄 Processing {file_type_summary} file(s)...")
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+            
+            spinner_text = f"Processing {file_type_summary} file(s)..." if upload_type == "PDF" else f"Processing {file_type_summary} file(s) at {dpi} DPI..."
+            with st.spinner(spinner_text):
+                files = [("files", file) for file in uploaded_files]
+                data = {}
                 
-                if response.status_code == 200:
-                    results = response.json()["summary"]
+                # Add DPI only for handwritten documents
+                if upload_type == "Handwritten":
+                    data["dpi"] = dpi
+                # Note: No sample_sheet_path for Upload PDFs tab (moved to Evaluate Answer tab)
+                
+                try:
+                    status_text.text("📤 Uploading files to server...")
+                    progress_bar.progress(10)
                     
-                    status_text.text("✅ Processing complete!")
-                    progress_bar.progress(100)
+                    # Timeout set to 300 seconds (5 minutes) to allow OCR processing time
+                    # OCR can take 12-25 seconds per page on CPU, so longer timeout is needed
+                    response = requests.post(f"{BACKEND_URL}/upload/", files=files, data=data, timeout=300)
                     
-                    # Track successfully processed files
-                    successfully_processed = []
-                    failed_files = []
-                    roi_previews = {}  # Store ROI preview info
+                    status_text.text("📥 Receiving response...")
+                    progress_bar.progress(50)
                     
-                    for result in results:
-                        if result["status"] == "success":
-                            filename = result['filename']
-                            successfully_processed.append(filename)
-                            
-                            # Display success info
-                            chunks_added = result.get('chunks_added', 0)
-                            pdf_download_url = result.get('pdf_download_url')
-                            ocr_results = result.get('ocr_results', [])
-                            
-                            # Debug: Show what we received
-                            if st.session_state.get('debug_mode', False):
-                                with st.expander("🔍 Debug: Response Data", expanded=False):
-                                    st.json(result)
-                            
-                            if chunks_added > 0:
-                                st.session_state.processed_files.add(filename)
-                                st.info(f"📄 {filename}: Added {chunks_added} chunks")
-                            
-                            # Show OCR results if we have pdf_download_url OR ocr_results
-                            if pdf_download_url or ocr_results:
-                                # OCR complete - show download button and OCR results
-                                st.success(f"✅ {filename}: OCR complete! PDF generated.")
+                    if response.status_code == 200:
+                        results = response.json()["summary"]
+                        
+                        status_text.text("✅ Processing complete!")
+                        progress_bar.progress(100)
+                        
+                        # Track successfully processed files
+                        successfully_processed = []
+                        failed_files = []
+                        roi_previews = {}  # Store ROI preview info
+                        
+                        for result in results:
+                            if result["status"] == "success":
+                                filename = result['filename']
+                                successfully_processed.append(filename)
                                 
-                                # Show OCR results summary
-                                if ocr_results:
-                                    avg_confidence = sum(r.get('confidence', 0) for r in ocr_results) / len(ocr_results) if ocr_results else 0
-                                    ocr_methods = [r.get('ocr_method', 'unknown') for r in ocr_results]
-                                    unique_methods = list(set(ocr_methods))
+                                # Display success info
+                                chunks_added = result.get('chunks_added', 0)
+                                pdf_download_url = result.get('pdf_download_url')
+                                ocr_results = result.get('ocr_results', [])
+                                
+                                # Debug: Show what we received
+                                if st.session_state.get('debug_mode', False):
+                                    with st.expander("🔍 Debug: Response Data", expanded=False):
+                                        st.json(result)
+                                
+                                if chunks_added > 0:
+                                    st.session_state.processed_files.add(filename)
+                                    st.info(f"📄 {filename}: Added {chunks_added} chunks")
+                                
+                                # Show OCR results if we have pdf_download_url OR ocr_results
+                                if pdf_download_url or ocr_results:
+                                    # OCR complete - show download button and OCR results
+                                    st.success(f"✅ {filename}: OCR complete! PDF generated.")
                                     
-                                    col_info1, col_info2, col_info3 = st.columns(3)
-                                    with col_info1:
-                                        st.metric("Pages", len(ocr_results))
-                                    with col_info2:
-                                        st.metric("Avg Confidence", f"{avg_confidence:.1%}")
-                                    with col_info3:
-                                        st.metric("OCR Method", ", ".join(unique_methods).upper() if unique_methods else "N/A")
-                                    
-                                    # Show per-page confidence if multiple pages
-                                    if len(ocr_results) > 1:
-                                        with st.expander("📊 Per-Page Confidence Scores", expanded=False):
-                                            for ocr_result in ocr_results:
-                                                page_num = ocr_result.get('page_number', '?')
-                                                conf = ocr_result.get('confidence', 0)
-                                                method = ocr_result.get('ocr_method', 'unknown')
-                                                text_len = ocr_result.get('text_length', 0)
+                                    # Show OCR results summary
+                                    if ocr_results:
+                                        avg_confidence = sum(r.get('confidence', 0) for r in ocr_results) / len(ocr_results) if ocr_results else 0
+                                        ocr_methods = [r.get('ocr_method', 'unknown') for r in ocr_results]
+                                        unique_methods = list(set(ocr_methods))
+                                        
+                                        col_info1, col_info2, col_info3 = st.columns(3)
+                                        with col_info1:
+                                            st.metric("Pages", len(ocr_results))
+                                        with col_info2:
+                                            st.metric("Avg Confidence", f"{avg_confidence:.1%}")
+                                        with col_info3:
+                                            st.metric("OCR Method", ", ".join(unique_methods).upper() if unique_methods else "N/A")
+                                        
+                                        # Show per-page confidence if multiple pages
+                                        if len(ocr_results) > 1:
+                                            with st.expander("📊 Per-Page Confidence Scores", expanded=False):
+                                                for ocr_result in ocr_results:
+                                                    page_num = ocr_result.get('page_number', '?')
+                                                    conf = ocr_result.get('confidence', 0)
+                                                    method = ocr_result.get('ocr_method', 'unknown')
+                                                    text_len = ocr_result.get('text_length', 0)
+                                                    
+                                                    # Color code confidence
+                                                    if conf >= 0.7:
+                                                        conf_color = "🟢"
+                                                    elif conf >= 0.5:
+                                                        conf_color = "🟡"
+                                                    else:
+                                                        conf_color = "🔴"
+                                                    
+                                                    st.markdown(
+                                                        f"**Page {page_num}:** {conf_color} {conf:.1%} "
+                                                        f"({method.upper()}, {text_len} chars)"
+                                                    )
+                                        
+                                        # Show OCR text preview with reconstructed text
+                                        with st.expander("📝 OCR Results Preview", expanded=True):
+                                            for idx, ocr_result in enumerate(ocr_results):
+                                                page_num = ocr_result.get('page_number', idx + 1)
+                                                original_text = ocr_result.get('text', '')
+                                                reconstructed_text = ocr_result.get('reconstructed_text', '')
+                                                text_length = ocr_result.get('text_length', len(original_text))
+                                                reconstructed_length = ocr_result.get('reconstructed_length', len(reconstructed_text))
+                                                num_blocks = ocr_result.get('num_blocks', 0)
+                                                blocks = ocr_result.get('blocks', [])  # Raw blocks sent to LLM
                                                 
-                                                # Color code confidence
-                                                if conf >= 0.7:
-                                                    conf_color = "🟢"
-                                                elif conf >= 0.5:
-                                                    conf_color = "🟡"
-                                                else:
-                                                    conf_color = "🔴"
+                                                if len(ocr_results) > 1:
+                                                    st.markdown(f"### Page {page_num}")
                                                 
-                                                st.markdown(
-                                                    f"**Page {page_num}:** {conf_color} {conf:.1%} "
-                                                    f"({method.upper()}, {text_len} chars)"
-                                                )
-                                    
-                                    # Show OCR text preview with reconstructed text
-                                    with st.expander("📝 OCR Results Preview", expanded=True):
-                                        for idx, ocr_result in enumerate(ocr_results):
-                                            page_num = ocr_result.get('page_number', idx + 1)
-                                            original_text = ocr_result.get('text', '')
-                                            reconstructed_text = ocr_result.get('reconstructed_text', '')
-                                            text_length = ocr_result.get('text_length', len(original_text))
-                                            reconstructed_length = ocr_result.get('reconstructed_length', len(reconstructed_text))
-                                            num_blocks = ocr_result.get('num_blocks', 0)
-                                            blocks = ocr_result.get('blocks', [])  # Raw blocks sent to LLM
-                                            
-                                            if len(ocr_results) > 1:
-                                                st.markdown(f"### Page {page_num}")
-                                            
-                                            # Show block count
-                                            if num_blocks > 0:
-                                                st.info(f"📊 Extracted {num_blocks} text blocks from OCR")
-                                            
-                                            # Show OCR blocks sent to LLM (BEFORE reconstruction)
-                                            if blocks:
-                                                with st.expander("🔍 OCR Blocks Sent to LLM (Before Reconstruction)", expanded=False):
-                                                    st.markdown("**These are the raw OCR blocks with bounding boxes that were sent to the LLM:**")
-                                                    st.json(blocks)
-                                                    st.caption(f"💡 This is the exact data sent to LLM for reconstruction. {len(blocks)} blocks with text and bbox coordinates.")
-                                            
-                                            # Show reconstructed text (primary display)
-                                            if reconstructed_text:
-                                                st.markdown("#### 🤖 LLM Reconstructed Text (Clean Prose)")
-                                                st.markdown("**This is the reconstructed answer in clean, readable prose:**")
-                                                st.text_area(
-                                                    f"Reconstructed text ({reconstructed_length} chars)",
-                                                    reconstructed_text,
-                                                    height=300,
-                                                    key=f"reconstructed_text_{filename}_{page_num}",
-                                                    disabled=True
-                                                )
-                                                st.caption("💡 This text was reconstructed by LLM from OCR blocks, preserving meaning and structure.")
-                                            
-                                            # Show original OCR text (for comparison)
-                                            if original_text:
-                                                with st.expander("📄 Original OCR Text (Raw)", expanded=False):
-                                                    st.markdown("**Original merged OCR text (for reference):**")
-                                                    text_preview = original_text[:1000] if len(original_text) > 1000 else original_text
+                                                # Show block count
+                                                if num_blocks > 0:
+                                                    st.info(f"📊 Extracted {num_blocks} text blocks from OCR")
+                                                
+                                                # Show OCR blocks sent to LLM (BEFORE reconstruction)
+                                                if blocks:
+                                                    with st.expander("🔍 OCR Blocks Sent to LLM (Before Reconstruction)", expanded=False):
+                                                        st.markdown("**These are the raw OCR blocks with bounding boxes that were sent to the LLM:**")
+                                                        st.json(blocks)
+                                                        st.caption(f"💡 This is the exact data sent to LLM for reconstruction. {len(blocks)} blocks with text and bbox coordinates.")
+                                                
+                                                # Show reconstructed text (primary display)
+                                                if reconstructed_text:
+                                                    st.markdown("#### 🤖 LLM Reconstructed Text (Clean Prose)")
+                                                    st.markdown("**This is the reconstructed answer in clean, readable prose:**")
                                                     st.text_area(
-                                                        f"Original OCR text (showing first 1000 chars of {text_length} total)",
-                                                        text_preview,
-                                                        height=200,
-                                                        key=f"ocr_text_{filename}_{page_num}",
+                                                        f"Reconstructed text ({reconstructed_length} chars)",
+                                                        reconstructed_text,
+                                                        height=300,
+                                                        key=f"reconstructed_text_{filename}_{page_num}",
                                                         disabled=True
                                                     )
-                                                    if text_length > 1000:
-                                                        st.caption(f"💡 Showing first 1000 characters. Full text available in PDF download.")
-                                            
-                                            if idx < len(ocr_results) - 1:
-                                                st.divider()
-                                
-                                # Download button
-                                if pdf_download_url:
-                                    pdf_filename = result.get('pdf_filename', f"{filename}_ocr.pdf")
-                                    download_url = f"{BACKEND_URL}{pdf_download_url}"
+                                                    st.caption("💡 This text was reconstructed by LLM from OCR blocks, preserving meaning and structure.")
+                                                
+                                                # Show original OCR text (for comparison)
+                                                if original_text:
+                                                    with st.expander("📄 Original OCR Text (Raw)", expanded=False):
+                                                        st.markdown("**Original merged OCR text (for reference):**")
+                                                        text_preview = original_text[:1000] if len(original_text) > 1000 else original_text
+                                                        st.text_area(
+                                                            f"Original OCR text (showing first 1000 chars of {text_length} total)",
+                                                            text_preview,
+                                                            height=200,
+                                                            key=f"ocr_text_{filename}_{page_num}",
+                                                            disabled=True
+                                                        )
+                                                        if text_length > 1000:
+                                                            st.caption(f"💡 Showing first 1000 characters. Full text available in PDF download.")
+                                                
+                                                if idx < len(ocr_results) - 1:
+                                                    st.divider()
                                     
-                                    st.markdown("---")
-                                    col_dl1, col_dl2, col_dl3 = st.columns([1, 2, 1])
-                                    with col_dl2:
-                                        st.markdown(f"### 📥 Download OCR PDF")
-                                        st.markdown(f"**File:** `{pdf_filename}`")
-                                        st.markdown(f"[⬇️ Download PDF]({download_url})")
-                                        st.caption("💡 Click the link above to download the PDF with extracted OCR text")
-                                else:
-                                    st.warning("⚠️ PDF download URL not available. Check backend logs.")
-                            elif not chunks_added:
-                                # ROI extracted but OCR pending or failed
-                                message = result.get('message', 'ROI extracted, OCR pending')
-                                st.warning(f"📄 {filename}: {message}")
-                            
-                            # Check for ROI preview paths
-                            if "roi_preview_paths" in result:
-                                roi_previews[filename] = {
-                                    "paths": result["roi_preview_paths"],
-                                    "method": result.get("roi_method", "unknown"),
-                                    "chunks_added": chunks_added,
-                                    "pdf_download_url": pdf_download_url,
-                                    "ocr_results": ocr_results
-                                }
-                            elif "roi_preview_path" in result:
-                                roi_previews[filename] = {
-                                    "paths": [result["roi_preview_path"]],
-                                    "method": result.get("roi_method", "unknown"),
-                                    "chunks_added": chunks_added,
-                                    "pdf_download_url": pdf_download_url,
-                                    "ocr_results": ocr_results
-                                }
-                        else:
-                            failed_files.append(result['filename'])
-                            # Show detailed error information
-                            with st.expander(f"❌ {result['filename']}: {result['reason']}", expanded=True):
-                                st.error(f"**Status:** {result['status']}")
-                                st.error(f"**Reason:** {result['reason']}")
+                                    # Download button
+                                    if pdf_download_url:
+                                        pdf_filename = result.get('pdf_filename', f"{filename}_ocr.pdf")
+                                        download_url = f"{BACKEND_URL}{pdf_download_url}"
+                                        
+                                        st.markdown("---")
+                                        col_dl1, col_dl2, col_dl3 = st.columns([1, 2, 1])
+                                        with col_dl2:
+                                            st.markdown(f"### 📥 Download OCR PDF")
+                                            st.markdown(f"**File:** `{pdf_filename}`")
+                                            st.markdown(f"[⬇️ Download PDF]({download_url})")
+                                            st.caption("💡 Click the link above to download the PDF with extracted OCR text")
+                                    else:
+                                        st.warning("⚠️ PDF download URL not available. Check backend logs.")
+                                elif not chunks_added:
+                                    # ROI extracted but OCR pending or failed
+                                    message = result.get('message', 'ROI extracted, OCR pending')
+                                    st.warning(f"📄 {filename}: {message}")
                                 
-                                # Show quality score if available
-                                if 'quality_score' in result:
-                                    st.warning(f"**Quality Score:** {result['quality_score']}/100")
-                                
-                                # Show issues if available
-                                if 'issues' in result and result['issues']:
-                                    st.write("**Issues Found:**")
-                                    for issue in result['issues']:
-                                        st.write(f"  - {issue}")
-                                
-                                # Show recommendation if available
-                                if 'recommendation' in result and result['recommendation']:
-                                    st.info(f"**💡 Recommendation:** {result['recommendation']}")
-                    
-                    # Store ROI previews in session state for later viewing
-                    if roi_previews:
-                        st.session_state.last_roi_previews = roi_previews
-                    
-                    # Show summary
-                    if successfully_processed:
-                        st.success(f"✅ Successfully processed {len(successfully_processed)} file(s)!")
-                        st.info(f"📝 Processed files: {', '.join(successfully_processed)}")
-                    elif failed_files:
-                        st.error(f"❌ Failed to process {len(failed_files)} file(s)")
-                    
-                    # Clear processing state
+                                    # Check for ROI preview paths
+                                    if "roi_preview_paths" in result:
+                                        roi_previews[filename] = {
+                                            "paths": result["roi_preview_paths"],
+                                            "method": result.get("roi_method", "unknown"),
+                                            "chunks_added": chunks_added,
+                                            "pdf_download_url": pdf_download_url,
+                                            "ocr_results": ocr_results
+                                        }
+                                    elif "roi_preview_path" in result:
+                                        roi_previews[filename] = {
+                                            "paths": [result["roi_preview_path"]],
+                                            "method": result.get("roi_method", "unknown"),
+                                            "chunks_added": chunks_added,
+                                            "pdf_download_url": pdf_download_url,
+                                            "ocr_results": ocr_results
+                                        }
+                            else:
+                                failed_files.append(result['filename'])
+                                # Show detailed error information
+                                with st.expander(f"❌ {result['filename']}: {result['reason']}", expanded=True):
+                                    st.error(f"**Status:** {result['status']}")
+                                    st.error(f"**Reason:** {result['reason']}")
+                                    
+                                    # Show quality score if available
+                                    if 'quality_score' in result:
+                                        st.warning(f"**Quality Score:** {result['quality_score']}/100")
+                                    
+                                    # Show issues if available
+                                    if 'issues' in result and result['issues']:
+                                        st.write("**Issues Found:**")
+                                        for issue in result['issues']:
+                                            st.write(f"  - {issue}")
+                                    
+                                    # Show recommendation if available
+                                    if 'recommendation' in result and result['recommendation']:
+                                        st.info(f"**💡 Recommendation:** {result['recommendation']}")
+                        
+                        # Store ROI previews in session state for later viewing
+                        if roi_previews:
+                            st.session_state.last_roi_previews = roi_previews
+                        
+                        # Show summary
+                        if successfully_processed:
+                            st.success(f"✅ Successfully processed {len(successfully_processed)} file(s)!")
+                            st.info(f"📝 Processed files: {', '.join(successfully_processed)}")
+                        elif failed_files:
+                            st.error(f"❌ Failed to process {len(failed_files)} file(s)")
+                        
+                        # Clear processing state
+                        st.session_state.processing_files = False
+                        
+                        # Clear status container
+                        status_container.empty()
+                        progress_bar.empty()
+                        status_text.empty()
+                        
+                        # Clear the file uploader by rerunning
+                        st.rerun()
+                    else:
+                        st.error("Failed to process files")
+                        st.session_state.processing_files = False
+                        status_container.empty()
+                        progress_bar.empty()
+                        status_text.empty()
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
                     st.session_state.processing_files = False
-                    
-                    # Clear status container
-                    status_container.empty()
-                    progress_bar.empty()
-                    status_text.empty()
-                    
-                    # Clear the file uploader by rerunning
-                    st.rerun()
-                else:
-                    st.error("Failed to process files")
-                    st.session_state.processing_files = False
-                    status_container.empty()
-                    progress_bar.empty()
-                    status_text.empty()
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
-                st.session_state.processing_files = False
-                if 'status_container' in locals():
-                    status_container.empty()
+                    if 'status_container' in locals():
+                        status_container.empty()
                 if 'progress_bar' in locals():
                     progress_bar.empty()
                 if 'status_text' in locals():

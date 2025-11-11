@@ -11,7 +11,7 @@ from .core.env import load_env_vars
 load_env_vars()
 
 from .core.config import settings
-from .routes import upload, query, mock_test, mains_answer, evaluate_answer
+from .routes import upload, query, mock_test, mains_answer, evaluate_answer, upload_content_store
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +54,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(upload.router, prefix="/upload", tags=["Upload"])
+app.include_router(upload_content_store.router, prefix="/upload-content-store", tags=["Content Store Upload"])
 app.include_router(query.router, prefix="/query", tags=["Query"])
 app.include_router(mock_test.router, prefix="/mock-test", tags=["Mock Test"])
 app.include_router(mains_answer.router, prefix="/mains-answer", tags=["Mains Answer"])

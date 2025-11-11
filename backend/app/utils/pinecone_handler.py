@@ -12,9 +12,19 @@ try:
     from langchain_core.embeddings import Embeddings
     from langchain_core.documents import Document
     from langchain_core.retrievers import BaseRetriever
+    try:
+        from langchain.chains import RetrievalQA
+        from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+        RETRIEVALQA_AVAILABLE = True
+    except ImportError:
+        RETRIEVALQA_AVAILABLE = False
+        RetrievalQA = None
+        ChatOpenAI = None
+        OpenAIEmbeddings = None
     LANGCHAIN_AVAILABLE = True
 except ImportError as e:
     LANGCHAIN_AVAILABLE = False
+    RETRIEVALQA_AVAILABLE = False
     # Create dummy classes if import fails (to prevent NameError)
     class Embeddings:
         pass
@@ -24,6 +34,9 @@ except ImportError as e:
         pass
     class BaseRetriever:
         pass
+    RetrievalQA = None
+    ChatOpenAI = None
+    OpenAIEmbeddings = None
 
 try:
     from pinecone import Pinecone
@@ -439,7 +452,8 @@ class PineconeHandler:
             logger.error(traceback.format_exc())
     
     def query_documents(self, query_text: str, k: int = 5, 
-                       filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+                       filter_metadata: Optional[Dict[str, Any]] = None,
+                       use_content_store: bool = True) -> List[Dict[str, Any]]:
         """
         Query for most relevant documents
         
@@ -447,6 +461,7 @@ class PineconeHandler:
             query_text: Text to search for
             k: Number of results to return
             filter_metadata: Optional dict to filter by metadata fields
+            use_content_store: If True, enrich with full content from content store
         """
         try:
             vectorstore = self._get_vectorstore()
@@ -483,6 +498,31 @@ class PineconeHandler:
                     "metadata": doc.metadata,
                     "distance": 0.0  # Pinecone doesn't return distances in similarity_search
                 }
+                
+                # Enrich with full content from content store if available
+                if use_content_store:
+                    try:
+                        from .content_store import ContentStore
+                        content_store = ContentStore()
+                        
+                        chunk_id = doc.metadata.get("chunk_id")
+                        filename = doc.metadata.get("filename")
+                        chapter = doc.metadata.get("chapter")
+                        
+                        if chunk_id and filename:
+                            full_content = content_store.get_chunk(
+                                chunk_id=chunk_id,
+                                filename=filename,
+                                chapter=chapter
+                            )
+                            if full_content:
+                                chunk["content"] = full_content
+                                chunk["metadata"]["_content_source"] = "content_store"
+                            else:
+                                chunk["metadata"]["_content_source"] = "content_preview"
+                    except Exception as e:
+                        logger.debug(f"⚠️ Content store lookup failed: {e}, using preview")
+                        chunk["metadata"]["_content_source"] = "content_preview"
                 
                 # Apply additional metadata filtering if needed (for substring matching)
                 if filter_metadata:
@@ -646,6 +686,184 @@ class PineconeHandler:
                 status_code=500,
                 detail=f"Failed to create MMR retriever: {str(e)}"
             )
+    
+    def get_retriever(self, search_type: str = "similarity", k: int = 6, 
+                     fetch_k: int = 50, lambda_mult: float = 0.65) -> BaseRetriever:
+        """
+        Create a LangChain retriever with configurable search type.
+        
+        Args:
+            search_type: "similarity" or "mmr" (default: "similarity")
+            k: Number of documents to return (default: 6)
+            fetch_k: Number of documents to fetch before MMR (only for MMR, default: 50)
+            lambda_mult: Diversity parameter for MMR (0.0 = max diversity, 1.0 = max relevance, default: 0.65)
+        
+        Returns:
+            LangChain retriever instance
+        """
+        if not LANGCHAIN_AVAILABLE:
+            raise HTTPException(
+                status_code=500,
+                detail="LangChain is not available. Please install langchain-pinecone."
+            )
+        
+        try:
+            vectorstore = self._get_vectorstore()
+            
+            if search_type == "mmr":
+                retriever = vectorstore.as_retriever(
+                    search_type="mmr",
+                    search_kwargs={
+                        "fetch_k": fetch_k,
+                        "k": k,
+                        "lambda_mult": lambda_mult
+                    }
+                )
+            else:
+                retriever = vectorstore.as_retriever(
+                    search_type="similarity",
+                    search_kwargs={"k": k}
+                )
+            
+            logger.info(f"✅ Created {search_type} retriever: k={k}" + 
+                       (f", lambda_mult={lambda_mult}" if search_type == "mmr" else ""))
+            return retriever
+        except Exception as e:
+            logger.error(f"❌ Failed to create retriever: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create retriever: {str(e)}"
+            )
+    
+    def get_qa_chain(self, search_type: str = "similarity", k: int = 6,
+                    fetch_k: int = 50, lambda_mult: float = 0.65,
+                    model: str = "gpt-4o-mini", temperature: float = 0.3) -> Optional[Any]:
+        """
+        Create a RetrievalQA chain using LangChain.
+        
+        This is an ENHANCEMENT - use this for better answer generation.
+        Existing query_documents() methods remain unchanged.
+        
+        Args:
+            search_type: "similarity" or "mmr" (default: "similarity")
+            k: Number of documents to retrieve (default: 6)
+            fetch_k: Number of documents to fetch before MMR (only for MMR, default: 50)
+            lambda_mult: Diversity parameter for MMR (default: 0.65)
+            model: OpenAI model name (default: "gpt-4o-mini")
+            temperature: LLM temperature (default: 0.3)
+        
+        Returns:
+            RetrievalQA chain instance, or None if not available
+        
+        Usage:
+            qa_chain = handler.get_qa_chain(search_type="mmr", k=10, lambda_mult=0.6)
+            result = qa_chain({"query": "Explain monsoon formation"})
+            answer = result["result"]
+            sources = result["source_documents"]
+        """
+        if not RETRIEVALQA_AVAILABLE:
+            logger.warning("⚠️ RetrievalQA not available - install langchain and langchain-openai")
+            return None
+        
+        try:
+            # Get retriever
+            retriever = self.get_retriever(
+                search_type=search_type,
+                k=k,
+                fetch_k=fetch_k,
+                lambda_mult=lambda_mult
+            )
+            
+            # Initialize LLM
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                logger.warning("⚠️ OPENAI_API_KEY not found - cannot create QA chain")
+                return None
+            
+            llm = ChatOpenAI(model=model, temperature=temperature, openai_api_key=api_key)
+            
+            # Create RetrievalQA chain
+            qa_chain = RetrievalQA.from_chain_type(
+                llm=llm,
+                retriever=retriever,
+                return_source_documents=True,
+                chain_type="stuff"  # "stuff" means concatenate all retrieved docs
+            )
+            
+            logger.info(f"✅ Created RetrievalQA chain: {search_type}, k={k}, model={model}")
+            return qa_chain
+        except Exception as e:
+            logger.error(f"❌ Failed to create QA chain: {e}")
+            return None
+    
+    def query_with_qa_chain(self, query: str, search_type: str = "similarity", 
+                           k: int = 6, fetch_k: int = 50, lambda_mult: float = 0.65,
+                           model: str = "gpt-4o-mini", temperature: float = 0.3) -> Dict[str, Any]:
+        """
+        Query using RetrievalQA chain (ENHANCED method).
+        
+        This uses LangChain's RetrievalQA for better answer generation.
+        Falls back to standard query_documents() if QA chain is not available.
+        
+        Args:
+            query: Question to ask
+            search_type: "similarity" or "mmr" (default: "similarity")
+            k: Number of documents to retrieve
+            fetch_k: For MMR - documents to fetch before selection
+            lambda_mult: For MMR - diversity parameter
+            model: OpenAI model name
+            temperature: LLM temperature
+        
+        Returns:
+            Dict with "answer" and "sources" keys
+        """
+        qa_chain = self.get_qa_chain(
+            search_type=search_type,
+            k=k,
+            fetch_k=fetch_k,
+            lambda_mult=lambda_mult,
+            model=model,
+            temperature=temperature
+        )
+        
+        if not qa_chain:
+            logger.warning("⚠️ QA chain not available, falling back to standard query")
+            chunks = self.query_documents(query, k=k)
+            return {
+                "answer": "\n\n".join(chunk["content"] for chunk in chunks),
+                "sources": [chunk["metadata"] for chunk in chunks]
+            }
+        
+        try:
+            result = qa_chain({"query": query})
+            sources = []
+            seen = set()
+            for doc in result.get("source_documents", []):
+                meta = doc.metadata
+                filename = meta.get("filename", "Unknown")
+                chapter = meta.get("chapter", "Unknown")
+                section = meta.get("section", "Unknown")
+                key = (filename, chapter, section)
+                if key not in seen:
+                    sources.append({
+                        "filename": filename,
+                        "chapter": chapter,
+                        "section": section
+                    })
+                    seen.add(key)
+            
+            return {
+                "answer": result.get("result", ""),
+                "sources": sources
+            }
+        except Exception as e:
+            logger.error(f"❌ QA chain query failed: {e}")
+            # Fallback to standard query
+            chunks = self.query_documents(query, k=k)
+            return {
+                "answer": "\n\n".join(chunk["content"] for chunk in chunks),
+                "sources": [chunk["metadata"] for chunk in chunks]
+            }
     
     def get_stats(self) -> Dict[str, Any]:
         """Get index statistics"""
@@ -884,4 +1102,110 @@ class PineconeHandler:
             import traceback
             logger.error(traceback.format_exc())
             raise
+    
+    def fetch_all_chunks_native(self, filename: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Fetch all chunks from Pinecone using native API (no LangChain).
+        
+        ⚠️ READ-ONLY OPERATION - This method ONLY reads from Pinecone.
+        It does NOT modify, delete, or write anything to Pinecone index.
+        Safe to use without any risk of disturbing existing Pinecone data.
+        
+        Operations used (all read-only):
+        - index.describe_index_stats() - Get index statistics
+        - index.query() - Query vectors with metadata filter
+        
+        Args:
+            filename: Optional filename to filter chunks. If None, fetches all chunks.
+        
+        Returns:
+            List of dicts with keys: id, metadata (including chunk_id, filename, content_preview, etc.)
+        """
+        try:
+            index = self.pc.Index(self.index_name)
+            
+            # ⚠️ READ-ONLY: Get index stats (no modifications)
+            stats = index.describe_index_stats()
+            total_vectors = stats.get('total_vector_count', 0)
+            
+            if total_vectors == 0:
+                logger.info("📦 No vectors found in Pinecone index")
+                return []
+            
+            logger.info(f"📦 Fetching chunks from Pinecone (total vectors: {total_vectors})...")
+            
+            all_chunks = []
+            
+            # Pinecone list API returns IDs in batches
+            # We'll use list to get IDs, then fetch to get metadata
+            # But list doesn't support filtering, so we'll filter after fetching
+            
+            # Method 1: Use query with dummy vector and filter (if filename provided)
+            if filename:
+                logger.info(f"   Filtering by filename: {filename}")
+                # Create a dummy zero vector (we're filtering by metadata, not similarity)
+                dummy_vector = [0.0] * self.langchain_embeddings.dimensionality
+                
+                # ⚠️ READ-ONLY: Query Pinecone (no modifications to index)
+                # Query with metadata filter
+                # Pinecone query has a limit, so we need to paginate
+                # Use a high top_k and paginate if needed
+                top_k = min(10000, total_vectors)  # Pinecone limit is 10000
+                
+                query_response = index.query(
+                    vector=dummy_vector,
+                    top_k=top_k,
+                    filter={"filename": {"$eq": filename}},
+                    include_metadata=True
+                )
+                
+                for match in query_response.get('matches', []):
+                    chunk_data = {
+                        'id': match.get('id'),
+                        'metadata': match.get('metadata', {})
+                    }
+                    all_chunks.append(chunk_data)
+                
+                logger.info(f"   ✅ Fetched {len(all_chunks)} chunks for filename: {filename}")
+            
+            else:
+                # Fetch all chunks - use query with zero vector (Pinecone doesn't have direct list API)
+                logger.info("   Fetching all chunks using query API (this may take a while)...")
+                
+                # Create a zero vector (we're not filtering by similarity, just getting all)
+                dummy_vector = [0.0] * self.langchain_embeddings.dimensionality
+                
+                # ⚠️ READ-ONLY: Query Pinecone (no modifications to index)
+                # Query with high top_k to get as many chunks as possible
+                # Pinecone limit is 10000 per query
+                top_k = min(10000, total_vectors)
+                
+                query_response = index.query(
+                    vector=dummy_vector,
+                    top_k=top_k,
+                    include_metadata=True,
+                    include_values=False  # We don't need the vectors
+                )
+                
+                for match in query_response.get('matches', []):
+                    chunk_data = {
+                        'id': match.get('id'),
+                        'metadata': match.get('metadata', {})
+                    }
+                    all_chunks.append(chunk_data)
+                
+                logger.info(f"   ✅ Fetched {len(all_chunks)} chunks (limit: {top_k})")
+                
+                # If we hit the limit and there are more chunks, warn user
+                if len(all_chunks) >= top_k and total_vectors > top_k:
+                    logger.warning(f"⚠️ Fetched {len(all_chunks)} chunks but index has {total_vectors} total")
+                    logger.warning(f"   Consider filtering by filename for better results")
+            
+            return all_chunks
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch chunks from Pinecone: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return []
 
