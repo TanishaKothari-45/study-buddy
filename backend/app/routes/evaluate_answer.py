@@ -13,6 +13,7 @@ from openai import OpenAI, RateLimitError
 from ..core.config import settings
 from ..utils.pdf_reader import extract_text_from_pdf
 from ..utils.answer_evaluator import evaluate_reconstructed_answer, reconstruct_and_evaluate_from_ocr_blocks
+from ..routes.query import deduplicate_chunks
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -206,13 +207,36 @@ Evaluate this answer according to UPSC Mains standards and provide detailed feed
 async def evaluate_extracted_answer(request: Request, question: str, answer_text: str) -> EvaluateAnswerResponse:
     """Evaluate extracted answer text using the existing evaluation pipeline"""
     try:
-        # Switch to the enriched collection
-        chroma_handler = request.app.state.chroma_handler
-        # Using single Pinecone index (no need to switch)
+        logger.info(f"🚀 [EVALUATE] Evaluating answer for question: '{question[:100]}...'")
         
-        # Get relevant chunks for context
-        chunks = chroma_handler.query_documents(question, k=8)
-        context = "\n\n".join(chunk["content"] for chunk in chunks) if chunks else "No reference material available."
+        # Get Pinecone handler and use LangChain retriever
+        pinecone_handler = request.app.state.vector_handler
+        
+        # Get retriever configured for topic mode (similar to query route)
+        logger.info(f"🔧 [EVALUATE] Creating retriever for 'topic' mode...")
+        retriever = pinecone_handler.get_retriever_for_mode("topic", use_content_store=True)
+        
+        # Retrieve documents using LangChain
+        logger.info(f"🔍 [EVALUATE] Retrieving documents...")
+        try:
+            if hasattr(retriever, 'invoke'):
+                docs = retriever.invoke(question)
+            else:
+                docs = retriever.get_relevant_documents(question)
+        except Exception as e:
+            logger.warning(f"⚠️ [EVALUATE] invoke() failed, trying get_relevant_documents(): {e}")
+            docs = retriever.get_relevant_documents(question)
+        
+        if not docs:
+            logger.warning(f"⚠️ [EVALUATE] No documents retrieved")
+            context = "No reference material available."
+        else:
+            logger.info(f"✅ [EVALUATE] Retrieved {len(docs)} documents")
+            
+            # Deduplicate overlapping text before combining
+            logger.info(f"📝 [EVALUATE] Removing overlapping text...")
+            context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
+            logger.info(f"   → Final context length: {len(context)} characters")
 
         # Evaluate answer using GPT if available
         api_key = os.getenv("OPENAI_API_KEY")
@@ -382,13 +406,36 @@ async def evaluate_answer(
             if not answer.strip():
                 raise HTTPException(status_code=400, detail="Answer cannot be empty")
             
-            # Switch to the enriched collection
-            chroma_handler = request.app.state.chroma_handler
-            chroma_handler.switch_to_collection("geography_docs_enriched")
+            logger.info(f"🚀 [EVALUATE] Evaluating answer for question: '{question[:100]}...'")
             
-            # Get relevant chunks for context
-            chunks = chroma_handler.query_documents(question, k=8)
-            context = "\n\n".join(chunk["content"] for chunk in chunks) if chunks else "No reference material available."
+            # Get Pinecone handler and use LangChain retriever
+            pinecone_handler = request.app.state.vector_handler
+            
+            # Get retriever configured for topic mode (similar to query route)
+            logger.info(f"🔧 [EVALUATE] Creating retriever for 'topic' mode...")
+            retriever = pinecone_handler.get_retriever_for_mode("topic", use_content_store=True)
+            
+            # Retrieve documents using LangChain
+            logger.info(f"🔍 [EVALUATE] Retrieving documents...")
+            try:
+                if hasattr(retriever, 'invoke'):
+                    docs = retriever.invoke(question)
+                else:
+                    docs = retriever.get_relevant_documents(question)
+            except Exception as e:
+                logger.warning(f"⚠️ [EVALUATE] invoke() failed, trying get_relevant_documents(): {e}")
+                docs = retriever.get_relevant_documents(question)
+            
+            if not docs:
+                logger.warning(f"⚠️ [EVALUATE] No documents retrieved")
+                context = "No reference material available."
+            else:
+                logger.info(f"✅ [EVALUATE] Retrieved {len(docs)} documents")
+                
+                # Deduplicate overlapping text before combining
+                logger.info(f"📝 [EVALUATE] Removing overlapping text...")
+                context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
+                logger.info(f"   → Final context length: {len(context)} characters")
 
             # Evaluate answer using GPT if available
             api_key = os.getenv("OPENAI_API_KEY")

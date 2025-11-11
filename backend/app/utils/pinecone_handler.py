@@ -1006,13 +1006,14 @@ class PineconeHandler:
                 detail=f"Failed to create retriever: {str(e)}"
             )
     
-    def get_retriever_for_mode(self, mode: str, use_content_store: bool = True) -> BaseRetriever:
+    def get_retriever_for_mode(self, mode: str, use_content_store: bool = True, k: Optional[int] = None) -> BaseRetriever:
         """
-        Get a retriever configured for a specific mode (prelims, mains, or topic).
+        Get a retriever configured for a specific mode (prelims, mains, topic, or concept).
         
         Args:
-            mode: "prelims", "mains", or "topic" (case-insensitive)
+            mode: "prelims", "mains", "topic", or "concept" (case-insensitive)
             use_content_store: If True, enrich documents with full content from SQLite (default: True)
+            k: Optional override for number of documents to retrieve (if None, uses mode default)
         
         Returns:
             LangChain retriever instance configured for the specified mode
@@ -1024,32 +1025,45 @@ class PineconeHandler:
         
         if mode_lower == "prelims":
             # Prelims: MMR with higher diversity for broader coverage
-            logger.info(f"🔧 [PineconeHandler] Creating PRELIMS retriever (MMR, fetch_k=50, k=12, lambda_mult=0.55)")
+            retriever_k = k if k is not None else 12
+            logger.info(f"🔧 [PineconeHandler] Creating PRELIMS retriever (MMR, fetch_k=50, k={retriever_k}, lambda_mult=0.55)")
             return self.get_retriever(
                 search_type="mmr",
-                k=12,
+                k=retriever_k,
                 fetch_k=50,
                 lambda_mult=0.55,  # Higher diversity for prelims
                 use_content_store=use_content_store
             )
         elif mode_lower == "mains":
             # Mains: Similarity search with fewer, more focused results
-            logger.info(f"🔧 [PineconeHandler] Creating MAINS retriever (similarity, k=8)")
+            retriever_k = k if k is not None else 8
+            logger.info(f"🔧 [PineconeHandler] Creating MAINS retriever (similarity, k={retriever_k})")
             return self.get_retriever(
                 search_type="similarity",
-                k=8,
+                k=retriever_k,
                 use_content_store=use_content_store
             )
         elif mode_lower == "topic":
-            # Topic: Similarity search with moderate k (default query behavior)
-            logger.info(f"🔧 [PineconeHandler] Creating TOPIC retriever (similarity, k=5)")
+            # Topic: Similarity search for evaluation (moderate k)
+            retriever_k = k if k is not None else 5
+            logger.info(f"🔧 [PineconeHandler] Creating TOPIC retriever (similarity, k={retriever_k})")
             return self.get_retriever(
                 search_type="similarity",
-                k=5,
+                k=retriever_k,
+                use_content_store=use_content_store
+            )
+        elif mode_lower == "concept":
+            # Concept: Similarity search for explaining concepts (query route)
+            # Default k=5, but allows override for user customization
+            retriever_k = k if k is not None else 5
+            logger.info(f"🔧 [PineconeHandler] Creating CONCEPT retriever (similarity, k={retriever_k})")
+            return self.get_retriever(
+                search_type="similarity",
+                k=retriever_k,
                 use_content_store=use_content_store
             )
         else:
-            raise ValueError(f"Unknown mode: '{mode}'. Choose 'prelims', 'mains', or 'topic'")
+            raise ValueError(f"Unknown mode: '{mode}'. Choose 'prelims', 'mains', 'topic', or 'concept'")
     
     def get_qa_chain(self, search_type: str = "similarity", k: int = 6,
                     fetch_k: int = 50, lambda_mult: float = 0.65,

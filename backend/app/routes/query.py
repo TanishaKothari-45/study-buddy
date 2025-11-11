@@ -194,12 +194,13 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
         pinecone_handler = request.app.state.vector_handler
         logger.info(f"✅ [QUERY] Pinecone handler retrieved: {type(pinecone_handler).__name__}")
         
-        # Create LangChain retriever with similarity search and content store enrichment
-        logger.info(f"🔧 [QUERY] Step 2: Creating retriever (search_type=similarity, k={query_request.k}, use_content_store=True)...")
-        retriever = pinecone_handler.get_retriever(
-            search_type="similarity",
-            k=query_request.k,  # Use k from request (default: 5, but can be overridden)
-            use_content_store=True  # Enrich with full content from SQLite
+        # Create LangChain retriever configured for "concept" mode (explaining concepts)
+        # Allows k to be customized via request parameter
+        logger.info(f"🔧 [QUERY] Step 2: Creating retriever for 'concept' mode (k={query_request.k}, use_content_store=True)...")
+        retriever = pinecone_handler.get_retriever_for_mode(
+            mode="concept",
+            use_content_store=True,
+            k=query_request.k  # Use k from request (default: 5, but can be overridden)
         )
         logger.info(f"✅ [QUERY] Retriever created: {type(retriever).__name__}")
         
