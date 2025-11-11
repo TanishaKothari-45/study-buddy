@@ -3,12 +3,24 @@ Pinecone vector store handler with LangChain integration
 """
 import logging
 import os
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, ClassVar
 from fastapi import HTTPException
+
+# Try to import Pydantic ConfigDict for v2 compatibility
+try:
+    from pydantic import ConfigDict
+    PYDANTIC_V2_AVAILABLE = True
+except ImportError:
+    PYDANTIC_V2_AVAILABLE = False
+    ConfigDict = None
+
+# Initialize logger early so it's available for use in try blocks
+logger = logging.getLogger(__name__)
 
 # LangChain imports
 try:
     from langchain_pinecone import PineconeVectorStore
+    import langchain_pinecone.vectorstores as lc_pinecone
     from langchain_core.embeddings import Embeddings
     from langchain_core.documents import Document
     from langchain_core.retrievers import BaseRetriever
@@ -22,6 +34,10 @@ try:
         ChatOpenAI = None
         OpenAIEmbeddings = None
     LANGCHAIN_AVAILABLE = True
+    
+    # Note: No patching needed anymore - metadata now has 'text' field at source
+    # All vectors have been updated via pinecone_metadata_safe_update.py
+        
 except ImportError as e:
     LANGCHAIN_AVAILABLE = False
     RETRIEVALQA_AVAILABLE = False
@@ -37,6 +53,7 @@ except ImportError as e:
     RetrievalQA = None
     ChatOpenAI = None
     OpenAIEmbeddings = None
+    lc_pinecone = None
 
 try:
     from pinecone import Pinecone
@@ -46,8 +63,6 @@ except ImportError:
 
 from ..core.config import settings
 from .embedder import Embedder
-
-logger = logging.getLogger(__name__)
 
 # Log availability
 if not LANGCHAIN_AVAILABLE:
@@ -80,6 +95,226 @@ class PineconeEmbeddings(Embeddings):
     def embed_query(self, text: str) -> List[float]:
         """Embed a single query"""
         return self.embedder.get_embeddings([text])[0]
+
+
+# Note: We no longer need PatchedPineconeVectorStore class because we're using
+# global monkey-patch of langchain_pinecone._results_to_docs instead.
+# This ensures ALL PineconeVectorStore instances use the patched logic.
+
+
+class ContentStoreRetriever(BaseRetriever):
+    """
+    Custom retriever wrapper that enriches documents with full content from SQLite content store.
+    
+    Flow:
+    1. Base retriever gets documents from Pinecone (with content_preview)
+    2. Extract chunk_id and filename from metadata
+    3. Lookup full content from SQLite content store
+    4. Replace page_content with full content
+    5. Return enriched documents
+    """
+    # Declare fields properly for Pydantic
+    base_retriever: BaseRetriever
+    use_content_store: bool = True
+    content_store: Optional[Any] = None
+    
+    class Config:
+        arbitrary_types_allowed = True  # Works for both Pydantic v1/v2
+    
+    def __init__(
+        self,
+        base_retriever: BaseRetriever,
+        use_content_store: bool = True,
+        **kwargs
+    ):
+        # Validate base_retriever before proceeding
+        if base_retriever is None:
+            raise ValueError("base_retriever cannot be None")
+        
+        if not isinstance(base_retriever, BaseRetriever):
+            raise TypeError(f"base_retriever must be an instance of BaseRetriever, got {type(base_retriever)}")
+        
+        # ✅ Important: Initialize BaseRetriever (Pydantic) with required fields
+        data = {
+            "base_retriever": base_retriever,
+            "use_content_store": use_content_store,
+            "content_store": None
+        }
+        super().__init__(**data, **kwargs)
+        
+        # Lazy import for circular dependency safety
+        if self.use_content_store:
+            try:
+                from .content_store import ContentStore
+                self.content_store = ContentStore()
+                logger.info("✅ Content store initialized for retriever enrichment")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to initialize content store: {e}")
+                self.use_content_store = False
+                self.content_store = None
+    
+    def _get_relevant_documents(self, query: str) -> List[Document]:
+        """
+        Retrieve relevant docs from Pinecone and hydrate from local store.
+        
+        Flow:
+        1. Get documents from base retriever (Pinecone) - these may have content_preview
+        2. Fill page_content from content_preview if missing (safety fallback)
+        3. Lookup full content from SQLite using chunk_id
+        4. Replace preview with full text if available
+        5. Return enriched documents
+        
+        Args:
+            query: Query text
+            
+        Returns:
+            List of Document objects with full content from content store
+        """
+        logger.info(f"🔍 [ContentStoreRetriever] Starting retrieval for query: '{query[:100]}...'")
+        
+        if not self.base_retriever:
+            logger.error("❌ [ContentStoreRetriever] base_retriever missing")
+            return []
+        
+        # STEP 1: Get documents from base retriever (Pinecone vector search)
+        logger.info(f"📊 [ContentStoreRetriever] Step 1: Querying Pinecone vector store...")
+        try:
+            # Try using invoke() (LangChain 0.1.46+)
+            if hasattr(self.base_retriever, 'invoke'):
+                docs = self.base_retriever.invoke(query)
+                logger.info(f"✅ [ContentStoreRetriever] Pinecone returned {len(docs)} documents via invoke()")
+            else:
+                # Fallback to deprecated method for older versions
+                docs = self.base_retriever.get_relevant_documents(query)
+                logger.info(f"✅ [ContentStoreRetriever] Pinecone returned {len(docs)} documents via get_relevant_documents()")
+        except Exception as e:
+            # If invoke fails, try deprecated method
+            logger.warning(f"⚠️ [ContentStoreRetriever] invoke() failed, trying get_relevant_documents(): {e}")
+            docs = self.base_retriever.get_relevant_documents(query)
+            logger.info(f"✅ [ContentStoreRetriever] Pinecone returned {len(docs)} documents (fallback method)")
+        
+        if not docs:
+            logger.warning("⚠️ [ContentStoreRetriever] No documents retrieved from Pinecone")
+            return []
+        
+        # Log Pinecone results details
+        logger.info(f"📋 [ContentStoreRetriever] Pinecone results summary:")
+        for i, doc in enumerate(docs[:3], 1):  # Log first 3 docs
+            meta = doc.metadata
+            chunk_id = meta.get("chunk_id", "N/A")
+            filename = meta.get("filename", "N/A")
+            preview_len = len(doc.page_content) if doc.page_content else 0
+            logger.info(f"   Doc {i}: chunk_id={chunk_id}, filename={filename}, preview_len={preview_len} chars")
+        
+        # Step 2: Fill page_content from preview if missing (safety fallback)
+        # This ensures we never have empty documents even if patching failed
+        filled_count = 0
+        for doc in docs:
+            if not getattr(doc, "page_content", None) or not doc.page_content.strip():
+                content_preview = doc.metadata.get("content_preview", "")
+                if content_preview:
+                    doc.page_content = content_preview
+                    filled_count += 1
+                    logger.debug(f"✅ [ContentStoreRetriever] Filled empty page_content from content_preview ({len(content_preview)} chars)")
+        
+        if filled_count > 0:
+            logger.info(f"📝 [ContentStoreRetriever] Filled {filled_count} empty page_content fields from preview")
+        
+        # If content store is not enabled, return docs with preview content
+        if not self.use_content_store or not self.content_store:
+            logger.warning("⚠️ [ContentStoreRetriever] Content store disabled - returning Pinecone preview content only")
+            return docs
+        
+        # STEP 3: Enrich each document with full content from SQLite
+        logger.info(f"💾 [ContentStoreRetriever] Step 2: Enriching {len(docs)} docs from SQLite content store...")
+        enriched_docs = []
+        sqlite_success = 0
+        sqlite_failed = 0
+        preview_used = 0
+        
+        for i, doc in enumerate(docs, 1):
+            meta = doc.metadata
+            chunk_id = meta.get("chunk_id")
+            filename = meta.get("filename")
+            chapter = meta.get("chapter")
+            
+            logger.debug(f"   [{i}/{len(docs)}] Looking up chunk_id={chunk_id}, filename={filename}, chapter={chapter}")
+            
+            # Step 4: Hydrate from SQLite
+            full_content = None
+            if chunk_id and filename:
+                try:
+                    # Try exact chunk_id first (handles split chunks like "1_1_1_split1")
+                    logger.debug(f"      → Querying SQLite for exact chunk_id: {chunk_id}")
+                    full_content = self.content_store.get_chunk(
+                        chunk_id=chunk_id, filename=filename, chapter=chapter
+                    )
+                    
+                    # If not found and chunk_id has split suffix, try base chunk_id
+                    if not full_content and '_split' in chunk_id:
+                        base_chunk_id = chunk_id.rsplit('_split', 1)[0]
+                        logger.debug(f"      → Split chunk not found, trying base chunk_id: {base_chunk_id}")
+                        full_content = self.content_store.get_chunk(
+                            chunk_id=base_chunk_id, filename=filename, chapter=chapter
+                        )
+                    
+                    if full_content:
+                        logger.debug(f"      ✅ Found in SQLite: {len(full_content)} chars")
+                    else:
+                        logger.debug(f"      ⚠️ Not found in SQLite")
+                except Exception as e:
+                    logger.warning(f"      ❌ SQLite lookup failed for {chunk_id}: {e}")
+                    sqlite_failed += 1
+            
+            # Step 5: Replace preview with full text if available
+            preview_length = len(doc.page_content.strip()) if doc.page_content else 0
+            if full_content and len(full_content.strip()) > preview_length:
+                # Full content is longer than preview, replace it
+                doc.page_content = full_content
+                # Ensure document has text property for LangChain compatibility
+                object.__setattr__(doc, 'text', full_content)
+                meta["_content_source"] = "content_store"
+                sqlite_success += 1
+                logger.debug(f"      ✅ Enriched: {preview_length} → {len(full_content)} chars (from SQLite)")
+            else:
+                # Use preview content (either no full content found, or preview is same/longer)
+                meta["_content_source"] = "content_preview"
+                preview_used += 1
+                if full_content:
+                    logger.debug(f"      ⚠️ Keeping preview (full content {len(full_content)} <= preview {preview_length})")
+                else:
+                    logger.debug(f"      ⚠️ Using preview (not found in SQLite)")
+            
+            enriched_docs.append(doc)
+        
+        logger.info(f"✅ [ContentStoreRetriever] Enrichment complete:")
+        logger.info(f"   • Total docs: {len(enriched_docs)}")
+        logger.info(f"   • Enriched from SQLite: {sqlite_success}")
+        logger.info(f"   • Using Pinecone preview: {preview_used}")
+        logger.info(f"   • SQLite lookup failed: {sqlite_failed}")
+        
+        return enriched_docs
+    
+    def invoke(self, input: str, config: Optional[Any] = None, **kwargs) -> List[Document]:
+        """
+        Modern LangChain API - use invoke() instead of get_relevant_documents().
+        
+        Args:
+            input: Query string
+            config: Optional runtime configuration
+            **kwargs: Additional arguments
+            
+        Returns:
+            List of Document objects with full content from content store
+        """
+        return self._get_relevant_documents(input)
+    
+    async def _aget_relevant_documents(self, query: str) -> List[Document]:
+        """Async version - delegates to sync version"""
+        import asyncio
+        return await asyncio.get_event_loop().run_in_executor(
+            None, self._get_relevant_documents, query
+        )
 
 
 class PineconeHandler:
@@ -132,6 +367,8 @@ class PineconeHandler:
                 )
             
             try:
+                # Use standard PineconeVectorStore - the global monkey-patch ensures
+                # all instances use content_preview → text mapping automatically
                 self.vectorstore = PineconeVectorStore(
                     index_name=self.index_name,
                     embedding=self.langchain_embeddings,
@@ -386,6 +623,11 @@ class PineconeHandler:
                 # Clean the preview as well (remove null bytes, control chars, thorn)
                 content_preview = final_cleanup(content_preview)
                 flat_metadata["content_preview"] = content_preview
+                
+                # CRITICAL: Add 'text' field to metadata for langchain_pinecone compatibility
+                # langchain_pinecone checks for 'text' key and skips documents without it
+                # We use content_preview as the text field to prevent skipping
+                flat_metadata["text"] = content_preview
                 
                 vectors.append((doc_id, emb, flat_metadata))
             
@@ -688,19 +930,29 @@ class PineconeHandler:
             )
     
     def get_retriever(self, search_type: str = "similarity", k: int = 6, 
-                     fetch_k: int = 50, lambda_mult: float = 0.65) -> BaseRetriever:
+                     fetch_k: int = 50, lambda_mult: float = 0.65,
+                     use_content_store: bool = True) -> BaseRetriever:
         """
-        Create a LangChain retriever with configurable search type.
+        Create a LangChain retriever with configurable search type and content store enrichment.
         
         Args:
             search_type: "similarity" or "mmr" (default: "similarity")
             k: Number of documents to return (default: 6)
             fetch_k: Number of documents to fetch before MMR (only for MMR, default: 50)
             lambda_mult: Diversity parameter for MMR (0.0 = max diversity, 1.0 = max relevance, default: 0.65)
+            use_content_store: If True, enrich documents with full content from SQLite (default: True)
         
         Returns:
-            LangChain retriever instance
+            LangChain retriever instance (wrapped with ContentStoreRetriever if use_content_store=True)
         """
+        logger.info(f"🔧 [PineconeHandler] Creating retriever:")
+        logger.info(f"   • search_type: {search_type}")
+        logger.info(f"   • k: {k}")
+        logger.info(f"   • use_content_store: {use_content_store}")
+        if search_type == "mmr":
+            logger.info(f"   • fetch_k: {fetch_k}")
+            logger.info(f"   • lambda_mult: {lambda_mult}")
+        
         if not LANGCHAIN_AVAILABLE:
             raise HTTPException(
                 status_code=500,
@@ -708,10 +960,14 @@ class PineconeHandler:
             )
         
         try:
+            logger.debug(f"   → Getting vectorstore...")
             vectorstore = self._get_vectorstore()
+            logger.debug(f"   → Vectorstore retrieved: {type(vectorstore).__name__}")
             
+            # Create base retriever
+            logger.info(f"   → Creating base {search_type} retriever from Pinecone vectorstore...")
             if search_type == "mmr":
-                retriever = vectorstore.as_retriever(
+                base_retriever = vectorstore.as_retriever(
                     search_type="mmr",
                     search_kwargs={
                         "fetch_k": fetch_k,
@@ -719,17 +975,32 @@ class PineconeHandler:
                         "lambda_mult": lambda_mult
                     }
                 )
+                logger.debug(f"   → Base MMR retriever created")
             else:
-                retriever = vectorstore.as_retriever(
+                base_retriever = vectorstore.as_retriever(
                     search_type="similarity",
                     search_kwargs={"k": k}
                 )
+                logger.debug(f"   → Base similarity retriever created")
             
-            logger.info(f"✅ Created {search_type} retriever: k={k}" + 
-                       (f", lambda_mult={lambda_mult}" if search_type == "mmr" else ""))
+            # Wrap with content store enrichment if enabled
+            if use_content_store:
+                logger.info(f"   → Wrapping with ContentStoreRetriever for SQLite enrichment...")
+                retriever = ContentStoreRetriever(base_retriever, use_content_store=True)
+                logger.info(f"✅ [PineconeHandler] Created {search_type} retriever with content store enrichment:")
+                logger.info(f"   • Flow: Pinecone (vector search) → SQLite (content enrichment)")
+                logger.info(f"   • k={k}" + (f", lambda_mult={lambda_mult}" if search_type == "mmr" else ""))
+            else:
+                retriever = base_retriever
+                logger.info(f"✅ [PineconeHandler] Created {search_type} retriever (no content store):")
+                logger.info(f"   • Flow: Pinecone (vector search) only")
+                logger.info(f"   • k={k}" + (f", lambda_mult={lambda_mult}" if search_type == "mmr" else ""))
+            
             return retriever
         except Exception as e:
-            logger.error(f"❌ Failed to create retriever: {e}")
+            logger.error(f"❌ [PineconeHandler] Failed to create retriever: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             raise HTTPException(
                 status_code=500,
                 detail=f"Failed to create retriever: {str(e)}"
