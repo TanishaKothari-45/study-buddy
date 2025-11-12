@@ -15,98 +15,10 @@ from ..utils.upsc_patterns.loader import get_examples, format_fewshot, get_all_p
 from ..utils.metadata_enricher import GEOGRAPHY_TOPICS, GEOGRAPHY_DOMAINS
 from ..routes.query import deduplicate_chunks
 from ..utils.mm_utils import enforce_source_diversity
+from ..utils.mock_test_prompting import assemble_upsc_prompt
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-# Difficulty guide for prompt optimization
-DIFFICULTY_GUIDE = {
-    "easy": """
- UPSC EASY MODE (Foundation Level)
-
-1. **Concept Focus**
-   - One concept per question (e.g., “Weathering” or “Latitude”).
-   - Use clear, direct factual statements — no integration.
-
-2. **Option Simplicity**
-   - Only 1–2 options should seem plausible.
-   - Avoid traps like “only” or “none”.
-
-3. **Single-Domain Coverage**
-   - Use pure NCERT-based physical geography or basic human geography.
-   - Avoid linking multiple domains.
-
-4. **Explanation Style**
-   - Short, one-line factual justification.
-   - “Statement 1 is correct because… as per NCERT Class IX, Ch. 2.”
-
-5. **Weightage**
-   - 60% Factual | 30% Conceptual | 10% Analytical
-
-6. **Question Framing**
-   - Use “Which of the following is correct?” or “Identify the correct pair.”
-   - Avoid “NOT correct” or Assertion–Reason type.
-
-""",
-    
-    "medium": """
-⚖️ UPSC MEDIUM MODE (Mainstream UPSC Style)
-
-1. **Balanced Integration**
-   - Blend 1–2 subtopics (e.g., Climatology + Indian Monsoon).
-
-2. **Moderate Confusion**
-   - 2 options should seem correct.
-   - Include one question with "NOT correct" phrasing.
-
-3. **Realistic Cross-Linking**
-   - Static + applied concept (e.g., “Monsoon variability and agriculture”).
-
-4. **Explanation Depth**
-   - 2-line reasoning — why correct, why others wrong.
-
-5. **Weightage**
-   - 40% Conceptual | 40% Analytical | 20% Factual
-
-6. **Question Types**
-   - Include “Consider the following statements”, “Match the following”, and one Assertion–Reason type.
-
-""",
-
-    "hard": """
-  UPSC HARD MODE (Advanced / Vision IAS Level)
-
-1. **Conceptual Depth**
-   - Combine 2–3 subtopics logically (e.g., Climatology + Agriculture, Oceanography + Environment).
-   - Questions should test *applied understanding*, not direct recall.
-
-2. **Option Confusion (UPSC Traps)**
-   - At least 3 options should sound correct at first glance.
-   - Include factual reversals and keywords like "only", "always", "none", or "correctly matched".
-   - Avoid obviously wrong distractors.
-
-3. **Cross-domain Integration**
-   - Blend physical, human, and environmental geography.
-   - Example: "How geomorphology influences settlement distribution" or "Impact of monsoon variability on agriculture".
-
-4. **Explanation Style (Vision IAS Format)**
-   - Each explanation must include:
-     • Why the correct option is right  
-     • Why each other option is wrong  
-     • Reference to NCERT / Vision IAS concept or factual base
-
-5. **Difficulty Weightage**
-   - 30% Conceptual → understanding cause–effect  
-   - 40% Analytical → compare statements, eliminate options  
-   - 30% Factual → static UPSC facts with traps
-
-6. **Advanced UPSC Traps**
-   - Include at least one “NOT correct” or “incorrect statement” type question.
-   - Keep questions precise, multi-layered, and test elimination ability.
-   - Use indirect phrasing like “Which of the following best explains…” or “How many of the above are correct?”
-
-"""
-}
 
 class MockTestRequest(BaseModel):
     num_questions: int = 5
@@ -208,269 +120,78 @@ def generate_question_paper(pyq_chunks: List[Dict], content_chunks: List[Dict],
         num_questions=request.num_questions
     )
     
-    # Prepare content context with explicit markers for Current Affairs vs Static Material
-    # Deduplicate overlapping text before combining
-    logger.info(f"📝 [MOCK_TEST] Removing overlapping text from content chunks...")
-    content_docs_for_dedup = []
-    for chunk in content_chunks[:8]:
-        from langchain_core.documents import Document
-        content_docs_for_dedup.append(Document(
-            page_content=chunk['content'],
-            metadata=chunk.get('metadata', {})
-        ))
+    # Prepare content context: Separate static and current affairs
+    logger.info(f"📝 [MOCK_TEST] Preparing content context from {len(content_chunks)} chunks...")
     
-    # Deduplicate content chunks
-    if content_docs_for_dedup:
-        original_content_length = sum(len(doc.page_content) for doc in content_docs_for_dedup)
-        deduplicated_content = deduplicate_chunks(content_docs_for_dedup, min_overlap_words=20, similarity_threshold=0.6)
-        overlap_removed = original_content_length - len(deduplicated_content)
-        if overlap_removed > 0:
-            logger.info(f"   ✅ Removed {overlap_removed} chars (~{overlap_removed//4} tokens) of overlap from content chunks")
+    # Separate static and current affairs chunks
+    static_chunks = []
+    current_affairs_chunks = []
+    
+    for chunk in content_chunks:
+        meta = chunk.get("metadata", {})
+        source_type = meta.get("source_type", "").lower()
+        filename = meta.get("filename", "").lower()
         
-        # Mark content based on first chunk's metadata
-        context_knowledge_parts = []
-        if content_chunks:
-            first_meta = content_chunks[0].get("metadata", {})
-            filename = first_meta.get("filename", "").lower()
-            if "current" in filename or "2025" in filename:
-                context_knowledge_parts.append(f"🗞️ [CURRENT AFFAIRS CONTEXT]: {deduplicated_content}")
-            else:
-                context_knowledge_parts.append(f"📘 [STATIC MATERIAL]: {deduplicated_content}")
-        context_knowledge = "\n\n".join(context_knowledge_parts)
-    else:
-        # Fallback: use original chunks if deduplication fails
-        context_knowledge_parts = []
-        for chunk in content_chunks[:8]:
-            meta = chunk.get("metadata", {})
-            filename = meta.get("filename", "").lower()
-            if "current" in filename or "2025" in filename:
-                context_knowledge_parts.append(f"🗞️ [CURRENT AFFAIRS CONTEXT]: {chunk['content']}")
-            else:
-                context_knowledge_parts.append(f"📘 [STATIC MATERIAL]: {chunk['content']}")
-        context_knowledge = "\n\n".join(context_knowledge_parts)
+        # Check source_type first, then fallback to filename
+        if source_type == "current_affairs" or "current" in filename or "2025" in filename:
+            current_affairs_chunks.append(chunk)
+        else:
+            static_chunks.append(chunk)
     
-    # Fallback: prepare retrieved PYQ chunks if few-shot not available
-    context_style = "\n\n---\n\n".join([chunk["content"] for chunk in pyq_chunks[:8]]) if not fewshot_examples else ""
+    # Deduplicate static chunks
+    static_text = ""
+    if static_chunks:
+        static_docs_for_dedup = []
+        for chunk in static_chunks[:8]:
+            from langchain_core.documents import Document
+            static_docs_for_dedup.append(Document(
+                page_content=chunk['content'],
+                metadata=chunk.get('metadata', {})
+            ))
+        
+        if static_docs_for_dedup:
+            deduplicated_static = deduplicate_chunks(static_docs_for_dedup, min_overlap_words=20, similarity_threshold=0.6)
+            static_text = deduplicated_static
+            logger.info(f"   ✅ Prepared {len(static_chunks)} static chunks (deduplicated)")
+        else:
+            static_text = "\n\n".join([chunk['content'] for chunk in static_chunks[:8]])
     
-    # If pattern_summary is empty, create a default one
-    if not pattern_summary:
-        pattern_summary = """- Q1: Concept Definition / Single-Choice - Tests conceptual understanding
-- Q2: Multi-Statement Evaluation - Uses "Consider the following statements"
-- Q3: Match-the-Pair Questions - Two-column matching (River-Origin, etc.)
-- Q4: Assertion-Reason Type - Statement-I and Statement-II format
-- Q5: Fact-Based / Direct MCQ - Tests static geographical facts
-- Q6: Map / Location / Identification - Tests spatial knowledge"""
+    # Prepare current affairs text
+    current_affairs_text = ""
+    if current_affairs_chunks:
+        current_affairs_text = "\n\n".join([chunk['content'] for chunk in current_affairs_chunks[:5]])
+        logger.info(f"   ✅ Prepared {len(current_affairs_chunks)} current affairs chunks")
     
-    logger.info(f"📚 Using {len(content_chunks[:8])} content chunks for knowledge")
+    # Prepare PYQ examples
+    pyq_examples_text = fewshot_examples if fewshot_examples else "\n\n---\n\n".join([chunk["content"] for chunk in pyq_chunks[:8]])
+    
+    # Extract topic from request (use first topic or "Geography" as default)
+    topic = request.topics[0] if request.topics else "Geography"
+    
+    logger.info(f"📚 Using {len(static_chunks)} static chunks and {len(current_affairs_chunks)} current affairs chunks")
     if fewshot_examples:
-        logger.info(f"✅ Using few-shot PYQ examples covering all 6 patterns for style learning")
+        logger.info(f"✅ Using few-shot PYQ examples for style learning")
     else:
         logger.warning("⚠️ No few-shot examples available, using retrieved PYQ chunks")
     
-    # Enhanced system prompt - concise and structured
-    system_prompt = """You are a senior UPSC Prelims Question Setter specializing in Geography.
-
-🎯 GOAL:
-
-Create realistic, UPSC-grade multiple-choice questions based on:
-
-- UPSC PYQs (for style reference)
-
-- Uploaded study material (NCERTs, Vision IAS, Current Affairs)
-
-- Specified difficulty level
-
-Your output must be indistinguishable from authentic UPSC questions.
-
----
-
-🧩 STYLE LEARNING (FEW-SHOT REFERENCE):
-
-Use the PYQ examples for style.
-
-You will study real UPSC PYQs provided below and replicate their:
-
-- Question phrasing ("Which of the following...", "Consider the following...")
-
-- Option style ("1 and 2 only", "All of the above", "None of the above")
-
-- Confusion balance (2–3 plausible distractors)
-
-- Explanation tone (Vision IAS format)
-
----
-
-DIVERSITY FRAMEWORK FOR QUESTION GENERATION : Ensure that in every test there is topic diversity and in every topic there is diversity in the type of questions.
-
-When generating questions, maintain diversity along these five semantic dimensions:
-
-1. **Conceptual Diversity**
-   - Each question must test a different *conceptual type*: definition, mechanism, cause-effect, implication, or application.
-   - Example: If one question asks "what is", the next must ask "why" or "how" about a different concept.
-
-2. **Contextual Diversity**
-   - Vary the *spatial*, *temporal*, or *domain context*.
-   - Example: If one question is India-specific, another should use global or historical context.
-
-3. **Analytical Diversity**
-   - Mix factual recall with analytical reasoning.
-
-4. **Topical Breadth**
-   - Avoid repeating the same factual entity, keyword, or event across questions.
-   - Each question must anchor in a different concept or factual base — even within the same topic.
-   - For example, for "Monsoon": one on its mechanism, one on variability, one on human impact.
-
-5. **Current Relevance Integration**
-   - If current-affairs materials are available, integrate *1–2 questions* that link a static concept with a recent event or policy.
-   - Example: link "Cyclone formation" with a recent IMD report or real cyclone event.
-
- CHECKLIST BEFORE OUTPUT:
-
-- Each question covers a different combination of conceptual + contextual + analytical dimensions.
-- No two questions repeat the same keyword or factual entity (unless testing different aspects).
-- If user selected a topic, questions explore its sub-concepts rather than repeat the same one.
-
----
-
-🗞️ CURRENT AFFAIRS INTEGRATION:
-
-When relevant content (filename or metadata containing "current" or "2025") overlaps with the topic:
-
-   - Blend static + dynamic info naturally.
-
-   - Example: "Recently, Cyclone Remal affected India's east coast. Consider the following statements about tropical cyclones..."
-
-   - Use max 1–2 such questions per paper.
-
-   - Avoid specific dates; use "Recently" or "In recent years".
-
-🧩 CONTEXT MARKERS:
-
-- Text starting with "🗞️ [CURRENT AFFAIRS CONTEXT]" is from recent events (e.g., 2025).
-
-- Text starting with "📘 [STATIC MATERIAL]" is from standard study sources (NCERT, Vision Notes).
-
-When forming questions:
-
-1. Use the conceptual context for content - this provides the factual and theoretical foundation.
-
-2. Use the PYQ examples for style - replicate their phrasing, structure, and option patterns.
-
-3. If relevant, blend one current-affairs statement in the question - when current affairs context matches the static topic, combine both naturally.
-
-4. Prefer static sources for factual base, but when current affairs context matches the static topic, combine both.
-
-5. Begin such questions with "Recently…" or include one statement from the current event.
-
-6. Do not force current affairs; only use if relevant by subject.
-
----
-
-⚙️ STRUCTURE REQUIREMENTS:
-
-Each question must:
-
-- Follow a unique UPSC pattern (Multi-Statement, Assertion–Reason, Match-the-Pair, Concept, Fact-based, or Map-based).
-
-- Be formatted as:
-
-  {{
-    "question": "...",
-    "options": ["(a)...", "(b)...", "(c)...", "(d)..."],
-    "correct_answer": "A" | "B" | "C" | "D",
-    "explanation": "...",
-    "source": {{...}}
-  }}
-
-- Use at least 4 different patterns per paper.
-
-- Maintain exact UPSC tone and conciseness.
-
----
-
-✅ FINAL VERIFICATION CHECKLIST:
-
-- [ ] Includes Q2 (Multi-Statement), Q4 (Assertion–Reason), Q3 (Match-the-Pair)
-
-- [ ] At least 4 unique patterns used
-
-- [ ] 2–3 plausible distractors per question
-
-- [ ] One question uses "NOT correct"
-
-- [ ] 1–2 questions integrate Current Affairs
-
-- [ ] Each explanation justifies correct and incorrect options
-
-- [ ] Each question tests a different conceptual type (definition vs mechanism vs application)
-
-- [ ] No two questions repeat the same keyword/factual entity (unless testing different aspects)
-
-- [ ] Questions vary in spatial/temporal context (India vs global, current vs historical)
-
-IMPORTANT: The "options" field must be a JSON array of strings, not a dictionary.
-Example: "options": ["(a) Option 1", "(b) Option 2", "(c) Option 3", "(d) Option 4"]
-NOT: "options": {{"A": "Option 1", "B": "Option 2"}}
-    """
-
+    # Use new prompt system
     try:
-        # Get difficulty guide text (default to medium if not found)
-        difficulty_text = DIFFICULTY_GUIDE.get(
-            request.difficulty.lower(), 
-            DIFFICULTY_GUIDE["medium"]
+        # Assemble prompt using new system
+        user_prompt = assemble_upsc_prompt(
+            topic=topic,
+            difficulty=request.difficulty,
+            num_questions=request.num_questions,
+            retrieved_static_text=static_text,
+            retrieved_current_affairs=current_affairs_text,
+            pyq_examples=pyq_examples_text
         )
-        
-        # Pattern plan injection - fixed skeleton for better pattern diversity
-        # This gives the LLM a fixed skeleton, making it 10× more likely to follow pattern diversity precisely
-        pattern_plan = [
-            "Q1: Multi-Statement Evaluation",
-            "Q2: Assertion–Reason Type",
-            "Q3: Match-the-Pair",
-            "Q4: Concept Definition",
-            "Q5: Current-Affairs-Integrated Question"
-        ]
-        # Use pattern plan for first 5 questions, then let LLM vary for remaining
-        pattern_instructions = "\n".join([f"- {p}" for p in pattern_plan[:min(5, request.num_questions)]])
         
         client = OpenAI(api_key=api_key)
         # Use large model (gpt-4o) for final question generation - this is the critical quality step
         completion = client.chat.completions.create(
             model=settings.LLM_MODEL_LARGE,
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"""🧩 UPSC PYQ Style References (Few-shot examples):
-
-{fewshot_examples if fewshot_examples else context_style}
-
----
-
-📚 Study Material for Content (NCERTs, Vision, Current Affairs):
-
-{context_knowledge}
-
----
-
-🧠 Pattern Plan for this test:
-{pattern_instructions}
-
-🧠 DIFFICULTY MODE INSTRUCTIONS:
-{difficulty_text}
-
-Generate {request.num_questions} UPSC Prelims-style MCQs following all the rules above.
-
-Return ONLY valid JSON in this structure:
-
-{{
-  "questions": [
-    {{
-      "question": "...",
-      "options": ["(a)...", "(b)...", "(c)...", "(d)..."],
-      "correct_answer": "A",
-      "explanation": "...",
-      "source": {{"topic": "...", "sub_domain": "..."}}
-    }}
-  ]
-}}"""}
+                {"role": "user", "content": user_prompt}
             ],
             temperature=0.85 if request.difficulty == "hard" else 0.7,
             max_tokens=min(4000, 500 * request.num_questions),  # Dynamic tokens: ~500 per question, max 4000
