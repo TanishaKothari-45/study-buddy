@@ -721,6 +721,12 @@ elif tab_choice == "Generate Mock Test":
     if generate_clicked:
         with st.spinner("Generating mock test..."):
             try:
+                # Increased timeout to account for multiple processing steps:
+                # - MMR retrieval (fetch_k up to 54 candidates)
+                # - Content store enrichment (concept + PYQ)
+                # - Recency filtering
+                # - Source diversity
+                # - Final MMR re-ranking
                 response = requests.post(
                     f"{BACKEND_URL}/mock-test/generate",
                     json={
@@ -728,7 +734,7 @@ elif tab_choice == "Generate Mock Test":
                         "topics": topics,
                         "difficulty": difficulty
                     },
-                    timeout=60
+                    timeout=180  # Increased from 60 to 180 seconds (3 minutes) for complex processing
                 )
                 
                 if response.status_code == 200:

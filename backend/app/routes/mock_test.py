@@ -619,17 +619,17 @@ def hybrid_retrieve_for_mock_test(
     
     # Set retrieval parameters based on domain granularity
     if sub_domain:
-        k_target = 10
+        k_target = 10  # Focused, fewer chunks needed
         lambda_mult = 0.65
-        logger.info(f"   🎯 Sub-domain mode: focusing on micro-topics within {sub_domain}")
+        logger.info(f"   🎯 Sub-domain mode: focusing on micro-topics within {sub_domain} (k_target={k_target})")
     elif major_domain:
-        k_target = 10
+        k_target = 12  # Moderate diversity
         lambda_mult = 0.65
-        logger.info(f"   🎯 Major-domain mode: diversifying across sub-domains in {major_domain}")
+        logger.info(f"   🎯 Major-domain mode: diversifying across sub-domains in {major_domain} (k_target={k_target})")
     else:
-        k_target = 12
+        k_target = 15  # Broader coverage needed
         lambda_mult = 0.6
-        logger.info(f"   🎯 General mode: broad coverage")
+        logger.info(f"   🎯 General mode: broad coverage (k_target={k_target})")
     
     logger.info(f"   📝 Generated query: {query[:150]}...")
     
@@ -641,12 +641,43 @@ def hybrid_retrieve_for_mock_test(
     logger.info("📘 Retrieving conceptual chunks (source_type='concept')...")
     logger.info("   🔍 Step 1: Querying Pinecone vectorstore for similar embeddings...")
     try:
-        concept_chunks = pinecone_handler.query_documents(
+        # Retrieve k_target + 3 chunks as buffer for recency filtering
+        # Use MMR for diversity based on granularity (lambda_mult varies by domain)
+        initial_k = k_target + 3
+        fetch_k = initial_k * 3  # Fetch more candidates for MMR diversity selection
+        concept_chunks = pinecone_handler.query_documents_mmr(
             query_text=query,
-            k=15,  # Retrieve more to account for recency filtering
-            filter_metadata={"source_type": "concept"},
-            use_content_store=True  # Enriches with full content from local DB using chunk_ids
+            fetch_k=fetch_k,  # Fetch more candidates for MMR
+            k=initial_k,  # Final count: k_target + 3 buffer for recency filtering
+            lambda_mult=lambda_mult,  # Use granularity-based diversity (0.65 for sub/major, 0.6 for general)
+            filter_metadata={"source_type": "concept"}
         )
+        # Enrich with full content from content store (query_documents_mmr doesn't support use_content_store)
+        if concept_chunks:
+            try:
+                from ..utils.content_store import ContentStore
+                content_store = ContentStore()
+                
+                for chunk in concept_chunks:
+                    chunk_id = chunk.get("metadata", {}).get("chunk_id")
+                    filename = chunk.get("metadata", {}).get("filename")
+                    chapter = chunk.get("metadata", {}).get("chapter")
+                    
+                    if chunk_id and filename:
+                        full_content = content_store.get_chunk(
+                            chunk_id=chunk_id,
+                            filename=filename,
+                            chapter=chapter
+                        )
+                        if full_content:
+                            chunk["content"] = full_content
+                            chunk["metadata"]["_content_source"] = "content_store"
+                        else:
+                            chunk["metadata"]["_content_source"] = "content_preview"
+            except Exception as e:
+                logger.debug(f"⚠️ Content store enrichment failed: {e}, using preview content")
+                for chunk in concept_chunks:
+                    chunk["metadata"]["_content_source"] = "content_preview"
         logger.info(f"   ✅ Retrieved {len(concept_chunks)} concept chunks (enriched from content store)")
         
         # 🆕 STEP 1 (continued): Apply recency filter
@@ -666,12 +697,41 @@ def hybrid_retrieve_for_mock_test(
     logger.info("📝 Retrieving PYQ chunks (source_type='pyq') for style reference...")
     logger.info("   🔍 Step 1: Querying Pinecone vectorstore for similar embeddings...")
     try:
-        pyq_chunks = pinecone_handler.query_documents(
+        # PYQ retrieval fixed at 6 (for style learning, no variation needed)
+        # Use MMR for diversity in PYQ retrieval
+        pyq_chunks = pinecone_handler.query_documents_mmr(
             query_text=query,
-            k=5,
-            filter_metadata={"source_type": "pyq"},
-            use_content_store=True  # Enriches with full content from local DB using chunk_ids
+            fetch_k=18,  # Fetch more candidates for MMR diversity (6 * 3)
+            k=6,  # Fixed for style learning
+            lambda_mult=0.6,  # Moderate diversity for PYQ style examples
+            filter_metadata={"source_type": "pyq"}
         )
+        # Enrich with full content from content store (query_documents_mmr doesn't support use_content_store)
+        if pyq_chunks:
+            try:
+                from ..utils.content_store import ContentStore
+                content_store = ContentStore()
+                
+                for chunk in pyq_chunks:
+                    chunk_id = chunk.get("metadata", {}).get("chunk_id")
+                    filename = chunk.get("metadata", {}).get("filename")
+                    chapter = chunk.get("metadata", {}).get("chapter")
+                    
+                    if chunk_id and filename:
+                        full_content = content_store.get_chunk(
+                            chunk_id=chunk_id,
+                            filename=filename,
+                            chapter=chapter
+                        )
+                        if full_content:
+                            chunk["content"] = full_content
+                            chunk["metadata"]["_content_source"] = "content_store"
+                        else:
+                            chunk["metadata"]["_content_source"] = "content_preview"
+            except Exception as e:
+                logger.debug(f"⚠️ PYQ content store enrichment failed: {e}, using preview content")
+                for chunk in pyq_chunks:
+                    chunk["metadata"]["_content_source"] = "content_preview"
         logger.info(f"   ✅ Retrieved {len(pyq_chunks)} PYQ chunks (enriched from content store)")
     except Exception as e:
         logger.warning(f"⚠️ PYQ retrieval failed: {e}")
@@ -710,10 +770,11 @@ def hybrid_retrieve_for_mock_test(
                         difficulty=difficulty
                     )
                     
-                    # Retrieve current affairs chunks
+                    # Retrieve current affairs chunks (varies by difficulty)
+                    current_affairs_k = 2 if difficulty.lower() == "medium" else 3
                     matches = pinecone_handler.query_documents(
                         query_text=query_text,
-                        k=2 if difficulty.lower() == "medium" else 3,
+                        k=current_affairs_k,
                         filter_metadata={"source_type": "current_affairs"},
                         use_content_store=True  # Enriches with full content from local DB using chunk_ids
                     )
@@ -754,11 +815,19 @@ def hybrid_retrieve_for_mock_test(
     content_chunks_only = filter_recency(content_chunks_only, recent_questions)
     logger.info(f"   ✅ After recency filter: {len(content_chunks_only)} content chunks")
     
+    # Calculate adaptive total_target for source diversity (15-20 range, adaptive to available chunks)
+    # Ensures we have enough chunks while respecting availability
+    available_chunks = len(content_chunks_only)
+    # Target between 15-20, but don't exceed available chunks
+    # Formula: k_target + 5 gives us a good target, clamped to 15-20 range and available chunks
+    total_target = min(max(15, k_target + 5), min(20, available_chunks))
+    logger.info(f"   🎯 Source diversity target: {total_target} chunks (available: {available_chunks}, k_target: {k_target})")
+    
     # Apply source diversity v2 (ONLY on content chunks - no PYQ chunks)
     # PYQ chunks are handled separately for style learning, not included in content diversity
     diverse_content_chunks = enforce_source_diversity(
         content_chunks_only,
-        total_target=15,  # Target for 70% factual content
+        total_target=total_target,  # Adaptive: 15-20 range, respects available chunks
         source_weights={"current_affairs": 0.4, "concept": 0.6},  # No PYQ - PYQ chunks are separate for style learning
         concept_subweights={"ncert": 0.25, "topic": 0.25},
         max_per_file=2
@@ -769,19 +838,26 @@ def hybrid_retrieve_for_mock_test(
     # ================================
     logger.info("🔄 Applying final MMR re-ranking to content chunks...")
     if diverse_content_chunks:
+        # MMR uses same k as source diversity target (ensures consistency)
+        mmr_k = min(total_target, len(diverse_content_chunks))
         final_content = pinecone_handler.mmr_select_from_chunks(
             chunks=diverse_content_chunks,
             query_text=query,
-            k=min(15, len(diverse_content_chunks)),
+            k=mmr_k,  # Use total_target from source diversity
             lambda_mult=lambda_mult
         )
+        logger.info(f"   ✅ MMR selected {len(final_content)}/{len(diverse_content_chunks)} chunks (target: {mmr_k})")
     else:
         final_content = diverse_content_chunks
     
-    # Fallback: if we don't have enough content chunks, use original
+    # Fallback: if we don't have enough content chunks, use original with proper ratio
     if len(final_content) < 3 and concept_chunks:
-        logger.warning(f"⚠️ Only {len(final_content)} content chunks after filtering, using original")
-        final_content = concept_chunks[:10] + current_chunks[:3]
+        logger.warning(f"⚠️ Only {len(final_content)} content chunks after filtering, using fallback")
+        # Use total_target with proper ratio (60% concept, 40% current affairs)
+        fallback_concept_count = int(total_target * 0.6)
+        fallback_current_count = int(total_target * 0.4)
+        final_content = concept_chunks[:fallback_concept_count] + current_chunks[:fallback_current_count]
+        logger.info(f"   📊 Fallback: {fallback_concept_count} concept + {fallback_current_count} current affairs = {len(final_content)} total")
     
     # PYQ chunks remain separate - no filtering, no MMR, used directly for style learning
     pyq_final = pyq_chunks[:5]  # Use top 5 PYQ chunks for style learning
