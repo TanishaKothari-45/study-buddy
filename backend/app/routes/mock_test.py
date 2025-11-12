@@ -286,6 +286,8 @@ Your output must be indistinguishable from authentic UPSC questions.
 
 🧩 STYLE LEARNING (FEW-SHOT REFERENCE):
 
+Use the PYQ examples for style.
+
 You will study real UPSC PYQs provided below and replicate their:
 
 - Question phrasing ("Which of the following...", "Consider the following...")
@@ -350,13 +352,17 @@ When relevant content (filename or metadata containing "current" or "2025") over
 
 When forming questions:
 
-1. Prefer static sources for factual base.
+1. Use the conceptual context for content - this provides the factual and theoretical foundation.
 
-2. When current affairs context matches the static topic, combine both.
+2. Use the PYQ examples for style - replicate their phrasing, structure, and option patterns.
 
-3. Begin such questions with "Recently…" or include one statement from the current event.
+3. If relevant, blend one current-affairs statement in the question - when current affairs context matches the static topic, combine both naturally.
 
-4. Do not force current affairs; only use if relevant by subject.
+4. Prefer static sources for factual base, but when current affairs context matches the static topic, combine both.
+
+5. Begin such questions with "Recently…" or include one statement from the current event.
+
+6. Do not force current affairs; only use if relevant by subject.
 
 ---
 
@@ -612,32 +618,7 @@ def map_topics_to_domains(topics: List[str]) -> Dict[str, List[str]]:
         "sub_domains": sub_domains
     }
 
-def filter_chunks_by_topic(chunks: List[Dict], topics: Optional[List[str]] = None) -> List[Dict]:
-    """
-    Filter chunks by topic using metadata (major_domain/sub_domain).
-    If no topics provided, returns all chunks.
-    """
-    if not topics:
-        return chunks
-    
-    domain_mapping = map_topics_to_domains(topics)
-    major_domains = domain_mapping["major_domains"]
-    sub_domains = domain_mapping["sub_domains"]
-    
-    filtered = []
-    for chunk in chunks:
-        metadata = chunk.get("metadata", {})
-        chunk_major = metadata.get("major_domain", "")
-        chunk_sub = metadata.get("sub_domain", "")
-        
-        # Match if major_domain or sub_domain matches
-        if chunk_major in major_domains or chunk_sub in sub_domains:
-            filtered.append(chunk)
-        # Also include if any topic keyword appears in metadata
-        elif any(topic.lower() in str(metadata).lower() for topic in topics):
-            filtered.append(chunk)
-    
-    return filtered
+   
 
 def is_actual_question_chunk(chunk: Dict[str, Any]) -> bool:
     """Check if a chunk contains an actual UPSC question (not index/contents page)"""
@@ -729,13 +710,14 @@ def hybrid_retrieve_for_mock_test(
     num_questions: int = 10
 ) -> Tuple[List[Dict], List[Dict]]:
     """
-    Hybrid retrieval with progressive fallback, source diversity, and domain-aware strategies.
+    Hybrid retrieval using source_type metadata filters for cleaner, more accurate retrieval.
     
     This function implements:
-    1. Progressive fallback for PYQ retrieval (sub-domain → major-domain → general)
-    2. Domain-aware content retrieval with different strategies based on granularity
-    3. Source diversity enforcement (max 2 chunks per file)
-    4. Final MMR re-ranking for cross-source diversity
+    1. PYQ retrieval using source_type="pyq" filter (for style learning)
+    2. Concept retrieval using source_type="concept" filter (for content knowledge)
+    3. Current affairs retrieval using source_type="current_affairs" filter (semantically related to concepts)
+    4. Source diversity enforcement using enforce_source_diversity
+    5. Final MMR re-ranking for cross-source diversity
     
     Args:
         pinecone_handler: PineconeHandler instance
@@ -750,176 +732,147 @@ def hybrid_retrieve_for_mock_test(
     
     logger.info(f"🎯 [HYBRID_RETRIEVE] Starting retrieval: major_domain={major_domain}, sub_domain={sub_domain}")
     
-    # ================================
-    # 1️⃣ Progressive PYQ Retrieval (Style Learning)
-    # ================================
-    pyq_chunks = []
-    
-    def retrieve_pyqs(query_text: str, k: int = 5):
-        """Helper to retrieve and filter PYQ chunks"""
-        try:
-            retriever = pinecone_handler.get_retriever_for_mode("prelims", use_content_store=True)
-            if hasattr(retriever, 'invoke'):
-                docs = retriever.invoke(query_text)
-            else:
-                docs = retriever.get_relevant_documents(query_text)
-            
-            # Convert to chunk format
-            chunks = [{"content": d.page_content, "metadata": d.metadata} for d in docs]
-            
-            # Filter: PYQ files + actual questions
-            pyq_file_chunks = [c for c in chunks if is_pyq_chunk(c)]
-            pyq_question_chunks = [c for c in pyq_file_chunks if is_actual_question_chunk(c)]
-            
-            # Prefer actual questions, fallback to all PYQ chunks
-            return pyq_question_chunks if pyq_question_chunks else pyq_file_chunks[:k]
-        except Exception as e:
-            logger.warning(f"⚠️ PYQ retrieval failed for '{query_text}': {e}")
-            return []
-    
-    # Progressive fallback: sub-domain → major-domain → general
-    # Goal: Ensure at least 5 PYQ chunks for stylistic variation
-    TARGET_PYQ_CHUNKS = 5
-    
+    # Build query based on domain granularity
     if sub_domain:
-        logger.info(f"   🔍 Retrieving PYQs for sub-domain: {sub_domain}")
-        retrieved = retrieve_pyqs(f"UPSC prelims geography questions {sub_domain} which of the following consider")
-        pyq_chunks.extend(retrieved)
-        logger.info(f"      → Got {len(retrieved)} chunks from sub-domain search (total: {len(pyq_chunks)})")
-    
-    # Deduplicate after each step to avoid counting duplicates
-    seen_content = set()
-    unique_pyq_chunks = []
-    for chunk in pyq_chunks:
-        content_hash = hash(chunk["content"][:100])  # Use first 100 chars as hash
-        if content_hash not in seen_content:
-            seen_content.add(content_hash)
-            unique_pyq_chunks.append(chunk)
-    pyq_chunks = unique_pyq_chunks
-    
-    # If we don't have enough, try major-domain
-    if len(pyq_chunks) < TARGET_PYQ_CHUNKS and major_domain:
-        logger.info(f"   🔍 Retrieving PYQs for major-domain: {major_domain} (need {TARGET_PYQ_CHUNKS - len(pyq_chunks)} more)")
-        retrieved = retrieve_pyqs(f"UPSC prelims geography questions {major_domain} which of the following consider")
-        # Add only new chunks
-        for chunk in retrieved:
-            content_hash = hash(chunk["content"][:100])
-            if content_hash not in seen_content:
-                seen_content.add(content_hash)
-                pyq_chunks.append(chunk)
-        logger.info(f"      → Got {len(retrieved)} chunks from major-domain search (total: {len(pyq_chunks)})")
-    
-    # If still not enough, try general PYQ retrieval
-    if len(pyq_chunks) < TARGET_PYQ_CHUNKS:
-        logger.info(f"   🔍 Retrieving general PYQs (fallback, need {TARGET_PYQ_CHUNKS - len(pyq_chunks)} more)")
-        retrieved = retrieve_pyqs("UPSC prelims geography questions which of the following consider select")
-        # Add only new chunks
-        for chunk in retrieved:
-            content_hash = hash(chunk["content"][:100])
-            if content_hash not in seen_content:
-                seen_content.add(content_hash)
-                pyq_chunks.append(chunk)
-        logger.info(f"      → Got {len(retrieved)} chunks from general search (total: {len(pyq_chunks)})")
-    
-    # Limit to reasonable max but ensure we have at least what we got (up to 8 for prompt focus)
-    pyq_chunks = pyq_chunks[:8]  # Upper limit for prompt focus
-    logger.info(f"✅ Retrieved {len(pyq_chunks)} PYQ chunks for style reference (target was {TARGET_PYQ_CHUNKS})")
-    
-    # ================================
-    # 2️⃣ Domain-Aware Content Retrieval (Knowledge)
-    # ================================
-    logger.info("📘 Retrieving factual content chunks...")
-    
-    # Adjust retrieval strategy based on granularity
-    if sub_domain:
-        # Micro-topic diversity under sub-domain
         query = f"{sub_domain} geography concepts NCERT vision notes important topics"
         k_target = 10
         lambda_mult = 0.65
         logger.info(f"   🎯 Sub-domain mode: focusing on micro-topics within {sub_domain}")
     elif major_domain:
-        # Diversify across sub-domains within major domain
         query = f"{major_domain} major subtopics theories NCERT vision notes"
         k_target = 10
         lambda_mult = 0.65
         logger.info(f"   🎯 Major-domain mode: diversifying across sub-domains in {major_domain}")
     else:
-        # Very general query → broad coverage
         query = "important geography topics for UPSC NCERT vision notes static and current"
         k_target = 12
         lambda_mult = 0.6
         logger.info(f"   🎯 General mode: broad coverage")
     
+    # ================================
+    # 1️⃣ Conceptual Base Retrieval (source_type="concept")
+    # ================================
+    # Flow: Pinecone vector search → get chunk_ids → enrich from local DB (content store)
+    logger.info("📘 Retrieving conceptual chunks (source_type='concept')...")
+    logger.info("   🔍 Step 1: Querying Pinecone vectorstore for similar embeddings...")
     try:
-        content_retriever = pinecone_handler.get_retriever_for_mode("prelims", use_content_store=True)
-        if hasattr(content_retriever, 'invoke'):
-            content_docs = content_retriever.invoke(query)
-        else:
-            content_docs = content_retriever.get_relevant_documents(query)
+        concept_chunks = pinecone_handler.query_documents(
+            query_text=query,
+            k=10,
+            filter_metadata={"source_type": "concept"},
+            use_content_store=True  # Enriches with full content from local DB using chunk_ids
+        )
+        logger.info(f"   ✅ Retrieved {len(concept_chunks)} concept chunks (enriched from content store)")
     except Exception as e:
-        logger.warning(f"⚠️ Content retrieval failed: {e}")
-        content_docs = []
-    
-    # Convert to chunk format and filter out PYQ files
-    content_chunks = [
-        {"content": doc.page_content, "metadata": doc.metadata}
-        for doc in content_docs
-        if not is_pyq_chunk({"metadata": doc.metadata})
-    ]
-    
-    # Apply source diversity enforcement (max 2 chunks per file)
-    content_chunks = enforce_source_diversity(content_chunks, max_per_file=2)
-    
-    logger.info(f"✅ Retrieved {len(content_chunks)} content chunks for factual grounding")
+        logger.warning(f"⚠️ Concept retrieval failed: {e}")
+        concept_chunks = []
     
     # ================================
-    # 3️⃣ Tag Chunks with Source Metadata
+    # 2️⃣ PYQ Retrieval for Style (source_type="pyq")
     # ================================
-    for chunk in pyq_chunks:
-        if "metadata" not in chunk:
-            chunk["metadata"] = {}
-        chunk["metadata"]["source"] = "pyq"
-    
-    for chunk in content_chunks:
-        if "metadata" not in chunk:
-            chunk["metadata"] = {}
-        chunk["metadata"]["source"] = "content"
+    # Flow: Pinecone vector search → get chunk_ids → enrich from local DB (content store)
+    logger.info("📝 Retrieving PYQ chunks (source_type='pyq') for style reference...")
+    logger.info("   🔍 Step 1: Querying Pinecone vectorstore for similar embeddings...")
+    try:
+        pyq_chunks = pinecone_handler.query_documents(
+            query_text=query,
+            k=5,
+            filter_metadata={"source_type": "pyq"},
+            use_content_store=True  # Enriches with full content from local DB using chunk_ids
+        )
+        logger.info(f"   ✅ Retrieved {len(pyq_chunks)} PYQ chunks (enriched from content store)")
+    except Exception as e:
+        logger.warning(f"⚠️ PYQ retrieval failed: {e}")
+        pyq_chunks = []
     
     # ================================
-    # 4️⃣ Final MMR Re-ranking for Cross-Source Diversity
+    # 3️⃣ Current Affairs Overlay (Semantically Related to Concept)
     # ================================
-    logger.info("🔄 Applying final cross-source MMR diversity selection...")
-    combined_chunks = pyq_chunks + content_chunks
-    
-    if combined_chunks:
-        # Create combined query for MMR relevance calculation
-        combined_query = query if query else "UPSC Geography important topics"
+    # Flow: For each concept chunk → Pinecone vector search → get chunk_ids → enrich from local DB
+    logger.info("🗞️ Retrieving current affairs chunks (source_type='current_affairs')...")
+    logger.info("   🔍 Querying Pinecone for semantically related current affairs...")
+    current_chunks = []
+    try:
+        # For each concept chunk, find semantically related current affairs
+        for chunk in concept_chunks[:5]:  # Limit to first 5 to avoid too many queries
+            topic_text = chunk["content"][:250]
+            try:
+                matches = pinecone_handler.query_documents(
+                    query_text=topic_text,
+                    k=2,
+                    filter_metadata={"source_type": "current_affairs"},
+                    use_content_store=True  # Enriches with full content from local DB using chunk_ids
+                )
+                current_chunks.extend(matches)
+            except Exception as e:
+                logger.debug(f"   ⚠️ Current affairs search failed for chunk: {e}")
+                continue
         
-        diverse_chunks = pinecone_handler.mmr_select_from_chunks(
-            chunks=combined_chunks,
-            query_text=combined_query,
-            k=min(k_target + 2, len(combined_chunks)),  # +2 to ensure we have enough after separation
+        # Deduplicate current chunks
+        seen_content = set()
+        unique_current_chunks = []
+        for chunk in current_chunks:
+            content_hash = hash(chunk["content"][:100])
+            if content_hash not in seen_content:
+                seen_content.add(content_hash)
+                unique_current_chunks.append(chunk)
+        current_chunks = unique_current_chunks
+        
+        logger.info(f"   ✅ Retrieved {len(current_chunks)} current affairs chunks")
+    except Exception as e:
+        logger.warning(f"⚠️ Current affairs retrieval failed: {e}")
+        current_chunks = []
+    
+    # ================================
+    # 4️⃣ Combine and Apply Source Diversity
+    # ================================
+    all_chunks = pyq_chunks + concept_chunks + current_chunks
+    logger.info(f"📊 Combined chunks: {len(pyq_chunks)} PYQ + {len(concept_chunks)} concept + {len(current_chunks)} current affairs = {len(all_chunks)} total")
+    
+    # Apply source diversity v2 (enforces diversity across source types and files)
+    diverse_chunks = enforce_source_diversity(
+        all_chunks,
+    total_target=15,
+    source_weights={"pyq": 0.2, "current_affairs": 0.3, "concept": 0.5},
+    concept_subweights={"ncert": 0.25, "topic": 0.25},
+    max_per_file=2
+    )
+    
+    # ================================
+    # 5️⃣ Final MMR Re-ranking
+    # ================================
+    logger.info("🔄 Applying final MMR re-ranking...")
+    if diverse_chunks:
+        final_context = pinecone_handler.mmr_select_from_chunks(
+            chunks=diverse_chunks,
+            query_text=query,
+            k=min(15, len(diverse_chunks)),
             lambda_mult=lambda_mult
         )
-        
-        # Separate back into PYQ and content using source metadata
-        diverse_pyq_chunks = [c for c in diverse_chunks if c.get("metadata", {}).get("source") == "pyq"]
-        diverse_content_chunks = [c for c in diverse_chunks if c.get("metadata", {}).get("source") == "content"]
-        
-        # Use diverse chunks, but fallback to original if MMR didn't preserve enough
-        if len(diverse_pyq_chunks) >= 2:
-            pyq_chunks = diverse_pyq_chunks
-        else:
-            logger.warning(f"⚠️ MMR didn't preserve enough PYQ chunks ({len(diverse_pyq_chunks)}), using original")
-        
-        if len(diverse_content_chunks) >= 3:
-            content_chunks = diverse_content_chunks
-        else:
-            logger.warning(f"⚠️ MMR didn't preserve enough content chunks ({len(diverse_content_chunks)}), using original")
+    else:
+        final_context = diverse_chunks
     
-    logger.info(f"📊 Final selection: {len(pyq_chunks)} PYQ chunks and {len(content_chunks)} content chunks")
+    # ================================
+    # 6️⃣ Separate Back into PYQ and Content
+    # ================================
+    pyq_final = [c for c in final_context if c.get("metadata", {}).get("source_type") == "pyq"]
+    content_final = [
+        c for c in final_context 
+        if c.get("metadata", {}).get("source_type") in ["concept", "current_affairs"]
+    ]
     
-    return pyq_chunks, content_chunks
+    # Fallback: if we don't have enough after filtering, use original chunks
+    if len(pyq_final) < 2 and pyq_chunks:
+        logger.warning(f"⚠️ Only {len(pyq_final)} PYQ chunks after filtering, using original")
+        pyq_final = pyq_chunks[:5]
+    
+    if len(content_final) < 3 and concept_chunks:
+        logger.warning(f"⚠️ Only {len(content_final)} content chunks after filtering, using original")
+        content_final = concept_chunks[:8] + current_chunks[:2]
+    
+    logger.info(f"📊 Final selection: {len(pyq_final)} PYQ chunks and {len(content_final)} content chunks")
+    
+    return pyq_final, content_final
 
 @router.get("/domains")
 async def get_geography_domains():
@@ -974,21 +927,6 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
     except Exception as e:
         logger.error(f"❌ Mock test generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-def is_pyq_chunk(chunk: Dict[str, Any]) -> bool:
-    """Check if a chunk is from a PYQ (Previous Year Question) file"""
-    metadata = chunk.get("metadata", {})
-    filename = metadata.get("filename", "").lower()
-    
-    # PYQ filename patterns
-    pyq_patterns = [
-        "geography-pyq topic wise",
-        "geography_questions_in_upsc_prelims",
-        "pyq",
-        "prelims",
-        "previous year"
-    ]
-    
-    return any(pattern in filename for pattern in pyq_patterns)
 
 def map_topics_to_domains(topics: List[str]) -> Dict[str, List[str]]:
     """
@@ -1026,45 +964,6 @@ def map_topics_to_domains(topics: List[str]) -> Dict[str, List[str]]:
         "sub_domains": sub_domains
     }
 
-def filter_chunks_by_topic(chunks: List[Dict], topics: Optional[List[str]] = None) -> List[Dict]:
-    """
-    Filter chunks by topic using metadata (major_domain/sub_domain).
-    If no topics provided, returns all chunks.
-    """
-    if not topics:
-        return chunks
-    
-    domain_mapping = map_topics_to_domains(topics)
-    major_domains = domain_mapping["major_domains"]
-    sub_domains = domain_mapping["sub_domains"]
-    
-    if not major_domains and not sub_domains:
-        # No mapping found, return all chunks
-        return chunks
-    
-    filtered = []
-    for chunk in chunks:
-        metadata = chunk.get("metadata", {})
-        chunk_major = metadata.get("major_domain", "")
-        chunk_sub = metadata.get("sub_domain", "")
-        
-        # Check if chunk matches any mapped domain/subdomain
-        matches = False
-        if major_domains and chunk_major in major_domains:
-            matches = True
-        if sub_domains and chunk_sub in sub_domains:
-            matches = True
-        
-        if matches:
-            filtered.append(chunk)
-    
-    # If filtering resulted in too few chunks, return original
-    if len(filtered) < 2 and len(chunks) > 5:
-        logger.warning(f"⚠️ Topic filtering too strict ({len(filtered)} chunks), using all chunks")
-        return chunks
-    
-    logger.info(f"📊 Filtered {len(chunks)} → {len(filtered)} chunks by topic")
-    return filtered
 
 def is_actual_question_chunk(chunk: Dict[str, Any]) -> bool:
     """Check if a chunk contains an actual question (not just index/contents)"""

@@ -84,6 +84,70 @@ Example output format:
 CLASSIFICATION_BATCH_SIZE = 5
 MAX_RETRIES = 1
 
+# --- source type detection --- #
+def detect_source_type(filename: str) -> Dict[str, str]:
+    """
+    Determine source_type and source_subtype from filename.
+    
+    Returns dict: {"source_type": str, "source_subtype": str or None}
+    
+    Priority: PYQ > NCERT > Current Affairs > Concept (topic)
+    
+    Uses word-boundary matching to avoid false positives (e.g., "ca" in "Practical").
+    """
+    filename_lower = filename.lower()
+    
+    # PYQ patterns - check first
+    pyq_patterns = [
+        "geography-pyq topic wise", "geography_questions_in_upsc_prelims",
+        "pyq", "prelims", "previous year"
+    ]
+    
+    # NCERT patterns - check before current affairs (more specific)
+    ncert_patterns = ["ncert"]
+    
+    # Current Affairs patterns - use word boundaries to avoid false matches
+    # e.g., "ca" should match "ca" or "current_affairs" but not "Practical"
+    import re
+    
+    # Check PYQ first
+    for pattern in pyq_patterns:
+        if pattern in filename_lower:
+            return {"source_type": "pyq", "source_subtype": None}
+    
+    # Check NCERT second (before current affairs to avoid false positives)
+    for pattern in ncert_patterns:
+        if pattern in filename_lower:
+            return {"source_type": "concept", "source_subtype": "ncert"}
+    
+    # Check Current Affairs - handle underscores, hyphens, and spaces
+    # Normalize filename: replace underscores and hyphens with spaces for matching
+    normalized = re.sub(r'[_\-\s]+', ' ', filename_lower)
+    
+    # Check for "current affair" or "current affairs" (handles all separators)
+    if re.search(r'\bcurrent\s+affair', normalized):
+        return {"source_type": "current_affairs", "source_subtype": None}
+    
+    # Check for "vision monthly" or "vision magazine" or "monthly magazine"
+    if re.search(r'\bvision\s+(monthly|magazine)', normalized) or \
+       re.search(r'\bmonthly\s+magazine', normalized):
+        return {"source_type": "current_affairs", "source_subtype": None}
+    
+    # Check single words with word boundaries (avoid substring matches)
+    # Only check if they appear together or in context
+    current_words = ["current", "affair", "vision", "monthly", "magazine"]
+    # If we find "current" AND "affair" (in any order), it's current affairs
+    if re.search(r'\bcurrent\b', normalized) and re.search(r'\baffair\b', normalized):
+        return {"source_type": "current_affairs", "source_subtype": None}
+    
+    # If we find "vision" AND ("monthly" OR "magazine"), it's current affairs
+    if re.search(r'\bvision\b', normalized) and \
+       (re.search(r'\bmonthly\b', normalized) or re.search(r'\bmagazine\b', normalized)):
+        return {"source_type": "current_affairs", "source_subtype": None}
+    
+    # Default fallback
+    return {"source_type": "concept", "source_subtype": "topic"}
+
 # --- simple rule-based detection (fallback) --- #
 def detect_topic(text: str) -> Dict[str, str]:
     """Rule-based fallback for domain detection"""
@@ -201,6 +265,11 @@ def classify_chunks_batch(chunks: List[Dict[str, Any]], client: OpenAI) -> List[
             classification = results[j] if j < len(results) else {}
             meta = chunk["metadata"].copy()
             
+            # Detect source_type from filename
+            filename = meta.get("filename", "")
+            source_info = detect_source_type(filename)
+            meta.update(source_info)
+            
             # Extract classification fields
             major_domain = classification.get("major_domain")
             sub_domain = classification.get("sub_domain")
@@ -257,6 +326,9 @@ def classify_chunks_batch(chunks: List[Dict[str, Any]], client: OpenAI) -> List[
 def enrich_metadata(chunk_text: str, filename: str, chapter: str, section: str, llm_client: OpenAI) -> Dict[str, Any]:
     """Hybrid enrichment — rules first, then LLM fallback."""
     rule_meta = detect_topic(chunk_text)
+    
+    # Detect source_type from filename
+    source_info = detect_source_type(filename)
 
     if rule_meta["major_domain"]:
         logger.debug(f"✅ Rule-based match: {rule_meta}")
@@ -271,6 +343,7 @@ def enrich_metadata(chunk_text: str, filename: str, chapter: str, section: str, 
             "chapter": chapter,
             "section": section,
             "filename": filename,
+            **source_info  # Add source_type and source_subtype
         }
 
     # LLM fallback for uncertain chunks
@@ -303,14 +376,16 @@ def enrich_metadata(chunk_text: str, filename: str, chapter: str, section: str, 
             "summary": chunk_text[:100],
             "chapter": chapter,
             "section": section,
-            "filename": filename
+            "filename": filename,
+            **source_info  # Add source_type and source_subtype
         }
 
     meta = {
         "subject": "Geography",
         "chapter": chapter,
         "section": section,
-        "filename": filename
+        "filename": filename,
+        **source_info  # Add source_type and source_subtype
     }
     for line in content.splitlines():
         if ":" in line:

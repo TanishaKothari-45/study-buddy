@@ -52,6 +52,8 @@ class ContentStore:
                 sub_domain TEXT,
                 micro_topic TEXT,
                 sub_topics TEXT,
+                source_type TEXT,
+                source_subtype TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(chunk_id, filename)
             )
@@ -78,12 +80,25 @@ class ContentStore:
         except sqlite3.OperationalError:
             pass
         
+        # Add source_type and source_subtype columns if they don't exist
+        try:
+            cursor.execute("ALTER TABLE chunks ADD COLUMN source_type TEXT")
+        except sqlite3.OperationalError:
+            pass
+        
+        try:
+            cursor.execute("ALTER TABLE chunks ADD COLUMN source_subtype TEXT")
+        except sqlite3.OperationalError:
+            pass
+        
         # Create indexes for fast lookup
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_chunk_filename ON chunks(chunk_id, filename)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_filename ON chunks(filename)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_chapter ON chunks(chapter)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_major_domain ON chunks(major_domain)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sub_domain ON chunks(sub_domain)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_source_type ON chunks(source_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_source_subtype ON chunks(source_subtype)")
         
         conn.commit()
         conn.close()
@@ -94,7 +109,9 @@ class ContentStore:
                     major_domain: Optional[str] = None,
                     sub_domain: Optional[str] = None,
                     micro_topic: Optional[str] = None,
-                    sub_topics: Optional[List[str]] = None) -> bool:
+                    sub_topics: Optional[List[str]] = None,
+                    source_type: Optional[str] = None,
+                    source_subtype: Optional[str] = None) -> bool:
         """
         Store a chunk's full content.
         
@@ -109,6 +126,8 @@ class ContentStore:
             sub_domain: Sub domain classification (optional, copied from Pinecone)
             micro_topic: Micro topic classification (optional, copied from Pinecone)
             sub_topics: List of sub topics (optional, copied from Pinecone, stored as JSON string)
+            source_type: Source type (pyq, current_affairs, concept) - auto-detected from filename if not provided
+            source_subtype: Source subtype (ncert, topic, None) - auto-detected from filename if not provided
         
         Returns:
             True if stored successfully
@@ -124,6 +143,15 @@ class ContentStore:
                 import json
                 sub_topics_str = json.dumps(sub_topics) if isinstance(sub_topics, list) else str(sub_topics)
             
+            # Auto-detect source_type and source_subtype from filename if not provided
+            if source_type is None or source_subtype is None:
+                from .metadata_enricher import detect_source_type
+                source_info = detect_source_type(filename)
+                if source_type is None:
+                    source_type = source_info.get("source_type")
+                if source_subtype is None:
+                    source_subtype = source_info.get("source_subtype")
+            
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
@@ -131,8 +159,8 @@ class ContentStore:
             cursor.execute("""
                 INSERT OR REPLACE INTO chunks 
                 (chunk_id, filename, chapter, section, full_content, content_length, content_preview,
-                 major_domain, sub_domain, micro_topic, sub_topics)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 major_domain, sub_domain, micro_topic, sub_topics, source_type, source_subtype)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 chunk_id,
                 filename,
@@ -144,7 +172,9 @@ class ContentStore:
                 major_domain,
                 sub_domain,
                 micro_topic,
-                sub_topics_str
+                sub_topics_str,
+                source_type,
+                source_subtype
             ))
             
             conn.commit()
@@ -328,13 +358,15 @@ class ContentStore:
         Store multiple chunks in batch.
         
         Args:
-            chunks: List of dicts with keys: chunk_id, filename, content, chapter, section
+            chunks: List of dicts with keys: chunk_id, filename, content, chapter, section, source_type, source_subtype
         
         Returns:
             Dict with success count and failures
         """
         success_count = 0
         failures = []
+        
+        from .metadata_enricher import detect_source_type
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -349,14 +381,27 @@ class ContentStore:
                     section = chunk.get("section")
                     content_preview = chunk.get("content_preview", content[:300])
                     
+                    # Get source_type and source_subtype from chunk metadata or auto-detect
+                    source_type = chunk.get("source_type")
+                    source_subtype = chunk.get("source_subtype")
+                    
+                    # Auto-detect if not provided
+                    if source_type is None or source_subtype is None:
+                        source_info = detect_source_type(filename)
+                        if source_type is None:
+                            source_type = source_info.get("source_type")
+                        if source_subtype is None:
+                            source_subtype = source_info.get("source_subtype")
+                    
                     if not chunk_id or not filename or not content:
                         failures.append(chunk_id or "unknown")
                         continue
                     
                     cursor.execute("""
                         INSERT OR REPLACE INTO chunks 
-                        (chunk_id, filename, chapter, section, full_content, content_length, content_preview)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        (chunk_id, filename, chapter, section, full_content, content_length, content_preview,
+                         source_type, source_subtype)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         chunk_id,
                         filename,
@@ -364,7 +409,9 @@ class ContentStore:
                         section,
                         content,
                         len(content),
-                        content_preview
+                        content_preview,
+                        source_type,
+                        source_subtype
                     ))
                     success_count += 1
                 except Exception as e:

@@ -220,7 +220,9 @@ def match_and_store_pinecone_chunks(
                     major_domain=pc_meta.get('major_domain') if pc_meta else None,
                     sub_domain=pc_meta.get('sub_domain') if pc_meta else None,
                     micro_topic=pc_meta.get('micro_topic') if pc_meta else None,
-                    sub_topics=pc_meta.get('sub_topics') if pc_meta else None
+                    sub_topics=pc_meta.get('sub_topics') if pc_meta else None,
+                    source_type=pc_meta.get('source_type') if pc_meta else None,
+                    source_subtype=pc_meta.get('source_subtype') if pc_meta else None
                 )
                 
                 if stored:
@@ -248,6 +250,8 @@ def match_and_store_pinecone_chunks(
                 sub_domain = content_chunk['metadata'].get('sub_domain')
                 micro_topic = content_chunk['metadata'].get('micro_topic')
                 sub_topics = content_chunk['metadata'].get('sub_topics')
+                source_type = content_chunk['metadata'].get('source_type')
+                source_subtype = content_chunk['metadata'].get('source_subtype')
                 
                 stored = content_store.store_chunk(
                     chunk_id=chunk_id,
@@ -259,7 +263,9 @@ def match_and_store_pinecone_chunks(
                     major_domain=major_domain,
                     sub_domain=sub_domain,
                     micro_topic=micro_topic,
-                    sub_topics=sub_topics
+                    sub_topics=sub_topics,
+                    source_type=source_type,
+                    source_subtype=source_subtype
                 )
                 
                 if stored:
