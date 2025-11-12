@@ -15,16 +15,18 @@ def enforce_source_diversity(
     Weighted, source-aware diversity enforcement.
     
     Ensures retrieved chunks are balanced according to proportional weights
-    between PYQs, Concept (NCERT + Topic), and Current Affairs.
+    between Concept (NCERT + Topic) and Current Affairs.
+    
+    Note: PYQ chunks are NOT included here - they are handled separately for style learning.
     
     Example weights:
-        source_weights = {"pyq": 0.2, "current_affairs": 0.3, "concept": 0.5}
+        source_weights = {"current_affairs": 0.4, "concept": 0.6}
         concept_subweights = {"ncert": 0.25, "topic": 0.25}  # fractions of concept
     
     Args:
         chunks: list of chunk dicts (each with metadata)
         total_target: total number of chunks desired after balancing
-        source_weights: proportional weights for each source_type
+        source_weights: proportional weights for each source_type (no PYQ)
         concept_subweights: optional distribution inside 'concept'
         max_per_file: max number of chunks from the same filename
         
@@ -35,8 +37,9 @@ def enforce_source_diversity(
         return []
 
     # --- default weights if none provided ---
+    # Note: PYQ chunks are handled separately for style learning, not included here
     if source_weights is None:
-        source_weights = {"pyq": 0.2, "current_affairs": 0.3, "concept": 0.5}
+        source_weights = {"current_affairs": 0.4, "concept": 0.6}
     if concept_subweights is None:
         concept_subweights = {"ncert": 0.25, "topic": 0.25}
 

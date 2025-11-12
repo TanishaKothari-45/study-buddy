@@ -712,6 +712,9 @@ elif tab_choice == "Generate Mock Test":
             st.session_state.user_answers = {}
             st.session_state.scores = {}
             st.session_state.test_submitted = False
+            st.session_state.question_feedback = {}
+            st.session_state.test_topics = []
+            st.session_state.test_difficulty = "medium"
             st.rerun()
 
     # Generate test if button clicked
@@ -735,6 +738,9 @@ elif tab_choice == "Generate Mock Test":
                     st.session_state.user_answers = {}  # Reset answers
                     st.session_state.scores = {}  # Reset scores
                     st.session_state.test_submitted = False  # Reset submission state
+                    st.session_state.test_topics = topics  # Store topics for feedback
+                    st.session_state.test_difficulty = difficulty  # Store difficulty for feedback
+                    st.session_state.question_feedback = {}  # Reset feedback tracking
                     st.rerun()
                 else:
                     st.error("Failed to generate mock test")
@@ -763,6 +769,12 @@ elif tab_choice == "Generate Mock Test":
             st.session_state.scores = {}
         if "test_submitted" not in st.session_state:
             st.session_state.test_submitted = False
+        if "question_feedback" not in st.session_state:
+            st.session_state.question_feedback = {}
+        if "test_topics" not in st.session_state:
+            st.session_state.test_topics = []
+        if "test_difficulty" not in st.session_state:
+            st.session_state.test_difficulty = "medium"
         
         # Progress indicator at top
         if not st.session_state.test_submitted:
@@ -775,21 +787,127 @@ elif tab_choice == "Generate Mock Test":
         for i, q in enumerate(data["questions"], 1):
             st.markdown("---")
             
-            # Question number and text in a styled container (dark mode compatible)
-            with st.container():
-                # Show question status indicator if submitted
-                status_indicator = ""
-                if st.session_state.test_submitted:
-                    user_answer = st.session_state.user_answers.get(i)
-                    correct_answer = q.get('correct_answer', '').upper()
-                    if user_answer == correct_answer:
-                        status_indicator = " ✅"
-                    elif user_answer:
-                        status_indicator = " ❌"
-                    else:
-                        status_indicator = " ⚠️"
+            # Create two columns: left for question, right for rating buttons
+            question_col, rating_col = st.columns([4, 1])
+            
+            with question_col:
+                # Question number and text in a styled container (dark mode compatible)
+                with st.container():
+                    # Show question status indicator if submitted
+                    status_indicator = ""
+                    if st.session_state.test_submitted:
+                        user_answer = st.session_state.user_answers.get(i)
+                        correct_answer = q.get('correct_answer', '').upper()
+                        if user_answer == correct_answer:
+                            status_indicator = " ✅"
+                        elif user_answer:
+                            status_indicator = " ❌"
+                        else:
+                            status_indicator = " ⚠️"
+                    
+                    st.markdown(f"### Question {i} of {len(data['questions'])}{status_indicator}")
+            
+            with rating_col:
+                # Rating buttons (High, Medium, Low) - positioned on the right
+                st.markdown("<br>", unsafe_allow_html=True)  # Spacing
+                st.markdown("**Rate Question:**")
                 
-                st.markdown(f"### Question {i} of {len(data['questions'])}{status_indicator}")
+                # Get question text for feedback (use the raw question text)
+                question_text_for_feedback = q['question']
+                current_feedback = st.session_state.question_feedback.get(i)
+                
+                # Get topic and difficulty for feedback
+                topic = st.session_state.test_topics[0] if st.session_state.test_topics else "Geography"
+                difficulty = st.session_state.test_difficulty
+                
+                # High button
+                high_key = f"rate_high_{i}"
+                high_clicked = st.button("⭐ High", key=high_key, use_container_width=True, 
+                                        type="primary" if current_feedback == "high" else "secondary")
+                
+                # Medium button
+                med_key = f"rate_med_{i}"
+                med_clicked = st.button("✓ Medium", key=med_key, use_container_width=True,
+                                       type="primary" if current_feedback == "medium" else "secondary")
+                
+                # Low button
+                low_key = f"rate_low_{i}"
+                low_clicked = st.button("○ Low", key=low_key, use_container_width=True,
+                                       type="primary" if current_feedback == "low" else "secondary")
+                
+                # Handle button clicks
+                if high_clicked:
+                    try:
+                        feedback_response = requests.post(
+                            f"{BACKEND_URL}/feedback/",
+                            json={
+                                "question_text": question_text_for_feedback,
+                                "topic": topic,
+                                "difficulty": difficulty,
+                                "quality": "high",
+                                "reason": None
+                            },
+                            timeout=5
+                        )
+                        if feedback_response.status_code == 200:
+                            st.session_state.question_feedback[i] = "high"
+                            st.success("✅ Rated as High quality!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to submit feedback")
+                    except Exception as e:
+                        st.error(f"Error submitting feedback: {str(e)}")
+                
+                elif med_clicked:
+                    try:
+                        feedback_response = requests.post(
+                            f"{BACKEND_URL}/feedback/",
+                            json={
+                                "question_text": question_text_for_feedback,
+                                "topic": topic,
+                                "difficulty": difficulty,
+                                "quality": "medium",
+                                "reason": None
+                            },
+                            timeout=5
+                        )
+                        if feedback_response.status_code == 200:
+                            st.session_state.question_feedback[i] = "medium"
+                            st.success("✅ Rated as Medium quality!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to submit feedback")
+                    except Exception as e:
+                        st.error(f"Error submitting feedback: {str(e)}")
+                
+                elif low_clicked:
+                    try:
+                        feedback_response = requests.post(
+                            f"{BACKEND_URL}/feedback/",
+                            json={
+                                "question_text": question_text_for_feedback,
+                                "topic": topic,
+                                "difficulty": difficulty,
+                                "quality": "low",
+                                "reason": None
+                            },
+                            timeout=5
+                        )
+                        if feedback_response.status_code == 200:
+                            st.session_state.question_feedback[i] = "low"
+                            st.success("✅ Rated as Low quality!")
+                            st.rerun()
+                        else:
+                            st.error("Failed to submit feedback")
+                    except Exception as e:
+                        st.error(f"Error submitting feedback: {str(e)}")
+                
+                # Show current rating if exists
+                if current_feedback:
+                    st.caption(f"Current: {current_feedback.title()}")
+            
+            # Continue with question display in the left column
+            with question_col:
                 
                 # Format question text with enhanced formatting for different question types
                 question_text = q['question']
@@ -1184,100 +1302,100 @@ elif tab_choice == "Generate Mock Test":
                             <div style='white-space: pre-wrap; color: #2c2c2c;'>{question_text}</div>
                         </div>
                         """, unsafe_allow_html=True)
-            
-            # Options displayed separately for better readability
-            st.markdown("**Select your answer:**")
-            
-            # Calculate index for previously selected answer
-            selected_index = None
-            if i in st.session_state.user_answers:
-                selected_letter = st.session_state.user_answers[i]
-                letter_index = ord(selected_letter) - 65  # Convert A=0, B=1, C=2, D=3
-                if 0 <= letter_index < len(q["options"]):
-                    selected_index = letter_index
-            
-            # Radio buttons - disabled if test is submitted
-            answer = st.radio(
-                "Select your answer",
-                q["options"],
-                key=f"q_{i}",
-                index=selected_index,  # Show previously selected answer
-                disabled=st.session_state.test_submitted,  # Disable after submission
-                label_visibility="hidden"
-            )
-            
-            # Store user answer if not submitted yet
-            if answer is not None and not st.session_state.test_submitted:
-                answer_index = q["options"].index(answer)
-                option_letter = chr(65 + answer_index)  # A, B, C, D
-                st.session_state.user_answers[i] = option_letter
-                st.info(f"📌 **You selected: {option_letter}**")
-            
-            # Show correct/wrong immediately after submission (for all questions)
-            if st.session_state.test_submitted:
-                correct_answer = q.get('correct_answer', '').upper()
-                user_answer = st.session_state.user_answers.get(i)
                 
-                if user_answer:
-                    is_correct = user_answer == correct_answer
-                    if is_correct:
-                        st.success(f"✅ **Correct!** You selected **{user_answer}** and it's the right answer. (+2 marks)")
+                # Options displayed separately for better readability
+                st.markdown("**Select your answer:**")
+                
+                # Calculate index for previously selected answer
+                selected_index = None
+                if i in st.session_state.user_answers:
+                    selected_letter = st.session_state.user_answers[i]
+                    letter_index = ord(selected_letter) - 65  # Convert A=0, B=1, C=2, D=3
+                    if 0 <= letter_index < len(q["options"]):
+                        selected_index = letter_index
+                
+                # Radio buttons - disabled if test is submitted
+                answer = st.radio(
+                    "Select your answer",
+                    q["options"],
+                    key=f"q_{i}",
+                    index=selected_index,  # Show previously selected answer
+                    disabled=st.session_state.test_submitted,  # Disable after submission
+                    label_visibility="hidden"
+                )
+                
+                # Store user answer if not submitted yet
+                if answer is not None and not st.session_state.test_submitted:
+                    answer_index = q["options"].index(answer)
+                    option_letter = chr(65 + answer_index)  # A, B, C, D
+                    st.session_state.user_answers[i] = option_letter
+                    st.info(f"📌 **You selected: {option_letter}**")
+                
+                # Show correct/wrong immediately after submission (for all questions)
+                if st.session_state.test_submitted:
+                    correct_answer = q.get('correct_answer', '').upper()
+                    user_answer = st.session_state.user_answers.get(i)
+                    
+                    if user_answer:
+                        is_correct = user_answer == correct_answer
+                        if is_correct:
+                            st.success(f"✅ **Correct!** You selected **{user_answer}** and it's the right answer. (+2 marks)")
+                        else:
+                            st.error(f"❌ **Incorrect!** You selected **{user_answer}**, but the correct answer is **{correct_answer}**. (-0.67 marks)")
                     else:
-                        st.error(f"❌ **Incorrect!** You selected **{user_answer}**, but the correct answer is **{correct_answer}**. (-0.67 marks)")
-                else:
-                    st.warning(f"⚠️ **Not answered.** The correct answer is **{correct_answer}**. (0 marks)")
-            
-            # Toggle explanation button (only enabled after submission)
-            explanation_key = f"explanation_{i}"
-            explanation_disabled = not st.session_state.test_submitted
-            
-            # Only show explanation button after submission
-            if st.session_state.test_submitted:
-                if st.button(
-                    f"{'🔽 Hide' if explanation_key in st.session_state.show_explanations else '▶️ Show'} Explanation for Question {i}", 
-                    key=f"btn_{i}",
-                    use_container_width=False
-                ):
-                    # Toggle explanation state
-                    if explanation_key in st.session_state.show_explanations:
-                        del st.session_state.show_explanations[explanation_key]
+                        st.warning(f"⚠️ **Not answered.** The correct answer is **{correct_answer}**. (0 marks)")
+                
+                # Toggle explanation button (only enabled after submission)
+                explanation_key = f"explanation_{i}"
+                explanation_disabled = not st.session_state.test_submitted
+                
+                # Only show explanation button after submission
+                if st.session_state.test_submitted:
+                    if st.button(
+                        f"{'🔽 Hide' if explanation_key in st.session_state.show_explanations else '▶️ Show'} Explanation for Question {i}", 
+                        key=f"btn_{i}",
+                        use_container_width=False
+                    ):
+                        # Toggle explanation state
+                        if explanation_key in st.session_state.show_explanations:
+                            del st.session_state.show_explanations[explanation_key]
+                        else:
+                            st.session_state.show_explanations[explanation_key] = True
+                        st.rerun()
+                
+                # Show explanation if toggled (only after submission)
+                if explanation_key in st.session_state.show_explanations and st.session_state.test_submitted:
+                    st.markdown("---")
+                    st.markdown("#### 📖 Explanation")
+                    
+                    correct_answer = q.get('correct_answer', 'N/A')
+                    user_answer = st.session_state.user_answers.get(i, None)
+                    
+                    # Show answer summary
+                    if user_answer:
+                        if user_answer == correct_answer.upper():
+                            st.success(f"✅ **Correct Answer:** {correct_answer}")
+                        else:
+                            st.error(f"❌ **Correct Answer:** {correct_answer} (You selected: {user_answer})")
                     else:
-                        st.session_state.show_explanations[explanation_key] = True
-                    st.rerun()
-            
-            # Show explanation if toggled (only after submission)
-            if explanation_key in st.session_state.show_explanations and st.session_state.test_submitted:
-                st.markdown("---")
-                st.markdown("#### 📖 Explanation")
-                
-                correct_answer = q.get('correct_answer', 'N/A')
-                user_answer = st.session_state.user_answers.get(i, None)
-                
-                # Show answer summary
-                if user_answer:
-                    if user_answer == correct_answer.upper():
-                        st.success(f"✅ **Correct Answer:** {correct_answer}")
-                    else:
-                        st.error(f"❌ **Correct Answer:** {correct_answer} (You selected: {user_answer})")
-                else:
-                    st.info(f"📝 **Correct Answer:** {correct_answer} (You did not answer this question)")
-                
-                # Explanation - use Streamlit's native markdown for dark mode compatibility
-                explanation_text = q.get('explanation', 'No explanation provided')
-                st.markdown(f"**💡 Explanation:**")
-                st.markdown(explanation_text)
-                
-                # Show source information
-                source = q.get('source', {})
-                if source:
-                    source_info = f"**Source:** File: `{source.get('filename', 'Unknown')}`"
-                    if source.get('chapter') and source.get('chapter') != 'Unknown':
-                        source_info += f", Chapter: `{source['chapter']}`"
-                    if source.get('section') and source.get('section') != 'Unknown':
-                        source_info += f", Section: `{source['section']}`"
-                    if source.get('page_number'):
-                        source_info += f", Page: `{source['page_number']}`"
-                    st.markdown(source_info)
+                        st.info(f"📝 **Correct Answer:** {correct_answer} (You did not answer this question)")
+                    
+                    # Explanation - use Streamlit's native markdown for dark mode compatibility
+                    explanation_text = q.get('explanation', 'No explanation provided')
+                    st.markdown(f"**💡 Explanation:**")
+                    st.markdown(explanation_text)
+                    
+                    # Show source information
+                    source = q.get('source', {})
+                    if source:
+                        source_info = f"**Source:** File: `{source.get('filename', 'Unknown')}`"
+                        if source.get('chapter') and source.get('chapter') != 'Unknown':
+                            source_info += f", Chapter: `{source['chapter']}`"
+                        if source.get('section') and source.get('section') != 'Unknown':
+                            source_info += f", Section: `{source['section']}`"
+                        if source.get('page_number'):
+                            source_info += f", Page: `{source['page_number']}`"
+                        st.markdown(source_info)
         
         # Submit Test button at the bottom (before score display)
         st.markdown("---")

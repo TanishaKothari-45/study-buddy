@@ -8,11 +8,18 @@ from typing import Optional
 # UPSC MOCK TEST PROMPT SYSTEM (Refactored)
 # ===========================================
 
-SYSTEM_PROMPT = """You are a senior UPSC Prelims Question Setter specializing in Geography.
+SYSTEM_PROMPT = """You are a Senior UPSC Prelims Question Setter specializing in Geography.
 
-Your goal: generate original, authentic UPSC-quality MCQs from retrieved materials and PYQ examples.
+Your mission: Generate **original, authentic UPSC-grade MCQs** that are indistinguishable in phrasing, tone, and reasoning balance from actual UPSC Prelims papers.
 
-Questions must sound indistinguishable from actual UPSC papers."""
+Think like an examiner:
+- Identify the *core concept* behind each topic and test its application or interlinking.
+- Derive statements from factual and analytical relationships, not mere recall.
+- Construct plausible distractors that reflect real UPSC traps.
+- Use the PYQ examples only to learn phrasing and structure — never copy content.
+
+Each question must reflect *how a real UPSC examiner thinks while setting traps and testing depth of understanding.*
+"""
 
 # ----------------------------------------------------------------------
 # COGNITIVE FRAMEWORK – Universal generation rules for all difficulties
@@ -20,20 +27,20 @@ Questions must sound indistinguishable from actual UPSC papers."""
 
 COGNITIVE_FRAMEWORK = """COGNITIVE FRAMEWORK (Apply to all difficulties)
 
-1️⃣ Concept Focus
+1. Concept Focus
    - Base each question on ONE clear concept or mechanism per chunk group.
 
-2️⃣ Context Variation
+2. Context Variation
    - Vary spatial (India/global), temporal (historic/current), and domain (physical/human/environmental) perspectives.
 
-3️⃣ Question Type Diversity
+3. Question Type Diversity
    - Include these formats across a test: Multi-statement, Assertion–Reason, Match-the-Pair, Concept Definition, and one Current-Affairs-Linked.
 
-4️⃣ Option Engineering
+4. Option Engineering
    - Provide 3–4 plausible distractors.
    - Use authentic UPSC phrasing: "1 and 2 only", "All of the above", "Which of the following is/are NOT correct".
 
-5️⃣ Explanation Discipline
+5. Explanation Discipline
    - Give concise explanations for why the correct option is right and why others are wrong, using the Vision IAS tone."""
 
 # ----------------------------------------------------------------------
@@ -62,7 +69,8 @@ DIFFICULTY_GUIDE = {
 • Include at least one statement combining static and current info.
 • Prefer "How many of the above" or Assertion–Reason format.
 • Insert subtle factual traps ("only", "always", reversed cause–effect).
-• Explanation must detail the reasoning path for elimination."""
+• Explanation must detail the reasoning path for elimination.
+• Every question must reveal examiner intent — to test application, correlation, or elimination skill."""
 }
 
 # ----------------------------------------------------------------------
@@ -94,9 +102,12 @@ def assemble_upsc_prompt(
     difficulty_text = DIFFICULTY_GUIDE.get(difficulty.lower(), DIFFICULTY_GUIDE["medium"])
     
     # Trim contexts for token safety
-    static_text_trimmed = retrieved_static_text[:3000] if retrieved_static_text else "No static material available."
-    current_affairs_trimmed = retrieved_current_affairs[:1200] if retrieved_current_affairs else ""
-    pyq_examples_trimmed = pyq_examples[:1000] if pyq_examples else "No PYQ examples available."
+    # Target: 70% content, 30% style learning
+    # Content: ~4200 chars (70% of 6000), Style: ~1800 chars (30% of 6000)
+    # Note: retrieved_static_text now contains optimized mix of static + current affairs
+    content_text_trimmed = retrieved_static_text[:4200] if retrieved_static_text else "No content material available."
+    # Style learning examples (PYQ chunks + patterns + feedback) - 30% of prompt
+    pyq_examples_trimmed = pyq_examples[:1800] if pyq_examples else "No style learning examples available."
     
     prompt = f"""SYSTEM:
 
@@ -116,22 +127,15 @@ DIFFICULTY MODE:
 
 ---
 
-CONTEXT SOURCES:
+CONTEXT SOURCES (Factual Knowledge - 70%):
 
-📘 Static Material:
+Study Materials (NCERT, Vision Notes, Current Affairs):
 
-{static_text_trimmed}
+{content_text_trimmed}
 
-"""
-    
-    if current_affairs_trimmed:
-        prompt += f"""🗞️ Current Affairs (if any):
+---
 
-{current_affairs_trimmed}
-
-"""
-    
-    prompt += f"""PYQ STYLE EXAMPLES:
+PYQ STYLE EXAMPLES (Style Learning - 30%):
 
 {pyq_examples_trimmed}
 

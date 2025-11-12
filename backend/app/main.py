@@ -11,13 +11,17 @@ from .core.env import load_env_vars
 load_env_vars()
 
 from .core.config import settings
-from .routes import upload, query, mock_test, mains_answer, evaluate_answer, upload_content_store
+from .routes import upload, query, mock_test, mains_answer, evaluate_answer, upload_content_store, feedback
+from .utils.memory_manager import init_memory_db
 
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize resources on startup"""
+    # Initialize memory database
+    init_memory_db()
+    
     # Initialize vector store handler (Pinecone or ChromaDB based on config)
     if settings.USE_PINECONE:
         from .utils.pinecone_handler import PineconeHandler
@@ -59,6 +63,7 @@ app.include_router(query.router, prefix="/query", tags=["Query"])
 app.include_router(mock_test.router, prefix="/mock-test", tags=["Mock Test"])
 app.include_router(mains_answer.router, prefix="/mains-answer", tags=["Mains Answer"])
 app.include_router(evaluate_answer.router, prefix="/evaluate-answer", tags=["Answer Evaluation"])
+app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 
 @app.get("/")
 async def health_check():

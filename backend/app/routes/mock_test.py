@@ -17,9 +17,20 @@ from ..routes.query import deduplicate_chunks
 from ..utils.mm_utils import enforce_source_diversity
 from ..utils.mock_test_prompting import assemble_upsc_prompt
 from ..utils.query_builder import build_query_text, build_current_affairs_query
+from ..utils.memory_manager import (
+    init_memory_db,
+    get_recent_questions,
+    filter_recency,
+    record_recent_question,
+    record_feedback,
+    get_high_quality_examples
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Initialize memory database (only once at startup)
+init_memory_db()
 
 class MockTestRequest(BaseModel):
     num_questions: int = 5
@@ -39,50 +50,152 @@ class MockTestResponse(BaseModel):
     time_allowed: str
     instructions: List[str]
 
-def generate_fewshot_examples(num_questions: int = 5) -> tuple:
+def generate_fewshot_examples(
+    num_questions: int = 5, 
+    topics: List[str] = None, 
+    difficulty: str = "medium",
+    pyq_chunks: List[Dict] = None
+) -> tuple:
     """
-    Generate diverse few-shot examples from ALL 6 PYQ patterns for style learning.
+    Generate diverse few-shot examples for style learning.
+    
+    Style learning composition:
+    - 40% PYQ chunks (from database)
+    - 40% from patterns JSON
+    - 30% from feedback (if available, else increase other proportions)
+    
+    Args:
+        num_questions: Number of questions to generate
+        topics: List of topics
+        difficulty: Difficulty level
+        pyq_chunks: PYQ chunks from database (for style learning)
     
     Returns:
         Tuple of (fewshot_string, pattern_list) where pattern_list shows all available patterns
     """
     try:
-        all_patterns = get_all_patterns()
-        
-        # CRITICAL: Get at least ONE example from EACH of the 6 patterns
-        # This ensures the LLM sees all question types
-        all_examples = []
+        style_examples = []
         pattern_info = {}
+        
+        # ================================
+        # 1️⃣ Get patterns from JSON (40% of style learning)
+        # ================================
+        all_patterns = get_all_patterns()
+        pattern_examples_list = []
         
         for pattern in all_patterns:
             # Get at least 1 example from each pattern
             pattern_examples = get_examples(topic=None, pattern=pattern["id"], n=2)
             if pattern_examples:
-                # Take first example from each pattern
                 example = pattern_examples[0]
                 example["_pattern_id"] = pattern["id"]
                 example["_pattern_title"] = pattern.get("title", "")
                 example["_pattern_explanation"] = pattern.get("explanation", "")
-                all_examples.append(example)
+                example["_source"] = "patterns_json"  # Mark as from patterns JSON
+                pattern_examples_list.append(example)
                 pattern_info[pattern["id"]] = {
                     "title": pattern.get("title", ""),
                     "explanation": pattern.get("explanation", "")
                 }
         
         # If we need more examples, get additional ones from random patterns
-        if len(all_examples) < 6:
-            # Fill up to 6 with random examples
-            additional = get_examples(n=6 - len(all_examples))
-            all_examples.extend(additional)
+        if len(pattern_examples_list) < 6:
+            additional = get_examples(n=6 - len(pattern_examples_list))
+            for ex in additional:
+                ex["_source"] = "patterns_json"  # Mark as from patterns JSON
+            pattern_examples_list.extend(additional)
         
-        # Format few-shot examples with clear pattern identification
+        # ================================
+        # 2️⃣ Get high-quality examples from feedback DB (30% of style learning)
+        # ================================
+        filter_topic = topics[0] if topics else None
+        feedback_examples = get_high_quality_examples(
+            limit=3,  # Target 3 examples (30%)
+            topic=filter_topic,
+            difficulty=difficulty
+        )
+        
+        # ================================
+        # 3️⃣ Get PYQ chunks from database (40% of style learning)
+        # ================================
+        pyq_examples_list = []
+        if pyq_chunks:
+            # Use PYQ chunks directly (they're already retrieved and filtered)
+            for chunk in pyq_chunks[:5]:  # Use top 5 PYQ chunks
+                pyq_examples_list.append({
+                    "_pattern_id": "pyq_chunk",
+                    "_pattern_title": "PYQ Database",
+                    "question": chunk.get("content", ""),
+                    "options": [],
+                    "answer": "N/A",
+                    "topic": chunk.get("metadata", {}).get("sub_domain", "N/A"),
+                    "year": "PYQ Database",
+                    "_source": "database"
+                })
+            pattern_info["pyq_chunk"] = {
+                "title": "PYQ Database Examples",
+                "explanation": "Previous Year Questions from database"
+            }
+        
+        # ================================
+        # 4️⃣ Combine with proper proportions (40% PYQ + 40% patterns + 30% feedback)
+        # ================================
+        # Calculate target counts based on total examples needed
+        total_style_examples = 10  # Target total style examples
+        
+        # If feedback available: 40% PYQ, 40% patterns, 30% feedback
+        if feedback_examples:
+            target_pyq = max(3, int(total_style_examples * 0.4))  # ~4 examples
+            target_patterns = max(3, int(total_style_examples * 0.4))  # ~4 examples
+            target_feedback = max(2, int(total_style_examples * 0.3))  # ~3 examples
+            
+            # Add PYQ chunks (40%)
+            style_examples.extend(pyq_examples_list[:target_pyq])
+            
+            # Add patterns (40%)
+            style_examples.extend(pattern_examples_list[:target_patterns])
+            
+            # Add feedback (30%)
+            for fb_ex in feedback_examples[:target_feedback]:
+                style_examples.append({
+                    "_pattern_id": "feedback",
+                    "_pattern_title": "User Feedback",
+                    "question": fb_ex['text'],
+                    "options": [],
+                    "answer": "N/A",
+                    "topic": fb_ex.get('topic', 'N/A'),
+                    "year": "User Feedback",
+                    "_reason": fb_ex.get('reason', ''),
+                    "_source": "feedback"
+                })
+                pattern_info["feedback"] = {
+                    "title": "User Feedback Examples",
+                    "explanation": "High-quality questions from user feedback"
+                }
+        else:
+            # No feedback: redistribute proportions (50% PYQ, 50% patterns)
+            target_pyq = max(4, int(total_style_examples * 0.5))  # ~5 examples
+            target_patterns = max(4, int(total_style_examples * 0.5))  # ~5 examples
+            
+            style_examples.extend(pyq_examples_list[:target_pyq])
+            style_examples.extend(pattern_examples_list[:target_patterns])
+        
+        # ================================
+        # 5️⃣ Format few-shot examples
+        # ================================
         fewshot_parts = []
-        for i, ex in enumerate(all_examples[:6], 1):  # Show all 6 patterns
+        for i, ex in enumerate(style_examples, 1):
             pattern_title = ex.get("_pattern_title", "UPSC Pattern")
             pattern_id = ex.get("_pattern_id", "")
             example_text = f"Example {i} - Pattern: {pattern_title} (ID: {pattern_id})\n"
             example_text += f"{ex['question']}\n"
-            example_text += "\n".join(ex.get("options", [])) + f"\n✅ Correct Answer: ({ex['answer']})\n📘 Topic: {ex.get('topic', 'N/A')} (Year: {ex.get('year', 'N/A')})"
+            if ex.get("options"):
+                example_text += "\n".join(ex.get("options", [])) + f"\n✅ Correct Answer: ({ex['answer']})\n📘 Topic: {ex.get('topic', 'N/A')} (Year: {ex.get('year', 'N/A')})"
+            else:
+                example_text += f"📘 Topic: {ex.get('topic', 'N/A')} (Year: {ex.get('year', 'N/A')})"
+            # Add reason if it's a feedback example
+            if ex.get("_reason"):
+                example_text += f"\n💡 Note: {ex['_reason']}"
             fewshot_parts.append(example_text)
         
         fewshot = "\n\n---\n\n".join(fewshot_parts)
@@ -93,19 +206,37 @@ def generate_fewshot_examples(num_questions: int = 5) -> tuple:
             for pid, info in pattern_info.items()
         ])
         
-        logger.info(f"📚 Generated {len(all_examples)} few-shot examples covering {len(pattern_info)} patterns")
+        # Log composition
+        pyq_count = len([e for e in style_examples if e.get("_source") == "database"])
+        feedback_count = len([e for e in style_examples if e.get("_source") == "feedback"])
+        pattern_count = len([e for e in style_examples if e.get("_source") == "patterns_json"])
+        
+        logger.info(f"📚 Generated {len(style_examples)} style learning examples:")
+        logger.info(f"   📝 PYQ chunks: {pyq_count} (40%)")
+        logger.info(f"   📋 Patterns JSON: {pattern_count} (40%)")
+        logger.info(f"   ⭐ Feedback: {feedback_count} ({'30%' if feedback_count > 0 else '0% - redistributed'})")
+        
         return fewshot, pattern_summary
     except FileNotFoundError as e:
         logger.warning(f"⚠️ PYQ patterns file not found: {e}")
         return "", ""
     except Exception as e:
-        logger.error(f"❌ Failed to generate few-shot examples: {e}")
+        logger.error(f"❌ Failed to generate few-shot examples: {str(e)}")
         return "", ""
 
 def generate_question_paper(pyq_chunks: List[Dict], content_chunks: List[Dict], 
-                            request: MockTestRequest, api_key: str) -> MockTestResponse:
+                            request: MockTestRequest, api_key: str, app_state=None) -> MockTestResponse:
     """
-    Generate UPSC-style mock test questions using few-shot PYQ examples + content knowledge.
+    Generate UPSC-style mock test questions using style learning + content knowledge.
+    
+    Style Learning (30% of prompt):
+    - 40% PYQ chunks (from database)
+    - 40% from patterns JSON
+    - 30% from feedback (if available)
+    
+    Content Knowledge (70% of prompt):
+    - Concept chunks (NCERT, Vision notes)
+    - Current affairs chunks (if medium/hard)
     
     Cost Optimization Strategy:
     - Embeddings: Already using text-embedding-3-small (cheap)
@@ -114,77 +245,69 @@ def generate_question_paper(pyq_chunks: List[Dict], content_chunks: List[Dict],
     
     This balances cost (~90% tasks use mini) with quality (final questions use 4o).
     """
-    # Generate diverse few-shot examples from ALL 6 patterns (style learning is universal)
-    # Note: We don't filter by user topics here because any topic can use any question pattern
-    # We ensure diversity by getting examples from ALL patterns
+    # Generate style learning examples (40% PYQ + 40% patterns + 30% feedback)
+    # PYQ chunks are passed directly for style learning (not used in content)
     fewshot_examples, pattern_summary = generate_fewshot_examples(
-        num_questions=request.num_questions
+        num_questions=request.num_questions,
+        topics=request.topics,
+        difficulty=request.difficulty,
+        pyq_chunks=pyq_chunks  # Pass PYQ chunks for style learning
     )
     
-    # Prepare content context: Separate static and current affairs
-    logger.info(f"📝 [MOCK_TEST] Preparing content context from {len(content_chunks)} chunks...")
+    # Prepare content context from final_content (already optimized through diversity + MMR)
+    # No need to split again - use the best chunks we already have!
+    logger.info(f"📝 [MOCK_TEST] Preparing content context from {len(content_chunks)} optimized chunks...")
     
-    # Separate static and current affairs chunks
-    static_chunks = []
-    current_affairs_chunks = []
+    # Convert chunks to documents for deduplication
+    content_docs = []
+    for chunk in content_chunks[:15]:  # Use top 15 optimized chunks
+        from langchain_core.documents import Document
+        content_docs.append(Document(
+            page_content=chunk['content'],
+            metadata=chunk.get('metadata', {})
+        ))
     
-    for chunk in content_chunks:
-        meta = chunk.get("metadata", {})
-        source_type = meta.get("source_type", "").lower()
-        filename = meta.get("filename", "").lower()
-        
-        # Check source_type first, then fallback to filename
-        if source_type == "current_affairs" or "current" in filename or "2025" in filename:
-            current_affairs_chunks.append(chunk)
-        else:
-            static_chunks.append(chunk)
+    # Deduplicate content chunks (already optimized, just remove overlaps)
+    if content_docs:
+        content_text = deduplicate_chunks(content_docs, min_overlap_words=20, similarity_threshold=0.6)
+        logger.info(f"   ✅ Prepared {len(content_chunks)} content chunks (deduplicated, already optimized)")
+    else:
+        content_text = "\n\n".join([chunk['content'] for chunk in content_chunks[:15]])
     
-    # Deduplicate static chunks
-    static_text = ""
-    if static_chunks:
-        static_docs_for_dedup = []
-        for chunk in static_chunks[:8]:
-            from langchain_core.documents import Document
-            static_docs_for_dedup.append(Document(
-                page_content=chunk['content'],
-                metadata=chunk.get('metadata', {})
-            ))
-        
-        if static_docs_for_dedup:
-            deduplicated_static = deduplicate_chunks(static_docs_for_dedup, min_overlap_words=20, similarity_threshold=0.6)
-            static_text = deduplicated_static
-            logger.info(f"   ✅ Prepared {len(static_chunks)} static chunks (deduplicated)")
-        else:
-            static_text = "\n\n".join([chunk['content'] for chunk in static_chunks[:8]])
-    
-    # Prepare current affairs text
-    current_affairs_text = ""
-    if current_affairs_chunks:
-        current_affairs_text = "\n\n".join([chunk['content'] for chunk in current_affairs_chunks[:5]])
-        logger.info(f"   ✅ Prepared {len(current_affairs_chunks)} current affairs chunks")
-    
-    # Prepare PYQ examples
-    pyq_examples_text = fewshot_examples if fewshot_examples else "\n\n---\n\n".join([chunk["content"] for chunk in pyq_chunks[:8]])
+    # Style learning examples (already includes PYQ chunks + patterns + feedback)
+    style_examples_text = fewshot_examples if fewshot_examples else ""
     
     # Extract topic from request (use first topic or "Geography" as default)
     topic = request.topics[0] if request.topics else "Geography"
     
-    logger.info(f"📚 Using {len(static_chunks)} static chunks and {len(current_affairs_chunks)} current affairs chunks")
+    # Log content vs style proportions
+    total_content_chars = len(content_text)
+    total_style_chars = len(style_examples_text)
+    total_chars = total_content_chars + total_style_chars
+    
+    if total_chars > 0:
+        content_percent = (total_content_chars / total_chars) * 100
+        style_percent = (total_style_chars / total_chars) * 100
+        logger.info(f"📊 Prompt composition:")
+        logger.info(f"   📘 Content (factual): {content_percent:.1f}% ({len(content_chunks)} optimized chunks)")
+        logger.info(f"   📝 Style learning: {style_percent:.1f}% (PYQ chunks + patterns + feedback)")
+    
     if fewshot_examples:
-        logger.info(f"✅ Using few-shot PYQ examples for style learning")
+        logger.info(f"✅ Style learning examples ready (includes PYQ chunks + patterns + feedback)")
     else:
-        logger.warning("⚠️ No few-shot examples available, using retrieved PYQ chunks")
+        logger.warning("⚠️ No style learning examples available")
     
     # Use new prompt system
     try:
         # Assemble prompt using new system
+        # Use single content_text (already optimized mix of static + current affairs)
         user_prompt = assemble_upsc_prompt(
             topic=topic,
             difficulty=request.difficulty,
             num_questions=request.num_questions,
-            retrieved_static_text=static_text,
-            retrieved_current_affairs=current_affairs_text,
-            pyq_examples=pyq_examples_text
+            retrieved_static_text=content_text,  # Single optimized content (70%)
+            retrieved_current_affairs="",  # Already included in content_text
+            pyq_examples=style_examples_text  # Style learning (30%)
         )
         
         client = OpenAI(api_key=api_key)
@@ -214,6 +337,13 @@ def generate_question_paper(pyq_chunks: List[Dict], content_chunks: List[Dict],
         
         # Convert to MockTestQuestion objects
         questions = []
+        # Get embedder from app_state (passed from route) or from request if available
+        embedder = None
+        if app_state and hasattr(app_state, 'vector_handler'):
+            embedder = app_state.vector_handler.embedder
+        elif hasattr(request, 'app') and hasattr(request.app.state, 'vector_handler'):
+            embedder = request.app.state.vector_handler.embedder
+        
         for i, q_data in enumerate(questions_data):
             if isinstance(q_data, dict):
                 # Handle options - convert dict to list if needed
@@ -228,14 +358,41 @@ def generate_question_paper(pyq_chunks: List[Dict], content_chunks: List[Dict],
                 else:
                     options_list = ["A", "B", "C", "D"]  # Fallback
                 
+                question_text = q_data.get("question", f"Question {i+1}")
+                
                 question = MockTestQuestion(
-                    question=q_data.get("question", f"Question {i+1}"),
+                    question=question_text,
                     options=options_list,
                     correct_answer=q_data.get("correct_answer", "A"),
                     explanation=q_data.get("explanation", "No explanation provided"),
-                    source={"filename": "Generated", "chapter": "Mock Test", "section": f"Question {i+1}"}
+                    source={
+                        "filename": "Generated", 
+                        "chapter": "Mock Test", 
+                        "section": f"Question {i+1}",
+                        "question_id": f"mock_{int(time.time())}_{i}",  # Generate unique ID
+                        "topics": q_data.get("source", {}).get("topics", request.topics),
+                        "difficulty": request.difficulty
+                    }
                 )
                 questions.append(question)
+                
+                # 🆕 STEP 5: Memory Update - Store question in recency DB
+                try:
+                    # Extract topic and subtopic from request
+                    topic = request.topics[0] if request.topics else "Geography"
+                    subtopic = request.topics[1] if len(request.topics) > 1 else topic
+                    
+                    # Store in recency DB
+                    record_recent_question(
+                        question_text=question_text,
+                        topic=topic,
+                        subtopic=subtopic,
+                        difficulty=request.difficulty
+                    )
+                    logger.debug(f"✅ Stored question {i+1} in recency DB")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to store question in recency DB: {e}")
+                    # Continue even if storage fails
         
         # If no questions were parsed, create a fallback
         if not questions:
@@ -480,16 +637,23 @@ def hybrid_retrieve_for_mock_test(
     # 1️⃣ Conceptual Base Retrieval (source_type="concept")
     # ================================
     # Flow: Pinecone vector search → get chunk_ids → enrich from local DB (content store)
+    # 🆕 STEP 1: Apply recency filter to avoid repeating recently generated questions
     logger.info("📘 Retrieving conceptual chunks (source_type='concept')...")
     logger.info("   🔍 Step 1: Querying Pinecone vectorstore for similar embeddings...")
     try:
         concept_chunks = pinecone_handler.query_documents(
             query_text=query,
-            k=10,
+            k=15,  # Retrieve more to account for recency filtering
             filter_metadata={"source_type": "concept"},
             use_content_store=True  # Enriches with full content from local DB using chunk_ids
         )
         logger.info(f"   ✅ Retrieved {len(concept_chunks)} concept chunks (enriched from content store)")
+        
+        # 🆕 STEP 1 (continued): Apply recency filter
+        logger.info("   🔄 Applying recency filter (last 7 days)...")
+        recent_questions = get_recent_questions(days=7)
+        concept_chunks = filter_recency(concept_chunks, recent_questions)
+        logger.info(f"   ✅ After recency filter: {len(concept_chunks)} concept chunks")
     except Exception as e:
         logger.warning(f"⚠️ Concept retrieval failed: {e}")
         concept_chunks = []
@@ -498,6 +662,7 @@ def hybrid_retrieve_for_mock_test(
     # 2️⃣ PYQ Retrieval for Style (source_type="pyq")
     # ================================
     # Flow: Pinecone vector search → get chunk_ids → enrich from local DB (content store)
+    # Note: PYQ chunks are historical examples, so recency filter is less critical
     logger.info("📝 Retrieving PYQ chunks (source_type='pyq') for style reference...")
     logger.info("   🔍 Step 1: Querying Pinecone vectorstore for similar embeddings...")
     try:
@@ -576,55 +741,56 @@ def hybrid_retrieve_for_mock_test(
         logger.info("   ⏭️ Skipping current affairs retrieval (easy mode)")
     
     # ================================
-    # 4️⃣ Combine and Apply Source Diversity
+    # 4️⃣ Process Content Chunks Only (PYQ chunks kept separate for style learning)
     # ================================
-    all_chunks = pyq_chunks + concept_chunks + current_chunks
-    logger.info(f"📊 Combined chunks: {len(pyq_chunks)} PYQ + {len(concept_chunks)} concept + {len(current_chunks)} current affairs = {len(all_chunks)} total")
+    # IMPORTANT: PYQ chunks are NOT included in source diversity/MMR - they're for style learning only
+    content_chunks_only = concept_chunks + current_chunks
+    logger.info(f"📊 Content chunks: {len(concept_chunks)} concept + {len(current_chunks)} current affairs = {len(content_chunks_only)} total")
+    logger.info(f"📝 PYQ chunks (for style learning): {len(pyq_chunks)} chunks (NOT in source diversity/MMR)")
     
-    # Apply source diversity v2 (enforces diversity across source types and files)
-    diverse_chunks = enforce_source_diversity(
-        all_chunks,
-    total_target=15,
-    source_weights={"pyq": 0.2, "current_affairs": 0.3, "concept": 0.5},
-    concept_subweights={"ncert": 0.25, "topic": 0.25},
-    max_per_file=2
+    # Apply recency filter to content chunks only (not PYQ chunks)
+    logger.info("🔄 Applying recency filter to content chunks...")
+    recent_questions = get_recent_questions(days=7)
+    content_chunks_only = filter_recency(content_chunks_only, recent_questions)
+    logger.info(f"   ✅ After recency filter: {len(content_chunks_only)} content chunks")
+    
+    # Apply source diversity v2 (ONLY on content chunks - no PYQ chunks)
+    # PYQ chunks are handled separately for style learning, not included in content diversity
+    diverse_content_chunks = enforce_source_diversity(
+        content_chunks_only,
+        total_target=15,  # Target for 70% factual content
+        source_weights={"current_affairs": 0.4, "concept": 0.6},  # No PYQ - PYQ chunks are separate for style learning
+        concept_subweights={"ncert": 0.25, "topic": 0.25},
+        max_per_file=2
     )
     
     # ================================
-    # 5️⃣ Final MMR Re-ranking
+    # 5️⃣ Final MMR Re-ranking (ONLY content chunks)
     # ================================
-    logger.info("🔄 Applying final MMR re-ranking...")
-    if diverse_chunks:
-        final_context = pinecone_handler.mmr_select_from_chunks(
-            chunks=diverse_chunks,
+    logger.info("🔄 Applying final MMR re-ranking to content chunks...")
+    if diverse_content_chunks:
+        final_content = pinecone_handler.mmr_select_from_chunks(
+            chunks=diverse_content_chunks,
             query_text=query,
-            k=min(15, len(diverse_chunks)),
+            k=min(15, len(diverse_content_chunks)),
             lambda_mult=lambda_mult
         )
     else:
-        final_context = diverse_chunks
+        final_content = diverse_content_chunks
     
-    # ================================
-    # 6️⃣ Separate Back into PYQ and Content
-    # ================================
-    pyq_final = [c for c in final_context if c.get("metadata", {}).get("source_type") == "pyq"]
-    content_final = [
-        c for c in final_context 
-        if c.get("metadata", {}).get("source_type") in ["concept", "current_affairs"]
-    ]
+    # Fallback: if we don't have enough content chunks, use original
+    if len(final_content) < 3 and concept_chunks:
+        logger.warning(f"⚠️ Only {len(final_content)} content chunks after filtering, using original")
+        final_content = concept_chunks[:10] + current_chunks[:3]
     
-    # Fallback: if we don't have enough after filtering, use original chunks
-    if len(pyq_final) < 2 and pyq_chunks:
-        logger.warning(f"⚠️ Only {len(pyq_final)} PYQ chunks after filtering, using original")
-        pyq_final = pyq_chunks[:5]
+    # PYQ chunks remain separate - no filtering, no MMR, used directly for style learning
+    pyq_final = pyq_chunks[:5]  # Use top 5 PYQ chunks for style learning
     
-    if len(content_final) < 3 and concept_chunks:
-        logger.warning(f"⚠️ Only {len(content_final)} content chunks after filtering, using original")
-        content_final = concept_chunks[:8] + current_chunks[:2]
+    logger.info(f"📊 Final selection:")
+    logger.info(f"   📝 PYQ chunks (style learning): {len(pyq_final)} chunks")
+    logger.info(f"   📘 Content chunks (factual knowledge): {len(final_content)} chunks")
     
-    logger.info(f"📊 Final selection: {len(pyq_final)} PYQ chunks and {len(content_final)} content chunks")
-    
-    return pyq_final, content_final
+    return pyq_final, final_content
 
 @router.get("/domains")
 async def get_geography_domains():
@@ -676,7 +842,7 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
                 detail="OpenAI API key not configured. Mock test generation requires GPT for quality questions."
             )
 
-        return generate_question_paper(pyq_chunks, content_chunks, test_request, api_key)
+        return generate_question_paper(pyq_chunks, content_chunks, test_request, api_key, app_state=request.app.state)
     except Exception as e:
         logger.error(f"❌ Mock test generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
