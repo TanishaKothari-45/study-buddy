@@ -16,6 +16,7 @@ from ..utils.metadata_enricher import GEOGRAPHY_TOPICS, GEOGRAPHY_DOMAINS
 from ..routes.query import deduplicate_chunks
 from ..utils.mm_utils import enforce_source_diversity
 from ..utils.mock_test_prompting import assemble_upsc_prompt
+from ..utils.query_builder import build_query_text, build_current_affairs_query
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -428,22 +429,25 @@ def extract_domains_from_topics(topics: List[str]) -> Tuple[Optional[str], Optio
 def hybrid_retrieve_for_mock_test(
     pinecone_handler,
     topics: List[str],
-    num_questions: int = 10
+    num_questions: int = 10,
+    difficulty: str = "medium"
 ) -> Tuple[List[Dict], List[Dict]]:
     """
-    Hybrid retrieval using source_type metadata filters for cleaner, more accurate retrieval.
+    Hybrid retrieval using source_type metadata filters with adaptive, difficulty-aware queries.
     
     This function implements:
-    1. PYQ retrieval using source_type="pyq" filter (for style learning)
-    2. Concept retrieval using source_type="concept" filter (for content knowledge)
-    3. Current affairs retrieval using source_type="current_affairs" filter (semantically related to concepts)
-    4. Source diversity enforcement using enforce_source_diversity
-    5. Final MMR re-ranking for cross-source diversity
+    1. Adaptive query generation based on domain granularity and difficulty
+    2. PYQ retrieval using source_type="pyq" filter (for style learning)
+    3. Concept retrieval using source_type="concept" filter (for content knowledge)
+    4. Current affairs retrieval using source_type="current_affairs" filter (semantically related to concepts)
+    5. Source diversity enforcement using enforce_source_diversity
+    6. Final MMR re-ranking for cross-source diversity
     
     Args:
         pinecone_handler: PineconeHandler instance
         topics: List of topics (sub-domains or major domains from dropdowns)
         num_questions: Number of questions to generate (for context sizing)
+        difficulty: Difficulty level ("easy", "medium", "hard") - affects query semantics
     
     Returns:
         Tuple of (pyq_chunks, content_chunks) ready for question generation
@@ -451,24 +455,26 @@ def hybrid_retrieve_for_mock_test(
     # Extract domains from topics
     major_domain, sub_domain = extract_domains_from_topics(topics)
     
-    logger.info(f"🎯 [HYBRID_RETRIEVE] Starting retrieval: major_domain={major_domain}, sub_domain={sub_domain}")
+    logger.info(f"🎯 [HYBRID_RETRIEVE] Starting retrieval: major_domain={major_domain}, sub_domain={sub_domain}, difficulty={difficulty}")
     
-    # Build query based on domain granularity
+    # Build adaptive, semantically rich query using query builder
+    query = build_query_text(major_domain, sub_domain, difficulty)
+    
+    # Set retrieval parameters based on domain granularity
     if sub_domain:
-        query = f"{sub_domain} geography concepts NCERT vision notes important topics"
         k_target = 10
         lambda_mult = 0.65
         logger.info(f"   🎯 Sub-domain mode: focusing on micro-topics within {sub_domain}")
     elif major_domain:
-        query = f"{major_domain} major subtopics theories NCERT vision notes"
         k_target = 10
         lambda_mult = 0.65
         logger.info(f"   🎯 Major-domain mode: diversifying across sub-domains in {major_domain}")
     else:
-        query = "important geography topics for UPSC NCERT vision notes static and current"
         k_target = 12
         lambda_mult = 0.6
         logger.info(f"   🎯 General mode: broad coverage")
+    
+    logger.info(f"   📝 Generated query: {query[:150]}...")
     
     # ================================
     # 1️⃣ Conceptual Base Retrieval (source_type="concept")
@@ -510,39 +516,64 @@ def hybrid_retrieve_for_mock_test(
     # 3️⃣ Current Affairs Overlay (Semantically Related to Concept)
     # ================================
     # Flow: For each concept chunk → Pinecone vector search → get chunk_ids → enrich from local DB
-    logger.info("🗞️ Retrieving current affairs chunks (source_type='current_affairs')...")
-    logger.info("   🔍 Querying Pinecone for semantically related current affairs...")
+    # Only retrieve current affairs for medium/hard difficulty
     current_chunks = []
-    try:
-        # For each concept chunk, find semantically related current affairs
-        for chunk in concept_chunks[:5]:  # Limit to first 5 to avoid too many queries
-            topic_text = chunk["content"][:250]
-            try:
-                matches = pinecone_handler.query_documents(
-                    query_text=topic_text,
-                    k=2,
-                    filter_metadata={"source_type": "current_affairs"},
-                    use_content_store=True  # Enriches with full content from local DB using chunk_ids
-                )
-                current_chunks.extend(matches)
-            except Exception as e:
-                logger.debug(f"   ⚠️ Current affairs search failed for chunk: {e}")
-                continue
-        
-        # Deduplicate current chunks
-        seen_content = set()
-        unique_current_chunks = []
-        for chunk in current_chunks:
-            content_hash = hash(chunk["content"][:100])
-            if content_hash not in seen_content:
-                seen_content.add(content_hash)
-                unique_current_chunks.append(chunk)
-        current_chunks = unique_current_chunks
-        
-        logger.info(f"   ✅ Retrieved {len(current_chunks)} current affairs chunks")
-    except Exception as e:
-        logger.warning(f"⚠️ Current affairs retrieval failed: {e}")
-        current_chunks = []
+    if difficulty.lower() in ["medium", "hard"]:
+        logger.info("🗞️ Retrieving current affairs chunks (source_type='current_affairs')...")
+        logger.info("   🔍 Querying Pinecone for semantically related current affairs...")
+        try:
+            # For each concept chunk, find semantically related current affairs using improved query
+            for chunk in concept_chunks[:5]:  # Limit to first 5 to control cost
+                try:
+                    # Extract conceptual focus from metadata (preferred) or content
+                    meta = chunk.get("metadata", {})
+                    topic_title = meta.get("section") or meta.get("chapter") or meta.get("sub_domain")
+                    
+                    if topic_title:
+                        conceptual_focus = topic_title
+                    else:
+                        # Fallback: extract from content (first 100 chars, clean)
+                        content_preview = chunk.get("content", "")[:100].strip()
+                        # Remove common prefixes and clean
+                        conceptual_focus = content_preview.split('.')[0].split('\n')[0].strip()
+                        if len(conceptual_focus) < 10:
+                            conceptual_focus = "Geography concept"
+                    
+                    # Build semantic query for current affairs
+                    query_text = build_current_affairs_query(
+                        conceptual_focus=conceptual_focus,
+                        difficulty=difficulty
+                    )
+                    
+                    # Retrieve current affairs chunks
+                    matches = pinecone_handler.query_documents(
+                        query_text=query_text,
+                        k=2 if difficulty.lower() == "medium" else 3,
+                        filter_metadata={"source_type": "current_affairs"},
+                        use_content_store=True  # Enriches with full content from local DB using chunk_ids
+                    )
+                    current_chunks.extend(matches)
+                    logger.debug(f"   ✅ Found {len(matches)} current affairs for '{conceptual_focus}'")
+                except Exception as e:
+                    logger.debug(f"   ⚠️ Current affairs search failed for chunk: {e}")
+                    continue
+            
+            # Deduplicate current chunks
+            seen_content = set()
+            unique_current_chunks = [] 
+            for chunk in current_chunks:
+                content_hash = hash(chunk["content"][:100])
+                if content_hash not in seen_content:
+                    seen_content.add(content_hash)
+                    unique_current_chunks.append(chunk)
+            current_chunks = unique_current_chunks
+            
+            logger.info(f"   ✅ Retrieved {len(current_chunks)} unique current affairs chunks")
+        except Exception as e:
+            logger.warning(f"⚠️ Current affairs retrieval failed: {e}")
+            current_chunks = []
+    else:
+        logger.info("   ⏭️ Skipping current affairs retrieval (easy mode)")
     
     # ================================
     # 4️⃣ Combine and Apply Source Diversity
@@ -616,7 +647,8 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
         pyq_chunks, content_chunks = hybrid_retrieve_for_mock_test(
             pinecone_handler=pinecone_handler,
             topics=test_request.topics,
-            num_questions=test_request.num_questions
+            num_questions=test_request.num_questions,
+            difficulty=test_request.difficulty  # Pass difficulty for adaptive query generation
         )
         
         # Fallback: if no PYQ chunks found, use all chunks but warn

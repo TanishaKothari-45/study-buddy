@@ -605,10 +605,11 @@ elif tab_choice == "Generate Mock Test":
     with col1:
         num_questions = st.number_input(
             "Number of questions:",
-            min_value=1,
+            min_value=5,
             max_value=20,
             value=5,
-            disabled=not backend_status
+            disabled=not backend_status,
+            help="Minimum 5 questions required"
         )
         
         difficulty = st.select_slider(
@@ -789,23 +790,400 @@ elif tab_choice == "Generate Mock Test":
                         status_indicator = " ⚠️"
                 
                 st.markdown(f"### Question {i} of {len(data['questions'])}{status_indicator}")
-                # Format question text - split statements and question on different lines
-                question_text = q['question']
-                # Replace common statement patterns with line breaks
-                question_text = question_text.replace('\\n', '\n')  # Handle escaped newlines
-                # Add line breaks before statements if they start with numbers
-                # Split on numbered statements (1., 2., Statement-I, Statement-II, etc.)
-                question_text = re.sub(r'(\d+\.)', r'\n\1', question_text)
-                question_text = re.sub(r'(Statement-I)', r'\n\1', question_text)
-                question_text = re.sub(r'(Statement-II)', r'\n\1', question_text)
-                question_text = re.sub(r'(Consider the following)', r'\n\1', question_text)
-                # Clean up multiple newlines
-                question_text = re.sub(r'\n{3,}', '\n\n', question_text)
-                question_text = question_text.strip()
                 
-                # Convert to HTML with line breaks
-                question_html = question_text.replace('\n', '<br>')
-                st.markdown(f"<div style='padding: 15px; background-color: #f0f2f6; border-radius: 5px; margin-bottom: 15px;'><p style='font-size: 16px; line-height: 1.8; color: #1f1f1f;'>{question_html}</p></div>", unsafe_allow_html=True)
+                # Format question text with enhanced formatting for different question types
+                question_text = q['question']
+                question_text = question_text.replace('\\n', '\n')  # Handle escaped newlines
+                
+                # Detect question type and format accordingly
+                is_assertion_reason = 'Assertion' in question_text and 'Reason' in question_text
+                is_match_pair = 'List I' in question_text and 'List II' in question_text
+                # Statement questions: "Consider the following statements" + numbered items (1., 2., 3.) + question
+                is_statements_question = (
+                    'Consider the following' in question_text and 
+                    ('statement' in question_text.lower() or 'statements' in question_text.lower()) and
+                    re.search(r'\d+\.', question_text)  # Has numbered statements
+                )
+                
+                if is_statements_question:
+                    # Format Statement questions: "Consider the following statements regarding..."
+                    # Pattern: "Consider the following statements..." + numbered statements + question
+                    statements_match = re.search(
+                        r'(Consider the following.*?statements.*?:)(.*?)(Which of the following.*?statements.*?\?|Select.*?\?|Choose.*?\?)',
+                        question_text,
+                        re.IGNORECASE | re.DOTALL
+                    )
+                    
+                    if statements_match:
+                        intro_text = statements_match.group(1).strip()
+                        statements_text = statements_match.group(2).strip()
+                        question_part = statements_match.group(3).strip() if statements_match.lastindex >= 3 else ""
+                        
+                        # Extract numbered statements (handle multi-line statements)
+                        statements = []
+                        # First try: match numbered items that may span multiple lines
+                        statement_pattern = r'(\d+\.\s*[^\n]+(?:\n(?!\d+\.)[^\n]+)*)'
+                        matches = re.finditer(statement_pattern, statements_text)
+                        for match in matches:
+                            stmt = match.group(1).strip()
+                            if stmt:
+                                statements.append(stmt)
+                        
+                        # Fallback: if no matches, split by numbered items
+                        if not statements:
+                            parts = re.split(r'(\d+\.)', statements_text)
+                            current_stmt = ""
+                            for part in parts:
+                                if re.match(r'^\d+\.$', part.strip()):
+                                    if current_stmt:
+                                        statements.append(current_stmt.strip())
+                                    current_stmt = part + " "
+                                else:
+                                    current_stmt += part
+                            if current_stmt:
+                                statements.append(current_stmt.strip())
+                        
+                        # Build formatted HTML with proper alignment
+                        statements_html = "<div style='padding: 20px; background-color: rgba(255, 253, 250, 1); border-left: 4px solid #d4a574; border-radius: 5px; margin: 15px 0; line-height: 1.8;'>"
+                        statements_html += f"<div style='font-weight: bold; margin-bottom: 12px; color: #8b6f47; font-size: 16px;'>{intro_text}</div>"
+                        
+                        # Display statements in a clean, aligned list with minimal spacing
+                        statements_html += "<div style='margin-left: 10px; margin-bottom: 12px;'>"
+                        for stmt in statements[:10]:  # Limit to 10 statements
+                            stmt_clean = stmt.strip()
+                            if stmt_clean:
+                                # Use a flex-like layout for proper number-text alignment
+                                # Extract number and text separately for better alignment
+                                number_match = re.match(r'^(\d+\.)\s*(.*)$', stmt_clean, re.DOTALL)
+                                if number_match:
+                                    number = number_match.group(1)
+                                    text = number_match.group(2).strip()
+                                    statements_html += f"<div style='display: flex; align-items: flex-start; margin-bottom: 6px; line-height: 1.6; padding: 4px 0;'>"
+                                    statements_html += f"<span style='font-weight: bold; margin-right: 8px; min-width: 30px; flex-shrink: 0; color: #2c2c2c;'>{number}</span>"
+                                    statements_html += f"<span style='flex: 1; color: #2c2c2c;'>{text}</span>"
+                                    statements_html += "</div>"
+                                else:
+                                    # Fallback if pattern doesn't match
+                                    statements_html += f"<div style='margin-bottom: 6px; line-height: 1.6; padding: 4px 0; color: #2c2c2c;'>{stmt_clean}</div>"
+                        statements_html += "</div>"
+                        
+                        # Add the question part if present
+                        if question_part:
+                            statements_html += f"<div style='font-weight: bold; margin-top: 15px; padding-top: 15px; border-top: 2px solid rgba(212, 165, 116, 0.4); color: #8b6f47; font-size: 15px;'>{question_part}</div>"
+                        
+                        statements_html += "</div>"
+                        
+                        st.markdown(statements_html, unsafe_allow_html=True)
+                    else:
+                        # Fallback: format with better line breaks and alignment
+                        # Extract intro
+                        intro_match = re.search(r'(Consider the following.*?statements.*?:)', question_text, re.IGNORECASE | re.DOTALL)
+                        intro_text = intro_match.group(1).strip() if intro_match else ""
+                        
+                        # Extract statements part
+                        if intro_match:
+                            statements_part = question_text[intro_match.end():].strip()
+                            # Find question part
+                            question_match = re.search(r'(Which of the following.*?statements.*?\?|Select.*?\?|Choose.*?\?)', statements_part, re.IGNORECASE)
+                            if question_match:
+                                statements_text = statements_part[:question_match.start()].strip()
+                                question_part = question_match.group(1).strip()
+                            else:
+                                statements_text = statements_part
+                                question_part = ""
+                        else:
+                            statements_text = question_text
+                            question_part = ""
+                        
+                        # Extract numbered statements
+                        statements = re.findall(r'(\d+\.\s*[^\n]+(?:\n(?!\d+\.)[^\n]+)*)', statements_text)
+                        if not statements:
+                            # Split by numbered items
+                            parts = re.split(r'(\d+\.)', statements_text)
+                            statements = []
+                            current_stmt = ""
+                            for part in parts:
+                                if re.match(r'^\d+\.$', part.strip()):
+                                    if current_stmt:
+                                        statements.append(current_stmt.strip())
+                                    current_stmt = part + " "
+                                else:
+                                    current_stmt += part
+                            if current_stmt:
+                                statements.append(current_stmt.strip())
+                        
+                        # Build formatted HTML
+                        statements_html = "<div style='padding: 20px; background-color: rgba(255, 253, 250, 1); border-left: 4px solid #d4a574; border-radius: 5px; margin: 15px 0; line-height: 1.8;'>"
+                        if intro_text:
+                            statements_html += f"<div style='font-weight: bold; margin-bottom: 12px; color: #8b6f47; font-size: 16px;'>{intro_text}</div>"
+                        
+                        statements_html += "<div style='margin-left: 10px; margin-bottom: 12px;'>"
+                        for stmt in statements[:10]:
+                            stmt_clean = stmt.strip()
+                            if stmt_clean:
+                                number_match = re.match(r'^(\d+\.)\s*(.*)$', stmt_clean, re.DOTALL)
+                                if number_match:
+                                    number = number_match.group(1)
+                                    text = number_match.group(2).strip()
+                                    statements_html += f"<div style='display: flex; align-items: flex-start; margin-bottom: 6px; line-height: 1.6; padding: 4px 0;'>"
+                                    statements_html += f"<span style='font-weight: bold; margin-right: 8px; min-width: 30px; flex-shrink: 0; color: #2c2c2c;'>{number}</span>"
+                                    statements_html += f"<span style='flex: 1; color: #2c2c2c;'>{text}</span>"
+                                    statements_html += "</div>"
+                                else:
+                                    statements_html += f"<div style='margin-bottom: 6px; line-height: 1.6; padding: 4px 0; color: #2c2c2c;'>{stmt_clean}</div>"
+                        statements_html += "</div>"
+                        
+                        if question_part:
+                            statements_html += f"<div style='font-weight: bold; margin-top: 12px; padding-top: 12px; border-top: 2px solid rgba(212, 165, 116, 0.4); color: #8b6f47; font-size: 15px;'>{question_part}</div>"
+                        
+                        statements_html += "</div>"
+                        
+                        st.markdown(statements_html, unsafe_allow_html=True)
+                
+                elif is_assertion_reason:
+                    # Format Assertion-Reason: ensure they're on separate lines
+                    question_text = re.sub(r'(Assertion\s*\(A\):)', r'\n\n**\1**', question_text, flags=re.IGNORECASE)
+                    question_text = re.sub(r'(Reason\s*\(R\):)', r'\n\n**\1**', question_text, flags=re.IGNORECASE)
+                    # Clean up extra newlines
+                    question_text = re.sub(r'\n{3,}', '\n\n', question_text)
+                    question_text = question_text.strip()
+                    
+                    # Display with styled container
+                    st.markdown(f"""
+                    <div style='
+                        padding: 20px; 
+                        background-color: rgba(255, 253, 250, 1); 
+                        border-left: 4px solid #d4a574;
+                        border-radius: 5px; 
+                        margin: 15px 0;
+                        line-height: 1.8;
+                    '>
+                        <div style='white-space: pre-wrap; color: #2c2c2c;'>{question_text}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                elif is_match_pair:
+                    # Format Match-the-Pair: create table-like structure
+                    # Pattern: List I + List II + Question statement
+                    # Better regex to capture everything including the question
+                    # Find List I and List II positions
+                    list_i_match = re.search(r'List I\s*\n', question_text, re.IGNORECASE)
+                    list_ii_match = re.search(r'List II\s*', question_text, re.IGNORECASE)
+                    
+                    if list_i_match and list_ii_match:
+                        # Extract List I content (between List I and List II)
+                        list_i_start = list_i_match.end()
+                        list_i_end = list_ii_match.start()
+                        list_i_content = question_text[list_i_start:list_i_end].strip()
+                        
+                        # Extract List II content (from List II until question starts)
+                        # Find where List II content ends (look for question keywords)
+                        list_ii_start = list_ii_match.end()
+                        # Find question start (Select, Choose, Match, Which, etc.)
+                        question_start_match = re.search(r'(Select|Choose|Match|Which)', question_text[list_ii_start:], re.IGNORECASE)
+                        
+                        if question_start_match:
+                            # List II content ends where question starts
+                            list_ii_end = list_ii_start + question_start_match.start()
+                            list_ii_content = question_text[list_ii_start:list_ii_end].strip()
+                            # Question statement starts from the keyword
+                            question_statement = question_text[list_ii_start + question_start_match.start():].strip()
+                        else:
+                            # No question keyword found, take everything after List II
+                            list_ii_content = question_text[list_ii_start:].strip()
+                            question_statement = ""
+                        
+                        # Extract items from List I (numbered items)
+                        list_i_items = re.findall(r'(\d+\.\s*[^\n]+(?:\n(?!\d+\.)[^\n]+)*)', list_i_content)
+                        if not list_i_items:
+                            # Fallback: split by numbered items
+                            parts = re.split(r'(\d+\.)', list_i_content)
+                            list_i_items = []
+                            current_item = ""
+                            for part in parts:
+                                if re.match(r'^\d+\.$', part.strip()):
+                                    if current_item:
+                                        list_i_items.append(current_item.strip())
+                                    current_item = part + " "
+                                else:
+                                    current_item += part
+                            if current_item:
+                                list_i_items.append(current_item.strip())
+                        
+                        # Extract items from List II (lettered items)
+                        list_ii_pattern = r'\([a-d]\)\s*([^(]+?)(?=\s*\([a-d]\)|$)'
+                        list_ii_matches = re.finditer(list_ii_pattern, list_ii_content, re.IGNORECASE)
+                        
+                        list_ii_items = []
+                        for match in list_ii_matches:
+                            full_match_text = match.group(0)  # Includes (a) prefix
+                            list_ii_items.append(full_match_text.strip())
+                        
+                        if not list_ii_items:
+                            # Fallback: try simpler pattern
+                            list_ii_items = re.findall(r'\([a-d]\)\s*[^\n()]+', list_ii_content, re.IGNORECASE)
+                            if not list_ii_items:
+                                # Try splitting by newlines
+                                list_ii_lines = [line.strip() for line in list_ii_content.split('\n') if line.strip()]
+                                for line in list_ii_lines:
+                                    matches = re.findall(r'\([a-d]\)\s*[^\n()]+', line, re.IGNORECASE)
+                                    if matches:
+                                        list_ii_items.extend(matches)
+                                    elif line and not line.startswith('List'):
+                                        list_ii_items.append(line)
+                        
+                        # Create table-like HTML structure (side by side)
+                        match_table_html = "<div style='padding: 20px; background-color: rgba(255, 253, 250, 1); border-left: 4px solid #d4a574; border-radius: 5px; margin: 15px 0; line-height: 1.8;'>"
+                        match_table_html += "<div style='display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 15px;'>"
+                        
+                        # List I column
+                        match_table_html += "<div><strong style='font-size: 16px; color: #8b6f47;'>List I</strong><br><br>"
+                        for item in list_i_items:
+                            item_clean = item.strip()
+                            if item_clean:
+                                match_table_html += f"<div style='padding: 10px 0; border-bottom: 1px solid rgba(212, 165, 116, 0.3); line-height: 1.6; color: #2c2c2c;'>{item_clean}</div>"
+                        match_table_html += "</div>"
+                        
+                        # List II column
+                        match_table_html += "<div><strong style='font-size: 16px; color: #8b6f47;'>List II</strong><br><br>"
+                        for item in list_ii_items:
+                            item_clean = item.strip()
+                            if item_clean:
+                                match_table_html += f"<div style='padding: 10px 0; border-bottom: 1px solid rgba(212, 165, 116, 0.3); line-height: 1.6; color: #2c2c2c;'>{item_clean}</div>"
+                        match_table_html += "</div>"
+                        
+                        match_table_html += "</div>"
+                        
+                        # Add question statement prominently
+                        if question_statement:
+                            match_table_html += f"<div style='margin-top: 20px; font-weight: bold; padding-top: 15px; border-top: 2px solid rgba(212, 165, 116, 0.4); color: #8b6f47; font-size: 16px; line-height: 1.8;'>{question_statement}</div>"
+                        else:
+                            # Fallback: try to find question statement elsewhere
+                            question_match = re.search(r'(Select.*?|Choose.*?|Match.*?|Which.*?)(?:\n|$)', question_text, re.IGNORECASE | re.MULTILINE)
+                            if question_match:
+                                match_table_html += f"<div style='margin-top: 20px; font-weight: bold; padding-top: 15px; border-top: 2px solid rgba(212, 165, 116, 0.4); color: #8b6f47; font-size: 16px; line-height: 1.8;'>{question_match.group(1).strip()}</div>"
+                        
+                        match_table_html += "</div>"
+                        
+                        st.markdown(match_table_html, unsafe_allow_html=True)
+                    else:
+                        # Fallback: format with better line breaks
+                        question_text = re.sub(r'(List I)', r'\n\n**\1**\n', question_text, flags=re.IGNORECASE)
+                        question_text = re.sub(r'(List II)', r'\n\n**\1**\n', question_text, flags=re.IGNORECASE)
+                        # Split List II items if they're on same line: (a) item (b) item -> separate lines
+                        question_text = re.sub(r'(\([a-d]\)\s*[^\n()]+)\s*(?=\([a-d]\))', r'\1\n', question_text, flags=re.IGNORECASE)
+                        question_text = re.sub(r'\n{3,}', '\n\n', question_text)
+                        question_text = question_text.strip()
+                        
+                        st.markdown(f"""
+                        <div style='
+                            padding: 20px; 
+                            background-color: rgba(255, 253, 250, 1); 
+                            border-left: 4px solid #d4a574;
+                            border-radius: 5px; 
+                            margin: 15px 0;
+                            line-height: 1.8;
+                        '>
+                            <div style='white-space: pre-wrap; color: #2c2c2c;'>{question_text}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    # Regular question formatting
+                    # Check if this is a multiple-choice question with numbered options (1., 2., 3., 4.)
+                    numbered_options_pattern = r'(\d+\.\s*[^\n]+)'
+                    numbered_options = re.findall(numbered_options_pattern, question_text)
+                    
+                    # If we have numbered options (typically 4 options), format them properly
+                    if len(numbered_options) >= 2 and len(numbered_options) <= 6:
+                        # Extract question part (everything before the first numbered option)
+                        first_option_match = re.search(r'(\d+\.)', question_text)
+                        if first_option_match:
+                            question_part = question_text[:first_option_match.start()].strip()
+                            options_part = question_text[first_option_match.start():].strip()
+                            
+                            # Extract numbered options
+                            options = []
+                            option_pattern = r'(\d+\.\s*[^\n]+(?:\n(?!\d+\.)[^\n]+)*)'
+                            option_matches = re.finditer(option_pattern, options_part)
+                            for match in option_matches:
+                                opt = match.group(1).strip()
+                                if opt:
+                                    options.append(opt)
+                            
+                            # Build formatted HTML with proper alignment
+                            regular_html = "<div style='padding: 20px; background-color: rgba(255, 253, 250, 1); border-left: 4px solid #d4a574; border-radius: 5px; margin: 15px 0; line-height: 1.8;'>"
+                            
+                            # Question text
+                            if question_part:
+                                regular_html += f"<div style='margin-bottom: 12px; color: #2c2c2c; font-size: 15px; line-height: 1.6;'>{question_part}</div>"
+                            
+                            # Options with proper alignment
+                            regular_html += "<div style='margin-left: 10px;'>"
+                            for opt in options:
+                                opt_clean = opt.strip()
+                                if opt_clean:
+                                    # Extract number and text
+                                    number_match = re.match(r'^(\d+\.)\s*(.*)$', opt_clean, re.DOTALL)
+                                    if number_match:
+                                        number = number_match.group(1)
+                                        text = number_match.group(2).strip()
+                                        regular_html += f"<div style='display: flex; align-items: flex-start; margin-bottom: 6px; line-height: 1.6; padding: 4px 0;'>"
+                                        regular_html += f"<span style='font-weight: bold; margin-right: 8px; min-width: 30px; flex-shrink: 0; color: #2c2c2c;'>{number}</span>"
+                                        regular_html += f"<span style='flex: 1; color: #2c2c2c;'>{text}</span>"
+                                        regular_html += "</div>"
+                                    else:
+                                        regular_html += f"<div style='margin-bottom: 6px; line-height: 1.6; padding: 4px 0; color: #2c2c2c;'>{opt_clean}</div>"
+                            regular_html += "</div>"
+                            
+                            # Check for "Select the correct answer" or similar instruction
+                            instruction_match = re.search(r'(Select.*?answer.*?|Choose.*?answer.*?)', question_text, re.IGNORECASE)
+                            if instruction_match:
+                                instruction_text = instruction_match.group(1).strip()
+                                regular_html += f"<div style='margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(212, 165, 116, 0.3); color: #8b6f47; font-weight: bold; font-size: 14px;'>{instruction_text}</div>"
+                            
+                            regular_html += "</div>"
+                            
+                            st.markdown(regular_html, unsafe_allow_html=True)
+                        else:
+                            # Fallback: regular formatting
+                            question_text = re.sub(r'(Statement-I)', r'\n**\1**', question_text, flags=re.IGNORECASE)
+                            question_text = re.sub(r'(Statement-II)', r'\n**\1**', question_text, flags=re.IGNORECASE)
+                            question_text = re.sub(r'(Consider the following)', r'\n**\1**', question_text, flags=re.IGNORECASE)
+                            question_text = re.sub(r'\n{3,}', '\n\n', question_text)
+                            question_text = question_text.strip()
+                            
+                            st.markdown(f"""
+                            <div style='
+                                padding: 20px; 
+                                background-color: rgba(255, 253, 250, 1); 
+                                border-left: 4px solid #d4a574;
+                                border-radius: 5px; 
+                                margin: 15px 0;
+                                line-height: 1.8;
+                            '>
+                                <div style='white-space: pre-wrap; color: #2c2c2c;'>{question_text}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        # Not a numbered options format - use regular formatting
+                        question_text = re.sub(r'(Statement-I)', r'\n**\1**', question_text, flags=re.IGNORECASE)
+                        question_text = re.sub(r'(Statement-II)', r'\n**\1**', question_text, flags=re.IGNORECASE)
+                        question_text = re.sub(r'(Consider the following)', r'\n**\1**', question_text, flags=re.IGNORECASE)
+                        question_text = re.sub(r'\n{3,}', '\n\n', question_text)
+                        question_text = question_text.strip()
+                        
+                        st.markdown(f"""
+                        <div style='
+                            padding: 20px; 
+                            background-color: rgba(255, 253, 250, 1); 
+                            border-left: 4px solid #d4a574;
+                            border-radius: 5px; 
+                            margin: 15px 0;
+                            line-height: 1.8;
+                        '>
+                            <div style='white-space: pre-wrap; color: #2c2c2c;'>{question_text}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
             
             # Options displayed separately for better readability
             st.markdown("**Select your answer:**")
@@ -884,9 +1262,10 @@ elif tab_choice == "Generate Mock Test":
                 else:
                     st.info(f"📝 **Correct Answer:** {correct_answer} (You did not answer this question)")
                 
-                # Explanation with dark mode compatible text color
+                # Explanation - use Streamlit's native markdown for dark mode compatibility
                 explanation_text = q.get('explanation', 'No explanation provided')
-                st.markdown(f"<div style='padding: 15px; background-color: #f0f2f6; border-radius: 5px; margin: 10px 0;'><p style='color: #1f1f1f; line-height: 1.8; font-size: 15px;'><strong>💡 Explanation:</strong><br>{explanation_text}</p></div>", unsafe_allow_html=True)
+                st.markdown(f"**💡 Explanation:**")
+                st.markdown(explanation_text)
                 
                 # Show source information
                 source = q.get('source', {})
