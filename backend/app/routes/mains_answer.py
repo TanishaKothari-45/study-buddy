@@ -102,11 +102,15 @@ def generate_answer(
     # 1) Fetch current-affairs bullets (cached)
     current_bullets_list = []
     if topic_for_current:
+        logger.info(f"🗞️ [MAINS] Fetching current-affairs for topic: {topic_for_current[:80]}")
         try:
             current_bullets_list = fetch_current_points(topic_for_current, max_points=3, use_summarize=use_summarize_web)
+            logger.info(f"✅ [MAINS] Retrieved {len(current_bullets_list)} current-affairs bullets")
         except Exception as e:
-            logger.warning(f"Current affairs fetch failed: {e}")
+            logger.warning(f"⚠️ [MAINS] Current affairs fetch failed: {e}")
             current_bullets_list = []
+    else:
+        logger.info("ℹ️ [MAINS] No topic_for_current provided, skipping web search")
 
     current_bullets_text = "\n".join(f"- {b}" for b in current_bullets_list) if current_bullets_list else ""
 
@@ -266,7 +270,7 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             topic_for_current=mains_request.question,
             word_count=mains_request.word_count,
             use_summarize_web=False,
-            produce_verdict=True
+            produce_verdict=False  # Disabled to save API calls - verdict can be added in post-processing if needed
         )
         
         answer = result["answer"]

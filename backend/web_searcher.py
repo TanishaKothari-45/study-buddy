@@ -20,10 +20,33 @@ CACHE_PATH = os.getenv("WEB_CACHE_PATH", "web_cache.json")
 SERPAPI_KEY = os.getenv("SERPAPI_API_KEY")  # optional
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # optional, only used for summarization
 
+# Log configuration status at module load
+logger.info(f"📁 [WEB] Cache file: {os.path.abspath(CACHE_PATH)}")
+if SERPAPI_KEY:
+    logger.info(f"✅ [WEB] SERPAPI_API_KEY found (length: {len(SERPAPI_KEY)})")
+else:
+    logger.warning("⚠️ [WEB] SERPAPI_API_KEY not found in environment - will use HTML fallback")
+
 # Try to load cache
 try:
-    _CACHE = json.load(open(CACHE_PATH, "r", encoding="utf-8"))
-except Exception:
+    if os.path.exists(CACHE_PATH):
+        _CACHE = json.load(open(CACHE_PATH, "r", encoding="utf-8"))
+        # Clean up empty cache entries on load
+        empty_count = 0
+        for key in list(_CACHE.keys()):
+            bullets = _CACHE[key].get("bullets", [])
+            if not bullets or len(bullets) == 0:
+                logger.debug(f"Removing empty cache entry for: {key[:50]}")
+                del _CACHE[key]
+                empty_count += 1
+        if empty_count > 0:
+            _save_cache()
+            logger.info(f"🧹 [WEB] Cleaned {empty_count} empty cache entries on startup")
+    else:
+        _CACHE = {}
+        logger.info(f"Cache file {CACHE_PATH} does not exist, starting fresh")
+except Exception as e:
+    logger.warning(f"Failed to load cache from {CACHE_PATH}: {e}, starting fresh")
     _CACHE = {}
 
 def _save_cache():
@@ -49,8 +72,11 @@ def serpapi_search(query: str, max_results: int = 5) -> List[Dict]:
         "api_key": SERPAPI_KEY,
         "num": max_results,
     }
+    logger.info(f"📤 [WEB] SerpAPI request params: engine=google, q='{query}', num={max_results}")
     search = GoogleSearch(params)
+    logger.info(f"🔄 [WEB] Executing SerpAPI search...")
     res = search.get_dict()
+    logger.info(f"📥 [WEB] SerpAPI response received, processing results...")
     results = []
     for item in res.get("organic_results", [])[:max_results]:
         results.append({
@@ -108,39 +134,80 @@ def fetch_current_points(
         return []
 
     key = topic.lower().strip()
+    cached_bullets = []
     if key in _CACHE and (time.time() - _CACHE[key].get("timestamp", 0) < 60 * 60 * 24):
-        logger.info(f"Using cached web results for: {topic}")
-        return _CACHE[key].get("bullets", [])
+        cached_bullets = _CACHE[key].get("bullets", [])
+        if cached_bullets and len(cached_bullets) > 0:
+            logger.info(f"✅ [WEB] Using cached web results for: {topic[:80]} ({len(cached_bullets)} bullets)")
+            return cached_bullets
+        else:
+            logger.warning(f"⚠️ [WEB] Cached results are empty for: {topic[:80]}, forcing fresh search")
+            # Remove empty cache entry to force fresh search
+            if key in _CACHE:
+                del _CACHE[key]
+                _save_cache()
 
     # Build search query: prioritize India + world + reports
-    query = f"recent {topic} India world reports summit IPCC NITI 2023 2024 2025 examples"
+    query = f"recent {topic} related latest Indian or world events and reports or summits or global bodies and conferences"
+    logger.info(f"🔍 [WEB] Search query: '{query}'")
     results = []
-    try:
-        if SERPAPI_KEY:
+    
+    # Check SERPAPI_KEY availability
+    if SERPAPI_KEY:
+        logger.info(f"🗞️ [WEB] SERPAPI_KEY found, using SerpAPI for: {topic[:80]}")
+        try:
             results = serpapi_search(query, max_results=8)
-        else:
+            logger.info(f"✅ [WEB] SerpAPI returned {len(results)} results")
+        except Exception as e:
+            logger.warning(f"⚠️ [WEB] SerpAPI search failed: {e}, falling back to HTML search")
+            try:
+                results = html_fallback_search(query, max_results=8)
+                logger.info(f"✅ [WEB] HTML fallback returned {len(results)} results")
+            except Exception as e2:
+                logger.error(f"❌ [WEB] HTML fallback also failed: {e2}")
+                results = []
+    else:
+        logger.warning(f"⚠️ [WEB] SERPAPI_API_KEY not found in environment, using HTML fallback for: {topic}")
+        try:
             results = html_fallback_search(query, max_results=8)
-    except Exception as e:
-        logger.warning(f"Search failed: {e}")
-        results = html_fallback_search(query, max_results=8)
+            logger.info(f"✅ [WEB] HTML fallback returned {len(results)} results")
+        except Exception as e:
+            logger.error(f"❌ [WEB] HTML fallback failed: {e}")
+            results = []
 
     bullets = []
-    for r in results:
+    logger.info(f"📝 [WEB] Processing {len(results)} search results into bullets...")
+    for i, r in enumerate(results):
         s = (r.get("snippet") or "").strip()
         if not s:
+            logger.debug(f"   Result {i+1}: No snippet found, skipping")
             continue
         # Fast cleaning
         s = s.replace("\n", " ").strip()
-        # Keep only meaningful short snippets
-        if len(s.split()) < 8:
-            bullets.append(s)
+        words = s.split()
+        word_count = len(words)
+        
+        # Skip snippets that are too short (less than 8 words) - they're not meaningful
+        if word_count < 8:
+            logger.debug(f"   Result {i+1}: Too short ({word_count} words), skipping")
+            continue
+        
+        # Trim to ~12-18 words for UPSC-style bullets
+        if word_count > 18:
+            bullet = " ".join(words[:18]) + "..."
         else:
-            # trim to ~12-18 words heuristically
-            words = s.split()
-            bullets.append(" ".join(words[:18]) + ("..." if len(words) > 18 else ""))
+            bullet = s
+        
+        bullets.append(bullet)
+        logger.debug(f"   Result {i+1}: Added bullet ({min(word_count, 18)} words): {bullet[:60]}...")
 
         if len(bullets) >= max_points:
             break
+    
+    if len(bullets) == 0:
+        logger.warning(f"⚠️ [WEB] No valid bullets extracted from {len(results)} search results")
+    else:
+        logger.info(f"✅ [WEB] Extracted {len(bullets)} bullets from {len(results)} results")
 
     # Optional summarization via OpenAI (use cautiously)
     if use_summarize and OPENAI_API_KEY and bullets:
