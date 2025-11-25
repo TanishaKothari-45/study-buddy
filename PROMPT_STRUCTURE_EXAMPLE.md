@@ -21,7 +21,7 @@ style_examples = generate_fewshot_examples(
 # Total Style: ~1800 chars (30%)
 
 # 3. Assemble Prompt
-user_prompt = assemble_upsc_prompt(
+user_prompt =(
     topic=topic,
     difficulty=difficulty,
     num_questions=num_questions,
