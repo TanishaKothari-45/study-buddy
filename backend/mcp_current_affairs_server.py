@@ -2,6 +2,7 @@
 """
 Current Affairs MCP Server (Python)
 Fetches recent news and current affairs for mock test generation
+Strategy: Fetch Broad + Filter Local for guaranteed results
 """
 
 import asyncio
@@ -97,6 +98,44 @@ class CurrentAffairsMCPServer:
                     },
                 ),
                 Tool(
+                    name="fetch_diversified_current_affairs",
+                    description=(
+                        "Fetch diversified current affairs covering latest issues, government initiatives, "
+                        "policies, and developments both in India and globally for a given topic. "
+                        "Uses 'Fetch Broad + Filter Local' strategy for guaranteed results. "
+                        "Returns categorized articles perfect for comprehensive mock test preparation."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "topic": {
+                                "type": "string",
+                                "description": (
+                                    "The main topic or domain (e.g., 'environment', 'economy', 'technology', "
+                                    "'healthcare', 'education', 'defence')"
+                                ),
+                            },
+                            "time_range": {
+                                "type": "string",
+                                "enum": ["day", "week", "month", "3months", "year"],
+                                "description": "Time range for news articles (default: 3months)",
+                                "default": "3months",
+                            },
+                            "total_articles": {
+                                "type": "number",
+                                "description": "Total articles to fetch before filtering (default: 50, max: 100)",
+                                "default": 50,
+                            },
+                            "api_provider": {
+                                "type": "string",
+                                "enum": ["newsapi", "gnews", "thenewsapi"],
+                                "description": "News API provider to use (default: auto-selects best available)",
+                            },
+                        },
+                        "required": ["topic"],
+                    },
+                ),
+                Tool(
                     name="get_topic_timeline",
                     description=(
                         "Get a chronological timeline of major events for a specific topic. "
@@ -132,6 +171,13 @@ class CurrentAffairsMCPServer:
                         time_range=arguments.get("time_range", "3months"),
                         region=arguments.get("region"),
                         count=arguments.get("count", 10),
+                        api_provider=arguments.get("api_provider"),
+                    )
+                elif name == "fetch_diversified_current_affairs":
+                    result = await self.fetch_diversified_current_affairs(
+                        topic=arguments.get("topic"),
+                        time_range=arguments.get("time_range", "3months"),
+                        total_articles=arguments.get("total_articles", 50),
                         api_provider=arguments.get("api_provider"),
                     )
                 elif name == "get_topic_timeline":
@@ -182,6 +228,198 @@ class CurrentAffairsMCPServer:
 
         return result
 
+    async def fetch_diversified_current_affairs(
+        self,
+        topic: str,
+        time_range: str = "3months",
+        total_articles: int = 50,
+        api_provider: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        NEW STRATEGY: Fetch Broad + Filter Local
+        
+        1. Fetch broad articles (e.g., "forest fires India", "forest fires global")
+        2. Filter locally based on keywords to categorize
+        3. Guaranteed results since broad searches always work
+        """
+        
+        cache_key = f"diversified_v2_{topic}_{time_range}_{total_articles}_{api_provider}"
+
+        # Check cache
+        if cache_key in cache:
+            cached_data = cache[cache_key]
+            if datetime.now().timestamp() - cached_data["timestamp"] < CACHE_TTL:
+                return cached_data["data"]
+
+        provider = api_provider or self.select_best_provider()
+
+        # STEP 1: Fetch broad articles from 3 simple searches
+        all_articles = []
+        search_queries = [
+            {"query": f"{topic} India", "region": "India"},
+            {"query": f"{topic} global", "region": "global"},
+            {"query": f"{topic}", "region": None},  # General search
+        ]
+
+        print(f"📡 Fetching broad articles for: {topic}")
+        
+        for search_info in search_queries:
+            try:
+                # Calculate articles per query (distribute evenly)
+                articles_per_query = max(10, total_articles // len(search_queries))
+                
+                if provider == "newsapi":
+                    result = await self.fetch_from_newsapi(
+                        search_info["query"], time_range, search_info["region"], articles_per_query
+                    )
+                elif provider == "gnews":
+                    result = await self.fetch_from_gnews(
+                        search_info["query"], time_range, search_info["region"], min(articles_per_query, 10)
+                    )
+                elif provider == "thenewsapi":
+                    result = await self.fetch_from_thenewsapi(
+                        search_info["query"], time_range, search_info["region"], articles_per_query
+                    )
+                else:
+                    raise ValueError("No API provider available")
+
+                # Add source query info to each article
+                for article in result.get("articles", []):
+                    article["source_query"] = search_info["query"]
+                    article["source_region"] = search_info["region"]
+                
+                all_articles.extend(result.get("articles", []))
+                
+                print(f"  ✓ Fetched {len(result.get('articles', []))} articles for: {search_info['query']}")
+                
+                # Small delay to avoid rate limiting
+                await asyncio.sleep(0.5)
+                
+            except Exception as e:
+                print(f"  ✗ Error fetching {search_info['query']}: {e}")
+                continue
+
+        print(f"📚 Total articles fetched: {len(all_articles)}")
+
+        # STEP 2: Filter and categorize locally based on keywords
+        categories = {
+            "india_issues": {
+                "description": "Latest issues and challenges in India",
+                "articles": [],
+                "keywords": ["india", "indian", "delhi", "mumbai", "bengaluru", "challenge", "crisis", "problem", "issue", "concern"],
+                "exclude_keywords": ["policy", "scheme", "initiative", "program", "government launch", "ministry"],
+            },
+            "global_issues": {
+                "description": "Latest global issues and challenges",
+                "articles": [],
+                "keywords": ["global", "world", "international", "worldwide", "crisis", "challenge", "problem"],
+                "exclude_keywords": ["india", "indian", "policy", "initiative", "agreement"],
+            },
+            "india_initiatives": {
+                "description": "Government initiatives and policies in India",
+                "articles": [],
+                "keywords": ["india", "indian", "government", "policy", "scheme", "initiative", "program", "ministry", "launch", "announce", "bill", "act"],
+                "exclude_keywords": [],
+            },
+            "global_initiatives": {
+                "description": "International initiatives and policies",
+                "articles": [],
+                "keywords": ["global", "international", "UN", "WHO", "world", "treaty", "agreement", "summit", "conference", "initiative", "policy"],
+                "exclude_keywords": ["india only"],  # Allow India in global context
+            },
+            "developments": {
+                "description": "Recent developments and innovations",
+                "articles": [],
+                "keywords": ["breakthrough", "innovation", "development", "technology", "advance", "new", "discover", "research", "study"],
+                "exclude_keywords": [],
+            },
+        }
+
+        # Categorize articles
+        print(f"🔍 Categorizing articles...")
+        
+        for article in all_articles:
+            title = article.get("title", "").lower()
+            summary = article.get("summary", "").lower()
+            content = title + " " + summary
+            
+            # Track which categories match
+            category_scores = {}
+            
+            for category_key, category_info in categories.items():
+                score = 0
+                
+                # Check keyword matches
+                for keyword in category_info["keywords"]:
+                    if keyword in content:
+                        score += 1
+                
+                # Check exclude keywords (reduce score)
+                for exclude_keyword in category_info["exclude_keywords"]:
+                    if exclude_keyword in content:
+                        score -= 2
+                
+                if score > 0:
+                    category_scores[category_key] = score
+            
+            # Assign to best matching category
+            if category_scores:
+                best_category = max(category_scores, key=category_scores.get)
+                categories[best_category]["articles"].append(article)
+
+        # STEP 3: Format results
+        all_categories = {}
+        for category_key, category_info in categories.items():
+            all_categories[category_key] = {
+                "description": category_info["description"],
+                "articles": category_info["articles"],
+                "count": len(category_info["articles"]),
+            }
+            print(f"  ✓ {category_key}: {len(category_info['articles'])} articles")
+
+        # Calculate statistics
+        total_categorized = sum(cat["count"] for cat in all_categories.values())
+        india_articles = sum(
+            cat["count"] 
+            for cat_key, cat in all_categories.items() 
+            if "india" in cat_key
+        )
+        global_articles = sum(
+            cat["count"] 
+            for cat_key, cat in all_categories.items() 
+            if "global" in cat_key
+        )
+
+        result = {
+            "topic": topic,
+            "time_range": time_range,
+            "provider": provider,
+            "strategy": "Fetch Broad + Filter Local",
+            "diversification_strategy": {
+                "approach": "Fetched broad articles and filtered locally by keywords",
+                "broad_searches": [sq["query"] for sq in search_queries],
+                "categories": list(categories.keys()),
+                "coverage": "India + Global + Initiatives + Issues + Developments",
+            },
+            "statistics": {
+                "total_fetched": len(all_articles),
+                "total_categorized": total_categorized,
+                "india_focused": india_articles,
+                "global_focused": global_articles,
+                "categories_covered": len([cat for cat in all_categories.values() if cat["count"] > 0]),
+            },
+            "categories": all_categories,
+            "metadata": {
+                "fetched_at": datetime.now().isoformat(),
+                "cache_key": cache_key,
+            },
+        }
+
+        # Cache the result
+        cache[cache_key] = {"data": result, "timestamp": datetime.now().timestamp()}
+
+        return result
+
     async def get_topic_timeline(
         self,
         topic: str,
@@ -224,12 +462,13 @@ class CurrentAffairsMCPServer:
         return result
 
     def select_best_provider(self) -> str:
+        """Select best available provider. Prefer TheNewsAPI > NewsAPI > GNews"""
+        if THENEWSAPI_KEY:
+            return "thenewsapi"
         if NEWS_API_KEY:
             return "newsapi"
         if GNEWS_API_KEY:
             return "gnews"
-        if THENEWSAPI_KEY:
-            return "thenewsapi"
         raise ValueError(
             "No API key configured. Set NEWS_API_KEY, GNEWS_API_KEY, or THENEWSAPI_KEY environment variable."
         )
@@ -246,8 +485,9 @@ class CurrentAffairsMCPServer:
             f"q={quote(query)}&"
             f"from={from_date}&"
             f"to={to_date}&"
-            f"pageSize={count}&"
+            f"pageSize={min(count, 100)}&"
             f"sortBy=publishedAt&"
+            f"language=en&"
             f"apiKey={NEWS_API_KEY}"
         )
 
@@ -263,8 +503,9 @@ class CurrentAffairsMCPServer:
         url = (
             f"https://gnews.io/api/v4/search?"
             f"q={quote(topic)}&"
-            f"max={count}&"
+            f"max={min(count, 10)}&"
             f"sortby=publishedAt&"
+            f"lang=en&"
             f"apikey={GNEWS_API_KEY}"
         )
 
@@ -287,8 +528,9 @@ class CurrentAffairsMCPServer:
         url = (
             f"https://api.thenewsapi.com/v1/news/all?"
             f"search={quote(topic)}&"
-            f"limit={count}&"
+            f"limit={min(count, 100)}&"
             f"published_after={from_date}&"
+            f"language=en&"
             f"api_token={THENEWSAPI_KEY}"
         )
 
