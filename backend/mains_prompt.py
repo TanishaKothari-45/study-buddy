@@ -40,9 +40,32 @@ COGNITIVE FRAMEWORK:
 4) Option / Point Discipline: Provide evidence / report reference / global bodies and conferences or example for each major point.
 5) Diagram discipline: Provide at least one inline diagram suggestion in the body (explicit).
 """
+CONCLUSION_TEMPLATE ="""CONCLUSION TEMPLATE (MANDATORY):
+
+Every conclusion must follow this 3-step structure:
+
+1. **Synthesis (1 sentence)**  
+   Briefly integrate core idea and its impact in different areas
+
+2. **Forward-Looking (1–2 sentences)**  
+   Provide 2–3 specific actionable directions (policy, planning, governance, technology, or institutional improvements).
+
+3. **National / Global Alignment (1 sentence)**  
+   End with a reference to the following, whichever is relevant:  
+   • SDGs 
+   • National Missions or flagship schemes  
+   • Global frameworks (Paris Agreement / Sendai Framework)  
+   Keep it concise and non-generic.
+
+Guidelines:
+- Do NOT repeat body points.  
+- Do NOT use generic endings like “thus it is important.”  
+- The conclusion must sound evaluative, forward-looking, and policy-oriented.
+"""
+
 
 # The primary system prompt used in LLM calls
-SYSTEM_PROMPT = "\n\n".join([SYSTEM_BASE, DIRECTIVE_DECODER, COGNITIVE_FRAMEWORK]).strip()
+SYSTEM_PROMPT = "\n\n".join([SYSTEM_BASE, DIRECTIVE_DECODER, COGNITIVE_FRAMEWORK,CONCLUSION_TEMPLATE]).strip()
 
 
 def assemble_mains_prompt(
@@ -79,7 +102,7 @@ Current Affairs (use if relevant; crisp bullets):
 Constraints / Format:
 - INTRO: 2–3 lines. Must include either a definition, a data point/report citation, or a recent context or current affair (if applicable).
 - BODY: Use sub-headings and bullets. Each bullet <= 18 words. Insert at least one inline diagram suggestion exactly where relevant e.g. "(Suggested Diagram: India map showing X,flowcharts, maps, pie charts, timelines, or comparative tables.)".
-- CONCLUSION: 1 paragraph; synthesize and give global best practices/policy/SDG/forward-looking suggestion.
+-Conclusion MUST follow the 3-layer template (Synthesis → Forward-looking → SDG/Policy anchor). Strict. No generic endings.
 - Word target: ~{word_count} words. If you exceed by >20%, compress. If <80%, add one short synthesis paragraph.
 - For directive words (Analyse, Evaluate, Critically examine, Discuss), follow the Directive Decoder rules in SYSTEM PROMPT.
 - Substantiate major points with brief evidence (report names, indices, NFHS, IPCC, NITI).

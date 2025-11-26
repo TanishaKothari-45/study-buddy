@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "current-affairs": {
+      "command": "python",
+      "args": [
+        "/Users/tanishakothari/Documents/Personal/study-buddy/backend/mcp_current_affairs_server.py"
+      ],
+      "env": {
+        "GNEWS_API_KEY": "${GNEWS_API_KEY}"
+      }
+    }
+  }
+}
+
