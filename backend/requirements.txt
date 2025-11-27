@@ -45,3 +45,4 @@ pandas==2.0.3
 nltk>=3.8.0  # Natural language processing
 openai>=1.0.0  # OpenAI API client
 tqdm>=4.65.0  # Progress bars for batch processing
+

@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 # Load environment variables from parent directory
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8003")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8001")
 
 def check_backend_status() -> bool:
     """Check if backend is running"""

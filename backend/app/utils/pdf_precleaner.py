@@ -14,7 +14,7 @@ Removes only *obvious* garbage from PDFs before chunking:
 """
 
 import re
-import fitz  # PyMuPDF
+# import fitz  # PyMuPDF
 import unicodedata
 import logging
 from typing import Union

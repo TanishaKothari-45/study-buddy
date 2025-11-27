@@ -1,29 +1,35 @@
-# Core dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-python-dotenv==1.0.0
-pydantic==2.5.0
-pydantic-settings==2.1.0
-
-# PDF Processing
-pdfplumber==0.10.3
-PyPDF2==3.0.1
-pdf2image==1.16.3  # For PDF to image conversion
-
-# Image processing (for PDF to image conversion if needed)
-Pillow>=9.0.0
-
-# Vector Store
-chromadb==0.4.18
-sentence-transformers==2.2.2
-huggingface-hub<0.19.0  # Added for compatibility
-
-# Embeddings & LLM
-openai==1.12.0
-tiktoken==0.5.2
-
-# Utilities
-python-magic==0.4.27
-numpy>=1.26.0
-tqdm==4.65.0
+openai
+python-dotenv
+fastapi
+uvicorn[standard]
+pydantic
+langchain
+langchain-community
+langchain-core
+googlesearch-python
+beautifulsoup4
+requests
+PyPDF2
+pdfplumber
+pdf2image
+Pillow
+chromadb
+sentence-transformers
+opencv-python
+pinecone-client
+langchain-pinecone
+python-magic
+tiktoken
+chardet
+numpy
+pandas
+nltk
+tqdm
+weasyprint
+pdfkit
+google-cloud-vision
+google
+reportlab
+fitz
+streamlit
+python-multipart
