@@ -95,7 +95,7 @@ Directive -> structure (mandatory):
 **RULE 5 - IBC FORMAT**:
 - INTRO: 2-3 lines. Must include either a definition, a data point/report citation, or a recent context or current affair (if applicable).
 - BODY: Use sub-headings and bullets. Each bullet <= 18 words. Main idea (≤ 10-12 words) — Evidence (report/data/index) — Example (India OR World). Insert at least one inline diagram suggestion exactly where relevant e.g. "(Suggested Diagram: India map showing X, flowcharts, maps, pie charts, timelines, or comparative tables.)"
-- CONCLUSION: 1 para with global best practices + SDG + policy angle.
+- CONCLUSION: 1 para with global best practices + SDG + policy angle + related Indian constitutuon articles.
 
 **RULE 6 - WORD LIMIT COMPRESSION** (when word_count <= 250):
 1) MUST preserve IBC structure but reduce density:

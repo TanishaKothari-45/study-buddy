@@ -98,7 +98,7 @@ Current Affairs (use if relevant; crisp bullets):
 Constraints / Format:
 - INTRO: 2–3 lines. Must include either a definition, a data point/report citation, or a recent context or current affair (if applicable).
 - BODY: Use sub-headings and bullets. Each bullet <= 18 words. Main idea (≤ 10–12 words) — Evidence (report/data/index) — Example (India OR World). Insert at least one inline diagram suggestion exactly where relevant e.g. "(Suggested Diagram: India map showing X,flowcharts, maps, pie charts, timelines, or comparative tables.)".
-- CONCLUSION: 1 para with global best practices + SDG + policy angle.
+- CONCLUSION: 1 para with global best practices + SDG + policy angle + related Indian constitutuon articles.
 If the word_count <= 250, follow WORD_LIMIT_COMPRESSION_RULE strictly to ensure the answer fits while covering ALL aspects of the question concisely.
 - Word target: ~{word_count} words. If <80%, add one short synthesis paragraph.
 - For directive words (Analyse, Evaluate, Critically examine, Discuss), follow the Directive Decoder rules in SYSTEM PROMPT.
