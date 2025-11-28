@@ -348,7 +348,7 @@ Return ONLY the question text, nothing else. If you can't find an explicit quest
                     training_data = json.load(f)
                     all_examples = training_data.get("training_examples", [])
                     # Get last 5 examples (most recent)
-                    training_examples = all_examples[-5:] if len(all_examples) > 5 else all_examples
+                    training_examples = all_examples[-3:] if len(all_examples) > 3 else all_examples
                     logger.info(f"✅ Loaded {len(training_examples)} training examples for few-shot learning")
             else:
                 logger.info("ℹ️ No training examples file found (this is okay for first use)")
