@@ -27,12 +27,23 @@ backend_dir = Path(__file__).resolve().parent.parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
+logger = logging.getLogger("mains_answer")
+logging.basicConfig(level=logging.INFO)
+
 from mains_prompt import assemble_mains_prompt
 from web_searcher import fetch_current_points
 from ..utils.context_retriever import retrieve_context_for_question
+from ..utils.question_parser import parse_question_for_search
 
-logger = logging.getLogger("mains_answer")
-logging.basicConfig(level=logging.INFO)
+# Import Gemini client for question parsing
+try:
+    from ..gemini_core.gemini_client import GeminiClient
+    from ..gemini_core import settings_gemini_key
+    GEMINI_API_KEY = settings_gemini_key.GEMINI_API_KEY
+except ImportError as e:
+    GeminiClient = None
+    GEMINI_API_KEY = None
+    logger.warning(f"Could not import Gemini client: {e}")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -200,10 +211,34 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
         # Get Pinecone handler
         pinecone_handler = request.app.state.vector_handler
         
-        # Use shared context retriever
-        logger.info(f"🔍 [MAINS] Retrieving context using shared retriever...")
+        # Parse question to extract search terms for better embedding
+        search_query = mains_request.question  # Default to full question
+        parsed_topics = {}
+        
+        if GeminiClient and GEMINI_API_KEY:
+            logger.info(f"🔍 [MAINS] Parsing question for search terms...")
+            try:
+                gemini_client = GeminiClient(
+                    api_key=GEMINI_API_KEY,
+                    model_name="gemini-2.5-pro"
+                )
+                parsed_topics = await parse_question_for_search(
+                    question=mains_request.question,
+                    gemini_client=gemini_client,
+                    model_name="gemini-2.5-pro"
+                )
+                search_query = parsed_topics.get("search_query", mains_request.question)
+                logger.info(f"✅ [MAINS] Parsed search query: {search_query}")
+            except Exception as e:
+                logger.warning(f"⚠️ [MAINS] Question parsing failed, using full question: {e}")
+                search_query = mains_request.question
+        else:
+            logger.info(f"ℹ️ [MAINS] Gemini not available, using full question for search")
+        
+        # Use shared context retriever with parsed search query
+        logger.info(f"📚 [MAINS] Retrieving context using shared retriever...")
         context, sources = retrieve_context_for_question(
-            search_query=mains_request.question,
+            search_query=search_query,
             vector_handler=pinecone_handler,
             mode="mains",
             use_content_store=True,

@@ -30,6 +30,7 @@ pdfkit
 google-cloud-vision
 google
 reportlab
+PyMuPDF>=1.23.0
 fitz
 streamlit
 python-multipart
