@@ -237,40 +237,18 @@ Return ONLY the question text, nothing else. If you can't find an explicit quest
             logger.info(f"📝 STEP 1: Using provided question: {identified_question[:100]}...")
         
         # ============================================================
-        # STEP 2: Parse question to extract search terms
-        # ============================================================
-        search_query = identified_question  # Default to full question
-        parsed_topics = {}
-        
-        if parse_question_for_search and identified_question != "Question not identified":
-            logger.info("🔍 STEP 2: Parsing question for search terms...")
-            try:
-                parsed_topics = await parse_question_for_search(
-                    question=identified_question,
-                    gemini_client=gemini_client,
-                    model_name="gemini-2.5-pro"
-                )
-                search_query = parsed_topics.get("search_query", identified_question)
-                logger.info(f"✅ Search query: {search_query}")
-            except Exception as e:
-                logger.warning(f"⚠️ Question parsing failed, using full question: {e}")
-                search_query = identified_question
-        else:
-            logger.info("⚠️ STEP 2: Skipping question parsing (utility not available)")
-        
-        # ============================================================
-        # STEP 3: Retrieve context from Pinecone/SQLite
+        # STEP 2: Retrieve context from Pinecone/SQLite (FULL question)
         # ============================================================
         context = ""
         sources = []
         
         if retrieve_context_for_question:
-            logger.info("📚 STEP 3: Retrieving context from vector store...")
+            logger.info("📚 STEP 2: Retrieving context using full question...")
             try:
                 vector_handler = request.app.state.vector_handler
                 if vector_handler:
                     context, sources = retrieve_context_for_question(
-                        search_query=search_query,
+                        search_query=identified_question,  # Full question for Pinecone
                         vector_handler=vector_handler,
                         mode="mains",
                         use_content_store=True,
@@ -284,7 +262,25 @@ Return ONLY the question text, nothing else. If you can't find an explicit quest
                 context = ""
                 sources = []
         else:
-            logger.info("⚠️ STEP 3: Skipping context retrieval (utility not available)")
+            logger.info("⚠️ STEP 2: Skipping context retrieval (utility not available)")
+        
+        # ============================================================
+        # STEP 3: Parse question for current affairs (keywords better for news)
+        # ============================================================
+        parsed_topics = {}
+        
+        if parse_question_for_search and identified_question != "Question not identified":
+            logger.info("🔍 STEP 3: Parsing question for current affairs search...")
+            try:
+                parsed_topics = await parse_question_for_search(
+                    question=identified_question,
+                    gemini_client=gemini_client,
+                    model_name="gemini-2.5-pro"
+                )
+                logger.info(f"✅ Parsed for current affairs: {parsed_topics.get('search_query', '')[:50]}...")
+            except Exception as e:
+                logger.warning(f"⚠️ Question parsing failed: {e}")
+                parsed_topics = {}
         
         # ============================================================
         # STEP 4: Fetch current affairs using parsed keywords
@@ -313,7 +309,7 @@ Return ONLY the question text, nothing else. If you can't find an explicit quest
             logger.info(f"📝 Added current affairs to context: {len(current_affairs_section)} chars")
         
         # ============================================================
-        # STEP 5: Build enhanced prompt with context
+        # STEP 5: Build enhanced prompt with context + current affairs
         # ============================================================
         logger.info("✍️ STEP 5: Building enhanced prompt with context...")
         

@@ -1,16 +1,15 @@
 """
 mains_answer.py
-Main handler for mains answer generation using the prompt templates and web_searcher.
+Main handler for mains answer generation using the prompt templates.
+
+Uses MCP current affairs server for latest news (not web_searcher).
 
 Usage:
   from mains_prompt import assemble_mains_prompt
-  from web_searcher import fetch_current_points
   from mains_answer import generate_answer
 
 Config:
   export OPENAI_API_KEY=sk-...
-  (optional) export SERPAPI_API_KEY=...
-  (optional) set WEB_CACHE_PATH=web_cache.json
 """
 
 import os
@@ -31,7 +30,6 @@ logger = logging.getLogger("mains_answer")
 logging.basicConfig(level=logging.INFO)
 
 from mains_prompt import assemble_mains_prompt
-from web_searcher import fetch_current_points
 from ..utils.context_retriever import retrieve_context_for_question
 from ..utils.question_parser import parse_question_for_search
 from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
@@ -100,33 +98,23 @@ def generate_verdict(question: str, openai_client) -> Optional[str]:
 def generate_answer(
     question: str,
     static_context: Optional[str] = None,
-    topic_for_current: Optional[str] = None,
     word_count: int = 350,
-    use_summarize_web: bool = False,
     produce_verdict: bool = True
 ) -> dict:
     """
     Top-level function to generate a mains answer.
+    
+    Note: Current affairs are now fetched in the endpoint using MCP server
+    and appended to static_context before calling this function.
 
     Returns:
-      { "answer": str, "sources": list, "current_bullets": list }
+      { "answer": str, "sources": list }
     """
-    # 1) Fetch current-affairs bullets (cached)
-    current_bullets_list = []
-    if topic_for_current:
-        logger.info(f"🗞️ [MAINS] Fetching current-affairs for topic: {topic_for_current[:80]}")
-        try:
-            current_bullets_list = fetch_current_points(topic_for_current, max_points=3, use_summarize=use_summarize_web)
-            logger.info(f"✅ [MAINS] Retrieved {len(current_bullets_list)} current-affairs bullets")
-        except Exception as e:
-            logger.warning(f"⚠️ [MAINS] Current affairs fetch failed: {e}")
-            current_bullets_list = []
-    else:
-        logger.info("ℹ️ [MAINS] No topic_for_current provided, skipping web search")
+    # Current affairs bullets are now included in static_context
+    # (fetched via MCP server in the endpoint)
+    current_bullets_text = ""  # Kept for backward compatibility with assemble_mains_prompt
 
-    current_bullets_text = "\n".join(f"- {b}" for b in current_bullets_list) if current_bullets_list else ""
-
-    # 2) Assemble prompt
+    # 1) Assemble prompt
     prompt_pair = assemble_mains_prompt(
         question=question,
         context=static_context,
@@ -134,7 +122,7 @@ def generate_answer(
         word_count=word_count
     )
 
-    # 3) Call LLM (OpenAI) - guarded usage
+    # 2) Call LLM (OpenAI) - guarded usage
     answer_text = ""
     sources = []
     if not OPENAI_API_KEY:
@@ -164,11 +152,11 @@ def generate_answer(
         # Fallback simple template answer to avoid blank responses
         answer_text = f"**Introduction**\nBrief introduction based on provided materials.\n\n**Body**\n• Key point 1\n• Key point 2\n\n**Conclusion**\nSynthesis and policy suggestion."
 
-    # 4) Post-processing: ensure diagrams, word-count, verdict when needed
+    # 3) Post-processing: ensure diagrams, word-count, verdict when needed
     answer_text = enforce_diagrams(answer_text, required=1)
     answer_text = enforce_word_count(answer_text, target=word_count)
 
-    # 5) If produce_verdict and directive likely needs it, create short verdict (sparing OpenAI calls)
+    # 4) If produce_verdict and directive likely needs it, create short verdict (sparing OpenAI calls)
     verdict_text = None
     if produce_verdict and OPENAI_API_KEY:
         try:
@@ -180,10 +168,9 @@ def generate_answer(
         except Exception as e:
             logger.debug(f"Verdict generation failed: {e}")
 
-    # 6) Pack result
+    # 5) Pack result
     result = {
         "answer": answer_text,
-        "current_bullets": current_bullets_list,
         "sources": sources  # placeholder: can integrate actual source extraction later
     }
     return result
@@ -212,34 +199,10 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
         # Get Pinecone handler
         pinecone_handler = request.app.state.vector_handler
         
-        # Parse question to extract search terms for better embedding
-        search_query = mains_request.question  # Default to full question
-        parsed_topics = {}
-        
-        if GeminiClient and GEMINI_API_KEY:
-            logger.info(f"🔍 [MAINS] Parsing question for search terms...")
-            try:
-                gemini_client = GeminiClient(
-                    api_key=GEMINI_API_KEY,
-                    model_name="gemini-2.5-pro"
-                )
-                parsed_topics = await parse_question_for_search(
-                    question=mains_request.question,
-                    gemini_client=gemini_client,
-                    model_name="gemini-2.5-pro"
-                )
-                search_query = parsed_topics.get("search_query", mains_request.question)
-                logger.info(f"✅ [MAINS] Parsed search query: {search_query}")
-            except Exception as e:
-                logger.warning(f"⚠️ [MAINS] Question parsing failed, using full question: {e}")
-                search_query = mains_request.question
-        else:
-            logger.info(f"ℹ️ [MAINS] Gemini not available, using full question for search")
-        
-        # Use shared context retriever with parsed search query
-        logger.info(f"📚 [MAINS] Retrieving context using shared retriever...")
+        # Use FULL question for Pinecone vector search (better semantic matching)
+        logger.info(f"📚 [MAINS] Retrieving context using full question...")
         context, sources = retrieve_context_for_question(
-            search_query=search_query,
+            search_query=mains_request.question,  # Full question for Pinecone
             vector_handler=pinecone_handler,
             mode="mains",
             use_content_store=True,
@@ -256,6 +219,25 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             )
         
         logger.info(f"✅ [MAINS] Retrieved context: {len(context)} chars, {len(sources)} sources")
+
+        # Parse question for current affairs search (keywords work better for news APIs)
+        parsed_topics = {}
+        if GeminiClient and GEMINI_API_KEY:
+            logger.info(f"🔍 [MAINS] Parsing question for current affairs search...")
+            try:
+                gemini_client = GeminiClient(
+                    api_key=GEMINI_API_KEY,
+                    model_name="gemini-2.5-pro"
+                )
+                parsed_topics = await parse_question_for_search(
+                    question=mains_request.question,
+                    gemini_client=gemini_client,
+                    model_name="gemini-2.5-pro"
+                )
+                logger.info(f"✅ [MAINS] Parsed for current affairs: {parsed_topics.get('search_query', '')[:50]}...")
+            except Exception as e:
+                logger.warning(f"⚠️ [MAINS] Question parsing failed: {e}")
+                parsed_topics = {}
 
         # Fetch current affairs using parsed keywords (in addition to static context)
         current_affairs_bullets = []
@@ -275,18 +257,18 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
         # Append current affairs to context (additive, not replacing)
         if current_affairs_bullets:
             current_affairs_section = format_bullets_for_context(current_affairs_bullets)
+            logger.info(f"📝 [MAINS] Current affairs section: {current_affairs_section}")
             context = context + current_affairs_section
             logger.info(f"📝 [MAINS] Added current affairs to context: {len(current_affairs_section)} chars")
 
         # Generate answer using the generate_answer function
+        # Note: Current affairs are already included in context via MCP fetch above
         logger.info(f"🤖 [MAINS] Generating answer...")
         result = generate_answer(
             question=mains_request.question,
             static_context=context,
-            topic_for_current=mains_request.question,
             word_count=mains_request.word_count,
-            use_summarize_web=False,
-            produce_verdict=False  # Disabled to save API calls - verdict can be added in post-processing if needed
+            produce_verdict=False  # Disabled to save API calls
         )
         
         answer = result["answer"]
@@ -308,5 +290,5 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
 # Quick test function
 if __name__ == "__main__":
     q = "Discuss the causes and impacts of increasing forest fires in India and suggest mitigation measures."
-    res = generate_answer(q, static_context="Use NCERT and Vision IAS notes on forests", topic_for_current="forest fires India", word_count=300)
+    res = generate_answer(q, static_context="Use NCERT and Vision IAS notes on forests", word_count=300)
     print(res["answer"][:2000])
