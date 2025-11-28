@@ -24,6 +24,7 @@ import tempfile
 from typing import Optional
 from fastapi import APIRouter, Request, Form, File, UploadFile, HTTPException
 from pathlib import Path
+import json
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -52,10 +53,12 @@ except ImportError as e:
     format_bullets_for_context = None
     logger.warning(f"Could not import utilities: {e}")
 
-# System prompt for answer improvement - uses mains_prompt.py structure
+# System prompt for answer improvement with feedback - uses mains_prompt.py structure
 ANSWER_IMPROVEMENT_SYSTEM_PROMPT = """You are an expert UPSC Geography teacher, evaluator and answer-writing coach.
 
-Your task is to read a student's handwritten answer and provide an improved version using the provided reference context.
+Your task is to read a student's handwritten answer and provide:
+1. An improved version using the provided reference context
+2. Detailed feedback comparing the student's answer to the ideal answer
 
 **RULE 1 - PRESERVE STUDENT'S VOICE (MOST IMPORTANT)**:
 Build on the student's original points and ideas. EDIT (rephrase, reorganize, modify, add, remove, tidy) rather than rewrite from scratch. Keep their unique perspective and examples where valid.
@@ -111,9 +114,34 @@ Directive -> structure (mandatory):
 - If a fact is necessary but not in context or student's answer, insert "[citation needed]".
 
 **RULE 8 - OUTPUT FORMAT**:
-- Return ONLY the improved answer text (no JSON, no metadata, no commentary).
-- Use markdown for formatting (headings, bullets).
-- Every single bullet MUST contain: (a) One evidence (report/index/data), (b) One example (named Indian OR named global), (c) Maximum 18 words total.
+You MUST return a JSON object with the following structure:
+```json
+{
+  "improved_answer": "The improved answer in markdown format following all IBC rules...",
+  "feedback": {
+    "strengths": [
+      "List specific strengths of the student's answer",
+      "What they did well (structure, examples, evidence, etc.)"
+    ],
+    "missing_elements": [
+      "Key points missing from the student's answer",
+      "Important facts, dimensions, data, or examples they should have included"
+    ],
+    "improvements_needed": [
+      "Specific actionable suggestions for improvement",
+      "What to add, remove, or modify in future answers"
+    ],
+    "structure_feedback": "Comment on IBC format adherence, sub-headings, bullet discipline",
+    "evidence_feedback": "Comment on use of reports/data/indices/examples",
+    "overall_assessment": "Brief overall assessment and encouragement"
+  }
+}
+```
+
+**CRITICAL**: Return ONLY valid JSON. No markdown code blocks, no commentary before or after. Just the raw JSON object.
+- The improved_answer should use markdown formatting (headings, bullets)
+- Every single bullet MUST contain: (a) One evidence (report/index/data), (b) One example (named Indian OR named global), (c) Maximum 18 words total
+- Feedback should be constructive, specific, and actionable
 """
 
 
@@ -309,6 +337,26 @@ Return ONLY the question text, nothing else. If you can't find an explicit quest
             logger.info(f"📝 Added current affairs to context: {len(current_affairs_section)} chars")
         
         # ============================================================
+        # STEP 4.5: Load training examples for few-shot learning (0-5 examples)
+        # ============================================================
+        logger.info("🎓 STEP 4.5: Loading training examples for few-shot learning...")
+        training_examples = []
+        try:
+            training_data_file = Path(__file__).parent.parent.parent / "data" / "training_examples.json"
+            if training_data_file.exists():
+                with open(training_data_file, 'r', encoding='utf-8') as f:
+                    training_data = json.load(f)
+                    all_examples = training_data.get("training_examples", [])
+                    # Get last 5 examples (most recent)
+                    training_examples = all_examples[-5:] if len(all_examples) > 5 else all_examples
+                    logger.info(f"✅ Loaded {len(training_examples)} training examples for few-shot learning")
+            else:
+                logger.info("ℹ️ No training examples file found (this is okay for first use)")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to load training examples: {e}")
+            training_examples = []
+        
+        # ============================================================
         # STEP 5: Build enhanced prompt with context + current affairs
         # ============================================================
         logger.info("✍️ STEP 5: Building enhanced prompt with context...")
@@ -328,9 +376,23 @@ Return ONLY the question text, nothing else. If you can't find an explicit quest
 
 """)
         
-        user_prompt_parts.append(f"""**TASK**: Read the student's handwritten answer from the uploaded file and provide an improved version.
+        # Add few-shot examples if available
+        if training_examples:
+            user_prompt_parts.append("\n**FEW-SHOT EXAMPLES** (learn from these feedback examples):\n")
+            user_prompt_parts.append("---\n")
+            for idx, example in enumerate(training_examples, 1):
+                user_prompt_parts.append(f"\n**Example {idx}:**\n")
+                user_prompt_parts.append(f"Question: {example.get('question', 'N/A')[:150]}...\n\n")
+                user_prompt_parts.append(f"Student Answer Preview: {example.get('student_answer', 'N/A')[:200]}...\n\n")
+                user_prompt_parts.append(f"Ideal Feedback Given:\n{example.get('ideal_feedback', 'N/A')}\n")
+                user_prompt_parts.append("\n---\n")
+            logger.info(f"📚 Added {len(training_examples)} few-shot examples to prompt")
+        
+        user_prompt_parts.append(f"""\n**TASK**: Read the student's handwritten answer from the uploaded file and provide:
+1. An improved version in strict IBC format
+2. Detailed feedback comparing the student's answer to the ideal answer
 
-**Requirements**:
+**Requirements for Improved Answer**:
 1. Preserve the student's voice and original points
 2. Use the REFERENCE CONTEXT above to add facts, data, and examples
 3. Follow strict IBC format (Introduction-Body-Conclusion)
@@ -338,7 +400,15 @@ Return ONLY the question text, nothing else. If you can't find an explicit quest
 5. Include at least one inline diagram suggestion
 6. Every bullet must have: evidence (report/data) + example (India/World)
 
-Return ONLY the improved answer in markdown format. No commentary.""")
+**Requirements for Feedback**:
+1. Identify specific strengths in the student's answer
+2. Point out missing elements (facts, examples, structure)
+3. Provide actionable improvement suggestions
+4. Comment on IBC format adherence and evidence usage
+5. Give an overall encouraging assessment
+{f'6. Learn from the {len(training_examples)} few-shot examples above to provide similar quality feedback' if training_examples else ''}
+
+Return ONLY a valid JSON object as specified in the system prompt. No markdown code blocks, no commentary.""")
         
         user_prompt = "".join(user_prompt_parts)
         
@@ -348,7 +418,7 @@ Return ONLY the improved answer in markdown format. No commentary.""")
         logger.info("🤖 STEP 6: Generating improved answer with Gemini 2.5 Pro...")
         
         if is_pdf:
-            improved_answer = await gemini_client.generate_response(
+            response_text = await gemini_client.generate_response(
                 user_prompt=user_prompt,
                 system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
                 pdf_path=temp_file_path,
@@ -356,7 +426,7 @@ Return ONLY the improved answer in markdown format. No commentary.""")
                 max_retries=3
             )
         else:
-            improved_answer = await gemini_client.generate_response(
+            response_text = await gemini_client.generate_response(
                 user_prompt=user_prompt,
                 system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
                 image_path=temp_file_path,
@@ -364,7 +434,42 @@ Return ONLY the improved answer in markdown format. No commentary.""")
                 max_retries=3
             )
         
-        logger.info(f"✅ Received improved answer: {len(improved_answer)} chars")
+        logger.info(f"✅ Received response: {len(response_text)} chars")
+        
+        # Parse JSON response
+        import json
+        try:
+            # Clean response text (remove markdown code blocks if present)
+            cleaned_response = response_text.strip()
+            if cleaned_response.startswith("```json"):
+                cleaned_response = cleaned_response[7:]  # Remove ```json
+            if cleaned_response.startswith("```"):
+                cleaned_response = cleaned_response[3:]  # Remove ```
+            if cleaned_response.endswith("```"):
+                cleaned_response = cleaned_response[:-3]  # Remove trailing ```
+            cleaned_response = cleaned_response.strip()
+            
+            response_data = json.loads(cleaned_response)
+            improved_answer = response_data.get("improved_answer", "")
+            feedback = response_data.get("feedback", {})
+            
+            logger.info(f"✅ Parsed JSON response successfully")
+            logger.info(f"   • Improved answer: {len(improved_answer)} chars")
+            logger.info(f"   • Feedback sections: {list(feedback.keys())}")
+        except json.JSONDecodeError as e:
+            logger.warning(f"⚠️ Failed to parse JSON response: {e}")
+            logger.warning(f"   Response preview: {response_text[:200]}...")
+            # Fallback: treat entire response as improved answer
+            improved_answer = response_text
+            feedback = {
+                "strengths": [],
+                "missing_elements": [],
+                "improvements_needed": [],
+                "structure_feedback": "Unable to generate feedback - JSON parsing failed",
+                "evidence_feedback": "Unable to generate feedback - JSON parsing failed",
+                "overall_assessment": "Please review the improved answer above."
+            }
+        
         logger.info("=" * 70)
         logger.info("✅ Evaluation complete!")
         logger.info("=" * 70)
@@ -373,6 +478,7 @@ Return ONLY the improved answer in markdown format. No commentary.""")
             "question": identified_question,
             "student_answer": "Answer extracted by Gemini (see improved version below)",
             "improved_answer": improved_answer,
+            "feedback": feedback,
             "sources": sources,
             "parsed_topics": parsed_topics,
             "current_affairs_count": len(current_affairs_bullets),

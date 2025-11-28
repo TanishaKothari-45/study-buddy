@@ -11,7 +11,7 @@ from .core.env import load_env_vars
 load_env_vars()
 
 from .core.config import settings
-from .routes import upload, query, mock_test, mains_answer, evaluate_answer, upload_content_store, feedback
+from .routes import upload, query, mock_test, mains_answer, evaluate_answer, upload_content_store, feedback, training_data
 from .utils.memory_manager import init_memory_db
 
 logger = logging.getLogger(__name__)
@@ -63,6 +63,7 @@ app.include_router(query.router, prefix="/query", tags=["Query"])
 app.include_router(mock_test.router, prefix="/mock-test", tags=["Mock Test"])
 app.include_router(mains_answer.router, prefix="/mains-answer", tags=["Mains Answer"])
 app.include_router(evaluate_answer.router, prefix="/evaluate-answer", tags=["Answer Evaluation"])
+app.include_router(training_data.router, prefix="/training-data", tags=["Training Data"])
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 
 @app.get("/")

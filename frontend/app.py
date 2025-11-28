@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 # Load environment variables from parent directory
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8001")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8003")
 
 def check_backend_status() -> bool:
     """Check if backend is running"""
@@ -41,7 +41,7 @@ with st.sidebar:
     st.title("Navigation")
     tab_choice = st.radio(
         "Choose a feature:",
-        ["Upload PDFs", "Ask Questions", "Generate Mock Test", "UPSC Mains Answer", "Evaluate Answer"]
+        ["Upload PDFs", "Ask Questions", "Generate Mock Test", "UPSC Mains Answer", "Evaluate Answer", "Training Data"]
     )
 
     if backend_status:
@@ -1703,227 +1703,367 @@ elif tab_choice == "Evaluate Answer":
     
     if st.button("Evaluate Answer", disabled=not backend_status, type="primary"):
         # Validation: 
-        # - If uploading files: question is optional (will be identified from OCR blocks)
-        # - If pasting text: both question and answer_text are required
-        if uploaded_files or (question and answer_text):
-            with st.spinner("Processing and evaluating your answer..."):
+        # - If uploading files: question is optional (Gemini will identify from answer)
+        # - If pasting text: both question and answer_text are required (but we'll focus on file upload)
+        if uploaded_files and answer_input_method == "Upload File (Handwritten)":
+            with st.spinner("Processing and evaluating your answer with Gemini..."):
                 try:
-                    response = None
-                    
-                    # Handle handwritten file upload (PDF/images) - ROI -> OCR -> LLM -> Evaluate
-                    if uploaded_files and answer_input_method == "Upload File (Handwritten)":
-                        # Process handwritten answer: upload -> ROI -> OCR -> LLM -> download PDF -> evaluate
-                        status_container = st.container()
-                        with status_container:
-                            st.info(f"🔄 Processing {len(uploaded_files)} file(s): ROI detection → OCR → LLM reconstruction...")
-                            progress_bar = st.progress(0)
-                            status_text = st.empty()
-                            
-                            # Step 1: Upload and process handwritten answer(s)
-                            status_text.text(f"📤 Uploading {len(uploaded_files)} file(s)...")
-                            progress_bar.progress(10)
-                            
-                            # Prepare multiple files for upload
-                            files = [("files", f) for f in uploaded_files]
-                            upload_data = {
-                                "dpi": dpi
-                            }
-                            if st.session_state.eval_sample_sheet_path:
-                                upload_data["sample_sheet_path"] = st.session_state.eval_sample_sheet_path
-                            
-                            # Upload and process (ROI -> OCR -> LLM -> PDF generation)
-                            upload_response = requests.post(
-                                f"{BACKEND_URL}/upload/",
-                                files=files,
-                                data=upload_data,
-                                timeout=600  # Longer timeout for multiple files
-                            )
-                            
-                            if upload_response.status_code == 200:
-                                upload_results = upload_response.json()["summary"]
-                                
-                                # Extract OCR data and reconstructed text from OCR results
-                                # Combine results from all uploaded files
-                                ocr_data_for_eval = None
-                                reconstructed_answer = ""
-                                identified_question = ""
-                                pdf_download_urls = []
-                                
-                                # Combine OCR results from all files
-                                all_ocr_results = []
-                                for file_result in upload_results:
-                                    file_ocr_results = file_result.get("ocr_results", [])
-                                    all_ocr_results.extend(file_ocr_results)
-                                    pdf_url = file_result.get("pdf_download_url")
-                                    if pdf_url:
-                                        pdf_download_urls.append(pdf_url)
-                                
-                                if all_ocr_results:
-                                    # Combine OCR blocks from all pages and all files for evaluation
-                                    combined_blocks = []
-                                    combined_full_texts = []
-                                    total_width = 0
-                                    total_height = 0
-                                    
-                                    for r in all_ocr_results:
-                                        blocks = r.get("blocks", [])
-                                        full_text = r.get("full_text", "")
-                                        width = r.get("width", 0)
-                                        height = r.get("height", 0)
-                                        
-                                        combined_blocks.extend(blocks)
-                                        if full_text:
-                                            combined_full_texts.append(full_text)
-                                        total_width = max(total_width, width)
-                                        total_height += height
-                                    
-                                    combined_full_text = "\n\n".join(combined_full_texts) if combined_full_texts else ""
-                                    
-                                    # Prepare OCR data for evaluation (all 3 tasks)
-                                    ocr_data_for_eval = {
-                                        "blocks": combined_blocks,
-                                        "full_text": combined_full_text,
-                                        "width": total_width,
-                                        "height": total_height
-                                    }
-                                    
-                                    # Also extract reconstructed text for display
-                                    reconstructed_answer = "\n\n".join([
-                                        r.get("reconstructed_text", "") or r.get("text", "")
-                                        for r in all_ocr_results
-                                    ])
-                                    
-                                    # Extract identified question if available (from first result)
-                                    identified_question = all_ocr_results[0].get("identified_question", "")
-                                
-                                status_text.text(f"✅ OCR and reconstruction complete! Processed {len(all_ocr_results)} page(s) from {len(upload_results)} file(s)")
-                                progress_bar.progress(50)
-                                
-                                # Show download links for PDFs (one per file)
-                                if pdf_download_urls:
-                                    if len(pdf_download_urls) == 1:
-                                        st.success(f"📥 [Download Reconstructed PDF]({BACKEND_URL}{pdf_download_urls[0]})")
-                                    else:
-                                        st.success(f"📥 Download reconstructed PDFs ({len(pdf_download_urls)} files):")
-                                        for i, pdf_url in enumerate(pdf_download_urls, 1):
-                                            filename = upload_results[i-1].get("pdf_filename", f"file_{i}.pdf")
-                                            st.markdown(f"   • [{filename}]({BACKEND_URL}{pdf_url})")
-                                
-                                # Step 2: Reconstruct + Evaluate using OCR blocks (ONE LLM CALL - all 3 tasks)
-                                status_text.text("📊 Reconstructing and evaluating answer (ONE LLM call: identify question + reconstruct + evaluate)...")
-                                progress_bar.progress(70)
-                                
-                                import json
-                                
-                                # Use OCR blocks for reconstruction + evaluation (ONE LLM call)
-                                # This does: Identify question + Reconstruct answer + Evaluate (all in one call)
-                                if ocr_data_for_eval:
-                                    eval_data = {
-                                        "ocr_data_json": json.dumps(ocr_data_for_eval)
-                                    }
-                                    # Question is optional hint (LLM will identify from OCR blocks anyway)
-                                    if question:
-                                        eval_data["question"] = question
-                                    
-                                    response = requests.post(
-                                        f"{BACKEND_URL}/evaluate-answer/",
-                                        data=eval_data,
-                                        timeout=120
-                                    )
-                                else:
-                                    st.error("No OCR data available for evaluation")
-                                    response = None
-                                
-                                progress_bar.progress(100)
-                                status_text.text("✅ Evaluation complete!")
-                            else:
-                                st.error("Failed to process handwritten answer")
-                                
-                    elif answer_text:
-                        # Direct text evaluation (legacy mode - no OCR)
-                        eval_data = {
-                            "question": question,
-                            "answer_text": answer_text
+                    # Simplified flow: Upload file directly to evaluate endpoint
+                    # Gemini will handle OCR and improvement
+                    status_container = st.container()
+                    with status_container:
+                        st.info(f"🔄 Processing {len(uploaded_files)} file(s) with Gemini (OCR + Improvement)...")
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
+                        # Process each file (or combine if multiple)
+                        # For now, process first file (can extend to multiple later)
+                        file_to_process = uploaded_files[0]
+                        
+                        status_text.text(f"📤 Uploading {file_to_process.name} to Gemini...")
+                        progress_bar.progress(20)
+                        
+                        # Prepare file and form data
+                        # Read file content for proper upload
+                        file_content = file_to_process.getvalue()
+                        
+                        # Determine content type
+                        file_ext = file_to_process.name.lower().split('.')[-1]
+                        content_types = {
+                            'pdf': 'application/pdf',
+                            'jpg': 'image/jpeg',
+                            'jpeg': 'image/jpeg',
+                            'png': 'image/png',
+                            'webp': 'image/webp',
+                            'gif': 'image/gif',
+                            'bmp': 'image/bmp',
+                            'tiff': 'image/tiff'
                         }
+                        content_type = content_types.get(file_ext, 'application/octet-stream')
+                        
+                        files = {"file": (file_to_process.name, file_content, content_type)}
+                        data = {
+                            "word_count": "350"
+                        }
+                        if question:
+                            data["question"] = question
+                        
+                        status_text.text("🤖 Gemini is reading and improving your answer...")
+                        progress_bar.progress(50)
+                        
+                        # Send to evaluate endpoint
                         response = requests.post(
                             f"{BACKEND_URL}/evaluate-answer/",
-                            data=eval_data,  # Use data for Form data
-                            timeout=60
+                            files=files,
+                            data=data,
+                            timeout=180  # Longer timeout for Gemini processing
                         )
-                    else:
-                        st.warning("Please provide either a file upload or paste your answer text")
+                        
+                        progress_bar.progress(100)
+                        status_text.text("✅ Evaluation complete!")
                     
                     if response and response.status_code == 200:
                         data = response.json()
                         
                         # Display evaluation results
-                        st.subheader("📊 Evaluation Results")
+                        st.subheader("📊 Answer Evaluation & Improvement")
                         st.markdown("---")
                         
                         # Show question
                         identified_q = data.get("question", question)
                         st.info(f"📋 **Question:** {identified_q}")
+                        st.markdown("---")
                         
-                        # Show reconstructed answer
-                        if data.get("reconstructed_answer"):
-                            with st.expander("📝 View Reconstructed Answer", expanded=False):
-                                st.markdown(data["reconstructed_answer"])
+                        # Show improved answer
+                        st.subheader("⭐ Improved Answer (UPSC IBC Format)")
+                        st.caption("Gemini has read your handwritten answer and provided an improved version in strict IBC format (Introduction-Body-Conclusion) with proper structure, examples, and diagram suggestions.")
                         
-                        # Overall score
-                        score = data.get("score", 0)
-                        max_score = data.get("max_score", 20)
-                        percentage = (score / max_score) * 100 if max_score > 0 else 0
+                        improved_answer = data.get("improved_answer", "")
+                        if improved_answer:
+                            st.markdown(improved_answer)
+                        else:
+                            st.warning("No improved answer available")
                         
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Score", f"{score}/{max_score}")
-                        with col2:
-                            st.metric("Percentage", f"{percentage:.1f}%")
-                        with col3:
-                            grade = "A+" if percentage >= 90 else "A" if percentage >= 80 else "B+" if percentage >= 70 else "B" if percentage >= 60 else "C"
-                            st.metric("Grade", grade)
+                        st.markdown("---")
                         
-                        # Detailed feedback
-                        st.subheader("📝 Detailed Feedback")
+                        # Show feedback section
+                        feedback = data.get("feedback", {})
+                        if feedback:
+                            st.subheader("💡 Detailed Feedback on Your Answer")
+                            st.caption("Constructive feedback comparing your answer to the ideal answer")
+                            
+                            # Strengths
+                            strengths = feedback.get("strengths", [])
+                            if strengths:
+                                with st.expander("✅ **Strengths** - What you did well", expanded=True):
+                                    for strength in strengths:
+                                        st.markdown(f"- {strength}")
+                            
+                            # Missing elements
+                            missing = feedback.get("missing_elements", [])
+                            if missing:
+                                with st.expander("⚠️ **Missing Elements** - What could be added", expanded=True):
+                                    for element in missing:
+                                        st.markdown(f"- {element}")
+                            
+                            # Improvements needed
+                            improvements = feedback.get("improvements_needed", [])
+                            if improvements:
+                                with st.expander("🎯 **Improvements Needed** - Actionable suggestions", expanded=True):
+                                    for improvement in improvements:
+                                        st.markdown(f"- {improvement}")
+                            
+                            # Structure feedback
+                            structure_fb = feedback.get("structure_feedback", "")
+                            if structure_fb:
+                                with st.expander("📐 **Structure Feedback** - IBC format adherence", expanded=False):
+                                    st.markdown(structure_fb)
+                            
+                            # Evidence feedback
+                            evidence_fb = feedback.get("evidence_feedback", "")
+                            if evidence_fb:
+                                with st.expander("📊 **Evidence Feedback** - Use of data/reports/examples", expanded=False):
+                                    st.markdown(evidence_fb)
+                            
+                            # Overall assessment
+                            overall = feedback.get("overall_assessment", "")
+                            if overall:
+                                st.success(f"**Overall Assessment:** {overall}")
                         
-                        # Strengths (What was done well)
-                        if data.get("strengths"):
-                            st.success("✅ **What Was Done Well:**")
-                            for strength in data["strengths"]:
-                                st.markdown(f"- {strength}")
-                        
-                        # Areas for improvement (What was missing)
-                        if data.get("improvements"):
-                            st.warning("⚠️ **What Was Missing / Can Be Improved:**")
-                            for improvement in data["improvements"]:
-                                st.markdown(f"- {improvement}")
-                        
-                        # Specific suggestions (High return improvements)
-                        if data.get("suggestions"):
-                            st.info("💡 **High Return Improvements:**")
-                            for suggestion in data["suggestions"]:
-                                st.markdown(f"- {suggestion}")
-                        
-                        # Evaluation details (structured data)
-                        eval_details = data.get("evaluation_details")
-                        if eval_details:
-                            with st.expander("📊 View Structured Evaluation Details", expanded=False):
-                                st.json(eval_details)
+                        # Show original answer info
+                        student_answer = data.get("student_answer", "")
+                        if student_answer and student_answer != "Answer extracted by Gemini (see improved version below)":
+                            st.markdown("---")
+                            with st.expander("📝 View Original Answer (Extracted by Gemini)", expanded=False):
+                                st.markdown(student_answer)
                     
                     else:
-                        st.error("Failed to evaluate answer")
+                        error_msg = "Failed to evaluate answer"
+                        if response:
+                            try:
+                                error_data = response.json()
+                                error_msg = error_data.get("detail", error_msg)
+                            except:
+                                error_msg = f"{error_msg} (Status: {response.status_code})"
+                        st.error(error_msg)
                 
                 except requests.exceptions.Timeout:
                     st.error("Request timed out. Please try again.")
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
+        elif answer_text:
+            st.warning("⚠️ Text input mode is not yet supported. Please upload a PDF or image file.")
         else:
-            if not uploaded_files and not answer_text:
-                st.warning("Please provide either a file upload or paste your answer text")
-            elif answer_text and not question:
-                st.warning("Please provide both a question and an answer to evaluate")
+            st.warning("Please upload a file (PDF or image) containing your handwritten answer")
+
+elif tab_choice == "Training Data":
+    st.header("🎓 Training Data Collection")
+    st.info("Upload answer sheets and provide ideal feedback to improve the AI's feedback quality through few-shot learning.")
+    
+    # Initialize session state
+    if "training_extracted_data" not in st.session_state:
+        st.session_state.training_extracted_data = None
+    
+    st.subheader("📤 Step 1: Upload Answer Sheet")
+    st.caption("Upload handwritten answer pages (PDF or images). Supports multiple files for multi-page answers (2-3 pages).")
+    
+    # File upload - MULTIPLE FILES
+    training_files = st.file_uploader(
+        "Upload answer sheet pages:",
+        type=["pdf", "jpg", "jpeg", "png", "webp"],
+        accept_multiple_files=True,  # Changed to True
+        disabled=not backend_status,
+        key="training_file_uploader",
+        help="Upload all pages of your answer (typically 2-3 pages). Files will be processed in order."
+    )
+    
+    # Show uploaded files count
+    if training_files:
+        st.info(f"📎 {len(training_files)} file(s) selected: {', '.join([f.name for f in training_files])}")
+    
+    # Optional question input
+    training_question = st.text_area(
+        "Question (optional - will be identified from answer if not provided):",
+        placeholder="e.g., Discuss the impact of climate change on Indian agriculture...",
+        disabled=not backend_status,
+        height=100,
+        key="training_question"
+    )
+    
+    # Extract button
+    if training_files and st.button("🔍 Extract Answer Text (OCR)", disabled=not backend_status, type="primary"):
+        with st.spinner(f"Extracting text from {len(training_files)} file(s) using Gemini OCR..."):
+            try:
+                # Prepare files
+                files_to_upload = []
+                for training_file in training_files:
+                    file_content = training_file.getvalue()
+                    file_ext = training_file.name.lower().split('.')[-1]
+                    content_types = {
+                        'pdf': 'application/pdf',
+                        'jpg': 'image/jpeg',
+                        'jpeg': 'image/jpeg',
+                        'png': 'image/png',
+                        'webp': 'image/webp'
+                    }
+                    content_type = content_types.get(file_ext, 'application/octet-stream')
+                    files_to_upload.append(("files", (training_file.name, file_content, content_type)))
+                
+                data = {}
+                if training_question:
+                    data["question"] = training_question
+                
+                # Call extract endpoint
+                response = requests.post(
+                    f"{BACKEND_URL}/training-data/extract-answer",
+                    files=files_to_upload,
+                    data=data,
+                    timeout=180  # Longer timeout for multiple files
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    st.session_state.training_extracted_data = result
+                    st.success(f"✅ Text extracted successfully from {result.get('files_processed', len(training_files))} file(s)!")
+                    st.rerun()
+                else:
+                    error_msg = "Failed to extract text"
+                    try:
+                        error_data = response.json()
+                        error_msg = error_data.get("detail", error_msg)
+                    except:
+                        error_msg = f"{error_msg} (Status: {response.status_code})"
+                    st.error(error_msg)
+            
+            except requests.exceptions.Timeout:
+                st.error("Request timed out. Please try again.")
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+    
+    # Show extracted data and feedback form
+    if st.session_state.training_extracted_data:
+        st.divider()
+        st.subheader("📝 Step 2: Review Extracted Text")
+        
+        extracted_question = st.session_state.training_extracted_data.get("question", "")
+        extracted_answer = st.session_state.training_extracted_data.get("answer_text", "")
+        
+        # Show extracted question
+        st.markdown("**Identified Question:**")
+        st.info(extracted_question)
+        
+        # Show extracted answer
+        st.markdown("**Extracted Answer Text (OCR):**")
+        with st.expander("View extracted answer", expanded=True):
+            st.text_area(
+                "Answer text:",
+                value=extracted_answer,
+                height=300,
+                disabled=True,
+                key="extracted_answer_display"
+            )
+        
+        st.divider()
+        st.subheader("💡 Step 3: Provide Ideal Feedback")
+        st.caption("Write the ideal feedback you would give to this student answer. This will be used to train the AI.")
+        
+        # Feedback input
+        ideal_feedback = st.text_area(
+            "Ideal Feedback:",
+            placeholder="""Example feedback format:
+
+**Strengths:**
+- Good introduction with definition
+- Mentioned key examples like...
+
+**Missing Elements:**
+- Should have included data from IPCC report
+- Missing discussion on policy implications
+
+**Improvements Needed:**
+- Add more specific examples from India
+- Include diagram suggestion for better visualization
+- Strengthen conclusion with SDG linkage
+
+**Overall:** Good attempt but needs more evidence and structure.""",
+            height=400,
+            disabled=not backend_status,
+            key="ideal_feedback_input"
+        )
+        
+        # Submit button
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("💾 Submit Training Example", disabled=not backend_status or not ideal_feedback, type="primary"):
+                with st.spinner("Saving training example..."):
+                    try:
+                        # Submit to backend
+                        data = {
+                            "question": extracted_question,
+                            "answer_text": extracted_answer,
+                            "ideal_feedback": ideal_feedback
+                        }
+                        
+                        response = requests.post(
+                            f"{BACKEND_URL}/training-data/submit",
+                            data=data,
+                            timeout=30
+                        )
+                        
+                        if response.status_code == 200:
+                            result = response.json()
+                            st.success(f"✅ Training example saved! (ID: {result.get('example_id')})")
+                            st.info(f"📊 Total training examples: {result.get('total_examples', 0)}")
+                            
+                            # Clear session state
+                            st.session_state.training_extracted_data = None
+                            st.rerun()
+                        else:
+                            st.error("Failed to save training example")
+                    
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+        
+        with col2:
+            if st.button("🔄 Start Over", key="training_start_over"):
+                st.session_state.training_extracted_data = None
+                st.rerun()
+    
+    # Show existing training examples
+    st.divider()
+    st.subheader("📚 Existing Training Examples")
+    
+    if st.button("🔍 Load Training Examples", disabled=not backend_status):
+        try:
+            response = requests.get(f"{BACKEND_URL}/training-data/examples", timeout=30)
+            if response.status_code == 200:
+                result = response.json()
+                examples = result.get("training_examples", [])
+                total = result.get("total", 0)
+                
+                st.info(f"📊 Total training examples: {total}")
+                
+                if examples:
+                    for idx, example in enumerate(examples[-5:], 1):  # Show last 5
+                        with st.expander(f"Example {idx}: {example.get('question', 'No question')[:80]}...", expanded=False):
+                            st.markdown(f"**Question:** {example.get('question', 'N/A')}")
+                            st.markdown(f"**Answer Length:** {len(example.get('student_answer', ''))} chars")
+                            st.markdown(f"**Feedback:**")
+                            st.text_area(
+                                "Feedback",
+                                value=example.get('ideal_feedback', ''),
+                                height=200,
+                                disabled=True,
+                                key=f"example_feedback_{idx}"
+                            )
+                            st.caption(f"Created: {example.get('metadata', {}).get('created_at', 'Unknown')}")
+                else:
+                    st.warning("No training examples found. Upload some to get started!")
             else:
-                st.warning("Please provide either a file upload or paste your answer text")
+                st.error("Failed to load training examples")
+        except Exception as e:
+            st.error(f"Error: {str(e)}")
+
 
 # Footer
 st.markdown("---")
