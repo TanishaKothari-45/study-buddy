@@ -385,6 +385,25 @@ class CurrentAffairsMCPServer:
         # Add parsing metadata to result
         result["parsed_keywords"] = parsed
         result["original_topic"] = topic
+        
+        # Generate summary bullets for this result too
+        articles = result.get("articles", [])
+        summary_bullets = []
+        for article in articles[:6]:
+            summary = article.get('summary', '')
+            source = article.get('source', 'Unknown')
+            date = article.get('date', '')[:10] if article.get('date') else ''
+            
+            if summary:
+                words = summary.split()
+                if len(words) > 45:
+                    truncated = ' '.join(words[:45]) + '...'
+                else:
+                    truncated = summary
+                bullet = f"{truncated} (Source: {source}, {date})"
+                summary_bullets.append(bullet)
+        
+        result["summary_bullets"] = summary_bullets
 
         # Cache the result
         cache[cache_key] = {"data": result, "timestamp": datetime.now().timestamp()}
@@ -566,12 +585,48 @@ class CurrentAffairsMCPServer:
         india_articles = sum(cat["count"] for cat_key, cat in all_categories.items() if "india" in cat_key)
         global_articles = sum(cat["count"] for cat_key, cat in all_categories.items() if "global" in cat_key)
 
+        # STEP 5: Generate summary bullets (40-50 words each) for LLM consumption
+        summary_bullets = []
+        priority_order = ['india_initiatives', 'india_issues', 'global_initiatives', 'global_issues', 'developments']
+        
+        for cat_key in priority_order:
+            if cat_key in all_categories:
+                articles = all_categories[cat_key].get('articles', [])
+                for article in articles[:2]:  # Max 2 per category
+                    title = article.get('title', '')
+                    summary = article.get('summary', '')
+                    source = article.get('source', 'Unknown')
+                    date = article.get('date', '')[:10] if article.get('date') else ''
+                    
+                    if summary:
+                        # Create 40-50 word bullet point
+                        # Truncate summary to ~40-50 words
+                        words = summary.split()
+                        if len(words) > 45:
+                            truncated = ' '.join(words[:45]) + '...'
+                        else:
+                            truncated = summary
+                        
+                        bullet = f"{truncated} (Source: {source}, {date})"
+                        summary_bullets.append(bullet)
+                    elif title:
+                        bullet = f"{title[:100]} (Source: {source}, {date})"
+                        summary_bullets.append(bullet)
+                    
+                    if len(summary_bullets) >= 6:  # Max 6 bullets total
+                        break
+            if len(summary_bullets) >= 6:
+                break
+        
+        print(f"📝 Generated {len(summary_bullets)} summary bullets for LLM")
+
         result = {
             "topic": topic,
             "time_range": time_range,
             "provider": provider,
             "strategy": "Parse Keywords + Fetch Broad + Filter Local",
             "parsed_keywords": parsed,
+            "summary_bullets": summary_bullets,  # Pre-formatted bullets for LLM
             "diversification_strategy": {
                 "approach": "LLM-extracted keywords + broad fetch + local filtering",
                 "original_topic": topic,

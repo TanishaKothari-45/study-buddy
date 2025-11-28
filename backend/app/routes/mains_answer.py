@@ -34,6 +34,7 @@ from mains_prompt import assemble_mains_prompt
 from web_searcher import fetch_current_points
 from ..utils.context_retriever import retrieve_context_for_question
 from ..utils.question_parser import parse_question_for_search
+from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
 
 # Import Gemini client for question parsing
 try:
@@ -255,6 +256,27 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             )
         
         logger.info(f"✅ [MAINS] Retrieved context: {len(context)} chars, {len(sources)} sources")
+
+        # Fetch current affairs using parsed keywords (in addition to static context)
+        current_affairs_bullets = []
+        if parsed_topics:
+            logger.info(f"🗞️ [MAINS] Fetching current affairs...")
+            try:
+                current_affairs_bullets = await fetch_current_affairs_for_question(
+                    parsed_keywords=parsed_topics,
+                    max_bullets=5,
+                    time_range="3months"
+                )
+                logger.info(f"✅ [MAINS] Retrieved {len(current_affairs_bullets)} current affairs bullets")
+            except Exception as e:
+                logger.warning(f"⚠️ [MAINS] Current affairs fetch failed: {e}")
+                current_affairs_bullets = []
+        
+        # Append current affairs to context (additive, not replacing)
+        if current_affairs_bullets:
+            current_affairs_section = format_bullets_for_context(current_affairs_bullets)
+            context = context + current_affairs_section
+            logger.info(f"📝 [MAINS] Added current affairs to context: {len(current_affairs_section)} chars")
 
         # Generate answer using the generate_answer function
         logger.info(f"🤖 [MAINS] Generating answer...")

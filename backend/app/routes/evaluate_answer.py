@@ -1,14 +1,15 @@
 """
 evaluate_answer.py
 
-Evaluation pipeline using Gemini's built-in OCR with context retrieval.
+Evaluation pipeline using Gemini's built-in OCR with context retrieval and current affairs.
 
 Flow:
   1) Upload answer (PDF/image) -> Gemini extracts question (OCR)
   2) Parse question -> extract search terms for vector retrieval
   3) Retrieve relevant context from Pinecone/SQLite
-  4) Gemini improves answer with context + system prompt
-  5) Returns improved answer
+  4) Fetch current affairs using parsed keywords
+  5) Gemini improves answer with context + current affairs + system prompt
+  6) Returns improved answer
 
 Usage:
   POST /evaluate-answer/
@@ -20,7 +21,6 @@ Usage:
 import os
 import logging
 import tempfile
-import shutil
 from typing import Optional
 from fastapi import APIRouter, Request, Form, File, UploadFile, HTTPException
 from pathlib import Path
@@ -44,9 +44,12 @@ except ImportError as e:
 try:
     from ..utils.question_parser import parse_question_for_search
     from ..utils.context_retriever import retrieve_context_for_question
+    from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
 except ImportError as e:
     parse_question_for_search = None
     retrieve_context_for_question = None
+    fetch_current_affairs_for_question = None
+    format_bullets_for_context = None
     logger.warning(f"Could not import utilities: {e}")
 
 # System prompt for answer improvement - uses mains_prompt.py structure
@@ -122,14 +125,15 @@ async def evaluate_answer_endpoint(
     word_count: Optional[str] = Form(default="350")
 ):
     """
-    Evaluate and improve student answer using Gemini with context retrieval.
+    Evaluate and improve student answer using Gemini with context retrieval and current affairs.
     
     Flow:
     1. Upload answer (PDF/image) -> Gemini extracts question (OCR)
     2. Parse question -> extract search terms for vector retrieval
     3. Retrieve relevant context from Pinecone/SQLite
-    4. Gemini improves answer with context + system prompt
-    5. Returns improved answer
+    4. Fetch current affairs using parsed keywords
+    5. Gemini improves answer with context + current affairs + system prompt
+    6. Returns improved answer
     
     Args:
         file: PDF or image file containing the handwritten answer
@@ -283,15 +287,41 @@ Return ONLY the question text, nothing else. If you can't find an explicit quest
             logger.info("⚠️ STEP 3: Skipping context retrieval (utility not available)")
         
         # ============================================================
-        # STEP 4: Build enhanced prompt with context
+        # STEP 4: Fetch current affairs using parsed keywords
         # ============================================================
-        logger.info("✍️ STEP 4: Building enhanced prompt with context...")
+        current_affairs_bullets = []
+        
+        if fetch_current_affairs_for_question and parsed_topics:
+            logger.info("🗞️ STEP 4: Fetching current affairs...")
+            try:
+                current_affairs_bullets = await fetch_current_affairs_for_question(
+                    parsed_keywords=parsed_topics,
+                    max_bullets=5,
+                    time_range="3months"
+                )
+                logger.info(f"✅ Retrieved {len(current_affairs_bullets)} current affairs bullets")
+            except Exception as e:
+                logger.warning(f"⚠️ Current affairs fetch failed: {e}")
+                current_affairs_bullets = []
+        else:
+            logger.info("⚠️ STEP 4: Skipping current affairs fetch")
+        
+        # Append current affairs to context (additive, not replacing)
+        if current_affairs_bullets and format_bullets_for_context:
+            current_affairs_section = format_bullets_for_context(current_affairs_bullets)
+            context = context + current_affairs_section
+            logger.info(f"📝 Added current affairs to context: {len(current_affairs_section)} chars")
+        
+        # ============================================================
+        # STEP 5: Build enhanced prompt with context
+        # ============================================================
+        logger.info("✍️ STEP 5: Building enhanced prompt with context...")
         
         user_prompt_parts = [f"**QUESTION**: {identified_question}\n\n"]
         
         if context:
             # Truncate context if too long
-            max_context_chars = 6000
+            max_context_chars = 8000
             if len(context) > max_context_chars:
                 context = context[:max_context_chars] + "\n\n[CONTEXT TRUNCATED]"
             
@@ -317,9 +347,9 @@ Return ONLY the improved answer in markdown format. No commentary.""")
         user_prompt = "".join(user_prompt_parts)
         
         # ============================================================
-        # STEP 5: Call Gemini to generate improved answer
+        # STEP 6: Call Gemini to generate improved answer
         # ============================================================
-        logger.info("🤖 STEP 5: Generating improved answer with Gemini 2.5 Pro...")
+        logger.info("🤖 STEP 6: Generating improved answer with Gemini 2.5 Pro...")
         
         if is_pdf:
             improved_answer = await gemini_client.generate_response(
@@ -349,6 +379,7 @@ Return ONLY the improved answer in markdown format. No commentary.""")
             "improved_answer": improved_answer,
             "sources": sources,
             "parsed_topics": parsed_topics,
+            "current_affairs_count": len(current_affairs_bullets),
             "success": True
         }
         
