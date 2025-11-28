@@ -1,470 +1,373 @@
 """
-Answer Evaluation endpoint for UPSC-style evaluation
+evaluate_answer.py
+
+Evaluation pipeline using Gemini's built-in OCR with context retrieval.
+
+Flow:
+  1) Upload answer (PDF/image) -> Gemini extracts question (OCR)
+  2) Parse question -> extract search terms for vector retrieval
+  3) Retrieve relevant context from Pinecone/SQLite
+  4) Gemini improves answer with context + system prompt
+  5) Returns improved answer
+
+Usage:
+  POST /evaluate-answer/
+  - file: PDF or image file (required)
+  - question: Question text (optional, Gemini can identify from answer)
+  - word_count: Target word count (default: 350)
 """
-from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
-from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+
 import os
 import logging
-import time
 import tempfile
-from openai import OpenAI, RateLimitError
-
-from ..core.config import settings
-from ..utils.pdf_reader import extract_text_from_pdf
-from ..utils.answer_evaluator import evaluate_reconstructed_answer, reconstruct_and_evaluate_from_ocr_blocks
-from ..routes.query import deduplicate_chunks
+import shutil
+from typing import Optional
+from fastapi import APIRouter, Request, Form, File, UploadFile, HTTPException
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
 router = APIRouter()
 
-class EvaluateAnswerRequest(BaseModel):
-    question: Optional[str] = None  # Optional if OCR blocks are provided (question will be identified)
-    answer_text: Optional[str] = None
-    reconstructed_answer: Optional[str] = None  # Reconstructed answer (preferred over OCR blocks)
-    ocr_data: Optional[Dict[str, Any]] = None  # OCR blocks (deprecated - use reconstructed_answer instead)
+# Import Gemini client
+try:
+    from ..gemini_core.gemini_client import GeminiClient
+    from ..gemini_core import settings_gemini_key
+    GEMINI_API_KEY = settings_gemini_key.GEMINI_API_KEY
+except ImportError as e:
+    GeminiClient = None
+    GEMINI_API_KEY = None
+    logger.warning(f"Could not import Gemini client: {e}")
 
-class EvaluateAnswerResponse(BaseModel):
-    question: str
-    score: int
-    max_score: int
-    strengths: List[str]
-    improvements: List[str]
-    suggestions: List[str]
-    model_answer_excerpt: Optional[str] = None
-    reconstructed_answer: Optional[str] = None  # Reconstructed answer
-    evaluation_details: Optional[Dict[str, Any]] = None  # Detailed evaluation breakdown
-    raw_evaluation_response: Optional[str] = None  # Exact raw response from LLM API
+# Import utilities
+try:
+    from ..utils.question_parser import parse_question_for_search
+    from ..utils.context_retriever import retrieve_context_for_question
+except ImportError as e:
+    parse_question_for_search = None
+    retrieve_context_for_question = None
+    logger.warning(f"Could not import utilities: {e}")
 
-def extract_text_from_uploaded_file(file: UploadFile) -> str:
-    """Extract text from uploaded PDF or text file"""
-    try:
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file.filename.split('.')[-1]}") as tmp_file:
-            content = file.file.read()
-            tmp_file.write(content)
-            tmp_file_path = tmp_file.name
-        
-        # Extract text based on file type
-        if file.filename.lower().endswith('.pdf'):
-            pages_content = extract_text_from_pdf(tmp_file_path)
-            text = "\n".join(page["text"] for page in pages_content if page.get("text"))
-        else:  # Assume text file
-            with open(tmp_file_path, 'r', encoding='utf-8') as f:
-                text = f.read()
-        
-        # Clean up temporary file
-        os.unlink(tmp_file_path)
-        return text
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to extract text from uploaded file: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to extract text from file: {str(e)}")
+# System prompt for answer improvement - uses mains_prompt.py structure
+ANSWER_IMPROVEMENT_SYSTEM_PROMPT = """You are an expert UPSC Geography teacher, evaluator and answer-writing coach.
 
-def evaluate_answer_with_gpt(question: str, answer: str, context: str, api_key: str, max_retries: int = 3) -> Dict[str, Any]:
-    """Evaluate answer using GPT with UPSC evaluation criteria"""
-    wait_time = 1.0
-    
-    for attempt in range(max_retries):
-        try:
-            client = OpenAI(api_key=api_key)
-            
-            system_prompt = """You are an expert UPSC Geography evaluator. Evaluate the student's answer based on UPSC Mains criteria:
+Your task is to read a student's handwritten answer and provide an improved version using the provided reference context.
 
-**Evaluation Criteria (20 marks total):**
-1. **Content Knowledge (8 marks)**: Accuracy, depth, and relevance of geographical concepts
-2. **Structure & Presentation (4 marks)**: Introduction, body, conclusion, logical flow
-3. **Analysis & Critical Thinking (4 marks)**: Analytical depth, cause-effect relationships
-4. **Examples & Case Studies (2 marks)**: Relevant examples, current affairs integration
-5. **Language & Expression (2 marks)**: Clarity, coherence, academic writing style
+**RULE 1 - PRESERVE STUDENT'S VOICE (MOST IMPORTANT)**:
+Build on the student's original points and ideas. EDIT (rephrase, reorganize, modify, add, remove, tidy) rather than rewrite from scratch. Keep their unique perspective and examples where valid.
 
-**Provide evaluation in this format:**
-- Score: X/20
-- Strengths: [List 3-4 specific strengths]
-- Areas for Improvement: [List 3-4 specific areas]
-- Specific Suggestions: [List 3-4 actionable suggestions]
-- Model Answer Excerpt: [Provide a 2-3 sentence excerpt from a model answer]"""
+**RULE 2 - USE REFERENCE CONTEXT**:
+Use the provided REFERENCE CONTEXT to:
+- Add relevant facts, data, and examples that support the student's points
+- Fill gaps in the student's answer with accurate information
+- Substantiate claims with named reports/indices/data from the context
+- Do NOT copy verbatim; integrate naturally into the student's answer
 
-            user_prompt = f"""Question: {question}
+**RULE 3 - DIRECTIVE INTERPRETATION**:
+Directive -> structure (mandatory):
+- Comment = take a stance & justify (if 'critically' → both sides)
+- Examine = causes / implications / way forward
+- Critically examine = strengths + weaknesses separately, then implications
+- Discuss = broad overview → positives / negatives / causes / consequences
+- Discuss critically = same as discuss but more rigorous reasoning
+- Evaluate = assess worthiness → positives / negatives → give verdict
+- Critically evaluate = evaluate + explicit judgement and trade-offs
+- Analyse = break the topic into sub-parts and examine each dimension
+- Explain = clarify how/why something is
+- Elucidate = make clear using examples/data
+- Elaborate = expand the core idea by adding layers of reasoning
+- Substantiate = assert then support with evidence/reports/data
+- To what extent = give a balanced graded judgement (fully/partly/marginally)
 
-Student's Answer:
-{answer}
+**RULE 4 - COGNITIVE FRAMEWORK**:
+1) Concept Focus: Base each question/answer on ONE core concept or mechanism.
+2) Context Variation: Vary spatial (India/global), temporal (current/historical), domain (physical/human/environmental) perspectives.
+3) Body Organization: Use sub-headings (physical / economic / social / environmental / policy / Governance / Vulnerability / Human angle).
+4) Point Discipline: Each important point must be supported with a named index/report/data/example.
+5) Global bodies and conferences: Mention at least one global body or conference related agreement before conclusion.
+6) Human Angle: Mandatory human impacts even for physical geography.
+7) Diagram discipline: At least ONE inline diagram suggestion inside body (explicit).
 
-Reference Context from Study Materials:
-{context}
+**RULE 5 - IBC FORMAT**:
+- INTRO: 2-3 lines. Must include either a definition, a data point/report citation, or a recent context or current affair (if applicable).
+- BODY: Use sub-headings and bullets. Each bullet <= 18 words. Main idea (≤ 10-12 words) — Evidence (report/data/index) — Example (India OR World). Insert at least one inline diagram suggestion exactly where relevant e.g. "(Suggested Diagram: India map showing X, flowcharts, maps, pie charts, timelines, or comparative tables.)"
+- CONCLUSION: 1 para with global best practices + SDG + policy angle.
 
-Evaluate this answer according to UPSC Mains standards and provide detailed feedback."""
+**RULE 6 - WORD LIMIT COMPRESSION** (when word_count <= 250):
+1) MUST preserve IBC structure but reduce density:
+   - Introduction: 2 lines  
+   - Body: 2-3 sub-headings, each with 1-2 bullets  
+   - Conclusion: 1 line  
+2) Compress bullets to: Main idea (≤ 7-9 words) — Evidence (short: "IPCC 2023") — Example (single phrase).
+3) Max 2 bullets per sub-heading, max 3 sub-headings in Body.
 
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            
-            completion = client.chat.completions.create(
-                model=settings.LLM_MODEL,
-                messages=messages,
-                temperature=0.2,
-                max_tokens=1500
-            )
-            
-            evaluation_text = completion.choices[0].message.content
-            
-            # Parse the evaluation response
-            lines = evaluation_text.split('\n')
-            score = 0
-            max_score = 20
-            strengths = []
-            improvements = []
-            suggestions = []
-            model_answer_excerpt = ""
-            
-            current_section = None
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                    
-                if "Score:" in line or "score:" in line:
-                    try:
-                        score_part = line.split(":")[1].strip()
-                        if "/" in score_part:
-                            score = int(score_part.split("/")[0].strip())
-                    except:
-                        pass
-                elif "Strengths:" in line.lower():
-                    current_section = "strengths"
-                elif "Areas for Improvement:" in line.lower() or "Improvement:" in line.lower():
-                    current_section = "improvements"
-                elif "Suggestions:" in line.lower():
-                    current_section = "suggestions"
-                elif "Model Answer Excerpt:" in line.lower():
-                    current_section = "model"
-                elif line.startswith("-") or line.startswith("•"):
-                    content = line[1:].strip()
-                    if current_section == "strengths":
-                        strengths.append(content)
-                    elif current_section == "improvements":
-                        improvements.append(content)
-                    elif current_section == "suggestions":
-                        suggestions.append(content)
-                elif current_section == "model":
-                    model_answer_excerpt += line + " "
-                elif current_section and not line.startswith(("Score", "Strengths", "Areas", "Suggestions", "Model")):
-                    # Add to current section
-                    if current_section == "strengths":
-                        strengths.append(line)
-                    elif current_section == "improvements":
-                        improvements.append(line)
-                    elif current_section == "suggestions":
-                        suggestions.append(line)
-                    elif current_section == "model":
-                        model_answer_excerpt += line + " "
-            
-            # Ensure we have at least some content
-            if not strengths:
-                strengths = ["Good attempt at addressing the question"]
-            if not improvements:
-                improvements = ["Could benefit from more specific examples"]
-            if not suggestions:
-                suggestions = ["Try to include more current affairs and case studies"]
-            
-            return {
-                "score": score,
-                "max_score": max_score,
-                "strengths": strengths[:5],  # Limit to 5 items
-                "improvements": improvements[:5],
-                "suggestions": suggestions[:5],
-                "model_answer_excerpt": model_answer_excerpt.strip()
-            }
+**RULE 7 - FACTUAL ACCURACY**:
+- Prefer facts from the REFERENCE CONTEXT provided.
+- If you add a fact from the context, it's already verified.
+- If a fact is necessary but not in context or student's answer, insert "[citation needed]".
 
-        except RateLimitError as e:
-            if attempt < max_retries - 1:
-                logger.warning(f"⚠️ Rate limit hit, waiting {wait_time}s before retry...")
-                time.sleep(wait_time)
-                wait_time *= 2
-            else:
-                logger.warning("⚠️ Rate limit persists, using basic evaluation")
-                return {
-                    "score": 12,
-                    "max_score": 20,
-                    "strengths": ["Good attempt at addressing the question", "Shows understanding of basic concepts"],
-                    "improvements": ["Could benefit from more specific examples", "Structure could be improved"],
-                    "suggestions": ["Include more current affairs", "Add case studies", "Improve conclusion"],
-                    "model_answer_excerpt": "A model answer would include a clear introduction, well-structured main body with sub-points, relevant examples, and a concise conclusion."
-                }
-                
-        except Exception as e:
-            logger.error(f"❌ Failed to evaluate answer: {e}")
-            return {
-                "score": 10,
-                "max_score": 20,
-                "strengths": ["Attempted to answer the question"],
-                "improvements": ["Technical evaluation unavailable"],
-                "suggestions": ["Please try again later"],
-                "model_answer_excerpt": "Evaluation service temporarily unavailable."
-            }
+**RULE 8 - OUTPUT FORMAT**:
+- Return ONLY the improved answer text (no JSON, no metadata, no commentary).
+- Use markdown for formatting (headings, bullets).
+- Every single bullet MUST contain: (a) One evidence (report/index/data), (b) One example (named Indian OR named global), (c) Maximum 18 words total.
+"""
 
-async def evaluate_extracted_answer(request: Request, question: str, answer_text: str) -> EvaluateAnswerResponse:
-    """Evaluate extracted answer text using the existing evaluation pipeline"""
-    try:
-        logger.info(f"🚀 [EVALUATE] Evaluating answer for question: '{question[:100]}...'")
-        
-        # Get Pinecone handler and use LangChain retriever
-        pinecone_handler = request.app.state.vector_handler
-        
-        # Get retriever configured for topic mode (similar to query route)
-        logger.info(f"🔧 [EVALUATE] Creating retriever for 'topic' mode...")
-        retriever = pinecone_handler.get_retriever_for_mode("topic", use_content_store=True)
-        
-        # Retrieve documents using LangChain
-        logger.info(f"🔍 [EVALUATE] Retrieving documents...")
-        try:
-            if hasattr(retriever, 'invoke'):
-                docs = retriever.invoke(question)
-            else:
-                docs = retriever.get_relevant_documents(question)
-        except Exception as e:
-            logger.warning(f"⚠️ [EVALUATE] invoke() failed, trying get_relevant_documents(): {e}")
-            docs = retriever.get_relevant_documents(question)
-        
-        if not docs:
-            logger.warning(f"⚠️ [EVALUATE] No documents retrieved")
-            context = "No reference material available."
-        else:
-            logger.info(f"✅ [EVALUATE] Retrieved {len(docs)} documents")
-            
-            # Deduplicate overlapping text before combining
-            logger.info(f"📝 [EVALUATE] Removing overlapping text...")
-            context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
-            logger.info(f"   → Final context length: {len(context)} characters")
-
-        # Evaluate answer using GPT if available
-        api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            evaluation = evaluate_answer_with_gpt(question, answer_text, context, api_key)
-        else:
-            # Basic evaluation without GPT
-            word_count = len(answer_text.split())
-            evaluation = {
-                "score": min(15, max(5, word_count // 20)),  # Basic scoring based on length
-                "max_score": 20,
-                "strengths": ["Answer provided", "Shows effort"],
-                "improvements": ["OpenAI API not available for detailed evaluation"],
-                "suggestions": ["Please ensure OpenAI API key is configured for detailed feedback"],
-                "model_answer_excerpt": "Detailed evaluation requires OpenAI API access."
-            }
-
-        return EvaluateAnswerResponse(
-            question=question,
-            score=evaluation["score"],
-            max_score=evaluation["max_score"],
-            strengths=evaluation["strengths"],
-            improvements=evaluation["improvements"],
-            suggestions=evaluation["suggestions"],
-            model_answer_excerpt=evaluation["model_answer_excerpt"]
-        )
-
-    except Exception as e:
-        logger.error(f"❌ Answer evaluation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/")
-async def evaluate_answer(
+async def evaluate_answer_endpoint(
     request: Request,
-    question: Optional[str] = Form(None),
-    answer_text: Optional[str] = Form(None),
-    answer_file: Optional[UploadFile] = File(None),
-    reconstructed_answer: Optional[str] = Form(None),  # Reconstructed answer (preferred)
-    ocr_data_json: Optional[str] = Form(None)  # JSON string of OCR data (deprecated)
+    file: UploadFile = File(...),
+    question: Optional[str] = Form(default=None),
+    word_count: Optional[str] = Form(default="350")
 ):
     """
-    Evaluate a student's answer using UPSC Mains criteria.
+    Evaluate and improve student answer using Gemini with context retrieval.
     
-    Three modes:
-    1. Reconstructed answer evaluation (PREFERRED): Provide question + reconstructed_answer
-    2. OCR-based evaluation (DEPRECATED): Provide ocr_data_json (question will be identified, answer reconstructed, then evaluated)
-    3. Text-based evaluation (legacy): Provide question + answer_text/answer_file
+    Flow:
+    1. Upload answer (PDF/image) -> Gemini extracts question (OCR)
+    2. Parse question -> extract search terms for vector retrieval
+    3. Retrieve relevant context from Pinecone/SQLite
+    4. Gemini improves answer with context + system prompt
+    5. Returns improved answer
+    
+    Args:
+        file: PDF or image file containing the handwritten answer
+        question: Optional question text (Gemini can identify from answer if not provided)
+        word_count: Target word count (default: 350)
+    
+    Returns:
+        - question: Identified or provided question
+        - student_answer: Original answer text (extracted by Gemini)
+        - improved_answer: Improved version of the answer
+        - sources: List of sources used for context
     """
+    # Parse word_count safely
     try:
-        import json
+        word_count_int = int(word_count) if word_count else 350
+    except (ValueError, TypeError):
+        word_count_int = 350
+    
+    if not GeminiClient or not GEMINI_API_KEY:
+        raise HTTPException(
+            status_code=500, 
+            detail="Gemini client not available. Please check GEMINI_API_KEY configuration."
+        )
+    
+    # Create temp directory for file
+    temp_dir = tempfile.mkdtemp()
+    temp_file_path = None
+    
+    try:
+        logger.info("=" * 70)
+        logger.info("🔁 Starting evaluate_answer endpoint...")
+        logger.info(f"   • File: {file.filename}")
+        logger.info(f"   • Question: {question[:100] if question else 'None (will identify)'}...")
+        logger.info(f"   • Word count: {word_count_int}")
+        logger.info("=" * 70)
         
-        # Initialize OpenAI client
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+        # Read file content
+        file_content = await file.read()
         
-        openai_client = OpenAI(api_key=api_key)
+        # Save uploaded file temporarily
+        file_ext = Path(file.filename).suffix.lower() if file.filename else '.pdf'
+        temp_file_path = os.path.join(temp_dir, f"answer{file_ext}")
         
-        # Mode 1: Reconstructed answer evaluation (PREFERRED - reconstructed answer provided, question optional)
-        if reconstructed_answer:
-            logger.info("📊 Using reconstructed answer evaluation (preferred mode)")
-            logger.info(f"   • Question provided: {bool(question)}")
-            logger.info(f"   • Reconstructed answer length: {len(reconstructed_answer)} chars")
-            
-            # Evaluate using reconstructed answer (no OCR blocks)
-            # Question is optional - will be identified from answer if not provided
-            evaluation_result = evaluate_reconstructed_answer(
-                question=question,  # Optional - can be None
-                reconstructed_answer=reconstructed_answer,
-                llm_client=openai_client,
-                model=settings.LLM_MODEL
-            )
-            
-            # Extract results
-            identified_question = evaluation_result.get("question", question or "")
-            eval_data = evaluation_result.get("evaluation", {})
-            raw_response = evaluation_result.get("raw_response", "")
-            
-            score = eval_data.get("score", 0)
-            max_score = eval_data.get("max_score", 20)
-            what_was_done_well = eval_data.get("what_was_done_well", [])
-            what_was_missing = eval_data.get("what_was_missing", [])
-            high_return_improvements = eval_data.get("high_return_improvements", [])
-            
-            # Convert to response format
-            strengths = what_was_done_well if what_was_done_well else ["Answer provided", "Shows understanding"]
-            improvements = what_was_missing if what_was_missing else ["Add more examples", "Strengthen conclusion"]
-            suggestions = high_return_improvements if high_return_improvements else ["Improve structure"]
-            
-            return EvaluateAnswerResponse(
-                question=identified_question,  # Use identified question (from LLM or provided)
-                score=score,
-                max_score=max_score,
-                strengths=strengths[:10],
-                improvements=improvements[:10],
-                suggestions=suggestions[:10],
-                model_answer_excerpt="Evaluation based on UPSC Mains criteria.",
-                reconstructed_answer=reconstructed_answer,
-                evaluation_details=eval_data,
-                raw_evaluation_response=raw_response  # Exact raw response from LLM
+        with open(temp_file_path, "wb") as buffer:
+            buffer.write(file_content)
+        
+        logger.info(f"✅ File saved to: {temp_file_path}")
+        
+        # Determine if it's PDF or image
+        is_pdf = file_ext == '.pdf'
+        is_image = file_ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff']
+        
+        if not (is_pdf or is_image):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type: {file_ext}. Please upload PDF or image file."
             )
         
-        # Mode 2: OCR-based reconstruction + evaluation (ONE LLM CALL - preferred for evaluation)
-        elif ocr_data_json:
-            logger.info("📊 Using OCR blocks for reconstruction + evaluation (ONE LLM call)")
-            
+        # Initialize Gemini client with Pro model
+        gemini_client = GeminiClient(
+            api_key=GEMINI_API_KEY,
+            model_name="gemini-2.5-pro"
+        )
+        
+        # ============================================================
+        # STEP 1: Extract question from file if not provided
+        # ============================================================
+        identified_question = question
+        if not identified_question:
+            logger.info("📝 STEP 1: Extracting question from uploaded file...")
             try:
-                ocr_data = json.loads(ocr_data_json)
-            except json.JSONDecodeError as e:
-                raise HTTPException(status_code=400, detail=f"Invalid OCR data JSON: {str(e)}")
-            
-            if not ocr_data.get("blocks") and not ocr_data.get("full_text"):
-                raise HTTPException(status_code=400, detail="OCR data must contain blocks or full_text")
-            
-            # Reconstruct AND evaluate using OCR blocks (all 3 tasks in ONE call)
-            evaluation_result = reconstruct_and_evaluate_from_ocr_blocks(
-                ocr_data=ocr_data,
-                llm_client=openai_client,
-                model=settings.LLM_MODEL
-            )
-            
-            # Extract results
-            identified_question = evaluation_result.get("question", question or "Question not identified")
-            reconstructed_answer = evaluation_result.get("reconstructed_answer", "")
-            eval_data = evaluation_result.get("evaluation", {})
-            raw_response = evaluation_result.get("raw_response", "")
-            
-            score = eval_data.get("score", 0)
-            max_score = eval_data.get("max_score", 20)
-            what_was_done_well = eval_data.get("what_was_done_well", [])
-            what_was_missing = eval_data.get("what_was_missing", [])
-            high_return_improvements = eval_data.get("high_return_improvements", [])
-            
-            # Convert to response format
-            strengths = what_was_done_well if what_was_done_well else ["Answer provided", "Shows understanding"]
-            improvements = what_was_missing if what_was_missing else ["Add more examples", "Strengthen conclusion"]
-            suggestions = high_return_improvements if high_return_improvements else ["Improve structure"]
-            
-            return EvaluateAnswerResponse(
-                question=identified_question,
-                score=score,
-                max_score=max_score,
-                strengths=strengths[:10],
-                improvements=improvements[:10],
-                suggestions=suggestions[:10],
-                model_answer_excerpt="Evaluation based on UPSC Mains criteria.",
-                reconstructed_answer=reconstructed_answer,
-                evaluation_details=eval_data,
-                raw_evaluation_response=raw_response  # Exact raw response from LLM
-            )
-        
-        # Mode 2: Text-based evaluation (legacy - backward compatibility)
-        else:
-            logger.info("📊 Using text-based evaluation (legacy mode)")
-            
-            if not question:
-                raise HTTPException(status_code=400, detail="question is required for text-based evaluation")
-            
-            # Extract answer text
-            if answer_file:
-                answer = extract_text_from_uploaded_file(answer_file)
-            elif answer_text:
-                answer = answer_text
-            else:
-                raise HTTPException(status_code=400, detail="Either answer_text or answer_file must be provided")
-            
-            if not answer.strip():
-                raise HTTPException(status_code=400, detail="Answer cannot be empty")
-            
-            logger.info(f"🚀 [EVALUATE] Evaluating answer for question: '{question[:100]}...'")
-            
-            # Get Pinecone handler and use LangChain retriever
-            pinecone_handler = request.app.state.vector_handler
-            
-            # Get retriever configured for topic mode (similar to query route)
-            logger.info(f"🔧 [EVALUATE] Creating retriever for 'topic' mode...")
-            retriever = pinecone_handler.get_retriever_for_mode("topic", use_content_store=True)
-            
-            # Retrieve documents using LangChain
-            logger.info(f"🔍 [EVALUATE] Retrieving documents...")
-            try:
-                if hasattr(retriever, 'invoke'):
-                    docs = retriever.invoke(question)
-                else:
-                    docs = retriever.get_relevant_documents(question)
-            except Exception as e:
-                logger.warning(f"⚠️ [EVALUATE] invoke() failed, trying get_relevant_documents(): {e}")
-                docs = retriever.get_relevant_documents(question)
-            
-            if not docs:
-                logger.warning(f"⚠️ [EVALUATE] No documents retrieved")
-                context = "No reference material available."
-            else:
-                logger.info(f"✅ [EVALUATE] Retrieved {len(docs)} documents")
+                question_prompt = """Read the handwritten answer and identify the QUESTION it is answering.
+
+Look for:
+- Question written at the top of the page
+- Topic/subject being discussed
+- Any numbered question (Q1, Q2, etc.)
+
+Return ONLY the question text, nothing else. If you can't find an explicit question, infer it from the answer content."""
                 
-                # Deduplicate overlapping text before combining
-                logger.info(f"📝 [EVALUATE] Removing overlapping text...")
-                context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
-                logger.info(f"   → Final context length: {len(context)} characters")
+                if is_pdf:
+                    question_response = await gemini_client.generate_response(
+                        user_prompt=question_prompt,
+                        pdf_path=temp_file_path,
+                        temperature=0.0,
+                        max_retries=2
+                    )
+                else:
+                    question_response = await gemini_client.generate_response(
+                        user_prompt=question_prompt,
+                        image_path=temp_file_path,
+                        temperature=0.0,
+                        max_retries=2
+                    )
+                identified_question = question_response.strip()
+                logger.info(f"✅ Identified question: {identified_question[:100]}...")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to identify question: {e}")
+                identified_question = "Question not identified"
+        else:
+            logger.info(f"📝 STEP 1: Using provided question: {identified_question[:100]}...")
+        
+        # ============================================================
+        # STEP 2: Parse question to extract search terms
+        # ============================================================
+        search_query = identified_question  # Default to full question
+        parsed_topics = {}
+        
+        if parse_question_for_search and identified_question != "Question not identified":
+            logger.info("🔍 STEP 2: Parsing question for search terms...")
+            try:
+                parsed_topics = await parse_question_for_search(
+                    question=identified_question,
+                    gemini_client=gemini_client,
+                    model_name="gemini-2.5-pro"
+                )
+                search_query = parsed_topics.get("search_query", identified_question)
+                logger.info(f"✅ Search query: {search_query}")
+            except Exception as e:
+                logger.warning(f"⚠️ Question parsing failed, using full question: {e}")
+                search_query = identified_question
+        else:
+            logger.info("⚠️ STEP 2: Skipping question parsing (utility not available)")
+        
+        # ============================================================
+        # STEP 3: Retrieve context from Pinecone/SQLite
+        # ============================================================
+        context = ""
+        sources = []
+        
+        if retrieve_context_for_question:
+            logger.info("📚 STEP 3: Retrieving context from vector store...")
+            try:
+                vector_handler = request.app.state.vector_handler
+                if vector_handler:
+                    context, sources = retrieve_context_for_question(
+                        search_query=search_query,
+                        vector_handler=vector_handler,
+                        mode="mains",
+                        use_content_store=True,
+                        k=6
+                    )
+                    logger.info(f"✅ Retrieved context: {len(context)} chars from {len(sources)} sources")
+                else:
+                    logger.warning("⚠️ No vector handler available")
+            except Exception as e:
+                logger.warning(f"⚠️ Context retrieval failed: {e}")
+                context = ""
+                sources = []
+        else:
+            logger.info("⚠️ STEP 3: Skipping context retrieval (utility not available)")
+        
+        # ============================================================
+        # STEP 4: Build enhanced prompt with context
+        # ============================================================
+        logger.info("✍️ STEP 4: Building enhanced prompt with context...")
+        
+        user_prompt_parts = [f"**QUESTION**: {identified_question}\n\n"]
+        
+        if context:
+            # Truncate context if too long
+            max_context_chars = 6000
+            if len(context) > max_context_chars:
+                context = context[:max_context_chars] + "\n\n[CONTEXT TRUNCATED]"
+            
+            user_prompt_parts.append(f"""**REFERENCE CONTEXT** (use to substantiate points):
+---
+{context}
+---
 
-            # Evaluate answer using GPT if available
-            api_key = os.getenv("OPENAI_API_KEY")
-            if api_key:
-                evaluation = evaluate_answer_with_gpt(question, answer, context, api_key)
-            else:
-                # Basic evaluation without GPT
-                word_count = len(answer.split())
-                evaluation = {
-                    "score": min(15, max(5, word_count // 20)),  # Basic scoring based on length
-                    "max_score": 20,
-                    "strengths": ["Answer provided", "Shows effort"],
-                    "improvements": ["OpenAI API not available for detailed evaluation"],
-                    "suggestions": ["Please ensure OpenAI API key is configured for detailed feedback"],
-                    "model_answer_excerpt": "Detailed evaluation requires OpenAI API access."
-                }
+""")
+        
+        user_prompt_parts.append(f"""**TASK**: Read the student's handwritten answer from the uploaded file and provide an improved version.
 
-            return EvaluateAnswerResponse(
-                question=question,
-                score=evaluation["score"],
-                max_score=evaluation["max_score"],
-                strengths=evaluation["strengths"],
-                improvements=evaluation["improvements"],
-                suggestions=evaluation["suggestions"],
-                model_answer_excerpt=evaluation["model_answer_excerpt"]
+**Requirements**:
+1. Preserve the student's voice and original points
+2. Use the REFERENCE CONTEXT above to add facts, data, and examples
+3. Follow strict IBC format (Introduction-Body-Conclusion)
+4. Target word count: approximately {word_count_int} words
+5. Include at least one inline diagram suggestion
+6. Every bullet must have: evidence (report/data) + example (India/World)
+
+Return ONLY the improved answer in markdown format. No commentary.""")
+        
+        user_prompt = "".join(user_prompt_parts)
+        
+        # ============================================================
+        # STEP 5: Call Gemini to generate improved answer
+        # ============================================================
+        logger.info("🤖 STEP 5: Generating improved answer with Gemini 2.5 Pro...")
+        
+        if is_pdf:
+            improved_answer = await gemini_client.generate_response(
+                user_prompt=user_prompt,
+                system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
+                pdf_path=temp_file_path,
+                temperature=0.2,
+                max_retries=3
             )
-
+        else:
+            improved_answer = await gemini_client.generate_response(
+                user_prompt=user_prompt,
+                system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
+                image_path=temp_file_path,
+                temperature=0.2,
+                max_retries=3
+            )
+        
+        logger.info(f"✅ Received improved answer: {len(improved_answer)} chars")
+        logger.info("=" * 70)
+        logger.info("✅ Evaluation complete!")
+        logger.info("=" * 70)
+        
+        return {
+            "question": identified_question,
+            "student_answer": "Answer extracted by Gemini (see improved version below)",
+            "improved_answer": improved_answer,
+            "sources": sources,
+            "parsed_topics": parsed_topics,
+            "success": True
+        }
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Answer evaluation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Evaluation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
+    
+    finally:
+        # Clean up temp file
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+            except Exception:
+                pass
+        # Clean up temp directory
+        if os.path.exists(temp_dir):
+            try:
+                os.rmdir(temp_dir)
+            except Exception:
+                pass

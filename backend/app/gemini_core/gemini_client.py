@@ -14,14 +14,14 @@ class GeminiClient:
     def __init__(
         self,
         api_key: str,
-        model_name: str = "gemini-2.5-flash"
+        model_name: str = "gemini-2.5-pro"
     ):
         """
         Initialize the Gemini client.
         
         Args:
             api_key: Google AI API key
-            model_name: Gemini model to use (default: gemini-2.5-flash)
+            model_name: Gemini model to use (default: gemini-2.5-pro)
         """
         self.api_key = api_key
         self.model_name = model_name

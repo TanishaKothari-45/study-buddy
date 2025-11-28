@@ -29,7 +29,7 @@ if str(backend_dir) not in sys.path:
 
 from mains_prompt import assemble_mains_prompt
 from web_searcher import fetch_current_points
-from ..routes.query import deduplicate_chunks
+from ..utils.context_retriever import retrieve_context_for_question
 
 logger = logging.getLogger("mains_answer")
 logging.basicConfig(level=logging.INFO)
@@ -200,23 +200,18 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
         # Get Pinecone handler
         pinecone_handler = request.app.state.vector_handler
         
-        # Get retriever configured for mains mode
-        logger.info(f"🔧 [MAINS] Creating retriever for 'mains' mode...")
-        retriever = pinecone_handler.get_retriever_for_mode("mains", use_content_store=True)
+        # Use shared context retriever
+        logger.info(f"🔍 [MAINS] Retrieving context using shared retriever...")
+        context, sources = retrieve_context_for_question(
+            search_query=mains_request.question,
+            vector_handler=pinecone_handler,
+            mode="mains",
+            use_content_store=True,
+            k=6
+        )
         
-        # Retrieve documents
-        logger.info(f"🔍 [MAINS] Retrieving documents...")
-        try:
-            if hasattr(retriever, 'invoke'):
-                docs = retriever.invoke(mains_request.question)
-            else:
-                docs = retriever.get_relevant_documents(mains_request.question)
-        except Exception as e:
-            logger.warning(f"⚠️ [MAINS] invoke() failed, trying get_relevant_documents(): {e}")
-            docs = retriever.get_relevant_documents(mains_request.question)
-        
-        if not docs:
-            logger.warning(f"⚠️ [MAINS] No documents retrieved")
+        if not context:
+            logger.warning(f"⚠️ [MAINS] No context retrieved")
             return MainsAnswerResponse(
                 question=mains_request.question,
                 answer="No relevant information found in the uploaded documents for this question.",
@@ -224,43 +219,7 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
                 word_count_actual=0
             )
         
-        logger.info(f"✅ [MAINS] Retrieved {len(docs)} documents")
-        
-        # Deduplicate overlapping text before combining
-        logger.info(f"📝 [MAINS] Removing overlapping text...")
-        original_context_length = sum(len(doc.page_content) for doc in docs)
-        context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
-        overlap_removed = original_context_length - len(context)
-        
-        if overlap_removed > 0:
-            estimated_tokens_saved = overlap_removed // 4
-            logger.info(f"   ✅ Removed {overlap_removed} chars (~{estimated_tokens_saved} tokens) of overlap")
-        else:
-            logger.info(f"   → No significant overlap detected")
-        
-        logger.info(f"   → Final context length: {len(context)} characters")
-        
-        # Prepare sources from document metadata
-        logger.info(f"📋 [MAINS] Extracting source metadata...")
-        sources = []
-        seen = set()
-        for doc in docs:
-            metadata = doc.metadata
-            filename = metadata.get("filename", "Unknown")
-            chapter = metadata.get("chapter", "Unknown")
-            section = metadata.get("section", "Unknown")
-            
-            # Create unique key based on available metadata
-            key = (filename, chapter, section)
-            
-            if key not in seen:
-                source_info = {
-                    "filename": filename,
-                    "chapter": chapter,
-                    "section": section
-                }
-                sources.append(source_info)
-                seen.add(key)
+        logger.info(f"✅ [MAINS] Retrieved context: {len(context)} chars, {len(sources)} sources")
 
         # Generate answer using the generate_answer function
         logger.info(f"🤖 [MAINS] Generating answer...")
