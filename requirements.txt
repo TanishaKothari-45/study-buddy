@@ -34,3 +34,4 @@ PyMuPDF>=1.23.0
 fitz
 streamlit
 python-multipart
+mcp
