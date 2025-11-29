@@ -29,23 +29,28 @@ interface EvaluationResult {
 }
 
 export default function EvaluatePage() {
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
+
     const [question, setQuestion] = useState("");
-    const [wordCount, setWordCount] = useState("350");
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<EvaluationResult | null>(null);
     const [error, setError] = useState("");
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setFile(e.target.files[0]);
+        if (e.target.files && e.target.files.length > 0) {
+            const newFiles = Array.from(e.target.files);
+            setFiles(prev => [...prev, ...newFiles]);
         }
+    };
+
+    const removeFile = (index: number) => {
+        setFiles(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!file) {
-            setError("Please select a file to upload.");
+        if (files.length === 0) {
+            setError("Please select at least one file to upload.");
             return;
         }
 
@@ -54,9 +59,10 @@ export default function EvaluatePage() {
         setResult(null);
 
         const formData = new FormData();
-        formData.append("file", file);
+        files.forEach((file) => {
+            formData.append("files", file);
+        });
         if (question) formData.append("question", question);
-        formData.append("word_count", wordCount);
 
         try {
             // We need to use fetch directly for FormData instead of our JSON wrapper
@@ -103,24 +109,24 @@ export default function EvaluatePage() {
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                        Answer File (PDF/Image)
+                                        Answer Files (PDF/Images) - Multiple pages supported
                                     </label>
                                     <div className="flex items-center justify-center w-full">
                                         <label
                                             htmlFor="dropzone-file"
                                             className={cn(
                                                 "flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors",
-                                                file ? "border-green-500 bg-green-50" : "border-gray-300"
+                                                files.length > 0 ? "border-green-500 bg-green-50" : "border-gray-300"
                                             )}
                                         >
                                             <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                                {file ? (
+                                                {files.length > 0 ? (
                                                     <>
                                                         <CheckCircle className="w-8 h-8 mb-2 text-green-500" />
-                                                        <p className="mb-2 text-sm text-green-700 font-medium truncate max-w-[200px]">
-                                                            {file.name}
+                                                        <p className="mb-2 text-sm text-green-700 font-medium">
+                                                            {files.length} file{files.length > 1 ? 's' : ''} selected
                                                         </p>
-                                                        <p className="text-xs text-green-600">Click to change</p>
+                                                        <p className="text-xs text-green-600">Click to add more</p>
                                                     </>
                                                 ) : (
                                                     <>
@@ -128,7 +134,7 @@ export default function EvaluatePage() {
                                                         <p className="mb-2 text-sm text-gray-500">
                                                             <span className="font-semibold">Click to upload</span> or drag and drop
                                                         </p>
-                                                        <p className="text-xs text-gray-500">PDF, PNG, JPG (MAX. 10MB)</p>
+                                                        <p className="text-xs text-gray-500">PDF, PNG, JPG (MAX. 10MB each)</p>
                                                     </>
                                                 )}
                                             </div>
@@ -138,9 +144,34 @@ export default function EvaluatePage() {
                                                 className="hidden"
                                                 onChange={handleFileChange}
                                                 accept=".pdf,image/*"
+                                                multiple
                                             />
                                         </label>
                                     </div>
+
+                                    {/* File List */}
+                                    {files.length > 0 && (
+                                        <div className="mt-3 space-y-2 max-h-40 overflow-y-auto">
+                                            {files.map((file, index) => (
+                                                <div key={index} className="flex items-center justify-between p-2 bg-white border rounded-md">
+                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                        <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                                                        <span className="text-sm truncate">{file.name}</span>
+                                                        <span className="text-xs text-gray-400 flex-shrink-0">({(file.size / 1024).toFixed(1)} KB)</span>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => removeFile(index)}
+                                                        className="h-6 w-6 p-0 flex-shrink-0"
+                                                    >
+                                                        ×
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="space-y-2">
@@ -155,14 +186,6 @@ export default function EvaluatePage() {
                                     </p>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Target Word Count</label>
-                                    <Input
-                                        type="number"
-                                        value={wordCount}
-                                        onChange={(e) => setWordCount(e.target.value)}
-                                    />
-                                </div>
 
                                 {error && (
                                     <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md flex items-center gap-2">

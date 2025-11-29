@@ -21,7 +21,7 @@ Usage:
 import os
 import logging
 import tempfile
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Request, Form, File, UploadFile, HTTPException
 from pathlib import Path
 import json
@@ -148,15 +148,14 @@ You MUST return a JSON object with the following structure:
 @router.post("/")
 async def evaluate_answer_endpoint(
     request: Request,
-    file: UploadFile = File(...),
-    question: Optional[str] = Form(default=None),
-    word_count: Optional[str] = Form(default="350")
+    files: List[UploadFile] = File(...),
+    question: Optional[str] = Form(default=None)
 ):
     """
     Evaluate and improve student answer using Gemini with context retrieval and current affairs.
     
     Flow:
-    1. Upload answer (PDF/image) -> Gemini extracts question (OCR)
+    1. Upload answer files (PDF/images) -> Gemini extracts question (OCR)
     2. Parse question -> extract search terms for vector retrieval
     3. Retrieve relevant context from Pinecone/SQLite
     4. Fetch current affairs using parsed keywords
@@ -164,9 +163,8 @@ async def evaluate_answer_endpoint(
     6. Returns improved answer
     
     Args:
-        file: PDF or image file containing the handwritten answer
+        files: List of PDF or image files containing the handwritten answer (supports multi-page)
         question: Optional question text (Gemini can identify from answer if not provided)
-        word_count: Target word count (default: 350)
     
     Returns:
         - question: Identified or provided question
@@ -174,11 +172,8 @@ async def evaluate_answer_endpoint(
         - improved_answer: Improved version of the answer
         - sources: List of sources used for context
     """
-    # Parse word_count safely
-    try:
-        word_count_int = int(word_count) if word_count else 350
-    except (ValueError, TypeError):
-        word_count_int = 350
+    # Use default word count
+    word_count_int = 350
     
     if not GeminiClient or not GEMINI_API_KEY:
         raise HTTPException(
@@ -193,32 +188,44 @@ async def evaluate_answer_endpoint(
     try:
         logger.info("=" * 70)
         logger.info("🔁 Starting evaluate_answer endpoint...")
-        logger.info(f"   • File: {file.filename}")
+        logger.info(f"   • Files: {len(files)} file(s)")
+        for idx, f in enumerate(files, 1):
+            logger.info(f"     {idx}. {f.filename}")
         logger.info(f"   • Question: {question[:100] if question else 'None (will identify)'}...")
         logger.info(f"   • Word count: {word_count_int}")
         logger.info("=" * 70)
         
-        # Read file content
-        file_content = await file.read()
+        # Process all files and save to temp directory
+        temp_file_paths = []
+        all_is_pdf = True
+        all_is_image = True
         
-        # Save uploaded file temporarily
-        file_ext = Path(file.filename).suffix.lower() if file.filename else '.pdf'
-        temp_file_path = os.path.join(temp_dir, f"answer{file_ext}")
-        
-        with open(temp_file_path, "wb") as buffer:
-            buffer.write(file_content)
-        
-        logger.info(f"✅ File saved to: {temp_file_path}")
-        
-        # Determine if it's PDF or image
-        is_pdf = file_ext == '.pdf'
-        is_image = file_ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff']
-        
-        if not (is_pdf or is_image):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported file type: {file_ext}. Please upload PDF or image file."
-            )
+        for file in files:
+            # Read file content
+            file_content = await file.read()
+            
+            # Save uploaded file temporarily
+            file_ext = Path(file.filename).suffix.lower() if file.filename else '.pdf'
+            temp_file_path = os.path.join(temp_dir, f"answer_{len(temp_file_paths)}{file_ext}")
+            
+            with open(temp_file_path, "wb") as buffer:
+                buffer.write(file_content)
+            
+            temp_file_paths.append(temp_file_path)
+            logger.info(f"✅ File {len(temp_file_paths)} saved to: {temp_file_path}")
+            
+            # Check file types
+            is_pdf = file_ext == '.pdf'
+            is_image = file_ext in ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff']
+            
+            if not (is_pdf or is_image):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unsupported file type: {file_ext}. Please upload PDF or image file."
+                )
+            
+            all_is_pdf = all_is_pdf and is_pdf
+            all_is_image = all_is_image and is_image
         
         # Initialize Gemini client with Pro model
         gemini_client = GeminiClient(
@@ -227,11 +234,11 @@ async def evaluate_answer_endpoint(
         )
         
         # ============================================================
-        # STEP 1: Extract question from file if not provided
+        # STEP 1: Extract question from files if not provided
         # ============================================================
         identified_question = question
         if not identified_question:
-            logger.info("📝 STEP 1: Extracting question from uploaded file...")
+            logger.info("📝 STEP 1: Extracting question from uploaded files...")
             try:
                 question_prompt = """Read the handwritten answer and identify the QUESTION it is answering.
 
@@ -242,17 +249,18 @@ Look for:
 
 Return ONLY the question text, nothing else. If you can't find an explicit question, infer it from the answer content."""
                 
-                if is_pdf:
+                # Use first file to extract question
+                if all_is_pdf:
                     question_response = await gemini_client.generate_response(
                         user_prompt=question_prompt,
-                        pdf_path=temp_file_path,
+                        pdf_path=temp_file_paths[0],
                         temperature=0.0,
                         max_retries=2
                     )
                 else:
                     question_response = await gemini_client.generate_response(
                         user_prompt=question_prompt,
-                        image_path=temp_file_path,
+                        image_path=temp_file_paths[0],
                         temperature=0.0,
                         max_retries=2
                     )
@@ -413,26 +421,49 @@ Return ONLY a valid JSON object as specified in the system prompt. No markdown c
         user_prompt = "".join(user_prompt_parts)
         
         # ============================================================
-        # STEP 6: Call Gemini to generate improved answer
+        # STEP 6: Call Gemini to generate improved answer with all files
         # ============================================================
         logger.info("🤖 STEP 6: Generating improved answer with Gemini 2.5 Pro...")
         
-        if is_pdf:
+        # For multiple files, we need to pass them all to Gemini
+        if all_is_pdf:
+            # Pass all PDF paths as a list
             response_text = await gemini_client.generate_response(
                 user_prompt=user_prompt,
                 system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
-                pdf_path=temp_file_path,
+                pdf_path=temp_file_paths,  # Pass list directly
+                temperature=0.2,
+                max_retries=3
+            )
+        elif all_is_image:
+            # Pass all image paths as a list
+            response_text = await gemini_client.generate_response(
+                user_prompt=user_prompt,
+                system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
+                image_path=temp_file_paths,  # Pass list directly
                 temperature=0.2,
                 max_retries=3
             )
         else:
-            response_text = await gemini_client.generate_response(
-                user_prompt=user_prompt,
-                system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
-                image_path=temp_file_path,
-                temperature=0.2,
-                max_retries=3
-            )
+            # Mixed types - process separately and combine
+            # For now, just use first file
+            logger.warning("⚠️ Mixed file types detected, using first file only")
+            if temp_file_paths[0].endswith('.pdf'):
+                response_text = await gemini_client.generate_response(
+                    user_prompt=user_prompt,
+                    system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
+                    pdf_path=temp_file_paths[0],
+                    temperature=0.2,
+                    max_retries=3
+                )
+            else:
+                response_text = await gemini_client.generate_response(
+                    user_prompt=user_prompt,
+                    system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
+                    image_path=temp_file_paths[0],
+                    temperature=0.2,
+                    max_retries=3
+                )
         
         logger.info(f"✅ Received response: {len(response_text)} chars")
         
@@ -492,12 +523,14 @@ Return ONLY a valid JSON object as specified in the system prompt. No markdown c
         raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
     
     finally:
-        # Clean up temp file
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.remove(temp_file_path)
-            except Exception:
-                pass
+        # Clean up temp files
+        if 'temp_file_paths' in locals():
+            for temp_path in temp_file_paths:
+                if os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except Exception:
+                        pass
         # Clean up temp directory
         if os.path.exists(temp_dir):
             try:

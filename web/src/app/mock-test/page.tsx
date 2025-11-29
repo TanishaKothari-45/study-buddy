@@ -191,7 +191,7 @@ export default function MockTestPage() {
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select count" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="bg-card z-50">
                                         <SelectItem value="5">5 Questions (Quick)</SelectItem>
                                         <SelectItem value="10">10 Questions</SelectItem>
                                         <SelectItem value="20">20 Questions</SelectItem>
@@ -206,7 +206,7 @@ export default function MockTestPage() {
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select difficulty" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="bg-card z-50">
                                         <SelectItem value="easy">Easy (Conceptual)</SelectItem>
                                         <SelectItem value="medium">Medium (Standard)</SelectItem>
                                         <SelectItem value="hard">Hard (Complex/Applied)</SelectItem>
@@ -232,7 +232,7 @@ export default function MockTestPage() {
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select Major Domain" />
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="bg-card z-50">
                                             {Object.keys(GEOGRAPHY_DOMAINS).map((domain) => (
                                                 <SelectItem key={domain} value={domain}>{domain}</SelectItem>
                                             ))}
@@ -250,7 +250,7 @@ export default function MockTestPage() {
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select Specific Topic" />
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent className="bg-card z-50">
                                             <SelectItem value="all">All Sub-topics</SelectItem>
                                             {selectedDomain && GEOGRAPHY_DOMAINS[selectedDomain]?.map((sub) => (
                                                 <SelectItem key={sub} value={sub}>{sub}</SelectItem>
@@ -358,7 +358,7 @@ export default function MockTestPage() {
                                 </CardHeader>
                                 <CardContent className="pl-14 space-y-3">
                                     <RadioGroup
-                                        value={userAnswers[qIdx]}
+                                        value={userAnswers[qIdx] || ""}
                                         onValueChange={(val) => handleAnswerSelect(qIdx, val)}
                                         disabled={submitted}
                                     >
@@ -378,14 +378,15 @@ export default function MockTestPage() {
 
                                             return (
                                                 <div key={optIdx} className={optionClass} onClick={() => !submitted && handleAnswerSelect(qIdx, optionLabel)}>
-                                                    <RadioGroupItem value={optionLabel} id={`q${qIdx}-opt${optIdx}`} className="sr-only" />
+                                                    <RadioGroupItem value={optionLabel} id={`q${qIdx}-opt${optIdx}`} />
                                                     <div className={cn(
-                                                        "w-6 h-6 rounded-full border flex items-center justify-center text-xs font-medium",
+                                                        "w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-medium transition-all",
                                                         submitted && optionLabel === q.correct_answer ? "bg-green-600 border-green-600 text-white" :
                                                             submitted && userAnswers[qIdx] === optionLabel ? "bg-red-600 border-red-600 text-white" :
-                                                                userAnswers[qIdx] === optionLabel ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground text-muted-foreground"
+                                                                userAnswers[qIdx] === optionLabel ? "bg-accent border-accent text-white" : "border-border text-muted-foreground"
                                                     )}>
-                                                        {optionLabel}
+                                                        {userAnswers[qIdx] === optionLabel && !submitted && <div className="w-3 h-3 rounded-full bg-white" />}
+                                                        {!userAnswers[qIdx] || userAnswers[qIdx] !== optionLabel ? optionLabel : ""}
                                                     </div>
                                                     <Label htmlFor={`q${qIdx}-opt${optIdx}`} className="flex-1 cursor-pointer font-normal">
                                                         {option}

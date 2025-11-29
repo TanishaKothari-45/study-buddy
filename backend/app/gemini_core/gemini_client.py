@@ -32,8 +32,8 @@ class GeminiClient:
         user_prompt: str,
         system_prompt: Optional[str] = None,
         text_input: Optional[str] = None,
-        image_path: Optional[str] = None,
-        pdf_path: Optional[str] = None,
+        image_path: Optional[str | List[str]] = None,
+        pdf_path: Optional[str | List[str]] = None,
         response_schema: Optional[BaseModel] = None,
         temperature: float = 0.0,
         cached_content_name: Optional[str] = None,
@@ -46,8 +46,8 @@ class GeminiClient:
             user_prompt: The main query/instruction (required)
             system_prompt: Optional system-level instructions (default provided if None)
             text_input: Optional text context to include
-            image_path: Optional path to image file
-            pdf_path: Optional path to PDF file
+            image_path: Optional path to image file (or list of image files)
+            pdf_path: Optional path to PDF file (or list of PDF files)
             response_schema: Optional Pydantic model for structured output
             temperature: Temperature for response generation (default: 0.0)
             cached_content_name: Optional cache name to use for context caching
@@ -64,17 +64,25 @@ class GeminiClient:
             if system_prompt is None:
                 system_prompt = self.DEFAULT_SYSTEM_PROMPT
             
-            # Upload file if needed (PDF or image)
+            # Upload files if needed (PDF or images) - supports multiple files
+            uploaded_files = []
             if pdf_path:
-                uploaded_file = await self._upload_file_async(pdf_path, "application/pdf")
+                # Handle single or multiple PDFs
+                pdf_paths = [pdf_path] if isinstance(pdf_path, str) else pdf_path
+                for path in pdf_paths:
+                    uploaded_file = await self._upload_file_async(path, "application/pdf")
+                    uploaded_files.append(uploaded_file)
             elif image_path:
-                # Detect image mime type
-                mime_type = self._get_image_mime_type(image_path)
-                uploaded_file = await self._upload_file_async(image_path, mime_type)
+                # Handle single or multiple images
+                image_paths = [image_path] if isinstance(image_path, str) else image_path
+                for path in image_paths:
+                    mime_type = self._get_image_mime_type(path)
+                    uploaded_file = await self._upload_file_async(path, mime_type)
+                    uploaded_files.append(uploaded_file)
             
-            # Build content parts
+            # Build content parts (now supports multiple files)
             content_parts = self._build_content_parts(
-                user_prompt, text_input, uploaded_file
+                user_prompt, text_input, uploaded_files
             )
             
             # Build config
@@ -107,9 +115,10 @@ class GeminiClient:
             raise Exception("Maximum retries reached without success")
             
         finally:
-            # Clean up uploaded file
-            if uploaded_file:
-                await self._delete_file_async(uploaded_file['name'])
+            # Clean up uploaded files (now handles multiple)
+            if uploaded_files:
+                for file in uploaded_files:
+                    await self._delete_file_async(file['name'])
     
     async def _upload_file_async(self, file_path: str, mime_type: str) -> Dict[str, Any]:
         """
@@ -158,7 +167,7 @@ class GeminiClient:
         self, 
         user_prompt: str, 
         text_input: Optional[str], 
-        uploaded_file: Optional[Dict]
+        uploaded_files: List[Dict]
     ) -> List[Dict[str, Any]]:
         """
         Build content parts for the API request.
@@ -166,7 +175,7 @@ class GeminiClient:
         Args:
             user_prompt: User's prompt
             text_input: Optional text context
-            uploaded_file: Optional uploaded file info
+            uploaded_files: List of uploaded file info (can be empty list)
             
         Returns:
             List of content parts
@@ -182,8 +191,8 @@ class GeminiClient:
         
         parts.append({"text": prompt_text})
         
-        # Add file if uploaded
-        if uploaded_file:
+        # Add all uploaded files
+        for uploaded_file in uploaded_files:
             parts.append({
                 "file_data": {
                     "mime_type": uploaded_file['mime_type'],
