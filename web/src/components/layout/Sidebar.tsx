@@ -71,7 +71,7 @@ export function Sidebar() {
         <>
             {/* Mobile Trigger */}
             <div className="md:hidden fixed top-4 left-4 z-50">
-                <Button variant="outline" size="icon" onClick={() => setIsOpen(!isOpen)}>
+                <Button variant="outline" size="icon" onClick={() => setIsOpen(!isOpen)} className="bg-background">
                     {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                 </Button>
             </div>
@@ -80,7 +80,7 @@ export function Sidebar() {
             <AnimatePresence mode="wait">
                 <motion.div
                     className={cn(
-                        "fixed inset-y-0 left-0 z-40 w-72 bg-sidebar-bg text-foreground border-r border-border transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:block",
+                        "fixed inset-y-0 left-0 z-40 w-72 bg-[#fcfaf8] text-foreground border-r border-border transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:block",
                         isOpen ? "translate-x-0" : "-translate-x-full"
                     )}
                 >

@@ -467,8 +467,7 @@ Return ONLY a valid JSON object as specified in the system prompt. No markdown c
         
         logger.info(f"✅ Received response: {len(response_text)} chars")
         
-        # Parse JSON response
-        import json
+        # Parse JSON response (json already imported at top of file)
         try:
             # Clean response text (remove markdown code blocks if present)
             cleaned_response = response_text.strip()

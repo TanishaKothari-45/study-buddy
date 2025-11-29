@@ -30,6 +30,21 @@ st.set_page_config(
     layout="wide"
 )
 
+# Custom CSS for sidebar background on mobile/tablet screens
+st.markdown("""
+<style>
+    /* Sidebar background color for medium and small screens (< 992px) */
+    @media (max-width: 991px) {
+        [data-testid="stSidebar"] {
+            background-color: #e0d7d1 !important;
+        }
+        [data-testid="stSidebar"] > div:first-child {
+            background-color: #e0d7d1 !important;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Title
 st.title("📚 Study Buddy AI - Geography Q&A")
 
@@ -1705,17 +1720,17 @@ elif tab_choice == "Evaluate Answer":
         # Validation: 
         # - If uploading files: question is optional (Gemini will identify from answer)
         # - If pasting text: both question and answer_text are required (but we'll focus on file upload)
-        if uploaded_files and answer_input_method == "Upload File (Handwritten)":
+                    if uploaded_files and answer_input_method == "Upload File (Handwritten)":
             with st.spinner("Processing and evaluating your answer with Gemini..."):
                 try:
                     # Simplified flow: Upload file directly to evaluate endpoint
                     # Gemini will handle OCR and improvement
-                    status_container = st.container()
-                    with status_container:
+                        status_container = st.container()
+                        with status_container:
                         st.info(f"🔄 Processing {len(uploaded_files)} file(s) with Gemini (OCR + Improvement)...")
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-                        
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
                         # Process each file (or combine if multiple)
                         # For now, process first file (can extend to multiple later)
                         file_to_process = uploaded_files[0]
@@ -1754,7 +1769,7 @@ elif tab_choice == "Evaluate Answer":
                         # Send to evaluate endpoint
                         response = requests.post(
                             f"{BACKEND_URL}/evaluate-answer/",
-                            files=files,
+                                files=files,
                             data=data,
                             timeout=180  # Longer timeout for Gemini processing
                         )
@@ -1837,7 +1852,7 @@ elif tab_choice == "Evaluate Answer":
                             with st.expander("📝 View Original Answer (Extracted by Gemini)", expanded=False):
                                 st.markdown(student_answer)
                     
-                    else:
+                                else:
                         error_msg = "Failed to evaluate answer"
                         if response:
                             try:
@@ -1853,7 +1868,7 @@ elif tab_choice == "Evaluate Answer":
                     st.error(f"Error: {str(e)}")
         elif answer_text:
             st.warning("⚠️ Text input mode is not yet supported. Please upload a PDF or image file.")
-        else:
+                            else:
             st.warning("Please upload a file (PDF or image) containing your handwritten answer")
 
 elif tab_choice == "Training Data":
@@ -1914,7 +1929,7 @@ elif tab_choice == "Training Data":
                     data["question"] = training_question
                 
                 # Call extract endpoint
-                response = requests.post(
+                        response = requests.post(
                     f"{BACKEND_URL}/training-data/extract-answer",
                     files=files_to_upload,
                     data=data,
@@ -1926,7 +1941,7 @@ elif tab_choice == "Training Data":
                     st.session_state.training_extracted_data = result
                     st.success(f"✅ Text extracted successfully from {result.get('files_processed', len(training_files))} file(s)!")
                     st.rerun()
-                else:
+                    else:
                     error_msg = "Failed to extract text"
                     try:
                         error_data = response.json()
@@ -2018,11 +2033,11 @@ elif tab_choice == "Training Data":
                             # Clear session state
                             st.session_state.training_extracted_data = None
                             st.rerun()
-                        else:
+                    else:
                             st.error("Failed to save training example")
-                    
-                    except Exception as e:
-                        st.error(f"Error: {str(e)}")
+                
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
         
         with col2:
             if st.button("🔄 Start Over", key="training_start_over"):
@@ -2057,7 +2072,7 @@ elif tab_choice == "Training Data":
                                 key=f"example_feedback_{idx}"
                             )
                             st.caption(f"Created: {example.get('metadata', {}).get('created_at', 'Unknown')}")
-                else:
+        else:
                     st.warning("No training examples found. Upload some to get started!")
             else:
                 st.error("Failed to load training examples")
