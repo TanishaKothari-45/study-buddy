@@ -50,4 +50,8 @@ embeddings/
 ._*
 
 
-google_vision.json
+google_vision.json!web/src/lib/
+
+backend/uploads/
+venv_python39_backup/
+
