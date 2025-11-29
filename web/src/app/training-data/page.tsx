@@ -154,7 +154,7 @@ export default function TrainingDataPage() {
                 </p>
             </div>
 
-            <Tabs defaultValue="list" className="space-y-6">
+            <Tabs defaultValue="new" className="space-y-6">
                 <TabsList>
                     <TabsTrigger value="list" className="flex items-center gap-2">
                         <Database className="h-4 w-4" />

@@ -7,10 +7,46 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Play, CheckCircle, XCircle, RefreshCw, Clock, BookOpen } from "lucide-react";
+import { Loader2, Play, CheckCircle, XCircle, RefreshCw, Clock, BookOpen, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
+
+// UPSC Geography Taxonomy (Mirrors backend/app/utils/metadata_enricher.py)
+const GEOGRAPHY_DOMAINS: Record<string, string[]> = {
+    "Physical Geography": [
+        "Geomorphology",
+        "Climatology",
+        "Oceanography",
+        "Biogeography",
+        "Natural Disasters"
+    ],
+    "Human Geography": [
+        "Economic Geography",
+        "Cultural Geography",
+        "Models and Theories",
+        "Population Geography",
+        "Settlements",
+        "Migration"
+    ],
+    "Indian Geography": [
+        "Indian Physiography",
+        "Indian Drainage System",
+        "Indian Climate",
+        "Indian Soils",
+        "Indian Agriculture",
+        "Indian Natural Resources",
+        "Indian Industries",
+        "Transport and Communication",
+        "Regional Planning"
+    ],
+    "World Geography": [
+        "Continents and Countries",
+        "Major Physical Features",
+        "Environmental Challenges",
+        "Political and Physical Features",
+        "Mapping and Cartography"
+    ]
+};
 
 interface MockTestQuestion {
     question: string;
@@ -31,17 +67,6 @@ interface MockTestResponse {
     instructions: string[];
 }
 
-const TOPICS = [
-    "Geomorphology",
-    "Climatology",
-    "Oceanography",
-    "Biogeography",
-    "Human Geography",
-    "Economic Geography",
-    "Indian Geography",
-    "World Geography"
-];
-
 export default function MockTestPage() {
     const [loading, setLoading] = useState(false);
     const [testData, setTestData] = useState<MockTestResponse | null>(null);
@@ -52,15 +77,11 @@ export default function MockTestPage() {
     // Configuration State
     const [numQuestions, setNumQuestions] = useState("5");
     const [difficulty, setDifficulty] = useState("medium");
-    const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
 
-    const handleTopicToggle = (topic: string) => {
-        setSelectedTopics(prev =>
-            prev.includes(topic)
-                ? prev.filter(t => t !== topic)
-                : [...prev, topic]
-        );
-    };
+    // Topic Selection State
+    const [selectedDomain, setSelectedDomain] = useState<string>("");
+    const [selectedSubDomain, setSelectedSubDomain] = useState<string>("");
+    const [customTopic, setCustomTopic] = useState("");
 
     const generateTest = async () => {
         setLoading(true);
@@ -68,6 +89,21 @@ export default function MockTestPage() {
         setUserAnswers({});
         setSubmitted(false);
         setScore(0);
+
+        // Determine topics list
+        let topics: string[] = [];
+        if (customTopic.trim()) {
+            topics = [customTopic.trim()];
+        } else if (selectedSubDomain && selectedSubDomain !== "all") {
+            topics = [selectedSubDomain];
+        } else if (selectedDomain) {
+            // If only domain is selected, include all its subtopics or just the domain name
+            // The backend likely handles broad topics, but let's be specific if possible
+            // or just send the domain name.
+            topics = [selectedDomain];
+        } else {
+            topics = ["Geography"]; // Fallback
+        }
 
         try {
             const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
@@ -77,7 +113,7 @@ export default function MockTestPage() {
                 body: JSON.stringify({
                     num_questions: parseInt(numQuestions),
                     difficulty,
-                    topics: selectedTopics.length > 0 ? selectedTopics : ["Geography"]
+                    topics: topics
                 }),
             });
 
@@ -105,16 +141,12 @@ export default function MockTestPage() {
 
         let correctCount = 0;
         testData.questions.forEach((q, idx) => {
-            // Map option index (0, 1, 2, 3) to letter (A, B, C, D) if needed
-            // But the backend returns correct_answer as "A", "B", etc.
-            // And our UI will use "A", "B", "C", "D" as values.
             if (userAnswers[idx] === q.correct_answer) {
                 correctCount++;
             }
         });
 
         // Calculate score: +2 for correct, -0.66 for wrong
-        // Unanswered = 0
         let calculatedScore = 0;
         testData.questions.forEach((q, idx) => {
             if (userAnswers[idx]) {
@@ -136,7 +168,7 @@ export default function MockTestPage() {
     return (
         <div className="p-8 max-w-5xl mx-auto space-y-8">
             <div className="flex flex-col space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">
                     Prelims Mock Test
                 </h1>
                 <p className="text-muted-foreground">
@@ -152,6 +184,7 @@ export default function MockTestPage() {
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="grid gap-6 md:grid-cols-2">
+                            {/* Basic Settings */}
                             <div className="space-y-2">
                                 <Label>Number of Questions</Label>
                                 <Select value={numQuestions} onValueChange={setNumQuestions}>
@@ -182,29 +215,75 @@ export default function MockTestPage() {
                             </div>
                         </div>
 
-                        <div className="space-y-3">
-                            <Label>Topics (Optional)</Label>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {TOPICS.map((topic) => (
-                                    <div key={topic} className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id={topic}
-                                            checked={selectedTopics.includes(topic)}
-                                            onCheckedChange={() => handleTopicToggle(topic)}
-                                        />
-                                        <label
-                                            htmlFor={topic}
-                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                        >
-                                            {topic}
-                                        </label>
-                                    </div>
-                                ))}
+                        {/* Topic Selection */}
+                        <div className="space-y-4 border-t pt-4">
+                            <Label className="text-base">Topic Selection</Label>
+
+                            <div className="grid gap-6 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label className="text-xs text-muted-foreground">Major Domain</Label>
+                                    <Select
+                                        value={selectedDomain}
+                                        onValueChange={(val) => {
+                                            setSelectedDomain(val);
+                                            setSelectedSubDomain(""); // Reset subdomain when domain changes
+                                        }}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select Major Domain" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {Object.keys(GEOGRAPHY_DOMAINS).map((domain) => (
+                                                <SelectItem key={domain} value={domain}>{domain}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-xs text-muted-foreground">Sub-Domain (Optional)</Label>
+                                    <Select
+                                        value={selectedSubDomain}
+                                        onValueChange={setSelectedSubDomain}
+                                        disabled={!selectedDomain}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select Specific Topic" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Sub-topics</SelectItem>
+                                            {selectedDomain && GEOGRAPHY_DOMAINS[selectedDomain]?.map((sub) => (
+                                                <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <span className="w-full border-t" />
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-card px-2 text-muted-foreground">Or</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Custom Topic</Label>
+                                <Input
+                                    placeholder="e.g., El Nino, Coral Reefs, Industrial Location Theory"
+                                    value={customTopic}
+                                    onChange={(e) => setCustomTopic(e.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Type a specific topic to override the dropdown selection.
+                                </p>
                             </div>
                         </div>
                     </CardContent>
                     <CardFooter>
-                        <Button onClick={generateTest} disabled={loading} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700">
+                        <Button onClick={generateTest} disabled={loading} className="w-full md:w-auto">
                             {loading ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -222,7 +301,7 @@ export default function MockTestPage() {
             ) : (
                 <div className="space-y-6">
                     {/* Test Header / Results */}
-                    <Card className={cn("border-l-4", submitted ? (score >= 0 ? "border-l-green-500" : "border-l-red-500") : "border-l-blue-500")}>
+                    <Card className={cn("border-l-4", submitted ? (score >= 0 ? "border-l-green-500" : "border-l-destructive") : "border-l-primary")}>
                         <CardHeader className="pb-2">
                             <div className="flex justify-between items-start">
                                 <div>
@@ -243,7 +322,7 @@ export default function MockTestPage() {
                         </CardHeader>
                         {!submitted && (
                             <CardContent>
-                                <div className="bg-blue-50 text-blue-800 text-sm p-3 rounded-md">
+                                <div className="bg-accent/50 text-accent-foreground text-sm p-3 rounded-md">
                                     <strong>Instructions:</strong>
                                     <ul className="list-disc list-inside mt-1 space-y-0.5">
                                         {testData.instructions.map((inst, i) => (
@@ -258,10 +337,10 @@ export default function MockTestPage() {
                     {/* Questions List */}
                     <div className="space-y-6">
                         {testData.questions.map((q, qIdx) => (
-                            <Card key={qIdx} className={cn("transition-all", submitted ? (userAnswers[qIdx] === q.correct_answer ? "ring-1 ring-green-500" : userAnswers[qIdx] ? "ring-1 ring-red-500" : "") : "")}>
+                            <Card key={qIdx} className={cn("transition-all", submitted ? (userAnswers[qIdx] === q.correct_answer ? "ring-1 ring-green-500" : userAnswers[qIdx] ? "ring-1 ring-destructive" : "") : "")}>
                                 <CardHeader className="pb-2">
                                     <div className="flex gap-3">
-                                        <span className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-gray-700 font-bold text-sm">
+                                        <span className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-muted text-muted-foreground font-bold text-sm">
                                             {qIdx + 1}
                                         </span>
                                         <div className="space-y-1">
@@ -269,7 +348,7 @@ export default function MockTestPage() {
                                                 {q.question}
                                             </CardTitle>
                                             {submitted && (
-                                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                     <BookOpen className="h-3 w-3" />
                                                     Source: {q.source.filename} {q.source.chapter && `(${q.source.chapter})`}
                                                 </div>
@@ -285,16 +364,16 @@ export default function MockTestPage() {
                                     >
                                         {q.options.map((option, optIdx) => {
                                             const optionLabel = getOptionLabel(optIdx);
-                                            let optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-transparent hover:bg-gray-50 transition-colors cursor-pointer";
+                                            let optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-transparent hover:bg-accent/50 transition-colors cursor-pointer";
 
                                             if (submitted) {
                                                 if (optionLabel === q.correct_answer) {
-                                                    optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-green-200 bg-green-50 text-green-900";
+                                                    optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-green-200 bg-green-50 text-green-900 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300";
                                                 } else if (userAnswers[qIdx] === optionLabel) {
-                                                    optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-red-200 bg-red-50 text-red-900";
+                                                    optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-red-200 bg-red-50 text-red-900 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300";
                                                 }
                                             } else if (userAnswers[qIdx] === optionLabel) {
-                                                optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-blue-200 bg-blue-50";
+                                                optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-primary/20 bg-primary/5";
                                             }
 
                                             return (
@@ -304,7 +383,7 @@ export default function MockTestPage() {
                                                         "w-6 h-6 rounded-full border flex items-center justify-center text-xs font-medium",
                                                         submitted && optionLabel === q.correct_answer ? "bg-green-600 border-green-600 text-white" :
                                                             submitted && userAnswers[qIdx] === optionLabel ? "bg-red-600 border-red-600 text-white" :
-                                                                userAnswers[qIdx] === optionLabel ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300 text-gray-500"
+                                                                userAnswers[qIdx] === optionLabel ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground text-muted-foreground"
                                                     )}>
                                                         {optionLabel}
                                                     </div>
@@ -319,9 +398,9 @@ export default function MockTestPage() {
                                     </RadioGroup>
 
                                     {submitted && (
-                                        <div className="mt-4 p-4 bg-gray-50 rounded-lg text-sm space-y-2 border border-gray-100">
-                                            <p className="font-semibold text-gray-900">Explanation:</p>
-                                            <div className="text-gray-700 leading-relaxed">
+                                        <div className="mt-4 p-4 bg-muted/30 rounded-lg text-sm space-y-2 border border-border">
+                                            <p className="font-semibold text-foreground">Explanation:</p>
+                                            <div className="text-muted-foreground leading-relaxed">
                                                 <ReactMarkdown>{q.explanation}</ReactMarkdown>
                                             </div>
                                         </div>
@@ -337,7 +416,7 @@ export default function MockTestPage() {
                             Generate New Test
                         </Button>
                         {!submitted && (
-                            <Button onClick={submitTest} className="bg-green-600 hover:bg-green-700 px-8">
+                            <Button onClick={submitTest} className="px-8">
                                 Submit Test
                             </Button>
                         )}

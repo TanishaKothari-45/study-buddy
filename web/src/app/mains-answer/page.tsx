@@ -71,27 +71,27 @@ export default function MainsAnswerPage() {
                 </p>
             </div>
 
-            <div className="grid gap-8 lg:grid-cols-3">
+            <div className="space-y-8">
                 {/* Input Section */}
-                <div className="lg:col-span-1 space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Question Details</CardTitle>
-                            <CardDescription>Enter the question and requirements.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <form onSubmit={handleGenerate} className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="question">Question</Label>
-                                    <Textarea
-                                        id="question"
-                                        placeholder="e.g., Discuss the impact of climate change on Indian agriculture..."
-                                        className="min-h-[150px]"
-                                        value={question}
-                                        onChange={(e) => setQuestion(e.target.value)}
-                                    />
-                                </div>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>1. Question Details</CardTitle>
+                        <CardDescription>Enter the question and requirements.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <form onSubmit={handleGenerate} className="space-y-6">
+                            <div className="space-y-2">
+                                <Label htmlFor="question">Question</Label>
+                                <Textarea
+                                    id="question"
+                                    placeholder="e.g., Discuss the impact of climate change on Indian agriculture..."
+                                    className="min-h-[100px]"
+                                    value={question}
+                                    onChange={(e) => setQuestion(e.target.value)}
+                                />
+                            </div>
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                                 <div className="space-y-2">
                                     <Label htmlFor="word-count">Word Limit</Label>
                                     <Input
@@ -106,7 +106,7 @@ export default function MainsAnswerPage() {
                                     <p className="text-xs text-muted-foreground">Standard limits: 150, 250 words</p>
                                 </div>
 
-                                <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700" disabled={loading || !question.trim()}>
+                                <Button type="submit" className="w-full" disabled={loading || !question.trim()}>
                                     {loading ? (
                                         <>
                                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -119,37 +119,35 @@ export default function MainsAnswerPage() {
                                         </>
                                     )}
                                 </Button>
-                            </form>
-                        </CardContent>
-                    </Card>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
 
-                    {result && (
-                        <Card className="bg-green-50 border-green-200">
+                {/* Output Section */}
+                {result && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <Card className="bg-green-50/50 border-green-200 dark:bg-green-900/10 dark:border-green-900">
                             <CardContent className="pt-6">
-                                <div className="flex items-center gap-2 text-green-700 font-medium mb-2">
+                                <div className="flex items-center gap-2 text-green-700 dark:text-green-400 font-medium mb-2">
                                     <CheckCircle className="h-5 w-5" />
                                     Generation Complete
                                 </div>
-                                <div className="text-sm text-green-800">
+                                <div className="text-sm text-green-800 dark:text-green-300">
                                     <p>Actual Word Count: {result.word_count_actual}</p>
                                     <p>Sources Used: {result.sources.length}</p>
                                 </div>
                             </CardContent>
                         </Card>
-                    )}
-                </div>
 
-                {/* Output Section */}
-                <div className="lg:col-span-2">
-                    {result ? (
                         <Card className="h-full flex flex-col">
-                            <CardHeader className="bg-gray-50 border-b">
+                            <CardHeader className="bg-muted/50 border-b">
                                 <CardTitle className="text-lg font-medium leading-relaxed">
                                     {result.question}
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="flex-1 p-6 overflow-y-auto max-h-[800px]">
-                                <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-blue-600">
+                            <CardContent className="flex-1 p-6">
+                                <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                         {result.answer}
                                     </ReactMarkdown>
@@ -157,14 +155,14 @@ export default function MainsAnswerPage() {
 
                                 {result.sources.length > 0 && (
                                     <div className="mt-8 pt-6 border-t">
-                                        <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                        <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                                             <BookOpen className="h-4 w-4" />
                                             References
                                         </h4>
                                         <div className="grid gap-2 sm:grid-cols-2">
                                             {result.sources.map((source, idx) => (
-                                                <div key={idx} className="bg-gray-50 p-2 rounded text-xs border text-gray-600">
-                                                    <p className="font-medium text-gray-900 truncate" title={source.filename}>
+                                                <div key={idx} className="bg-muted/50 p-2 rounded text-xs border text-muted-foreground">
+                                                    <p className="font-medium text-foreground truncate" title={source.filename}>
                                                         {source.filename}
                                                     </p>
                                                     <div className="flex gap-2 mt-0.5">
@@ -182,16 +180,18 @@ export default function MainsAnswerPage() {
                                 )}
                             </CardContent>
                         </Card>
-                    ) : (
-                        <div className="h-full flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg bg-gray-50 text-center">
-                            <FileText className="h-16 w-16 text-gray-300 mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900">Ready to Generate</h3>
-                            <p className="text-gray-500 max-w-sm mt-2">
-                                Enter a question and word limit to generate a structured Mains answer with introduction, body, conclusion, and diagrams.
-                            </p>
-                        </div>
-                    )}
-                </div>
+                    </div>
+                )}
+
+                {!result && !loading && (
+                    <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg bg-muted/30 text-center">
+                        <FileText className="h-16 w-16 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium text-foreground">Ready to Generate</h3>
+                        <p className="text-muted-foreground max-w-sm mt-2">
+                            Enter a question and word limit to generate a structured Mains answer with introduction, body, conclusion, and diagrams.
+                        </p>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -80,18 +80,18 @@ export function Sidebar() {
             <AnimatePresence mode="wait">
                 <motion.div
                     className={cn(
-                        "fixed inset-y-0 left-0 z-40 w-72 bg-gray-900 text-white transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:block",
+                        "fixed inset-y-0 left-0 z-40 w-72 bg-sidebar-bg text-foreground border-r border-border transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:block",
                         isOpen ? "translate-x-0" : "-translate-x-full"
                     )}
                 >
-                    <div className="space-y-4 py-4 flex flex-col h-full bg-[#111827] text-white">
+                    <div className="space-y-4 py-4 flex flex-col h-full bg-sidebar-bg text-foreground">
                         <div className="px-3 py-2 flex-1">
                             <Link href="/" className="flex items-center pl-3 mb-14">
                                 <div className="relative w-8 h-8 mr-4">
                                     {/* Logo placeholder */}
-                                    <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-violet-500 rounded-lg animate-pulse" />
+                                    <div className="absolute inset-0 bg-gradient-to-r from-accent to-accent/60 rounded-lg animate-pulse" />
                                 </div>
-                                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-violet-500">
+                                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-accent to-accent/60">
                                     Study Buddy
                                 </h1>
                             </Link>
@@ -102,14 +102,14 @@ export function Sidebar() {
                                         href={route.href}
                                         onClick={() => setIsOpen(false)}
                                         className={cn(
-                                            "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-white hover:bg-white/10 rounded-lg transition",
+                                            "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-accent hover:bg-sidebar-active rounded-lg transition",
                                             pathname === route.href
-                                                ? "text-white bg-white/10"
-                                                : "text-zinc-400"
+                                                ? "text-accent bg-sidebar-active"
+                                                : "text-muted-foreground"
                                         )}
                                     >
                                         <div className="flex items-center flex-1">
-                                            <route.icon className={cn("h-5 w-5 mr-3", route.color)} />
+                                            <route.icon className={cn("h-5 w-5 mr-3", pathname === route.href ? "text-accent" : route.color)} />
                                             {route.label}
                                         </div>
                                     </Link>
@@ -117,8 +117,8 @@ export function Sidebar() {
                             </div>
                         </div>
                         <div className="px-3 py-2">
-                            <div className="bg-white/5 rounded-lg p-4">
-                                <p className="text-xs text-zinc-400 text-center">
+                            <div className="bg-sidebar-active rounded-lg p-4">
+                                <p className="text-xs text-muted-foreground text-center">
                                     Study Buddy AI v1.0
                                 </p>
                             </div>
