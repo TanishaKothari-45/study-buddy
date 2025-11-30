@@ -1,443 +1,820 @@
-# answer_evaluator.py
 """
-Answer evaluator pipeline
-- Edit student's answer in-place (preserve voice; add up to 3 facts from provided context only)
-- Produce a final UPSC IBC-formatted mains answer using the edited answer + context
-- Uses mains_prompt.assemble_mains_prompt when available
-- Simple CLI included for testing
-
-Usage:
-    from answer_evaluator import evaluate_and_improve
-    out = evaluate_and_improve(question, student_answer, static_context, current_bullets, word_count=350)
-    print(out["edited_answer"])
-    print(out["final_answer"])
+Answer Evaluation Module
+Evaluates UPSC handwritten answers using reconstructed text (not OCR blocks)
+Handles: Evaluation only (question and answer already provided)
 """
-
-from typing import Optional, Dict, Any
-import os
 import logging
-import sys
+import json
+import os
+import time
+from typing import List, Dict, Any, Optional
+from openai import OpenAI
 
-# OpenAI client
-try:
-    import openai
-except Exception:
-    openai = None
+logger = logging.getLogger(__name__)
 
-# Try to import the mains prompt assembler (your mains_prompt.py)
-try:
-    from mains_prompt import assemble_mains_prompt
-except Exception:
-    assemble_mains_prompt = None
+# System prompt for reconstruction + evaluation (all 3 tasks in ONE call)
+RECONSTRUCT_AND_EVALUATE_SYSTEM_PROMPT = """You are an expert UPSC Mains evaluator AND faithful transcriber. You will receive OCR blocks from a handwritten UPSC answer.
 
-# Logging
-logger = logging.getLogger("answer_evaluator")
-if not logger.handlers:
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+INPUT: You will receive OCR blocks (each block has text + bounding box). The UPSC question itself is ALSO inside these blocks – identify it.
+
+TASK 1 — IDENTIFY QUESTION
+• detect which block(s) contain the question
+• extract that question text
+
+TASK 2 — RECONSTRUCT STUDENT ANSWER
+• reconstruct only the student's written answer (not your own answer)
+• use ONLY OCR text
+• you MAY fill small missing fragments ONLY if DIRECTLY implied by partial line continuation (no external facts)
+• if comparison / flowchart / table is visually implied → insert placeholder:
+  [diagram: <short descriptor>]
+• if something is unclear → mark as "[unclear]"
+
+TASK 3 — EVALUATE THE ANSWER
+
+Your job is NOT to judge structure, NOT to check IBC format mechanically.
+
+Your job is to evaluate the answer based on:
+– how well the student addressed ALL major parts of the question
+– topic coverage completeness (especially when question asks multi-part)
+– depth of explanation
+– relevance + conceptual correctness
+– use of examples and evidence
+– clarity of argument
+– linkages + insight (inter-topic / human dimensions / geography intersections)
+
+SCORE:
+Give ONE score out of 20. 
+(20 = near topper level, 15–17 = solid, 10–14 = average, <10 weak)
+
+OUTPUT FORMAT (MANDATORY EXACT):
+
+### QUESTION
+<identified question text>
+
+### RECONSTRUCTED ANSWER
+<clean reconstructed answer>
+
+### SCORE (out of 20)
+x/20
+
+### WHAT WAS DONE WELL
+• 3–6 bullets of strengths in THIS answer (not generic)
+
+### WHAT WAS MISSING / CAN BE IMPROVED
+• MUST be concrete: mention 3–6 SPECIFIC content gaps that this answer SHOULD have included but did not
+• reference exact missing items in THIS topic (e.g. “no mention of El Niño anomaly”, “no India wildfire example”, “water security part did not mention groundwater recharge reduction”)
+• NO generic remarks like “improve clarity” or “expand examples” — must say exactly WHAT example / line / concept is missing
+
+### HIGH RETURN IMPROVEMENTS
+Each improvement bullet MUST state WHAT to insert AND WHERE in the answer to insert it.
+Format like:
+• After the drought line: insert [diagram: drought→fuel dryness→ignition→crop loss]
+• After global wildfire stats: add India example (e.g. Uttarakhand 2024)
+• In the last 2 lines before conclusion: insert 1 SDG linkage (SDG-2 + SDG-6)
+• After listing food implications: add 1 explicit water implication (groundwater recharge reduction)
+
+RULES:
+• Do not rewrite the answer.
+• Do not generate ideal answer.
+• Do not hallucinate facts.
+• Improvements MUST be based on missing parts in THIS answer only.
 
 
-# -------------------------
-# OpenAI wrapper
-# -------------------------
-def _ensure_openai_api():
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY not set in environment.")
-    if openai is None:
-        raise RuntimeError("openai package not installed. Run: pip install openai")
-    openai.api_key = api_key
-
-
-def call_llm(system: str, user: str, model: str = "gpt-4o-mini",
-             max_tokens: int = 1024, temperature: float = 0.0) -> str:
-    """
-    Minimal chat wrapper. Returns assistant content string.
-    """
-    _ensure_openai_api()
-    messages = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": user}
-    ]
-    try:
-        resp = openai.ChatCompletion.create(
-            model=model,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            n=1
-        )
-        # Compatibility: older/newer responses
-        choice = resp.choices[0]
-        # Some SDKs use 'message' vs 'text'
-        text = ""
-        if hasattr(choice, "message") and isinstance(choice.message, dict):
-            text = choice.message.get("content", "") or ""
-        elif hasattr(choice, "message") and hasattr(choice.message, "content"):
-            text = getattr(choice.message, "content", "") or ""
-        else:
-            text = choice.get("text", "") or choice.get("message", {}).get("content", "")
-        return text.strip()
-    except Exception as e:
-        logger.error(f"LLM call failed: {e}", exc_info=True)
-        raise
-
-
-# -------------------------
-# Prompts
-# -------------------------
-EDITOR_SYSTEM = """You are an expert UPSC Mains answer editor (Geography).
-Edit and IMPROVE the student's answer — preserve their voice and original points.
-Rules:
-- Preserve student's voice; EDIT (rephrase, reorganize, tidy) rather than rewrite from scratch.
-- Output must be in strict IBC format: Introduction (2-3 lines) → Body (sub-headings + bullets ≤ 18 words) → Conclusion (1 paragraph).
-- Do NOT invent facts. You may add up to 3 missing, high-value facts/examples ONLY if they appear in STATIC CONTEXT or CURRENT BULLETS; annotate such additions as (source).
-- If no supporting fact exists and you feel a fact is necessary, insert "[citation needed]" instead of inventing it.
-- Insert at least one inline diagram suggestion where relevant: e.g., (Suggested Diagram: India map showing X).
-- Keep length near TARGET_WORD_COUNT. If student's answer is much shorter, expand concisely using provided context; if longer, compress while preserving intent.
-- Return only the edited/improved answer text (no JSON, no commentary).
 """
 
-EDITOR_USER_TEMPLATE = """QUESTION:
-{question}
+# System prompt for evaluation (reconstructed answer only - no OCR blocks) - DEPRECATED
+EVALUATION_SYSTEM_PROMPT = """You are an expert UPSC Mains evaluator in mentor-mode. You will receive a reconstructed handwritten UPSC answer.
 
-STUDENT ANSWER:
----
-{student_answer}
----
+INPUT: You will receive:
+- The question (if provided, otherwise identify it from the answer)
+- The reconstructed student's answer (already transcribed from OCR)
 
-STATIC CONTEXT (use for substantiation; do not invent outside it):
-{static_context}
+TASK 1 — IDENTIFY QUESTION (if not provided)
+• If question is not provided, identify it from the reconstructed answer
+• Look for question markers, directive words (discuss, analyze, examine, etc.)
+• Extract the complete question text
 
-CURRENT BULLETS (use if relevant):
-{current_bullets}
+TASK 2 — EVALUATE THE ANSWER
 
-TARGET_WORD_COUNT: approx {word_count} words.
+Your job is NOT to judge structure, NOT to check IBC format mechanically.
 
-Instructions: Edit the student's answer in place following the system rules. Preserve voice, add up to 3 facts from the STATIC/CURRENT contexts only (annotate sources), include at least one inline diagram suggestion, and output ONLY the improved answer text.
+Your job is to evaluate the answer based on:
+– how well the student addressed ALL major parts of the question
+– topic coverage completeness (especially when question asks multi-part)
+– depth of explanation
+– relevance + conceptual correctness
+– use of examples and evidence
+– clarity of argument
+– linkages + insight (inter-topic / human dimensions / geography intersections)
+
+SCORE:
+Give ONE score out of 20. 
+(20 = near topper level, 15–17 = solid, 10–14 = average, <10 weak)
+
+OUTPUT FORMAT (MANDATORY EXACT):
+
+### QUESTION
+<identified question text>
+
+### RECONSTRUCTED ANSWER
+<clean reconstructed answer>
+
+### SCORE (out of 20)
+x/20
+
+### WHAT WAS DONE WELL
+• 3–6 bullets of strengths in THIS answer (not generic)
+
+### WHAT WAS MISSING / CAN BE IMPROVED
+• MUST be concrete: mention 3–6 SPECIFIC content gaps that this answer SHOULD have included but did not
+• reference exact missing items in THIS topic (e.g. “no mention of El Niño anomaly”, “no India wildfire example”, “water security part did not mention groundwater recharge reduction”)
+• NO generic remarks like “improve clarity” or “expand examples” — must say exactly WHAT example / line / concept is missing
+
+### HIGH RETURN IMPROVEMENTS
+Each improvement bullet MUST state WHAT to insert AND WHERE in the answer to insert it.
+Format like:
+• After the drought line: insert [diagram: drought→fuel dryness→ignition→crop loss]
+• After global wildfire stats: add India example (e.g. Uttarakhand 2024)
+• In the last 2 lines before conclusion: insert 1 SDG linkage (SDG-2 + SDG-6)
+• After listing food implications: add 1 explicit water implication (groundwater recharge reduction)
+
+RULES:
+• Do not rewrite the answer.
+• Do not generate ideal answer.
+• Do not hallucinate facts.
+• Improvements MUST be based on missing parts in THIS answer only.
+
 """
 
+# System prompt for reconstruction only (Task 1 & 2, no evaluation)
+RECONSTRUCTION_ONLY_SYSTEM_PROMPT = """You are a faithful transcriber. Your task is to identify the question and reconstruct the student's handwritten answer.
 
-FINAL_SYSTEM_FALLBACK = """You are a senior UPSC Mains answer writer (Geography). Produce a high-quality IBC-format answer.
-Use the edited student answer as the base and the provided static/current contexts for substantiation.
-Do NOT invent facts beyond the supplied contexts; mark any unverifiable claims as [citation needed].
-Include at least one inline diagram suggestion.
-Return only the final answer text (no metadata)."""
+INPUT you receive will be OCR blocks (each block has text + bounding box). The UPSC question itself is ALSO inside these blocks – identify it.
 
-FINAL_USER_FALLBACK = """TASK:
-Produce the final UPSC Mains IBC answer.
+TASK 1 — IDENTIFY QUESTION
 
-QUESTION:
-{question}
+• detect which block(s) contain the question
 
-EDITED STUDENT ANSWER (base for final):
-{edited_answer}
+• extract that question text
 
-STATIC CONTEXT:
-{static_context}
+TASK 2 — RECONSTRUCT STUDENT ANSWER
 
-CURRENT BULLETS:
-{current_bullets}
+• reconstruct only the student's written answer (not your own answer)
 
-Target words: ~{word_count}. Strict IBC format. Substantiate points using STATIC/CURRENT only. Output only the answer text.
-"""
+• use ONLY OCR text
+
+• you MAY fill small missing fragments ONLY if DIRECTLY implied by partial line continuation (no external facts)
+
+• if comparison / flowchart / table is visually implied → insert placeholder:
+  [diagram: <short descriptor>]
+
+• if something is unclear → mark as "[unclear]"
+
+Do NOT evaluate. Do NOT score. Only identify question and reconstruct answer.
+
+OUTPUT FORMAT (MANDATORY):
+
+### QUESTION
+
+<detected question text>
+
+### RECONSTRUCTED ANSWER
+
+<clean reconstructed answer>"""
 
 
-# -------------------------
-# Core functions
-# -------------------------
-def edit_student_answer(question: str,
-                        student_answer: str,
-                        static_context: Optional[str] = None,
-                        current_bullets: Optional[str] = None,
-                        word_count: int = 350,
-                        model: str = "gpt-4o-mini") -> str:
+def evaluate_reconstructed_answer(
+    question: Optional[str],
+    reconstructed_answer: str,
+    llm_client: OpenAI,
+    model: str = "gpt-4o-mini",
+    max_retries: int = 3
+) -> Dict[str, Any]:
     """
-    Edit/improve student's answer in place using the editor prompt.
-    """
-    static_context = static_context or "NONE"
-    current_bullets = current_bullets or "NONE"
-    user_msg = EDITOR_USER_TEMPLATE.format(
-        question=question,
-        student_answer=student_answer,
-        static_context=static_context,
-        current_bullets=current_bullets,
-        word_count=word_count
-    )
-    logger.info("Calling LLM to edit student answer (deterministic)...")
-    edited = call_llm(EDITOR_SYSTEM, user_msg, model=model, max_tokens=900, temperature=0.0)
-    logger.info("Received edited answer.")
-    return edited.strip()
-
-
-def produce_final_mains_answer(question: str,
-                               edited_answer: str,
-                               static_context: Optional[str] = None,
-                               current_bullets: Optional[str] = None,
-                               word_count: int = 350,
-                               model: str = "gpt-4o-mini") -> str:
-    """
-    Produce the final mains answer. Prefer using mains_prompt.assemble_mains_prompt if available.
-    """
-    static_context = static_context or ""
-    current_bullets = current_bullets or ""
-
-    if assemble_mains_prompt:
-        # Build system + user using provided assembler
-        try:
-            assembled = assemble_mains_prompt(
-                question=question,
-                context=edited_answer + "\n\n" + static_context,
-                current_bullets=current_bullets,
-                word_count=word_count
-            )
-            system_prompt = assembled.get("system") or FINAL_SYSTEM_FALLBACK
-            user_prompt = assembled.get("user") or FINAL_USER_FALLBACK.format(
-                question=question,
-                edited_answer=edited_answer,
-                static_context=static_context,
-                current_bullets=current_bullets,
-                word_count=word_count
-            )
-            logger.info("Using mains_prompt.assemble_mains_prompt for final generation.")
-            final = call_llm(system_prompt, user_prompt, model=model, max_tokens=1100, temperature=0.2)
-            return final.strip()
-        except Exception as e:
-            logger.warning(f"assemble_mains_prompt failed: {e}; falling back to internal prompt.")
-            # fall through to fallback
-    # Fallback
-    user_msg = FINAL_USER_FALLBACK.format(
-        question=question,
-        edited_answer=edited_answer,
-        static_context=static_context,
-        current_bullets=current_bullets,
-        word_count=word_count
-    )
-    logger.info("Using fallback final prompt for LLM generation.")
-    final = call_llm(FINAL_SYSTEM_FALLBACK, user_msg, model=model, max_tokens=1100, temperature=0.2)
-    logger.info("Received final mains answer.")
-    return final.strip()
-
-
-def reconstruct_with_question_identification(
-    ocr_data: Dict[str, Any],
-    llm_client=None,
-    model: str = "gpt-4o-mini"
-) -> Dict[str, str]:
-    """
-    Reconstruct student answer from OCR data and identify the question.
+    Evaluate a reconstructed answer (question optional - will be identified if not provided, no OCR blocks)
     
     Args:
-        ocr_data: Dictionary with OCR data (blocks, full_text, width, height)
-        llm_client: OpenAI client instance (optional, will create if not provided)
+        question: The question (optional - will be identified from answer if not provided)
+        reconstructed_answer: The reconstructed answer (already transcribed from OCR)
+        llm_client: OpenAI client instance
         model: LLM model to use
+        max_retries: Maximum retry attempts
     
     Returns:
-        Dict with 'question' and 'reconstructed_answer'
+        Dictionary with evaluation results:
+            {
+                "question": identified_question,
+                "reconstructed_answer": reconstructed_answer,
+                "evaluation": {
+                    "score": x,
+                    "max_score": 20,
+                    "what_was_done_well": ["...", "..."],
+                    "what_was_missing": ["...", "..."],
+                    "high_return_improvements": ["...", "..."]
+                },
+                "raw_response": "..."  # Exact LLM response
+            }
     """
-    import json
-    from openai import OpenAI
+    if not reconstructed_answer:
+        logger.warning("⚠️ Reconstructed answer missing")
+        return {
+            "question": question or "",
+            "reconstructed_answer": "",
+            "error": "Reconstructed answer missing"
+        }
     
-    if llm_client is None:
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError("OPENAI_API_KEY not set in environment.")
-        llm_client = OpenAI(api_key=api_key)
+    logger.info(f"   📤 Sending reconstructed answer to LLM for evaluation:")
+    if question:
+        logger.info(f"      • Question provided: {question[:100]}...")
+    else:
+        logger.info(f"      • Question not provided - will be identified from answer")
+    logger.info(f"      • Answer length: {len(reconstructed_answer)} chars")
     
+    # Build user message - include question if provided, otherwise ask LLM to identify it
+    if question:
+        user_message = f"""Question:
+{question}
+
+Reconstructed Student Answer:
+{reconstructed_answer}
+
+Evaluate this answer based on UPSC Mains criteria. Return ONLY the evaluation in the exact format specified."""
+    else:
+        user_message = f"""Reconstructed Student Answer:
+{reconstructed_answer}
+
+First, identify the question from the answer (look for question markers, directive words like "discuss", "analyze", "examine", etc.).
+Then evaluate this answer based on UPSC Mains criteria. Return ONLY the evaluation in the exact format specified (including the identified question)."""
+    
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"   🤖 Sending to LLM for evaluation (attempt {attempt + 1}/{max_retries})...")
+            
+            completion = llm_client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": EVALUATION_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=0,  # Maximum accuracy
+                top_p=0,  # Deterministic output
+                max_tokens=2000
+            )
+            
+            response_text = completion.choices[0].message.content
+            
+            if response_text:
+                logger.info(f"   ✅ LLM evaluation complete - output length: {len(response_text)} chars")
+                
+                # Parse the response
+                parsed_result = parse_evaluation_response_simple(response_text)
+                # Extract identified question from response if not provided
+                identified_question = parsed_result.get("question", question or "")
+                parsed_result["question"] = identified_question
+                parsed_result["reconstructed_answer"] = reconstructed_answer
+                parsed_result["raw_response"] = response_text  # Include exact response
+                return parsed_result
+            else:
+                raise ValueError("Empty response from LLM")
+                
+        except Exception as e:
+            logger.error(f"   ❌ LLM evaluation failed (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"   ⏳ Retrying...")
+                continue
+            else:
+                logger.error(f"   ❌ All evaluation attempts failed")
+                return {
+                    "question": question or "",
+                    "reconstructed_answer": reconstructed_answer,
+                    "error": str(e),
+                    "raw_response": ""
+                }
+    
+    return {
+        "question": question or "",
+        "reconstructed_answer": reconstructed_answer,
+        "error": "All attempts failed",
+        "raw_response": ""
+    }
+
+
+def parse_evaluation_response_simple(response_text: str) -> Dict[str, Any]:
+    """
+    Parse simple evaluation response (question, score, what was done well, what was missing, improvements)
+    
+    Args:
+        response_text: Raw LLM response
+    
+    Returns:
+        Parsed evaluation dictionary
+    """
+    import re
+    
+    result = {
+        "question": "",
+        "evaluation": {
+            "score": 0,
+            "max_score": 20,
+            "what_was_done_well": [],
+            "what_was_missing": [],
+            "high_return_improvements": []
+        }
+    }
+    
+    try:
+        # Extract question (if identified in response)
+        question_match = re.search(r'### QUESTION\s*\n(.*?)(?=### SCORE|$)', response_text, re.DOTALL)
+        if question_match:
+            result["question"] = question_match.group(1).strip()
+        
+        # Extract score
+        score_match = re.search(r'### SCORE.*?\n(\d+)/20', response_text, re.IGNORECASE | re.DOTALL)
+        if score_match:
+            result["evaluation"]["score"] = int(score_match.group(1))
+        
+        # Extract "WHAT WAS DONE WELL"
+        done_well_match = re.search(r'### WHAT WAS DONE WELL\s*\n(.*?)(?=### WHAT WAS MISSING|### HIGH RETURN|$)', response_text, re.IGNORECASE | re.DOTALL)
+        if done_well_match:
+            done_well_text = done_well_match.group(1)
+            # Extract bullet points
+            bullets = re.findall(r'[•\-\*]\s*(.+?)(?=\n[•\-\*]|\n\n|$)', done_well_text, re.MULTILINE)
+            result["evaluation"]["what_was_done_well"] = [b.strip() for b in bullets if b.strip()]
+        
+        # Extract "WHAT WAS MISSING / CAN BE IMPROVED"
+        missing_match = re.search(r'### WHAT WAS MISSING.*?\n(.*?)(?=### HIGH RETURN|$)', response_text, re.IGNORECASE | re.DOTALL)
+        if missing_match:
+            missing_text = missing_match.group(1)
+            # Extract bullet points
+            bullets = re.findall(r'[•\-\*]\s*(.+?)(?=\n[•\-\*]|\n\n|$)', missing_text, re.MULTILINE)
+            result["evaluation"]["what_was_missing"] = [b.strip() for b in bullets if b.strip()]
+        
+        # Extract "HIGH RETURN IMPROVEMENTS"
+        improvements_match = re.search(r'### HIGH RETURN IMPROVEMENTS\s*\n(.*?)$', response_text, re.IGNORECASE | re.DOTALL)
+        if improvements_match:
+            improvements_text = improvements_match.group(1)
+            # Extract bullet points
+            bullets = re.findall(r'[•\-\*]\s*(.+?)(?=\n[•\-\*]|\n\n|$)', improvements_text, re.MULTILINE)
+            result["evaluation"]["high_return_improvements"] = [b.strip() for b in bullets if b.strip()]
+        
+    except Exception as e:
+        logger.error(f"   ⚠️ Failed to parse evaluation response: {e}")
+        result["raw_response"] = response_text
+    
+    return result
+
+
+def parse_reconstruct_and_evaluate_response(response_text: str) -> Dict[str, Any]:
+    """
+    Parse LLM response that contains both reconstruction and evaluation (all 3 tasks in one call)
+    
+    Args:
+        response_text: Raw LLM response
+    
+    Returns:
+        Parsed dictionary with question, reconstructed_answer, and evaluation
+    """
+    import re
+    
+    result = {
+        "question": "",
+        "reconstructed_answer": "",
+        "evaluation": {
+            "score": 0,
+            "max_score": 20,
+            "what_was_done_well": [],
+            "what_was_missing": [],
+            "high_return_improvements": []
+        }
+    }
+    
+    try:
+        # Extract question
+        question_match = re.search(r'### QUESTION\s*\n(.*?)(?=### RECONSTRUCTED ANSWER|$)', response_text, re.DOTALL)
+        if question_match:
+            result["question"] = question_match.group(1).strip()
+        
+        # Extract reconstructed answer
+        answer_match = re.search(r'### RECONSTRUCTED ANSWER\s*\n(.*?)(?=### SCORE|$)', response_text, re.DOTALL)
+        if answer_match:
+            result["reconstructed_answer"] = answer_match.group(1).strip()
+        
+        # Extract score
+        score_match = re.search(r'### SCORE.*?\n(\d+)/20', response_text, re.IGNORECASE | re.DOTALL)
+        if score_match:
+            result["evaluation"]["score"] = int(score_match.group(1))
+        
+        # Extract "WHAT WAS DONE WELL"
+        done_well_match = re.search(r'### WHAT WAS DONE WELL\s*\n(.*?)(?=### WHAT WAS MISSING|### HIGH RETURN|$)', response_text, re.IGNORECASE | re.DOTALL)
+        if done_well_match:
+            done_well_text = done_well_match.group(1)
+            # Extract bullet points
+            bullets = re.findall(r'[•\-\*]\s*(.+?)(?=\n[•\-\*]|\n\n|$)', done_well_text, re.MULTILINE)
+            result["evaluation"]["what_was_done_well"] = [b.strip() for b in bullets if b.strip()]
+        
+        # Extract "WHAT WAS MISSING / CAN BE IMPROVED"
+        missing_match = re.search(r'### WHAT WAS MISSING.*?\n(.*?)(?=### HIGH RETURN|$)', response_text, re.IGNORECASE | re.DOTALL)
+        if missing_match:
+            missing_text = missing_match.group(1)
+            # Extract bullet points
+            bullets = re.findall(r'[•\-\*]\s*(.+?)(?=\n[•\-\*]|\n\n|$)', missing_text, re.MULTILINE)
+            result["evaluation"]["what_was_missing"] = [b.strip() for b in bullets if b.strip()]
+        
+        # Extract "HIGH RETURN IMPROVEMENTS"
+        improvements_match = re.search(r'### HIGH RETURN IMPROVEMENTS\s*\n(.*?)$', response_text, re.IGNORECASE | re.DOTALL)
+        if improvements_match:
+            improvements_text = improvements_match.group(1)
+            # Extract bullet points
+            bullets = re.findall(r'[•\-\*]\s*(.+?)(?=\n[•\-\*]|\n\n|$)', improvements_text, re.MULTILINE)
+            result["evaluation"]["high_return_improvements"] = [b.strip() for b in bullets if b.strip()]
+        
+    except Exception as e:
+        logger.error(f"   ⚠️ Failed to parse reconstruction + evaluation response: {e}")
+        logger.debug(f"   Response text: {response_text[:500]}...")
+        result["raw_response"] = response_text
+    
+    return result
+
+
+def reconstruct_and_evaluate_from_ocr_blocks(
+    ocr_data: Dict[str, Any],
+    llm_client: OpenAI,
+    model: str = "gpt-4o-mini",
+    max_retries: int = 3
+) -> Dict[str, Any]:
+    """
+    Reconstruct AND evaluate in ONE LLM call from OCR blocks (all 3 tasks: identify question, reconstruct, evaluate)
+    
+    This is the preferred method for evaluation - does everything in one call.
+    
+    Args:
+        ocr_data: Dictionary with OCR data:
+            {
+                "blocks": [
+                    {"text": "...", "bbox": [[x1,y1],[x2,y2],[x3,y3],[x4,y4]], "conf": 0.93},
+                    ...
+                ],
+                "full_text": "...raw text...",
+                "width": W,
+                "height": H
+            }
+        llm_client: OpenAI client instance
+        model: LLM model to use
+        max_retries: Maximum retry attempts
+    
+    Returns:
+        Dictionary with evaluation results:
+            {
+                "question": "...",
+                "reconstructed_answer": "...",
+                "evaluation": {
+                    "score": x,
+                    "max_score": 20,
+                    "what_was_done_well": ["...", "..."],
+                    "what_was_missing": ["...", "..."],
+                    "high_return_improvements": ["...", "..."]
+                },
+                "raw_response": "..."  # Exact LLM response
+            }
+    """
     blocks = ocr_data.get("blocks", [])
     full_text = ocr_data.get("full_text", "")
+    width = ocr_data.get("width", 0)
+    height = ocr_data.get("height", 0)
     
     if not blocks and not full_text:
-        logger.warning("⚠️ No blocks or full_text provided for reconstruction")
-        return {"question": "", "reconstructed_answer": ""}
+        logger.warning("⚠️ No blocks or full_text provided")
+        return {
+            "question": "",
+            "reconstructed_answer": "",
+            "error": "No OCR data provided"
+        }
     
     # Format OCR data as JSON for LLM
     ocr_json = json.dumps(ocr_data, ensure_ascii=False, indent=2)
     
-    system_prompt = """You are a faithful transcriber for UPSC handwritten answers. Your task:
-1. Identify the QUESTION from the OCR text (look for question markers, numbered items, or explicit question text)
-2. Reconstruct the STUDENT'S ANSWER from the OCR blocks and full text
-
-RULES:
-- Use only the provided OCR text. Do not add new knowledge.
-- Do not correct factual content.
-- You may fix only spacing/case for readability.
-- If multiple blocks imply comparison or side-by-side columns, convert them to a comparative list.
-- If a diagram/flowchart/table is visually implied, insert: [diagram: short descriptor]
-- If text is unclear, use "[unclear]" exactly.
-- Output must be clean readable text with paragraphs/bullets.
-
-Do NOT evaluate. Do NOT explain. Only identify question and reconstruct answer.
-
-Output format (JSON):
-{
-  "question": "the identified question text",
-  "reconstructed_answer": "the reconstructed student answer"
-}"""
+    logger.info(f"   📤 Sending OCR blocks to LLM for reconstruction + evaluation (ONE call):")
+    logger.info(f"      • Blocks: {len(blocks)}")
+    logger.info(f"      • Full text length: {len(full_text)} chars")
+    logger.info(f"      • Image dimensions: {width}x{height} pixels")
     
-    user_message = f"""Identify the question and reconstruct the student's handwritten answer from this OCR data:
+    user_message = f"""Process the following OCR blocks to:
+1. Identify the question
+2. Reconstruct the student's answer
+3. Evaluate the answer
 
+OCR Data:
 {ocr_json}
 
 Remember:
-- Identify the question first (look for question markers, numbers, or explicit question text)
-- Reconstruct only the student's answer (not the question)
-- Use only provided OCR text
-- Fix only spacing/case for readability
-- Handle comparisons/columns logically
-- Insert placeholders for diagrams/tables/flowcharts
-- Use "[unclear]" for unclear text
-- Do NOT evaluate, explain, or summarize
-
-Return JSON with "question" and "reconstructed_answer" fields."""
+- Identify which blocks contain the question
+- Reconstruct ONLY the student's answer (not your own)
+- Use only OCR text
+- Evaluate strictly based on UPSC Mains criteria
+- Follow the output format exactly"""
     
-    try:
-        logger.info("🤖 Sending OCR data to LLM for question identification and answer reconstruction...")
-        
-        completion = llm_client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ],
-            temperature=0,  # Maximum accuracy
-            max_tokens=2500,
-            response_format={"type": "json_object"}  # Force JSON response
-        )
-        
-        response_text = completion.choices[0].message.content
-        
-        # Parse JSON response
+    for attempt in range(max_retries):
         try:
-            result = json.loads(response_text)
-            question = result.get("question", "").strip()
-            reconstructed_answer = result.get("reconstructed_answer", "").strip()
+            logger.info(f"   🤖 Sending OCR blocks to LLM for reconstruction + evaluation (attempt {attempt + 1}/{max_retries})...")
             
-            if not reconstructed_answer and full_text:
-                # Fallback: use full_text if reconstruction is empty
-                reconstructed_answer = full_text
-                logger.warning("⚠️ Empty reconstruction, using full_text as fallback")
+            completion = llm_client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": RECONSTRUCT_AND_EVALUATE_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=0,  # Maximum accuracy
+                top_p=0,  # Deterministic output
+                max_tokens=3000  # More tokens for reconstruction + evaluation
+            )
             
-            logger.info(f"✅ Question identified: {question[:100]}...")
-            logger.info(f"✅ Answer reconstructed: {len(reconstructed_answer)} chars")
+            response_text = completion.choices[0].message.content
             
-            return {
-                "question": question,
-                "reconstructed_answer": reconstructed_answer
+            if response_text:
+                logger.info(f"   ✅ LLM reconstruction + evaluation complete - output length: {len(response_text)} chars")
+                
+                # Parse the response
+                parsed_result = parse_reconstruct_and_evaluate_response(response_text)
+                parsed_result["raw_response"] = response_text  # Include exact response
+                return parsed_result
+            else:
+                raise ValueError("Empty response from LLM")
+                
+        except Exception as e:
+            logger.error(f"   ❌ LLM reconstruction + evaluation failed (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"   ⏳ Retrying...")
+                continue
+            else:
+                logger.error(f"   ❌ All attempts failed")
+                return {
+                    "question": "",
+                    "reconstructed_answer": full_text if full_text else "\n".join([b["text"] for b in blocks]),
+                    "error": str(e),
+                    "raw_response": ""
+                }
+    
+    return {
+        "question": "",
+        "reconstructed_answer": "",
+        "error": "All attempts failed",
+        "raw_response": ""
+    }
+
+
+def evaluate_from_ocr_blocks(
+    ocr_data: Dict[str, Any],
+    llm_client: OpenAI,
+    model: str = "gpt-4o-mini",
+    max_retries: int = 3
+) -> Dict[str, Any]:
+    """
+    DEPRECATED: Alias for reconstruct_and_evaluate_from_ocr_blocks
+    Kept for backward compatibility.
+    """
+    return reconstruct_and_evaluate_from_ocr_blocks(ocr_data, llm_client, model, max_retries)
+
+
+def reconstruct_with_question_identification(
+    ocr_data: Dict[str, Any],
+    llm_client: OpenAI,
+    model: str = "gpt-4o-mini",
+    max_retries: int = 3
+) -> Dict[str, Any]:
+    """
+    Reconstruct answer and identify question from OCR blocks (Task 1 & 2 only, no evaluation)
+    
+    Args:
+        ocr_data: Dictionary with OCR data
+        llm_client: OpenAI client instance
+        model: LLM model to use
+        max_retries: Maximum retry attempts
+    
+    Returns:
+        Dictionary with:
+            {
+                "question": "...",
+                "reconstructed_answer": "..."
             }
-        except json.JSONDecodeError:
-            # If JSON parsing fails, try to extract question and answer from text
-            logger.warning("⚠️ Failed to parse JSON response, attempting text extraction...")
-            lines = response_text.split("\n")
-            question = ""
-            answer = ""
-            in_answer = False
-            
-            for line in lines:
-                if "question" in line.lower() and ":" in line:
-                    question = line.split(":", 1)[1].strip().strip('"').strip("'")
-                elif "answer" in line.lower() and ":" in line:
-                    answer = line.split(":", 1)[1].strip().strip('"').strip("'")
-                    in_answer = True
-                elif in_answer:
-                    answer += "\n" + line.strip()
-            
-            if not answer and full_text:
-                answer = full_text
-            
-            return {
-                "question": question or "",
-                "reconstructed_answer": answer or response_text
-            }
-            
-    except Exception as e:
-        logger.error(f"❌ LLM reconstruction failed: {e}", exc_info=True)
-        # Fallback: return full_text as answer
+    """
+    blocks = ocr_data.get("blocks", [])
+    full_text = ocr_data.get("full_text", "")
+    width = ocr_data.get("width", 0)
+    height = ocr_data.get("height", 0)
+    
+    if not blocks and not full_text:
+        logger.warning("⚠️ No blocks or full_text provided for reconstruction")
         return {
             "question": "",
-            "reconstructed_answer": full_text or "\n".join([b.get("text", "") for b in blocks])
+            "reconstructed_answer": ""
         }
+    
+    # Format OCR data as JSON for LLM
+    ocr_json = json.dumps(ocr_data, ensure_ascii=False, indent=2)
+    
+    logger.info(f"   📤 Sending OCR data to LLM for reconstruction (with question identification):")
+    logger.info(f"      • Blocks: {len(blocks)}")
+    logger.info(f"      • Full text length: {len(full_text)} chars")
+    
+    user_message = f"""Process the following OCR blocks to:
+1. Identify the question
+2. Reconstruct the student's answer
+
+OCR Data:
+{ocr_json}
+
+Remember:
+- Identify which blocks contain the question
+- Reconstruct ONLY the student's answer (not your own)
+- Use only OCR text
+- Follow the output format exactly"""
+    
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"   🤖 Sending OCR data to LLM (attempt {attempt + 1}/{max_retries})...")
+            
+            completion = llm_client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": RECONSTRUCTION_ONLY_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=0,  # Maximum accuracy
+                top_p=0,  # Deterministic output
+                max_tokens=2000
+            )
+            
+            response_text = completion.choices[0].message.content
+            
+            if response_text:
+                logger.info(f"   ✅ LLM reconstruction complete - output length: {len(response_text)} chars")
+                
+                # Parse the response
+                parsed_result = parse_reconstruction_response(response_text)
+                return parsed_result
+            else:
+                raise ValueError("Empty response from LLM")
+                
+        except Exception as e:
+            logger.error(f"   ❌ LLM reconstruction failed (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"   ⏳ Retrying...")
+                continue
+            else:
+                logger.error(f"   ❌ All reconstruction attempts failed")
+                # Fallback: use full_text
+                return {
+                    "question": "",
+                    "reconstructed_answer": full_text if full_text else "\n".join([b["text"] for b in blocks])
+                }
+    
+    return {
+        "question": "",
+        "reconstructed_answer": ""
+    }
 
 
-def evaluate_and_improve(question: str,
-                         student_answer: str,
-                         static_context: Optional[str] = None,
-                         current_bullets: Optional[str] = None,
-                         word_count: int = 350,
-                         edit_model: str = "gpt-4o-mini",
-                         final_model: str = "gpt-4o-mini") -> Dict[str, Any]:
+def parse_evaluation_response(response_text: str) -> Dict[str, Any]:
     """
-    Full pipeline: edit -> final answer.
-    Returns dict with 'edited_answer' and 'final_answer'.
+    Parse LLM evaluation response into structured format (DEPRECATED - old format)
+    
+    Args:
+        response_text: Raw LLM response
+    
+    Returns:
+        Parsed evaluation dictionary
     """
-    logger.info("Starting evaluate_and_improve pipeline...")
+    import re
+    
+    result = {
+        "question": "",
+        "reconstructed_answer": "",
+        "evaluation": {
+            "intro": {"score": 0, "max": 3, "justification": ""},
+            "directive": {"score": 0, "max": 1, "justification": ""},
+            "ibc": {"score": 0, "max": 2, "justification": ""},
+            "multidimensionality": {"score": 0, "max": 6, "justification": ""},
+            "examples": {"score": 0, "max": 3, "justification": ""},  # Assuming x/3 (32 seems like typo)
+            "diagram": {"score": 0, "max": 2, "justification": ""},  # Assuming x/2 (10 seems inconsistent)
+            "conclusion": {"score": 0, "max": 3, "justification": ""},
+            "overall_score": 0,
+            "max_score": 20
+        },
+        "improvements": []
+    }
+    
     try:
-        edited = edit_student_answer(
-            question=question,
-            student_answer=student_answer,
-            static_context=static_context,
-            current_bullets=current_bullets,
-            word_count=word_count,
-            model=edit_model
-        )
+        # Extract question
+        question_match = re.search(r'### QUESTION\s*\n(.*?)(?=### RECONSTRUCTED ANSWER|### EVALUATION|$)', response_text, re.DOTALL)
+        if question_match:
+            result["question"] = question_match.group(1).strip()
+        
+        # Extract reconstructed answer
+        answer_match = re.search(r'### RECONSTRUCTED ANSWER\s*\n(.*?)(?=### EVALUATION|$)', response_text, re.DOTALL)
+        if answer_match:
+            result["reconstructed_answer"] = answer_match.group(1).strip()
+        
+        # Extract evaluation scores
+        eval_section = re.search(r'### EVALUATION\s*\n(.*?)(?=### IMPROVEMENTS|$)', response_text, re.DOTALL)
+        if eval_section:
+            eval_text = eval_section.group(1)
+            
+            # Parse each score (updated to match new scoring system)
+            patterns = {
+                "intro": r'Intro:\s*(\d+(?:\.\d+)?)/3\s*–\s*(.*?)(?=\n|$)',
+                "directive": r'Directive:\s*(\d+(?:\.\d+)?)/1\s*–\s*(.*?)(?=\n|$)',
+                "ibc": r'IBC:\s*(\d+(?:\.\d+)?)/2\s*–\s*(.*?)(?=\n|$)',
+                "multidimensionality": r'Multidimensionality:\s*(\d+(?:\.\d+)?)/6\s*–\s*(.*?)(?=\n|$)',
+                "examples": r'Examples.*?:\s*(\d+(?:\.\d+)?)/(?:3|32)\s*–\s*(.*?)(?=\n|$)',  # Handle both 3 and 32 (typo)
+                "diagram": r'Inline Diagram:\s*(\d+(?:\.\d+)?)/(?:2|10)\s*–\s*(.*?)(?=\n|$)',  # Handle both 2 and 10
+                "conclusion": r'Conclusion:\s*(\d+(?:\.\d+)?)/3\s*–\s*(.*?)(?=\n|$)',
+            }
+            
+            max_scores = {
+                "intro": 3,
+                "directive": 1,
+                "ibc": 2,
+                "multidimensionality": 6,
+                "examples": 3,  # Default to 3, but will extract actual max from pattern
+                "diagram": 2,  # Default to 2, but will extract actual max from pattern
+                "conclusion": 3
+            }
+            
+            for key, pattern in patterns.items():
+                match = re.search(pattern, eval_text, re.IGNORECASE | re.DOTALL)
+                if match:
+                    score = float(match.group(1))
+                    justification = match.group(2).strip()
+                    # Extract max score from the match if possible, otherwise use default
+                    max_score = max_scores.get(key, 3)
+                    # Try to extract the actual max from the matched text
+                    max_match = re.search(r'/(\d+)', match.group(0))
+                    if max_match:
+                        max_score = int(max_match.group(1))
+                        # Fix obvious typos
+                        if key == "examples" and max_score == 32:
+                            max_score = 3
+                        elif key == "diagram" and max_score == 10:
+                            max_score = 2
+                    
+                    result["evaluation"][key] = {
+                        "score": score,
+                        "max": max_score,
+                        "justification": justification
+                    }
+            
+            # Extract overall score (out of 20)
+            overall_match = re.search(r'Overall Score:\s*(\d+(?:\.\d+)?)/20', eval_text, re.IGNORECASE)
+            if overall_match:
+                result["evaluation"]["overall_score"] = float(overall_match.group(1))
+        
+        # Extract improvements
+        improvements_match = re.search(r'### IMPROVEMENTS\s*\n(.*?)$', response_text, re.DOTALL)
+        if improvements_match:
+            improvements_text = improvements_match.group(1)
+            # Extract bullet points
+            improvements = re.findall(r'[•\-\*]\s*(.+?)(?=\n[•\-\*]|\n\n|$)', improvements_text, re.MULTILINE)
+            result["improvements"] = [imp.strip() for imp in improvements if imp.strip()]
+        
     except Exception as e:
-        logger.error(f"Editing failed: {e}", exc_info=True)
-        edited = student_answer  # fallback, preserve original
+        logger.error(f"   ⚠️ Failed to parse evaluation response: {e}")
+        logger.debug(f"   Response text: {response_text[:500]}...")
+        # Return raw response if parsing fails
+        result["raw_response"] = response_text
+    
+    return result
 
+
+def parse_reconstruction_response(response_text: str) -> Dict[str, Any]:
+    """
+    Parse LLM reconstruction response (question + answer only)
+    
+    Args:
+        response_text: Raw LLM response
+    
+    Returns:
+        Dictionary with question and reconstructed_answer
+    """
+    import re
+    
+    result = {
+        "question": "",
+        "reconstructed_answer": ""
+    }
+    
     try:
-        final = produce_final_mains_answer(
-            question=question,
-            edited_answer=edited,
-            static_context=static_context,
-            current_bullets=current_bullets,
-            word_count=word_count,
-            model=final_model
-        )
+        # Extract question
+        question_match = re.search(r'### QUESTION\s*\n(.*?)(?=### RECONSTRUCTED ANSWER|$)', response_text, re.DOTALL)
+        if question_match:
+            result["question"] = question_match.group(1).strip()
+        
+        # Extract reconstructed answer
+        answer_match = re.search(r'### RECONSTRUCTED ANSWER\s*\n(.*?)$', response_text, re.DOTALL)
+        if answer_match:
+            result["reconstructed_answer"] = answer_match.group(1).strip()
+        
     except Exception as e:
-        logger.error(f"Final generation failed: {e}", exc_info=True)
-        final = edited  # fallback
-
-    logger.info("Completed pipeline.")
-    return {"edited_answer": edited, "final_answer": final}
-
-
-# -------------------------
-# CLI for quick testing
-# -------------------------
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Evaluate and improve student answer (CLI)")
-    parser.add_argument("--question", "-q", type=str, help="Question text", default=None)
-    parser.add_argument("--student", "-s", type=str, help="Student answer text", default=None)
-    parser.add_argument("--static", type=str, help="Path to static context file (optional)", default=None)
-    parser.add_argument("--current", type=str, help="Path to current bullets file (optional)", default=None)
-    parser.add_argument("--words", type=int, help="Target word count", default=350)
-    args = parser.parse_args()
-
-    q = args.question or "Explain the geographical factors influencing the location of large-scale digital infrastructure in India. Analyse how such investments are transforming the spatial pattern of economic activity."
-    sa = args.student or "Student answer: Digital infrastructure prefers cities because of power, connectivity, and talent. It leads to jobs close to cities and increases inequality in rural areas."
-
-    static_txt = ""
-    current_txt = ""
-    if args.static and os.path.exists(args.static):
-        with open(args.static, "r", encoding="utf-8") as f:
-            static_txt = f.read()
-    if args.current and os.path.exists(args.current):
-        with open(args.current, "r", encoding="utf-8") as f:
-            current_txt = f.read()
-
-    out = evaluate_and_improve(
-        question=q,
-        student_answer=sa,
-        static_context=static_txt,
-        current_bullets=current_txt,
-        word_count=args.words
-    )
-
-    print("\n\n===== EDITED ANSWER =====\n")
-    print(out["edited_answer"])
-    print("\n\n===== FINAL MAINS ANSWER =====\n")
-    print(out["final_answer"])
+        logger.error(f"   ⚠️ Failed to parse reconstruction response: {e}")
+        result["raw_response"] = response_text
+    
+    return result

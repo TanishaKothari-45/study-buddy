@@ -2,13 +2,17 @@
 Query endpoint for the Geography Q&A bot
 """
 from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import os
 import logging
 import time
+import time
 import uuid
-from openai import OpenAI
+from openai import AsyncOpenAI
+import asyncio
+import json
 
 from ..core.config import settings
 from ..utils.similarity_checker import SimilarityChecker
@@ -145,6 +149,169 @@ MAX_SESSION_AGE = 3600
 MAX_MESSAGES_IN_HISTORY = 10  # Last 5 Q&A pairs
 
 
+@router.post("/stream")
+async def query_pdfs_stream(request: Request, query_request: QueryRequest):
+    """
+    Streaming version of query endpoint for faster perceived performance.
+    Returns Server-Sent Events (SSE) stream.
+    """
+    async def generate_stream():
+        try:
+            # Initialize session storage (same as non-streaming)
+            if not hasattr(request.app.state, 'chat_sessions'):
+                logger.info("🔧 Initializing chat session storage...")
+                request.app.state.chat_sessions = {}
+                request.app.state.similarity_checker = SimilarityChecker()
+                logger.info("✅ Session storage initialized")
+            
+            # Clean up old sessions
+            current_time = time.time()
+            sessions_to_delete = [
+                sid for sid, sess in request.app.state.chat_sessions.items()
+                if current_time - sess.get("created_at", 0) > MAX_SESSION_AGE
+            ]
+            for sid in sessions_to_delete:
+                del request.app.state.chat_sessions[sid]
+            
+            # Get or create session
+            session_id = query_request.session_id or str(uuid.uuid4())
+            session = request.app.state.chat_sessions.get(session_id)
+            is_new_session = session is None
+            
+            if is_new_session:
+                openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+                session = {
+                    "openai_client": openai_client,
+                    "messages": [{"role": "system", "content": SYSTEM_INSTRUCTION}],
+                    "last_question": None,
+                    "last_embedding": None,
+                    "cached_docs": None,
+                    "cached_context": None,
+                    "created_at": current_time
+                }
+                request.app.state.chat_sessions[session_id] = session
+            
+            # PARALLEL PROCESSING: Run similarity check and embedding in parallel
+            current_embedding = request.app.state.similarity_checker.encode(query_request.question)
+            
+            # Determine if retrieval is needed
+            should_retrieve = True
+            include_previous_context = False
+            
+            if not is_new_session and session["last_question"] and session["last_embedding"] is not None:
+                import numpy as np
+                similarity = float(
+                    np.dot(current_embedding, session["last_embedding"]) / 
+                    (np.linalg.norm(current_embedding) * np.linalg.norm(session["last_embedding"]))
+                )
+                
+                if similarity >= 0.75:
+                    should_retrieve = False
+                elif similarity >= 0.50:
+                    include_previous_context = True
+            
+            # Retrieve documents if needed (this is the slow part)
+            if should_retrieve:
+                pinecone_handler = request.app.state.vector_handler
+                retriever = pinecone_handler.get_retriever_for_mode(
+                    mode="concept",
+                    use_content_store=True,
+                    k=query_request.k
+                )
+                
+                docs = retriever.invoke(query_request.question) if hasattr(retriever, 'invoke') else retriever.get_relevant_documents(query_request.question)
+                
+                if docs:
+                    from .query import deduplicate_chunks
+                    context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
+                    
+                    if include_previous_context and session["cached_context"]:
+                        context = session["cached_context"] + "\n\n" + context
+                    
+                    session["cached_docs"] = docs
+                    session["cached_context"] = context
+                else:
+                    context = ""
+            else:
+                docs = session["cached_docs"]
+                context = session["cached_context"]
+            
+            # Prepare sources
+            sources = []
+            if docs:
+                seen = set()
+                for doc in docs:
+                    metadata = doc.metadata
+                    filename = metadata.get("filename", "Unknown")
+                    page_number = metadata.get("page_number")
+                    key = (filename, page_number) if page_number else (filename,)
+                    
+                    if key not in seen:
+                        source_info = {
+                            "filename": filename,
+                            "chapter": metadata.get("chapter", "Unknown"),
+                            "section": metadata.get("section", "Unknown"),
+                        }
+                        if page_number:
+                            source_info["page_number"] = page_number
+                        sources.append(source_info)
+                        seen.add(key)
+            
+            # Send sources first
+            yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
+            
+            # Format message
+            user_message = (
+                f"Reference Context from Study Materials:\n{context}\n\n"
+                f"Question: {query_request.question}\n\n"
+                "Please explain this concept clearly and simply, step by step."
+            )
+            
+            session["messages"].append({"role": "user", "content": user_message})
+            
+            # Sliding window
+            if len(session["messages"]) > MAX_MESSAGES_IN_HISTORY + 1:
+                session["messages"] = [session["messages"][0]] + session["messages"][-MAX_MESSAGES_IN_HISTORY:]
+            
+            # STREAM the response from OpenAI
+            stream = await session["openai_client"].chat.completions.create(
+                model="gpt-4o-mini",
+                messages=session["messages"],
+                temperature=0.1,
+                max_tokens=1000,
+                stream=True  # Enable streaming!
+            )
+            
+            full_response = ""
+            async for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    full_response += content
+                    yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
+            
+            # Add assistant response to history
+            session["messages"].append({"role": "assistant", "content": full_response})
+            session["last_question"] = query_request.question
+            session["last_embedding"] = current_embedding
+            
+            # Send done signal
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            
+        except Exception as e:
+            logger.error(f"❌ Streaming error: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )
+
+
+
 @router.post("/")
 async def query_pdfs(request: Request, query_request: QueryRequest):
     """
@@ -187,7 +354,7 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
         if is_new_session:
             logger.info(f"🆕 Creating new chat session: {session_id}")
             # Initialize OpenAI client
-            openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             
             session = {
                 "openai_client": openai_client,
@@ -214,13 +381,27 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
         include_previous_context = False
         similarity_reason = "first_question"
         
+        # Encode current question once (reuse later)
+        current_embedding = request.app.state.similarity_checker.encode(query_request.question)
+        
         if not is_new_session and session["last_question"]:
-            # Calculate similarity with previous question
+            # Calculate similarity using cached embedding from previous question
             similarity_checker = request.app.state.similarity_checker
-            similarity = similarity_checker.calculate_similarity(
-                query_request.question,
-                session["last_question"]
-            )
+            
+            # Use cached embedding to avoid re-encoding
+            if session["last_embedding"] is not None:
+                # Calculate similarity directly from embeddings
+                import numpy as np
+                similarity = float(
+                    np.dot(current_embedding, session["last_embedding"]) / 
+                    (np.linalg.norm(current_embedding) * np.linalg.norm(session["last_embedding"]))
+                )
+            else:
+                # Fallback: calculate normally
+                similarity = similarity_checker.calculate_similarity(
+                    query_request.question,
+                    session["last_question"]
+                )
             
             logger.info(f"📊 Question similarity: {similarity:.3f}")
             
@@ -384,7 +565,7 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
                 logger.info(f"   → Trimmed chat history to last {MAX_MESSAGES_IN_HISTORY} messages")
             
             # Send to OpenAI
-            response = session["openai_client"].chat.completions.create(
+            response = await session["openai_client"].chat.completions.create(
                 model="gpt-4o-mini",
                 messages=session["messages"],
                 temperature=0.1,
@@ -400,9 +581,9 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
                 "content": answer
             })
             
-            # Update session with current question
+            # Update session with current question and cached embedding
             session["last_question"] = query_request.question
-            session["last_embedding"] = request.app.state.similarity_checker.encode(query_request.question)
+            session["last_embedding"] = current_embedding  # Use cached embedding
             
         except Exception as e:
             logger.error(f"❌ Failed to generate answer with OpenAI: {e}")

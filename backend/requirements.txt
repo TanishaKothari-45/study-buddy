@@ -1,19 +1,22 @@
 # Core FastAPI dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
+fastapi==0.115.6
+uvicorn==0.34.0
 python-multipart==0.0.6
-python-dotenv==1.0.0
+python-dotenv==1.0.1
 pydantic==2.5.0
 pydantic-settings>=2.0.0
 
 # LangChain and Tools
-langchain>=0.3.0
+langchain==0.3.13
 langchain-community>=0.3.0
 langchain-core>=0.3.0
 llama-cpp-python==0.2.39  # For Llama 3 integration
 googlesearch-python==1.2.3
 beautifulsoup4==4.12.2
 requests==2.31.0
+httpx>=0.28.0  # For async HTTP requests (MCP server)
+# Note: mcp package requires Python 3.10+ - install separately if using Python 3.10+
+# pip install mcp  # Requires Python >=3.10
 
 # PDF Processing
 PyPDF2==3.0.1
@@ -23,12 +26,13 @@ weasyprint==60.2
 pdf2image==1.16.3  # For PDF to image conversion (OCR)
 
 # Image Processing (for ROI extraction)
-opencv-python==4.8.1.78  # Image processing for ROI cropping
+opencv-python>=4.8.0,<4.10  # Image processing for ROI cropping (compatible with numpy<2)
 Pillow>=9.0.0  # Image manipulation
 reportlab>=4.0.0  # PDF generation
 
 # Google Cloud Vision API (for OCR with batch processing)
 google-cloud-vision>=3.0.0  # Google Vision API client library
+google-generativeai>=0.8.0  # Google Gemini API client library
 
 # Data Storage
 chromadb==0.4.18
@@ -40,7 +44,7 @@ langchain-pinecone>=0.0.3  # LangChain integration for Pinecone
 python-magic==0.4.27
 tiktoken==0.5.2
 chardet>=5.0.0  # Character encoding detection
-numpy>=1.24.3,<2.0  # ChromaDB compatibility - numpy 2.0 breaks chromadb
+numpy>=1.24.0,<2  # Compatible with PyTorch and sentence-transformers (torch 2.2.x needs numpy<2)
 pandas==2.0.3
 nltk>=3.8.0  # Natural language processing
 openai>=1.0.0  # OpenAI API client

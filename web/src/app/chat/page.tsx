@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { Send, User, Bot, Loader2, BookOpen, AlertCircle, Plus } from "lucide-re
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
+import { TypewriterEffect } from "@/components/ui/typewriter-effect";
 
 interface Source {
     filename: string;
@@ -50,9 +52,15 @@ export default function ChatPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
+    // Only scroll to bottom on initial load or when user sends a message
+    // NOT when streaming chunks arrive (to prevent jittery scrolling)
     useEffect(() => {
-        scrollToBottom();
-    }, [messages]);
+        if (messages.length > 0) {
+            const lastMessage = messages[messages.length - 1];
+            // Scroll on any new message (user or bot placeholder)
+            scrollToBottom();
+        }
+    }, [messages.length]); // Only trigger when message count changes, not content updates
 
     const handleSendMessage = async (e?: React.FormEvent) => {
         e?.preventDefault();
@@ -69,16 +77,29 @@ export default function ChatPage() {
         setInput("");
         setLoading(true);
 
+        // Create placeholder for streaming response
+        const botMessageId = (Date.now() + 1).toString();
+        const botMessage: Message = {
+            id: botMessageId,
+            role: "assistant",
+            content: "",
+            sources: [],
+            timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, botMessage]);
+
         try {
             const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
-            const res = await fetch(`${API_URL}/query/`, {
+
+            // Use streaming endpoint
+            const res = await fetch(`${API_URL}/query/stream`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
                     question: userMessage.content,
-                    session_id: sessionId,  // Include session ID
+                    session_id: sessionId,
                     k: 5,
                 }),
             });
@@ -87,26 +108,74 @@ export default function ChatPage() {
                 throw new Error("Failed to get response");
             }
 
-            const data = await res.json();
+            // Read the stream
+            const reader = res.body?.getReader();
+            const decoder = new TextDecoder();
 
-            const botMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: data.answer,
-                sources: data.sources,
-                timestamp: new Date(),
-            };
+            if (!reader) {
+                throw new Error("No reader available");
+            }
 
-            setMessages((prev) => [...prev, botMessage]);
+            let buffer = "";
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || "";
+
+                for (const line of lines) {
+                    if (line.startsWith("data: ")) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            console.log("Received chunk:", data); // Debug
+
+                            if (data.type === "sources") {
+                                // Update sources
+                                setMessages((prev) =>
+                                    prev.map((msg) =>
+                                        msg.id === botMessageId
+                                            ? { ...msg, sources: data.sources }
+                                            : msg
+                                    )
+                                );
+                            } else if (data.type === "content") {
+                                // Append content chunk - force immediate update with flushSync
+                                flushSync(() => {
+                                    setMessages((prev) =>
+                                        prev.map((msg) =>
+                                            msg.id === botMessageId
+                                                ? { ...msg, content: msg.content + data.content }
+                                                : msg
+                                        )
+                                    );
+                                });
+                            } else if (data.type === "done") {
+                                console.log("Stream complete");
+                                break;
+                            } else if (data.type === "error") {
+                                throw new Error(data.error);
+                            }
+                        } catch (e) {
+                            console.error("Parse error:", e, "Line:", line);
+                        }
+                    }
+                }
+            }
         } catch (error) {
             console.error("Chat error:", error);
-            const errorMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                role: "assistant",
-                content: "Sorry, I encountered an error while processing your request. Please try again.",
-                timestamp: new Date(),
-            };
-            setMessages((prev) => [...prev, errorMessage]);
+            setMessages((prev) =>
+                prev.map((msg) =>
+                    msg.id === botMessageId
+                        ? {
+                            ...msg,
+                            content:
+                                "Sorry, I encountered an error while processing your request. Please try again.",
+                        }
+                        : msg
+                )
+            );
         } finally {
             setLoading(false);
         }
@@ -143,7 +212,7 @@ export default function ChatPage() {
 
             <Card className="flex-1 flex flex-col overflow-hidden border-gray-200 shadow-sm bg-white">
                 <CardContent className="flex-1 overflow-y-auto p-4 space-y-6 bg-gray-50/50">
-                    {messages.map((message) => (
+                    {messages.map((message, index) => (
                         <div
                             key={message.id}
                             className={cn(
@@ -181,9 +250,24 @@ export default function ChatPage() {
                                             <p>{message.content}</p>
                                         ) : (
                                             <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5 dark:prose-invert">
-                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                    {message.content}
-                                                </ReactMarkdown>
+                                                {/* 
+                                                    Smart Loader Logic:
+                                                    1. If loading AND content is empty -> Show "Thinking..." loader INSIDE bubble
+                                                    2. If loading AND content exists -> Show TypewriterEffect (streaming)
+                                                    3. If not loading -> Show static markdown
+                                                */}
+                                                {index === messages.length - 1 && loading && !message.content ? (
+                                                    <div className="flex items-center gap-2 text-gray-400 italic">
+                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                        <span>Thinking...</span>
+                                                    </div>
+                                                ) : index === messages.length - 1 && loading ? (
+                                                    <TypewriterEffect content={message.content} />
+                                                ) : (
+                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                        {message.content}
+                                                    </ReactMarkdown>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -225,19 +309,7 @@ export default function ChatPage() {
                         </div>
                     ))}
 
-                    {loading && (
-                        <div className="flex justify-start w-full">
-                            <div className="flex max-w-[75%] gap-3">
-                                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-sm">
-                                    <Bot className="h-5 w-5" />
-                                </div>
-                                <div className="bg-white border border-gray-100 p-4 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
-                                    <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-                                    <span className="text-sm text-gray-500">Thinking...</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+
                     <div ref={messagesEndRef} />
                 </CardContent>
 
