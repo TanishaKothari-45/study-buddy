@@ -3,19 +3,23 @@ Query endpoint for the Geography Q&A bot
 """
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import os
 import logging
 import time
-from openai import OpenAI, RateLimitError
+import uuid
 
 from ..core.config import settings
+from ..utils.similarity_checker import SimilarityChecker
+from ..gemini_core.gemini_client import GeminiClient
+from ..gemini_core import settings_gemini_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class QueryRequest(BaseModel):
     question: str
+    session_id: Optional[str] = None  # Frontend provides session ID
     k: int = 5
 
 class QueryResponse(BaseModel):
@@ -120,60 +124,24 @@ def deduplicate_chunks(docs: List[Any], min_overlap_words: int = 20, similarity_
     return merged_text
 
 
-def format_answer_with_gpt(context: str, question: str, api_key: str, max_retries: int = 3) -> str:
-    """Format answer using GPT with retry logic"""
-    wait_time = 1.0
-    
-    for attempt in range(max_retries):
-        try:
-            client = OpenAI(api_key=api_key)
-            completion = client.chat.completions.create(
-                model=settings.LLM_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a friendly and knowledgeable UPSC Study Buddy who explains "
-                            "geography concepts in a simple, engaging way. When explaining: "
-                            "- Use the context from study materials first. "
-                            "- Then add your own understanding only when it helps make things clearer. "
-                            "- Break complex ideas into small, easy-to-understand steps. "
-                            "- Use examples, analogies, and relatable comparisons. "
-                            "- Avoid jargon unless necessary, and when you use it, explain it simply. "
-                            "- Your tone should be warm, clear, and human — like a good teacher. "
-                            "- When relevant, link the concept to real-world or Indian examples. "
-                            "- Don’t just repeat text — *explain it like you’re teaching someone new to the topic*."
-                        )
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Question: {question}\n\n"
-                            f"Reference Context from Study Materials:\n{context}\n\n"
-                            "Please explain this concept clearly and simply, step by step. "
-                            "Use examples, analogies, and real-world connections where possible. "
-                            "If something isn’t directly in the material, add it from your knowledge "
-                            "(but only to clarify)."
-                        )
-                    }
-                ],
-                temperature=0.1,
-                max_tokens=1000  # Increased to allow for more detailed answers
-            )
-            return completion.choices[0].message.content
+# System instruction for Gemini chat (preserving original prompt)
+SYSTEM_INSTRUCTION = (
+    "You are a friendly and knowledgeable UPSC Study Buddy who explains "
+    "geography concepts in a simple, engaging way. When explaining: "
+    "- Use the context from study materials first. "
+    "- Then add your own understanding only when it helps make things clearer. "
+    "- Break complex ideas into small, easy-to-understand steps. "
+    "- Use examples, analogies, and relatable comparisons. "
+    "- Avoid jargon unless necessary, and when you use it, explain it simply. "
+    "- Your tone should be warm, clear, and human — like a good teacher. "
+    "- When relevant, link the concept to real-world or Indian examples. "
+    "- Don't just repeat text — *explain it like you're teaching someone new to the topic*. "
+    "- If you don't have specific information about something, say so clearly."
+)
 
-        except RateLimitError as e:
-            if attempt < max_retries - 1:
-                logger.warning(f"⚠️ Rate limit hit, waiting {wait_time}s before retry...")
-                time.sleep(wait_time)
-                wait_time *= 2
-            else:
-                logger.warning("⚠️ Rate limit persists, using raw context")
-                return f"Based on the available information:\n\n{context}"
-                
-        except Exception as e:
-            logger.error(f"❌ Failed to format answer: {e}")
-            return f"Based on the available information:\n\n{context}"
+# Session cleanup interval (1 hour)
+MAX_SESSION_AGE = 3600
+
 
 @router.post("/")
 async def query_pdfs(request: Request, query_request: QueryRequest):
@@ -189,74 +157,162 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
     logger.info(f"🚀 [QUERY] Received query request: '{query_request.question[:100]}...' (k={query_request.k})")
     
     try:
+        # Initialize session storage and similarity checker on first request
+        if not hasattr(request.app.state, 'chat_sessions'):
+            logger.info("🔧 Initializing chat session storage...")
+            request.app.state.chat_sessions = {}
+            request.app.state.similarity_checker = SimilarityChecker()
+            logger.info("✅ Session storage initialized")
+        
+        # Clean up old sessions (older than 1 hour)
+        current_time = time.time()
+        sessions_to_delete = [
+            sid for sid, sess in request.app.state.chat_sessions.items()
+            if current_time - sess.get("created_at", 0) > MAX_SESSION_AGE
+        ]
+        for sid in sessions_to_delete:
+            del request.app.state.chat_sessions[sid]
+            logger.info(f"🗑️ Cleaned up expired session: {sid}")
+        
+        # Generate session ID if not provided
+        session_id = query_request.session_id or str(uuid.uuid4())
+        logger.info(f"📋 Session ID: {session_id}")
+        
+        # Get or create session
+        session = request.app.state.chat_sessions.get(session_id)
+        is_new_session = session is None
+        
+        if is_new_session:
+            logger.info(f"🆕 Creating new chat session: {session_id}")
+            # Initialize Gemini client and chat
+            gemini_client = GeminiClient(
+                api_key=settings_gemini_key.GEMINI_API_KEY,
+                model_name="gemini-pro"  # Stable Gemini Pro model
+            )
+            chat = gemini_client.create_chat_session(SYSTEM_INSTRUCTION)
+            
+            session = {
+                "chat": chat,
+                "gemini_client": gemini_client,
+                "last_question": None,
+                "last_embedding": None,
+                "cached_docs": None,
+                "cached_context": None,
+                "created_at": current_time
+            }
+            request.app.state.chat_sessions[session_id] = session
+        else:
+            logger.info(f"♻️ Using existing chat session: {session_id}")
+        
         # Get Pinecone handler
         logger.info(f"📦 [QUERY] Step 1: Getting Pinecone handler from app state...")
         pinecone_handler = request.app.state.vector_handler
         logger.info(f"✅ [QUERY] Pinecone handler retrieved: {type(pinecone_handler).__name__}")
         
-        # Create LangChain retriever configured for "concept" mode (explaining concepts)
-        # Allows k to be customized via request parameter
-        logger.info(f"🔧 [QUERY] Step 2: Creating retriever for 'concept' mode (k={query_request.k}, use_content_store=True)...")
-        retriever = pinecone_handler.get_retriever_for_mode(
-            mode="concept",
-            use_content_store=True,
-            k=query_request.k  # Use k from request (default: 5, but can be overridden)
-        )
-        logger.info(f"✅ [QUERY] Retriever created: {type(retriever).__name__}")
+        # Determine if we need to retrieve new documents
+        should_retrieve = True
+        include_previous_context = False
+        similarity_reason = "first_question"
         
-        logger.info(f"🔍 [QUERY] Step 3: Retrieving documents for query: '{query_request.question[:100]}...'")
-        
-        # Get relevant documents (already enriched with full content from SQLite)
-        # Use invoke() for newer LangChain versions, fallback to get_relevant_documents() for compatibility
-        try:
-            # Try using invoke() (LangChain 0.1.46+)
-            if hasattr(retriever, 'invoke'):
-                logger.debug(f"   → Using invoke() method")
-                docs = retriever.invoke(query_request.question)
-            else:
-                # Fallback to deprecated method for older versions
-                logger.debug(f"   → Using get_relevant_documents() method")
-                docs = retriever.get_relevant_documents(query_request.question)
-        except Exception as e:
-            # If invoke fails, try deprecated method
-            logger.warning(f"⚠️ [QUERY] invoke() failed, trying get_relevant_documents(): {e}")
-            docs = retriever.get_relevant_documents(query_request.question)
-        
-        if not docs:
-            logger.warning(f"⚠️ [QUERY] No documents retrieved")
-            return QueryResponse(
-                question=query_request.question,
-                answer="No relevant information found in the uploaded documents.",
-                sources=[]
+        if not is_new_session and session["last_question"]:
+            # Calculate similarity with previous question
+            similarity_checker = request.app.state.similarity_checker
+            similarity = similarity_checker.calculate_similarity(
+                query_request.question,
+                session["last_question"]
             )
+            
+            logger.info(f"📊 Question similarity: {similarity:.3f}")
+            
+            if similarity >= SimilarityChecker.HIGH_SIMILARITY:
+                # High similarity - use cached docs
+                should_retrieve = False
+                similarity_reason = f"high_similarity_{similarity:.2f}"
+                logger.info(f"✅ High similarity ({similarity:.2f}) - using cached documents")
+            elif similarity >= SimilarityChecker.MEDIUM_SIMILARITY:
+                # Medium similarity - retrieve fresh but keep previous context
+                should_retrieve = True
+                include_previous_context = True
+                similarity_reason = f"medium_similarity_{similarity:.2f}"
+                logger.info(f"⚠️ Medium similarity ({similarity:.2f}) - retrieving fresh + keeping previous context")
+            else:
+                # Low similarity - fresh retrieval only
+                should_retrieve = True
+                include_previous_context = False
+                similarity_reason = f"low_similarity_{similarity:.2f}"
+                logger.info(f"🔄 Low similarity ({similarity:.2f}) - fresh retrieval")
         
-        logger.info(f"✅ [QUERY] Retrieved {len(docs)} documents from retriever")
-        
-        # Prepare context from documents (page_content has full content from SQLite)
-        logger.info(f"📝 [QUERY] Step 4: Preparing context from {len(docs)} documents...")
-        
-        # Calculate original context length for comparison
-        original_context_length = sum(len(doc.page_content) for doc in docs)
-        
-        # Deduplicate overlapping text using safer fuzzy matching approach
-        logger.info(f"   → Removing overlapping text using fuzzy matching (min_overlap=20 words, similarity>60%)...")
-        context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
-        
-        # Calculate overlap removed
-        overlap_removed = original_context_length - len(context)
-        if overlap_removed > 0:
-            # Estimate token savings (rough: 1 token ≈ 4 characters)
-            estimated_tokens_saved = overlap_removed // 4
-            logger.info(f"   ✅ Overlap removal complete:")
-            logger.info(f"      • Overlap removed: {overlap_removed} characters (~{estimated_tokens_saved} tokens)")
-            logger.info(f"      • Original: {len(docs)} docs, {original_context_length} chars")
-            logger.info(f"      • After dedup: {len(context)} chars")
+        # Retrieve documents if needed
+        if should_retrieve:
+            # Create LangChain retriever configured for "concept" mode
+            logger.info(f"🔧 [QUERY] Step 2: Creating retriever for 'concept' mode (k={query_request.k}, use_content_store=True)...")
+            retriever = pinecone_handler.get_retriever_for_mode(
+                mode="concept",
+                use_content_store=True,
+                k=query_request.k
+            )
+            logger.info(f"✅ [QUERY] Retriever created: {type(retriever).__name__}")
+            
+            logger.info(f"🔍 [QUERY] Step 3: Retrieving documents for query: '{query_request.question[:100]}...'")
+            
+            # Get relevant documents
+            try:
+                if hasattr(retriever, 'invoke'):
+                    logger.debug(f"   → Using invoke() method")
+                    docs = retriever.invoke(query_request.question)
+                else:
+                    logger.debug(f"   → Using get_relevant_documents() method")
+                    docs = retriever.get_relevant_documents(query_request.question)
+            except Exception as e:
+                logger.warning(f"⚠️ [QUERY] invoke() failed, trying get_relevant_documents(): {e}")
+                docs = retriever.get_relevant_documents(query_request.question)
+            
+            if not docs:
+                logger.warning(f"⚠️ [QUERY] No documents retrieved")
+                return QueryResponse(
+                    question=query_request.question,
+                    answer="No relevant information found in the uploaded documents.",
+                    sources=[]
+                )
+            
+            logger.info(f"✅ [QUERY] Retrieved {len(docs)} documents from retriever")
+            
+            # Prepare context from documents
+            logger.info(f"📝 [QUERY] Step 4: Preparing context from {len(docs)} documents...")
+            
+            original_context_length = sum(len(doc.page_content) for doc in docs)
+            
+            # Deduplicate overlapping text (PRESERVING EXISTING LOGIC)
+            logger.info(f"   → Removing overlapping text using fuzzy matching (min_overlap=20 words, similarity>60%)...")
+            context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
+            
+            overlap_removed = original_context_length - len(context)
+            if overlap_removed > 0:
+                estimated_tokens_saved = overlap_removed // 4
+                logger.info(f"   ✅ Overlap removal complete:")
+                logger.info(f"      • Overlap removed: {overlap_removed} characters (~{estimated_tokens_saved} tokens)")
+                logger.info(f"      • Original: {len(docs)} docs, {original_context_length} chars")
+                logger.info(f"      • After dedup: {len(context)} chars")
+            else:
+                logger.info(f"   → No significant overlap detected")
+            
+            # Include previous context if medium similarity
+            if include_previous_context and session["cached_context"]:
+                logger.info(f"   → Including previous context for continuity")
+                context = session["cached_context"] + "\n\n" + context
+            
+            # Update session cache
+            session["cached_docs"] = docs
+            session["cached_context"] = context
         else:
-            logger.info(f"   → No significant overlap detected")
+            # Use cached documents and context
+            docs = session["cached_docs"]
+            context = session["cached_context"]
+            logger.info(f"♻️ Using cached context ({len(context)} chars) from previous question")
         
         logger.info(f"   → Final context length: {len(context)} characters")
         
-        # Prepare sources from document metadata (use original docs for source tracking)
+        # Prepare sources from document metadata (PRESERVING EXISTING LOGIC)
         logger.info(f"📋 [QUERY] Step 5: Extracting source metadata...")
         sources = []
         seen = set()
@@ -271,13 +327,11 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
             section = metadata.get("section", "Unknown")
             content_source = metadata.get("_content_source", "unknown")
             
-            # Track content sources
             if content_source == "content_store":
                 sqlite_count += 1
             elif content_source == "content_preview":
                 preview_count += 1
             
-            # Create unique key based on available metadata
             if page_number:
                 key = (filename, page_number)
             else:
@@ -288,7 +342,7 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
                     "filename": filename,
                     "chapter": chapter,
                     "section": section,
-                    "content_source": content_source  # "content_store" or "content_preview"
+                    "content_source": content_source
                 }
                 if page_number:
                     source_info["page_number"] = page_number
@@ -300,16 +354,31 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
         logger.info(f"   • Context length: {len(context)} chars")
         logger.info(f"   • Unique sources: {len(sources)}")
         logger.info(f"   • Content sources: {sqlite_count} from SQLite, {preview_count} from Pinecone preview")
+        logger.info(f"   • Similarity decision: {similarity_reason}")
 
-        # Format answer using GPT if available
-        logger.info(f"🤖 [QUERY] Step 6: Generating answer using GPT...")
-        api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            logger.info(f"   → Using OpenAI API (model: {settings.LLM_MODEL})")
-            answer = format_answer_with_gpt(context, query_request.question, api_key)
+        # Generate answer using Gemini chat (REPLACING OpenAI)
+        logger.info(f"🤖 [QUERY] Step 6: Generating answer using Gemini chat...")
+        try:
+            # Format message with context (PRESERVING ORIGINAL PROMPT STRUCTURE)
+            message = (
+                f"Reference Context from Study Materials:\n{context}\n\n"
+                f"Question: {query_request.question}\n\n"
+                "Please explain this concept clearly and simply, step by step. "
+                "Use examples, analogies, and real-world connections where possible. "
+                "If something isn't directly in the material, add it from your knowledge "
+                "(but only to clarify)."
+            )
+            
+            # Send to chat session
+            answer = session["gemini_client"].send_chat_message(session["chat"], message)
             logger.info(f"   → Generated answer length: {len(answer)} chars")
-        else:
-            logger.warning(f"   ⚠️ No OpenAI API key - returning raw context")
+            
+            # Update session with current question
+            session["last_question"] = query_request.question
+            session["last_embedding"] = request.app.state.similarity_checker.encode(query_request.question)
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to generate answer with Gemini: {e}")
             answer = f"Based on the available information:\n\n{context}"
 
         logger.info(f"✅ [QUERY] Query processing complete - returning response")
