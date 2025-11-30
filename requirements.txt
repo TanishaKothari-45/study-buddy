@@ -15,13 +15,13 @@ pdf2image
 Pillow
 chromadb
 sentence-transformers
-opencv-python
+opencv-python>=4.8.0,<4.10
 pinecone-client
 langchain-pinecone
 python-magic
 tiktoken
 chardet
-numpy
+numpy>=1.24.0,<2
 pandas
 nltk
 tqdm
@@ -31,7 +31,6 @@ google-cloud-vision
 google
 reportlab
 PyMuPDF>=1.23.0
-fitz
 streamlit
 python-multipart
 mcp

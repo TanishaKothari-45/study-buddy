@@ -8,11 +8,10 @@ import os
 import logging
 import time
 import uuid
+from openai import OpenAI
 
 from ..core.config import settings
 from ..utils.similarity_checker import SimilarityChecker
-from ..gemini_core.gemini_client import GeminiClient
-from ..gemini_core import settings_gemini_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -124,7 +123,7 @@ def deduplicate_chunks(docs: List[Any], min_overlap_words: int = 20, similarity_
     return merged_text
 
 
-# System instruction for Gemini chat (preserving original prompt)
+# System instruction for OpenAI chat (preserving original prompt)
 SYSTEM_INSTRUCTION = (
     "You are a friendly and knowledgeable UPSC Study Buddy who explains "
     "geography concepts in a simple, engaging way. When explaining: "
@@ -141,6 +140,9 @@ SYSTEM_INSTRUCTION = (
 
 # Session cleanup interval (1 hour)
 MAX_SESSION_AGE = 3600
+
+# Sliding window: keep last N messages (N Q&A pairs = 2N messages)
+MAX_MESSAGES_IN_HISTORY = 10  # Last 5 Q&A pairs
 
 
 @router.post("/")
@@ -184,16 +186,14 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
         
         if is_new_session:
             logger.info(f"🆕 Creating new chat session: {session_id}")
-            # Initialize Gemini client and chat
-            gemini_client = GeminiClient(
-                api_key=settings_gemini_key.GEMINI_API_KEY,
-                model_name="gemini-pro"  # Stable Gemini Pro model
-            )
-            chat = gemini_client.create_chat_session(SYSTEM_INSTRUCTION)
+            # Initialize OpenAI client
+            openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             
             session = {
-                "chat": chat,
-                "gemini_client": gemini_client,
+                "openai_client": openai_client,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_INSTRUCTION}
+                ],
                 "last_question": None,
                 "last_embedding": None,
                 "cached_docs": None,
@@ -356,11 +356,11 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
         logger.info(f"   • Content sources: {sqlite_count} from SQLite, {preview_count} from Pinecone preview")
         logger.info(f"   • Similarity decision: {similarity_reason}")
 
-        # Generate answer using Gemini chat (REPLACING OpenAI)
-        logger.info(f"🤖 [QUERY] Step 6: Generating answer using Gemini chat...")
+        # Generate answer using OpenAI chat (REPLACING Gemini)
+        logger.info(f"🤖 [QUERY] Step 6: Generating answer using OpenAI GPT-4o-mini...")
         try:
             # Format message with context (PRESERVING ORIGINAL PROMPT STRUCTURE)
-            message = (
+            user_message = (
                 f"Reference Context from Study Materials:\n{context}\n\n"
                 f"Question: {query_request.question}\n\n"
                 "Please explain this concept clearly and simply, step by step. "
@@ -369,16 +369,43 @@ async def query_pdfs(request: Request, query_request: QueryRequest):
                 "(but only to clarify)."
             )
             
-            # Send to chat session
-            answer = session["gemini_client"].send_chat_message(session["chat"], message)
+            # Add user message to history
+            session["messages"].append({
+                "role": "user",
+                "content": user_message
+            })
+            
+            # Implement sliding window: keep only last N messages + system message
+            if len(session["messages"]) > MAX_MESSAGES_IN_HISTORY + 1:  # +1 for system message
+                # Keep system message + last N messages
+                session["messages"] = [
+                    session["messages"][0]  # System message
+                ] + session["messages"][-(MAX_MESSAGES_IN_HISTORY):]
+                logger.info(f"   → Trimmed chat history to last {MAX_MESSAGES_IN_HISTORY} messages")
+            
+            # Send to OpenAI
+            response = session["openai_client"].chat.completions.create(
+                model="gpt-4o-mini",
+                messages=session["messages"],
+                temperature=0.1,
+                max_tokens=1000
+            )
+            
+            answer = response.choices[0].message.content
             logger.info(f"   → Generated answer length: {len(answer)} chars")
+            
+            # Add assistant response to history
+            session["messages"].append({
+                "role": "assistant",
+                "content": answer
+            })
             
             # Update session with current question
             session["last_question"] = query_request.question
             session["last_embedding"] = request.app.state.similarity_checker.encode(query_request.question)
             
         except Exception as e:
-            logger.error(f"❌ Failed to generate answer with Gemini: {e}")
+            logger.error(f"❌ Failed to generate answer with OpenAI: {e}")
             answer = f"Based on the available information:\n\n{context}"
 
         logger.info(f"✅ [QUERY] Query processing complete - returning response")

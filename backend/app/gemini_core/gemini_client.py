@@ -120,6 +120,47 @@ class GeminiClient:
                 for file in uploaded_files:
                     await self._delete_file_async(file['name'])
     
+    def create_chat_session(self, system_instruction: str):
+        """
+        Create a new chat session with system instruction.
+        
+        Args:
+            system_instruction: System-level instructions for the chat
+            
+        Returns:
+            Chat session object
+        """
+        # Import GenerativeModel from google.generativeai
+        import google.generativeai as genai_sdk
+        
+        # Configure with API key
+        genai_sdk.configure(api_key=self.api_key)
+        
+        # Create model with system instruction
+        model = genai_sdk.GenerativeModel(
+            model_name=self.model_name,
+            system_instruction=system_instruction
+        )
+        
+        # Start chat session
+        chat = model.start_chat(history=[])
+        return chat
+    
+    def send_chat_message(self, chat, message: str) -> str:
+        """
+        Send a message to an existing chat session.
+        
+        Args:
+            chat: Chat session object from create_chat_session()
+            message: Message to send
+            
+        Returns:
+            Response text from the model
+        """
+        response = chat.send_message(message)
+        return response.text
+
+    
     async def _upload_file_async(self, file_path: str, mime_type: str) -> Dict[str, Any]:
         """
         Upload a file to Gemini Files API.

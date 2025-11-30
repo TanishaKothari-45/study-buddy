@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Send, User, Bot, Loader2, BookOpen, AlertCircle, Trash2 } from "lucide-react";
+import { Send, User, Bot, Loader2, BookOpen, AlertCircle, Plus } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
@@ -36,7 +36,15 @@ export default function ChatPage() {
     ]);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
+    const [sessionId, setSessionId] = useState<string>(() =>
+        `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    );
+    const [mounted, setMounted] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -70,7 +78,8 @@ export default function ChatPage() {
                 },
                 body: JSON.stringify({
                     question: userMessage.content,
-                    k: 5, // Default to 5 sources
+                    session_id: sessionId,  // Include session ID
+                    k: 5,
                 }),
             });
 
@@ -103,12 +112,17 @@ export default function ChatPage() {
         }
     };
 
-    const clearHistory = () => {
+    const startNewChat = () => {
+        // Generate new session ID
+        const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        setSessionId(newSessionId);
+
+        // Clear messages
         setMessages([
             {
                 id: "welcome",
                 role: "assistant",
-                content: "Chat history cleared. How can I help you now?",
+                content: "New chat started! How can I help you now?",
                 timestamp: new Date(),
             },
         ]);
@@ -121,9 +135,9 @@ export default function ChatPage() {
                     <h1 className="text-2xl font-bold text-gray-900">Study Buddy Chat</h1>
                     <p className="text-sm text-muted-foreground">Ask questions from your uploaded materials</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={clearHistory} className="text-gray-500 hover:text-red-600">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Clear Chat
+                <Button variant="outline" size="sm" onClick={startNewChat} className="text-gray-500 hover:text-violet-600">
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Chat
                 </Button>
             </div>
 
@@ -201,9 +215,11 @@ export default function ChatPage() {
                                         </div>
                                     )}
 
-                                    <span className="text-[10px] text-gray-400 px-1">
-                                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
+                                    {mounted && (
+                                        <span className="text-[10px] text-gray-400 px-1">
+                                            {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         </div>
