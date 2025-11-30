@@ -232,18 +232,19 @@ def download_with_selenium(url, download_dir):
         if driver:
             driver.quit()
 
-def process_extracted_pdf(pdf_path: str, chroma_handler=None, collection_name: str = "geography_docs_enriched"):
+def process_extracted_pdf(pdf_path: str, pinecone_handler=None, content_store=None):
     """
     Process an extracted PDF through the same pipeline as uploaded PDFs:
     1. Extract and clean text
     2. Chunk using hierarchical chunker
-    3. Enrich metadata
-    4. Store in ChromaDB
+    3. Classify metadata with GPT-4o-mini (batch processing)
+    4. Store in Pinecone (embeddings + metadata)
+    5. Store in SQLite content store (full content)
     
     Args:
         pdf_path: Path to the extracted PDF file
-        chroma_handler: ChromaHandler instance (will create if None)
-        collection_name: Name of the ChromaDB collection to store chunks
+        pinecone_handler: PineconeHandler instance (will create if None)
+        content_store: ContentStore instance (will create if None)
         
     Returns:
         dict with processing summary (chunks_added, filename, status)
@@ -254,16 +255,18 @@ def process_extracted_pdf(pdf_path: str, chroma_handler=None, collection_name: s
     # Handle imports - support both relative (when imported) and absolute (when run directly)
     try:
         from ..utils.hierarchical_chunker import HierarchicalChunker
-        from ..utils.metadata_enricher import enrich_metadata
-        from ..utils.chroma_handler import ChromaHandler
+        from ..utils.metadata_enricher import classify_chunks_batch
+        from ..utils.pinecone_handler import PineconeHandler
+        from ..utils.content_store import ContentStore
     except ImportError:
         # If relative imports fail, add backend to path and use absolute imports
         backend_path = Path(__file__).parent.parent.parent
         if str(backend_path) not in sys.path:
             sys.path.insert(0, str(backend_path))
         from app.utils.hierarchical_chunker import HierarchicalChunker
-        from app.utils.metadata_enricher import enrich_metadata
-        from app.utils.chroma_handler import ChromaHandler
+        from app.utils.metadata_enricher import classify_chunks_batch
+        from app.utils.pinecone_handler import PineconeHandler
+        from app.utils.content_store import ContentStore
     
     from openai import OpenAI
     
@@ -272,22 +275,24 @@ def process_extracted_pdf(pdf_path: str, chroma_handler=None, collection_name: s
     logger.info(f"{'='*60}")
     
     try:
-        # Initialize chunker and OpenAI client
+        # Initialize OpenAI client and chunker
         openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         chunker = HierarchicalChunker(llm_client=openai_client)
         
-        # Get or create chroma_handler
-        if chroma_handler is None:
-            chroma_handler = ChromaHandler()
+        # Get or create handlers
+        if pinecone_handler is None:
+            logger.info("🔧 Initializing PineconeHandler...")
+            pinecone_handler = PineconeHandler()
         
-        # Switch to the target collection
-        chroma_handler.switch_to_collection(collection_name)
+        if content_store is None:
+            logger.info("🔧 Initializing ContentStore...")
+            content_store = ContentStore()
         
         # Get filename
         filename = os.path.basename(pdf_path)
         logger.info(f"📄 Filename: {filename}")
         
-        # Process PDF using hierarchical chunker (same as upload.py)
+        # Step 1: Chunk PDF using hierarchical chunker (same as upload.py)
         logger.info("🔍 Chunking PDF...")
         chunks = chunker.process_pdf(pdf_path, filename)
         
@@ -302,43 +307,62 @@ def process_extracted_pdf(pdf_path: str, chroma_handler=None, collection_name: s
         
         logger.info(f"✅ Created {len(chunks)} chunks")
         
-        # Enrich metadata for all chunks
-        logger.info(f"🔍 Enriching metadata for {len(chunks)} chunks...")
-        enriched_chunks = []
+        # Step 2: Classify chunks with GPT-4o-mini (batch processing - same as upload.py)
+        logger.info(f"\n🤖 Classifying {len(chunks)} chunks with GPT-4o-mini (batch processing)...")
+        classified_chunks = classify_chunks_batch(chunks, openai_client)
+        logger.info(f"✅ Classification complete for {len(classified_chunks)} chunks")
         
-        for chunk in chunks:
-            chunk_text = chunk['content']
-            existing_meta = chunk.get('metadata', {})
-            chunk_filename = existing_meta.get('filename', filename)
-            chapter = existing_meta.get('chapter', 'Unknown')
-            section = existing_meta.get('section', 'Unknown')
-            
-            # Enrich metadata
-            try:
-                enriched_meta = enrich_metadata(chunk_text, chunk_filename, chapter, section, openai_client)
-                # Merge enriched metadata with existing metadata
-                existing_meta.update(enriched_meta)
-                chunk['metadata'] = existing_meta
-            except Exception as enrich_error:
-                logger.warning(f"⚠️ Metadata enrichment failed for one chunk: {enrich_error}")
-                # Continue with original metadata if enrichment fails
-            
-            enriched_chunks.append(chunk)
+        # Show first 3 chunks with classification
+        logger.info(f"\n📝 First 3 chunks with classification:")
+        for i, chunk in enumerate(classified_chunks[:3], 1):
+            meta = chunk.get('metadata', {})
+            logger.info(f"\n   Chunk {i}:")
+            logger.info(f"      • Content preview: {chunk['content'][:150].replace(chr(10), ' ')}...")
+            logger.info(f"      • Word count: {len(chunk['content'].split())} words")
+            logger.info(f"      • Major Domain: {meta.get('major_domain', 'N/A')}")
+            logger.info(f"      • Sub Domain: {meta.get('sub_domain', 'N/A')}")
+            logger.info(f"      • Micro Topic: {meta.get('micro_topic', 'N/A')}")
+            if meta.get('sub_topics'):
+                logger.info(f"      • Sub Topics: {', '.join(meta.get('sub_topics', []))}")
         
-        logger.info(f"✅ Metadata enrichment complete")
+        # Step 3: Store classified chunks in Pinecone (generates embeddings automatically)
+        logger.info(f"\n💾 Storing {len(classified_chunks)} chunks in Pinecone (generating embeddings)...")
+        pinecone_handler.add_documents(classified_chunks)
+        logger.info(f"✅ Successfully stored {len(classified_chunks)} chunks in Pinecone")
         
-        # Store enriched chunks in ChromaDB
-        logger.info(f"💾 Storing {len(enriched_chunks)} chunks in ChromaDB...")
-        chroma_handler.add_documents(enriched_chunks)
+        # Step 4: Store in SQLite content store (full content with metadata)
+        logger.info(f"\n💾 Storing {len(classified_chunks)} chunks in SQLite content store...")
         
-        logger.info(f"✅ Successfully processed {filename}")
-        logger.info(f"   • Chunks added: {len(enriched_chunks)}")
+        # Import match_and_store function
+        try:
+            from ..routes.upload_content_store import match_and_store_pinecone_chunks
+        except ImportError:
+            from app.routes.upload_content_store import match_and_store_pinecone_chunks
+        
+        # Match and store chunks
+        matching_results = match_and_store_pinecone_chunks(
+            content_chunks=classified_chunks,
+            pinecone_handler=pinecone_handler,
+            content_store=content_store,
+            filename=filename
+        )
+        
+        logger.info(f"✅ SQLite storage complete:")
+        logger.info(f"   • Stored: {matching_results.get('stored_count', 0)} chunks")
+        logger.info(f"   • Match rate: {matching_results.get('match_rate', 0):.1%}")
+        
+        logger.info(f"\n✅ Successfully processed {filename}")
+        logger.info(f"   • Chunks added to Pinecone: {len(classified_chunks)}")
+        logger.info(f"   • Chunks added to SQLite: {matching_results.get('stored_count', 0)}")
         logger.info(f"{'='*60}\n")
         
         return {
             "filename": filename,
             "status": "success",
-            "chunks_added": len(enriched_chunks)
+            "chunks_added": len(classified_chunks),
+            "pinecone_chunks": len(classified_chunks),
+            "sqlite_chunks": matching_results.get('stored_count', 0),
+            "match_rate": matching_results.get('match_rate', 0)
         }
         
     except Exception as e:
@@ -351,6 +375,7 @@ def process_extracted_pdf(pdf_path: str, chroma_handler=None, collection_name: s
             "reason": str(e),
             "chunks_added": 0
         }
+
 
 
 def download_latest_visionias_workbook(download_dir="data/geography_current_affairs", extract_sections: bool = True):
@@ -602,37 +627,79 @@ if __name__ == "__main__":
     
     try:
         # Step 1: Download the full magazine and extract sections
+        logger.info("="*60)
+        logger.info("🚀 Starting Current Affairs Downloader")
+        logger.info("="*60)
         latest_file = download_latest_visionias_workbook(extract_sections=True)
         
         # Verify we got the extracted PDF, not the full one
         if "_geo_env" not in latest_file:
-            print(f"\n⚠️ Warning: Expected extracted PDF but got: {latest_file}")
-            print(f"   This might be the full PDF. Checking for extracted version...")
+            logger.warning(f"\n⚠️ Warning: Expected extracted PDF but got: {latest_file}")
+            logger.info(f"   This might be the full PDF. Checking for extracted version...")
             # Look for extracted version
             base_name = os.path.splitext(latest_file)[0]
             extracted_path = f"{base_name}_geo_env.pdf"
             if os.path.exists(extracted_path):
                 latest_file = extracted_path
-                print(f"   ✅ Found extracted PDF: {latest_file}")
+                logger.info(f"   ✅ Found extracted PDF: {latest_file}")
             else:
-                print(f"   ⚠️ Extracted PDF not found. Processing full PDF instead.")
+                logger.warning(f"   ⚠️ Extracted PDF not found. Processing full PDF instead.")
         
-        print(f"\n✅ Latest workbook downloaded and extracted: {latest_file}")
+        logger.info(f"\n✅ Latest workbook downloaded and extracted: {latest_file}")
         
-        # Step 2: Process the extracted PDF through chunking and enrichment pipeline
-        print(f"\n📚 Processing extracted PDF through chunking pipeline...")
-        result = process_extracted_pdf(latest_file)
+        # Step 2: Initialize handlers for new storage system
+        logger.info(f"\n{'='*60}")
+        logger.info(f"🔧 Initializing storage handlers...")
+        logger.info(f"{'='*60}")
+        
+        # Import handlers
+        import sys
+        from pathlib import Path
+        backend_path = Path(__file__).parent.parent.parent
+        if str(backend_path) not in sys.path:
+            sys.path.insert(0, str(backend_path))
+        
+        from app.utils.pinecone_handler import PineconeHandler
+        from app.utils.content_store import ContentStore
+        
+        # Initialize Pinecone handler
+        logger.info("🔧 Initializing PineconeHandler...")
+        pinecone_handler = PineconeHandler()
+        logger.info("✅ PineconeHandler initialized")
+        
+        # Initialize content store
+        logger.info("🔧 Initializing ContentStore...")
+        content_store = ContentStore()
+        logger.info("✅ ContentStore initialized")
+        
+        # Step 3: Process the extracted PDF through chunking and classification pipeline
+        logger.info(f"\n📚 Processing extracted PDF through chunking pipeline...")
+        result = process_extracted_pdf(
+            latest_file,
+            pinecone_handler=pinecone_handler,
+            content_store=content_store
+        )
+        
+        # Step 4: Display results
+        logger.info(f"\n{'='*60}")
+        logger.info(f"📊 FINAL RESULTS")
+        logger.info(f"{'='*60}")
         
         if result["status"] == "success":
-            print(f"\n✅ Successfully processed {result['filename']}")
-            print(f"   • Chunks added: {result['chunks_added']}")
+            logger.info(f"✅ Successfully processed {result['filename']}")
+            logger.info(f"   • Chunks added to Pinecone: {result.get('pinecone_chunks', 0)}")
+            logger.info(f"   • Chunks added to SQLite: {result.get('sqlite_chunks', 0)}")
+            logger.info(f"   • Match rate: {result.get('match_rate', 0):.1%}")
+            logger.info(f"\n🎉 Current affairs processing complete!")
         else:
-            print(f"\n❌ Failed to process {result['filename']}")
-            print(f"   • Reason: {result.get('reason', 'Unknown error')}")
+            logger.error(f"❌ Failed to process {result['filename']}")
+            logger.error(f"   • Reason: {result.get('reason', 'Unknown error')}")
+            exit(1)
             
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        logger.error(f"\n❌ Error: {e}")
         import traceback
         traceback.print_exc()
         exit(1)
+
 
