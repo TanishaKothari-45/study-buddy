@@ -1,6 +1,6 @@
 """
 mains_answer.py
-Main handler for mains answer generation using the prompt templates.
+Main handler for mains answer generation using Gemini 2.5 Pro.
 
 Uses MCP current affairs server for latest news (not web_searcher).
 
@@ -9,7 +9,7 @@ Usage:
   from mains_answer import generate_answer
 
 Config:
-  export OPENAI_API_KEY=sk-...
+  export GEMINI_API_KEY=...
 """
 
 import os
@@ -34,7 +34,7 @@ from ..utils.context_retriever import retrieve_context_for_question
 from ..utils.question_parser import parse_question_for_search
 from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
 
-# Import Gemini client for question parsing
+# Import Gemini client
 try:
     from ..gemini_core.gemini_client import GeminiClient
     from ..gemini_core import settings_gemini_key
@@ -43,8 +43,6 @@ except ImportError as e:
     GeminiClient = None
     GEMINI_API_KEY = None
     logger.warning(f"Could not import Gemini client: {e}")
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # -- Utility small guards and postprocessors --
 def enforce_diagrams(answer: str, required: int = 1) -> str:
@@ -77,98 +75,67 @@ def enforce_word_count(answer: str, target: int) -> str:
         return answer + f"\n\n(Addendum: In short, the above points suggest that a balanced policy mix is required.)"
     return answer
 
-def generate_verdict(question: str, openai_client) -> Optional[str]:
-    """Call OpenAI for a short 20-30 word verdict (use sparingly)."""
-    if not openai_client:
-        return None
-    try:
-        prompt = f"In one balanced 25-word sentence, give a verdict for: {question}"
-        res = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role":"user","content":prompt}],
-            max_tokens=40,
-            temperature=0.0
-        )
-        return res.choices[0].message.content.strip()
-    except Exception as e:
-        logger.debug(f"Verdict generation failed: {e}")
-        return None
-
-# -- Main entrypoint --
-def generate_answer(
+async def generate_answer(
     question: str,
     static_context: Optional[str] = None,
     word_count: int = 350,
-    produce_verdict: bool = True
+    gemini_client: Optional[Any] = None
 ) -> dict:
     """
-    Top-level function to generate a mains answer.
+    Top-level function to generate a mains answer using Gemini 2.5 Pro.
     
-    Note: Current affairs are now fetched in the endpoint using MCP server
-    and appended to static_context before calling this function.
-
+    Args:
+        question: The mains question to answer
+        static_context: Retrieved context (includes current affairs)
+        word_count: Target word count for the answer
+        gemini_client: GeminiClient instance (required)
+    
     Returns:
-      { "answer": str, "sources": list }
+        { "answer": str, "sources": list }
     """
-    # Current affairs bullets are now included in static_context
-    # (fetched via MCP server in the endpoint)
-    current_bullets_text = ""  # Kept for backward compatibility with assemble_mains_prompt
+    if not gemini_client:
+        raise RuntimeError("GeminiClient is required for answer generation")
 
     # 1) Assemble prompt
     prompt_pair = assemble_mains_prompt(
         question=question,
         context=static_context,
-        current_bullets=current_bullets_text,
+        current_bullets="",  # Current affairs already in static_context
         word_count=word_count
     )
 
-    # 2) Call LLM (OpenAI) - guarded usage
+    # 2) Call Gemini 2.5 Pro
     answer_text = ""
     sources = []
-    if not OPENAI_API_KEY:
-        raise RuntimeError("OPENAI_API_KEY not set - cannot generate answer")
 
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=OPENAI_API_KEY)
-
         # Compose final messages (system + user)
         system_msg = prompt_pair["system"]
         user_msg = prompt_pair["user"]
 
-        # Prefer a single call; instruct model to be concise. Keep temperature moderate for variety.
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role":"system","content":system_msg},
-                {"role":"user","content":user_msg}
-            ],
-            max_tokens=int(word_count * 2.2),  # conservative tokens mapping
-            temperature=0.15
+        logger.info(f"🤖 Calling Gemini 2.5 Pro for answer generation...")
+        
+        # Call Gemini with async
+        response = await gemini_client.generate_response(
+            user_prompt=user_msg,
+            system_prompt=system_msg,
+            temperature=0.15,  # Low temperature for consistency
+            max_retries=2
         )
-        answer_text = resp.choices[0].message.content.strip()
+        
+        answer_text = response.strip()
+        logger.info(f"✅ Gemini response received: {len(answer_text)} chars")
+        
     except Exception as e:
-        logger.error(f"OpenAI call failed: {e}")
+        logger.error(f"❌ Gemini call failed: {e}")
         # Fallback simple template answer to avoid blank responses
         answer_text = f"**Introduction**\nBrief introduction based on provided materials.\n\n**Body**\n• Key point 1\n• Key point 2\n\n**Conclusion**\nSynthesis and policy suggestion."
 
-    # 3) Post-processing: ensure diagrams, word-count, verdict when needed
+    # 3) Post-processing: ensure diagrams and word-count
     answer_text = enforce_diagrams(answer_text, required=1)
     answer_text = enforce_word_count(answer_text, target=word_count)
 
-    # 4) If produce_verdict and directive likely needs it, create short verdict (sparing OpenAI calls)
-    verdict_text = None
-    if produce_verdict and OPENAI_API_KEY:
-        try:
-            from openai import OpenAI
-            client_v = OpenAI(api_key=OPENAI_API_KEY)
-            verdict_text = generate_verdict(question, client_v)
-            if verdict_text:
-                answer_text += f"\n\n**Verdict**: {verdict_text}"
-        except Exception as e:
-            logger.debug(f"Verdict generation failed: {e}")
-
-    # 5) Pack result
+    # 4) Pack result
     result = {
         "answer": answer_text,
         "sources": sources  # placeholder: can integrate actual source extraction later
@@ -261,14 +228,28 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             context = context + current_affairs_section
             logger.info(f"📝 [MAINS] Added current affairs to context: {len(current_affairs_section)} chars")
 
-        # Generate answer using the generate_answer function
+        # Generate answer using Gemini 2.5 Pro
         # Note: Current affairs are already included in context via MCP fetch above
-        logger.info(f"🤖 [MAINS] Generating answer...")
-        result = generate_answer(
+        logger.info(f"🤖 [MAINS] Generating answer with Gemini 2.5 Pro...")
+        
+        # Initialize Gemini client
+        if not GeminiClient or not GEMINI_API_KEY:
+            raise HTTPException(
+                status_code=500,
+                detail="Gemini client not available. Please configure GEMINI_API_KEY."
+            )
+        
+        gemini_client = GeminiClient(
+            api_key=GEMINI_API_KEY,
+            model_name="gemini-2.5-pro"
+        )
+        
+        # Call async generate_answer
+        result = await generate_answer(
             question=mains_request.question,
             static_context=context,
             word_count=mains_request.word_count,
-            produce_verdict=False  # Disabled to save API calls
+            gemini_client=gemini_client
         )
         
         answer = result["answer"]

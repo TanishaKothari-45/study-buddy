@@ -45,10 +45,15 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     
     # Model Selection Strategy: Use mini for 90% of tasks, large only for final question generation
-    LLM_MODEL_SMALL: str = "gpt-4o-mini"  # For most tasks (embeddings, chunking, evaluation, etc.)
+    # OpenAI Models
+    LLM_MODEL_SMALL: str = "gpt-4o-mini"  # For most tasks (embeddings, chunking, query, etc.)
     LLM_MODEL_LARGE: str = "gpt-4o"  # For final test/question generation only
     
-    # Legacy: defaults to small model for backward compatibility
+    # Gemini Models
+    GEMINI_MODEL_PRO: str = "gemini-2.5-pro"  # For mains answer & evaluation (superior reasoning)
+    GEMINI_MODEL_FLASH: str = "gemini-2.0-flash-exp"  # For speed-critical tasks (if needed)
+    
+    # Default LLM (for backward compatibility)
     LLM_MODEL: str = "gpt-4o-mini"
     
     # Fallback Model
