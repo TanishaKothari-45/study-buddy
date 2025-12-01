@@ -70,54 +70,51 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
                             });
                             rectsToRemove.forEach(rect => rect.remove());
 
-                            // Fix text cutoff by measuring actual text and expanding boxes
-                            const textElements = svgElement.querySelectorAll('text');
-                            textElements.forEach((textEl) => {
-                                // Measure the actual rendered text
-                                const bbox = textEl.getBBox();
-                                const textWidth = bbox.width;
+                            // CRITICAL: Fix text overflow by coordinating rect and foreignObject widths
+                            const foreignObjects = svgElement.querySelectorAll('foreignObject');
+                            foreignObjects.forEach((fo) => {
+                                // Get the text content from the div inside foreignObject
+                                const innerDiv = fo.querySelector('div');
+                                if (!innerDiv) return;
 
-                                // Find parent group and its rectangle
-                                let parent = textEl.parentElement;
-                                while (parent && parent.tagName !== 'g') {
-                                    parent = parent.parentElement;
-                                }
+                                const textContent = innerDiv.textContent || '';
 
+                                // Calculate required width based on text length
+                                // Use 12px per character to be safe (10px font needs more space)
+                                const estimatedTextWidth = textContent.length * 12;
+                                const requiredWidth = estimatedTextWidth + 60; // Add more padding
+
+                                const currentFOWidth = parseFloat(fo.getAttribute('width') || '0');
+
+                                // Take the maximum of: current width, calculated width, or 2x current width
+                                const newWidth = Math.max(currentFOWidth * 2, requiredWidth);
+
+                                // Update foreignObject width
+                                fo.setAttribute('width', newWidth.toString());
+
+                                // Style the inner div
+                                innerDiv.style.width = '100%';
+                                innerDiv.style.textAlign = 'center';
+                                innerDiv.style.whiteSpace = 'nowrap';
+                                innerDiv.style.overflow = 'visible';
+
+                                // Find the corresponding rectangle and update its width too
+                                let parent = fo.parentElement;
                                 if (parent) {
                                     const rect = parent.querySelector('rect');
                                     if (rect) {
-                                        const currentWidth = parseFloat(rect.getAttribute('width') || '0');
+                                        const currentRectWidth = parseFloat(rect.getAttribute('width') || '0');
                                         const currentX = parseFloat(rect.getAttribute('x') || '0');
 
-                                        // Make box at least 40px wider than the actual text
-                                        const newWidth = Math.max(currentWidth, textWidth + 40);
-                                        const widthDiff = newWidth - currentWidth;
+                                        // Make rectangle match the foreignObject width
+                                        const rectNewWidth = Math.max(currentRectWidth, newWidth);
+                                        const widthDiff = rectNewWidth - currentRectWidth;
 
-                                        rect.setAttribute('width', newWidth.toString());
+                                        rect.setAttribute('width', rectNewWidth.toString());
                                         rect.setAttribute('x', (currentX - widthDiff / 2).toString());
                                     }
                                 }
                             });
-
-                            // CRITICAL: Expand foreignObject elements to prevent text cutoff
-                            const foreignObjects = svgElement.querySelectorAll('foreignObject');
-                            foreignObjects.forEach((fo) => {
-                                const currentWidth = parseFloat(fo.getAttribute('width') || '0');
-
-                                // Make foreignObject wider but keep it centered (don't adjust x)
-                                const newWidth = currentWidth * 1.8;
-                                fo.setAttribute('width', newWidth.toString());
-
-                                // Ensure the div inside has proper centering
-                                const innerDiv = fo.querySelector('div');
-                                if (innerDiv) {
-                                    innerDiv.style.width = '100%';
-                                    innerDiv.style.textAlign = 'center';
-                                    innerDiv.style.whiteSpace = 'nowrap';
-                                    innerDiv.style.overflow = 'visible';
-                                }
-                            });
-
                             // Trim viewBox to remove excessive whitespace
                             const bbox = svgElement.getBBox();
                             const padding = 15;

@@ -66,19 +66,49 @@ body {
   color: hsl(var(--text));
 }
 
+/* Answer Content Styling */
+h3 {
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: hsl(var(--text));
+}
+
+/* Bullet points in answers */
+ul {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+li {
+  margin: 0.5rem 0;
+  line-height: 1.6;
+}
+
+/* Bold text in bullets (main idea) */
+li strong {
+  font-weight: 600;
+  color: hsl(var(--text));
+}
+
 /* Mermaid Diagram Styling */
 .mermaid-diagram {
   transform-origin: center;
   margin: 1rem auto;
-  padding: 1rem;
-  border: 1px solid hsl(var(--card-border));
-  border-radius: 0.5rem;
-  background: hsl(var(--card));
+  padding: 3rem 2rem;
+  /* Increased padding to accommodate scaled diagram */
+
   max-width: fit-content;
+  overflow: visible;
+  /* Prevent clipping of scaled content */
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .mermaid-diagram svg {
-  max-width: 600px !important;
+  max-width: 800px !important;
   width: 100% !important;
   height: auto !important;
   display: block;
@@ -97,15 +127,15 @@ body {
   display: none !important;
 }
 
-/* Scale down the entire diagram for better proportions */
+/* Scale UP the diagram for better readability */
 @media (min-width: 768px) {
   .mermaid-diagram svg {
-    transform: scale(0.85);
+    transform: scale(1.5);
   }
 }
 
 @media (max-width: 767px) {
   .mermaid-diagram svg {
-    transform: scale(0.75);
+    transform: scale(1.2);
   }
 }

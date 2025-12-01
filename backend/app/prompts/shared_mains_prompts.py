@@ -44,9 +44,11 @@ You MUST include **exactly ONE** Mermaid diagram in the Body (not more, not less
 - **Diagram token budget**: keep diagram compact (labels ≤ 40 tokens total).
 
 **Diagram Placement**:
-- Insert diagram immediately after the relevant sub-heading (e.g., ### Causes) and before bullets.
-- Add a label line above code block: Diagram: [Descriptive Title]
+- Insert diagram BEFORE the sub-heading (diagram comes first, then the sub-heading)
+- Add a label line above code block: **Diagram: [Descriptive Title]**
 - Ensure blank line before and after the fenced block.
+- The flow should be: **Diagram: Title** → mermaid block → blank line → ### Sub-heading → blank line → bullets (each on new line) → blank line → next section
+  
 
 **Mermaid Syntax Examples**:
 
@@ -110,8 +112,6 @@ graph TD
 
 **Example Integration in Answer**:
 
-### Physical Factors Affecting Monsoons
-
 **Diagram: Monsoon Formation Process**
 ```mermaid
 graph TD
@@ -120,6 +120,8 @@ graph TD
     B --> D["Moist Winds"]
     D --> E["Orographic Rain"]
 ```
+
+### Physical Factors Affecting Monsoons
 
 • **Differential heating**: IMD 2023 — Example: Delhi temperature gap 6–8°C.
 • **Orographic effect**: Western Ghats force air upward causing condensation (IPCC AR6) — Example: Cherrapunji receives 11,000mm annual rainfall
@@ -133,9 +135,17 @@ graph TD
 
 IBC_FORMAT_RULES = """
 **RULE - IBC FORMAT**:
-- **INTRO**: 2-3 lines. Must include either a definition, a data point/report citation, or a recent context or current affair (if applicable).
-- **BODY**: 3-5 sub-headings (physical / economic / social / environmental / policy / Governance / Vulnerability / Human angle). Each sub-heading has 2-4 bullets. Each bullet: Main idea (≤ 12 words) — Evidence (named report/index/data) — Example (named Indian OR named global).
+- **INTRO**: 2-3 lines. Must include either a definition, a data point/report citation, or a recent context or recent incident or current affair (if applicable).
+- **BODY**: 3-5 sub-headings (physical / economic / social / environmental / policy / Governance / Vulnerability / Human angle). 
+  - Each sub-heading MUST use ### markdown heading format (e.g., ### Economic and Livelihood Impact)
+  - Add blank line before each new sub-heading for spacing
+  - Each sub-heading has 2-4 bullets
+  - Each bullet MUST start with • symbol
+  - Each bullet MUST be on a NEW LINE (do not put multiple bullets on same line)
+  - Each bullet: **Main idea** (≤ 12 words) — Evidence (named report/index/data) — Example (named Indian OR named global)
+  
 - **CONCLUSION**: 1 para with global best practices + SDG + policy angle + related Indian constitution articles.
+Intro -> blank line -> Body -> blank line -> Conclusion
 """
 
 # ============================================================
@@ -144,9 +154,11 @@ IBC_FORMAT_RULES = """
 
 BULLET_DISCIPLINE_RULES = """
 **RULE - BULLET DISCIPLINE**:
+- Every single bullet MUST start with • symbol
+- Every single bullet MUST be on a NEW LINE (do not put multiple bullets on same line)
 - Every single bullet MUST contain: (a) One evidence (report/index/data), (b) One example (named Indian OR named global), (c) Maximum 18 words total
-- Format: Main idea — Evidence (Report Name Year) — Example: Specific case/location
-- Example: "Urban heat islands intensify — IPCC 2023 reports 2°C rise — Example: Delhi experiences 45°C summers"
+- Format: • **Main idea** — Evidence (Report Name Year) — Example: Specific case/location
+- Example: "• **Urban heat islands intensify** — IPCC 2023 reports 2°C rise — Example: Delhi experiences 45°C summers"
 """
 
 # ============================================================
