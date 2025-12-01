@@ -65,3 +65,47 @@ body {
   background-color: hsl(var(--bg));
   color: hsl(var(--text));
 }
+
+/* Mermaid Diagram Styling */
+.mermaid-diagram {
+  transform-origin: center;
+  margin: 1rem auto;
+  padding: 1rem;
+  border: 1px solid hsl(var(--card-border));
+  border-radius: 0.5rem;
+  background: hsl(var(--card));
+  max-width: fit-content;
+}
+
+.mermaid-diagram svg {
+  max-width: 600px !important;
+  width: 100% !important;
+  height: auto !important;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Ensure text doesn't get cut off */
+.mermaid-diagram text {
+  overflow: visible !important;
+}
+
+/* Hide small nested rectangles that appear inside boxes */
+.mermaid-diagram rect[width="20"],
+.mermaid-diagram rect[width="30"],
+.mermaid-diagram rect[height="20"] {
+  display: none !important;
+}
+
+/* Scale down the entire diagram for better proportions */
+@media (min-width: 768px) {
+  .mermaid-diagram svg {
+    transform: scale(0.85);
+  }
+}
+
+@media (max-width: 767px) {
+  .mermaid-diagram svg {
+    transform: scale(0.75);
+  }
+}

@@ -53,7 +53,16 @@ except ImportError as e:
     format_bullets_for_context = None
     logger.warning(f"Could not import utilities: {e}")
 
-# System prompt for answer improvement with feedback - uses mains_prompt.py structure
+# Import shared prompts for consistency with mains_answer.py
+try:
+    from ..prompts.shared_mains_prompts import get_evaluation_system_prompt
+    USE_SHARED_PROMPTS = True
+    logger.info("✅ Using shared prompts for evaluation")
+except ImportError as e:
+    USE_SHARED_PROMPTS = False
+    logger.warning(f"⚠️ Could not import shared prompts, using inline prompt: {e}")
+
+# Legacy inline prompt (fallback only - kept for backward compatibility)
 ANSWER_IMPROVEMENT_SYSTEM_PROMPT = """You are an expert UPSC Geography teacher, evaluator and answer-writing coach.
 
 Your task is to read a student's handwritten answer and provide:
@@ -93,12 +102,12 @@ Directive -> structure (mandatory):
 4) Point Discipline: Each important point must be supported with a named index/report/data/example.
 5) Global bodies and conferences: Mention at least one global body or conference related agreement before conclusion.
 6) Human Angle: Mandatory human impacts even for physical geography.
-7) Diagram discipline: At least ONE inline diagram suggestion inside body (explicit).
+7) Diagram discipline: At least ONE Mermaid diagram inside body (explicit).
 
 **RULE 5 - IBC FORMAT**:
 - INTRO: 2-3 lines. Must include either a definition, a data point/report citation, or a recent context or current affair (if applicable).
-- BODY: Use sub-headings and bullets. Each bullet <= 18 words. Main idea (≤ 10-12 words) — Evidence (report/data/index) — Example (India OR World). Insert at least one inline diagram suggestion exactly where relevant e.g. "(Suggested Diagram: India map showing X, flowcharts, maps, pie charts, timelines, or comparative tables.)"
-- CONCLUSION: 1 para with global best practices + SDG + policy angle + related Indian constitutuon articles.
+- BODY: Use sub-headings and bullets. Each bullet <= 18 words. Main idea (≤ 10-12 words) — Evidence (report/data/index) — Example (India OR World). Include at least ONE Mermaid diagram using ```mermaid code blocks.
+- CONCLUSION: 1 para with global best practices + SDG + policy angle + related Indian constitution articles.
 
 **RULE 6 - WORD LIMIT COMPRESSION** (when word_count <= 250):
 1) MUST preserve IBC structure but reduce density:
@@ -117,21 +126,21 @@ Directive -> structure (mandatory):
 You MUST return a JSON object with the following structure:
 ```json
 {
-  "improved_answer": "The improved answer in markdown format following all IBC rules...",
+  "improved_answer": "The improved answer in markdown format following all IBC rules and including Mermaid diagrams...",
   "feedback": {
     "strengths": [
       "List specific strengths of the student's answer",
-      "What they did well (structure, examples, evidence, etc.)"
+      "What they did well (structure, examples, evidence, diagrams, etc.)"
     ],
     "missing_elements": [
       "Key points missing from the student's answer",
-      "Important facts, dimensions, data, or examples they should have included"
+      "Important facts, dimensions, data, examples, or diagrams they should have included"
     ],
     "improvements_needed": [
       "Specific actionable suggestions for improvement",
       "What to add, remove, or modify in future answers"
     ],
-    "structure_feedback": "Comment on IBC format adherence, sub-headings, bullet discipline",
+    "structure_feedback": "Comment on IBC format adherence, sub-headings, bullet discipline, diagram quality",
     "evidence_feedback": "Comment on use of reports/data/indices/examples",
     "overall_assessment": "Brief overall assessment and encouragement"
   }
@@ -139,8 +148,9 @@ You MUST return a JSON object with the following structure:
 ```
 
 **CRITICAL**: Return ONLY valid JSON. No markdown code blocks, no commentary before or after. Just the raw JSON object.
-- The improved_answer should use markdown formatting (headings, bullets)
+- The improved_answer should use markdown formatting (headings, bullets, Mermaid diagrams)
 - Every single bullet MUST contain: (a) One evidence (report/index/data), (b) One example (named Indian OR named global), (c) Maximum 18 words total
+- Include at least ONE Mermaid diagram in improved_answer
 - Feedback should be constructive, specific, and actionable
 """
 
@@ -425,12 +435,15 @@ Return ONLY a valid JSON object as specified in the system prompt. No markdown c
         # ============================================================
         logger.info("🤖 STEP 6: Generating improved answer with Gemini 2.5 Pro...")
         
+        # Use shared prompt if available, otherwise fallback to inline prompt
+        system_prompt = get_evaluation_system_prompt() if USE_SHARED_PROMPTS else ANSWER_IMPROVEMENT_SYSTEM_PROMPT
+        
         # For multiple files, we need to pass them all to Gemini
         if all_is_pdf:
             # Pass all PDF paths as a list
             response_text = await gemini_client.generate_response(
                 user_prompt=user_prompt,
-                system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 pdf_path=temp_file_paths,  # Pass list directly
                 temperature=0.2,
                 max_retries=3
@@ -439,7 +452,7 @@ Return ONLY a valid JSON object as specified in the system prompt. No markdown c
             # Pass all image paths as a list
             response_text = await gemini_client.generate_response(
                 user_prompt=user_prompt,
-                system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 image_path=temp_file_paths,  # Pass list directly
                 temperature=0.2,
                 max_retries=3
@@ -451,7 +464,7 @@ Return ONLY a valid JSON object as specified in the system prompt. No markdown c
             if temp_file_paths[0].endswith('.pdf'):
                 response_text = await gemini_client.generate_response(
                     user_prompt=user_prompt,
-                    system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
+                    system_prompt=system_prompt,
                     pdf_path=temp_file_paths[0],
                     temperature=0.2,
                     max_retries=3
@@ -459,7 +472,7 @@ Return ONLY a valid JSON object as specified in the system prompt. No markdown c
             else:
                 response_text = await gemini_client.generate_response(
                     user_prompt=user_prompt,
-                    system_prompt=ANSWER_IMPROVEMENT_SYSTEM_PROMPT,
+                    system_prompt=system_prompt,
                     image_path=temp_file_paths[0],
                     temperature=0.2,
                     max_retries=3

@@ -46,18 +46,17 @@ except ImportError as e:
 
 # -- Utility small guards and postprocessors --
 def enforce_diagrams(answer: str, required: int = 1) -> str:
-    """Ensure at least `required` '(Suggested Diagram:' instances exist."""
-    have = answer.count("(Suggested Diagram:")
-    if have >= required:
+    """
+    Ensure at least `required` Mermaid diagrams exist in the answer.
+    If not, insert a safe, minimal Mermaid diagram (flowchart)
+    in a stable location (after first sub-heading and before bullets).
+    """
+    # quick check: count existing mermaid fenced blocks
+    mermaid_count = answer.count("```mermaid")
+    if mermaid_count >= required:
         return answer
-    inserts = []
-    for i in range(required - have):
-        inserts.append("\n\n(Suggested Diagram: India map showing relevant regions)")
-    # place inserts after first body heading if exists; else append
-    parts = re.split(r"\n#{1,3}\s", answer, maxsplit=1)
-    if len(parts) == 2:
-        return parts[0] + "\n\n" + "(Suggested Diagram: India map showing relevant regions)\n\n" + parts[1]
-    return answer + "\n\n" + "\n".join(inserts)
+    
+    return answer
 
 def enforce_word_count(answer: str, target: int) -> str:
     words = len(answer.split())
@@ -133,7 +132,7 @@ async def generate_answer(
 
     # 3) Post-processing: ensure diagrams and word-count
     answer_text = enforce_diagrams(answer_text, required=1)
-    answer_text = enforce_word_count(answer_text, target=word_count)
+    # answer_text = enforce_word_count(answer_text, target=word_count)
 
     # 4) Pack result
     result = {

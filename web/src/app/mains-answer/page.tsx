@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, PenTool, BookOpen, FileText, CheckCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { markdownComponents } from "@/components/ui/mermaid";
 import { cn } from "@/lib/utils";
 
 interface Source {
@@ -148,7 +149,10 @@ export default function MainsAnswerPage() {
                             </CardHeader>
                             <CardContent className="flex-1 p-6">
                                 <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        components={markdownComponents}
+                                    >
                                         {result.answer}
                                     </ReactMarkdown>
                                 </div>

@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "mermaid": "^11.12.1",
+    "rehype-mermaid": "^3.0.0"
+  }
+}

@@ -49,6 +49,12 @@ embeddings/
 .LSOverride
 ._*
 
+# Node
+node_modules/
+package-lock.json
+yarn.lock
+web/package-lock.json
+
 
 google_vision.json!web/src/lib/
 
