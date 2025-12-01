@@ -145,7 +145,7 @@ IBC_FORMAT_RULES = """
   - Each bullet: **Main idea** (≤ 12 words) — Evidence (named report/index/data) — Example (named Indian OR named global)
   
 - **CONCLUSION**: 1 para with global best practices + SDG + policy angle + related Indian constitution articles.
-Intro -> blank line -> Body -> blank line -> Conclusion
+INTRO -> blank line -> BODY -> blank line -> CONCLUSION
 """
 
 # ============================================================
