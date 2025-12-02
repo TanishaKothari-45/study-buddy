@@ -36,6 +36,7 @@ myenv/
 data/
 !map-service/data/
 models/
+!backend/app/models/
 embeddings/
 .env
 *.log
@@ -99,3 +100,8 @@ test_chunking.py
 test_mmr_debug.py
 test_paddleocr.py
 backend/web_cache.json
+
+backend/web_cache.json
+
+web/package-lock.json
+nohup.out

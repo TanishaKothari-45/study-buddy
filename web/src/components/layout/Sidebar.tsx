@@ -80,11 +80,11 @@ export function Sidebar() {
             <AnimatePresence mode="wait">
                 <motion.div
                     className={cn(
-                        "fixed inset-y-0 left-0 z-40 w-72 bg-[#fcfaf8] text-foreground border-r border-border transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:block",
+                        "fixed inset-y-0 left-0 z-40 w-72 bg-[hsl(var(--sidebar-bg))] text-foreground border-r border-border transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:block",
                         isOpen ? "translate-x-0" : "-translate-x-full"
                     )}
                 >
-                    <div className="space-y-4 py-4 flex flex-col h-full bg-sidebar-bg text-foreground">
+                    <div className="space-y-4 py-4 flex flex-col h-full text-foreground">
                         <div className="px-3 py-2 flex-1">
                             <Link href="/" className="flex items-center pl-3 mb-14">
                                 <div className="relative w-8 h-8 mr-4">
@@ -102,9 +102,9 @@ export function Sidebar() {
                                         href={route.href}
                                         onClick={() => setIsOpen(false)}
                                         className={cn(
-                                            "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-accent hover:bg-sidebar-active rounded-lg transition",
+                                            "text-sm group flex p-3 w-full justify-start font-medium cursor-pointer hover:text-accent hover:bg-[hsl(var(--sidebar-active))] rounded-lg transition",
                                             pathname === route.href
-                                                ? "text-accent bg-sidebar-active"
+                                                ? "text-accent bg-[hsl(var(--sidebar-active))]"
                                                 : "text-muted-foreground"
                                         )}
                                     >
@@ -117,7 +117,7 @@ export function Sidebar() {
                             </div>
                         </div>
                         <div className="px-3 py-2">
-                            <div className="bg-sidebar-active rounded-lg p-4">
+                            <div className="bg-[hsl(var(--sidebar-active))] rounded-lg p-4">
                                 <p className="text-xs text-muted-foreground text-center">
                                     Study Buddy AI v1.0
                                 </p>

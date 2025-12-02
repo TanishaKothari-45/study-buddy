@@ -28,6 +28,9 @@
   --input-bg: 40 30% 97%;
   --input-border: 25 15% 80%;
 
+  --modal-overlay: 30 20% 20% / 0.6;
+  --modal-bg: 40 30% 97%;
+
   --destructive: 0 84.2% 60.2%;
 }
 
@@ -53,6 +56,9 @@
 
   --input-bg: 220 12% 14%;
   --input-border: 35 10% 40%;
+
+  --modal-overlay: 220 20% 5% / 0.75;
+  --modal-bg: 220 12% 13%;
 
   --destructive: 0 62.8% 30.6%;
 }
