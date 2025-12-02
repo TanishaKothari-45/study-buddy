@@ -34,10 +34,18 @@ myenv/
 
 # Project specific
 data/
+!map-service/data/
 models/
 embeddings/
 .env
 *.log
+
+# Map service
+map-service/node_modules/
+map-service/data/*.backup
+backend/map_storage/*.svg
+backend/map_storage/*.meta.json
+!backend/map_storage/.gitkeep
 
 # Jupyter
 .ipynb_checkpoints
@@ -91,4 +99,3 @@ test_chunking.py
 test_mmr_debug.py
 test_paddleocr.py
 backend/web_cache.json
-

@@ -130,6 +130,167 @@ graph TD
 """
 
 # ============================================================
+# MAP DIAGRAM INSTRUCTIONS
+# ============================================================
+
+MAP_GENERATION_RULES = """
+**RULE - MAP DIAGRAMS (Geographic Visualization)**:
+
+When the answer involves **geography, spatial relationships, or location-based data**, you MAY include a map diagram IN ADDITION to the required Mermaid diagram.
+
+**When to use maps**:
+- Physical geography (rivers, mountains, climate zones, monsoon patterns)
+- Resource distribution (minerals, crops, industries, coalfields)
+- Historical events with locations (battles, trade routes, migration)
+- Environmental phenomena (wind patterns, ocean currents, cyclones)
+- Regional analysis (state-wise data, district-level patterns)
+
+**Map Output Format**:
+Insert a map-json code block with the following structure:
+
+```map-json
+{
+  "type": "map",
+  "mapType": "choropleth|markers|rivers|combined",
+  "region": "india|world",
+  "title": "Brief descriptive title",
+  "choropleth": {
+    "values": {"State1": value1, "State2": value2},
+    "unit": "unit description"
+  },
+  "markers": [
+    {"name": "Location Name", "coordinates": [lon, lat], "type": "coal|iron|city|port", "label": "Short Label"}
+  ],
+  "arrows": [
+    {"from": [lon1, lat1], "to": [lon2, lat2], "label": "Direction/Flow"}
+  ],
+  "rivers": true,
+  "legendTitle": "Legend description",
+  "style": {"colorScheme": "YlGn|YlOrRd|Blues|Greens", "theme": "warm"}
+}
+```
+
+**Map Types**:
+1. **choropleth**: Color-coded regions based on data values (e.g., state-wise crop production, rainfall distribution)
+2. **markers**: Point locations (e.g., mineral deposits, cities, ports, industrial centers)
+3. **rivers**: River networks overlay
+4. **combined**: Multiple layers together (e.g., rivers + markers + choropleth)
+
+**Guidelines**:
+- Keep data simple: max 15-20 states/markers
+- Use clear, short labels (≤ 3 words)
+- Include unit in choropleth data
+- List all markers/labels below the map in text
+- Coordinates format: [longitude, latitude] (e.g., [77.2, 28.6] for Delhi)
+
+**Color Schemes**:
+- `YlGn` (Yellow-Green): Crops, vegetation, forest cover
+- `YlOrRd` (Yellow-Orange-Red): Temperature, intensity, population density
+- `Blues`: Water resources, rainfall, humidity
+- `Greens`: Environmental indicators, green cover
+
+**Coordinate Reference**:
+Major Indian cities (lon, lat):
+- Delhi: [77.2, 28.6]
+- Mumbai: [72.8, 19.1]
+- Kolkata: [88.4, 22.6]
+- Chennai: [80.3, 13.1]
+- Bangalore: [77.6, 12.9]
+
+**Example 1 - Choropleth (State-wise Data)**:
+```map-json
+{
+  "type": "map",
+  "mapType": "choropleth",
+  "region": "india",
+  "title": "Rice Production by State (2023)",
+  "choropleth": {
+    "values": {
+      "West Bengal": 15.75,
+      "Punjab": 11.82,
+      "Uttar Pradesh": 14.5,
+      "Andhra Pradesh": 12.3,
+      "Tamil Nadu": 7.8
+    },
+    "unit": "million tonnes"
+  },
+  "legendTitle": "Rice Production",
+  "style": {"colorScheme": "YlGn", "theme": "warm"}
+}
+```
+
+**Example 2 - Markers (Resource Distribution)**:
+```map-json
+{
+  "type": "map",
+  "mapType": "markers",
+  "region": "india",
+  "title": "Major Coalfields in India",
+  "markers": [
+    {"name": "Jharia", "coordinates": [85.62, 23.78], "type": "coal", "label": "Jharia"},
+    {"name": "Raniganj", "coordinates": [87.13, 23.62], "type": "coal", "label": "Raniganj"},
+    {"name": "Korba", "coordinates": [82.75, 22.35], "type": "coal", "label": "Korba"},
+    {"name": "Singrauli", "coordinates": [82.67, 24.2], "type": "coal", "label": "Singrauli"}
+  ],
+  "style": {"theme": "warm"}
+}
+```
+
+**Example 3 - Combined (Monsoon + Rivers)**:
+```map-json
+{
+  "type": "map",
+  "mapType": "combined",
+  "region": "india",
+  "title": "Southwest Monsoon Pattern",
+  "arrows": [
+    {"from": [72, 6], "to": [80, 22], "label": "Arabian Sea Branch"},
+    {"from": [88, 10], "to": [85, 25], "label": "Bay of Bengal Branch"}
+  ],
+  "rivers": true,
+  "markers": [
+    {"name": "Cherrapunji", "coordinates": [91.7, 25.3], "type": "city", "label": "Highest Rainfall"}
+  ],
+  "style": {"theme": "warm"}
+}
+```
+
+**Map Placement in Answer**:
+- Insert map-json block AFTER the relevant sub-heading
+- Add a label line above code block: **Map: [Descriptive Title]**
+- List all markers/locations in bullet points below the map
+- Ensure blank line before and after the map block
+
+**Example Integration**:
+
+### Regional Distribution of Coal Reserves
+
+**Map: Major Coalfields in India**
+```map-json
+{
+  "type": "map",
+  "mapType": "markers",
+  "region": "india",
+  "title": "Major Coalfields",
+  "markers": [
+    {"name": "Jharia", "coordinates": [85.62, 23.78], "type": "coal", "label": "Jharia"}
+  ]
+}
+```
+
+**Coalfield Locations**:
+• **Jharia (Jharkhand)**: Largest coalfield with 19.4 billion tonnes reserves
+• **Raniganj (West Bengal)**: Second largest, supplies Eastern India
+• **Korba (Chhattisgarh)**: Major thermal power generation hub
+
+**IMPORTANT**: 
+- Maps are OPTIONAL and should only be used when geographic visualization adds significant value
+- You MUST still include the required Mermaid diagram
+- Keep map data accurate and simple
+- Always list locations in text below the map for accessibility
+"""
+
+# ============================================================
 # IBC FORMAT RULES (shared between both endpoints)
 # ============================================================
 
@@ -247,6 +408,8 @@ def get_mains_answer_system_prompt() -> str:
 
 {MERMAID_DIAGRAM_RULES}
 
+{MAP_GENERATION_RULES}
+
 {DIAGRAM_TOKEN_BUDGET}
 
 {SCORING_RUBRIC}
@@ -260,6 +423,7 @@ def get_mains_answer_system_prompt() -> str:
 **CRITICAL**: 
 - Follow ALL rules strictly.
 - Include exactly ONE Mermaid diagram (as per MERMAID_DIAGRAM_RULES).
+- Optionally include ONE map diagram (as per MAP_GENERATION_RULES) if geographic visualization adds value.
 - Maintain IBC structure.
 - Ensure every bullet has evidence + example.
 - Keep diagrams simple and compact (stick to token budget).
@@ -293,6 +457,8 @@ Use the provided REFERENCE CONTEXT to:
 {BULLET_DISCIPLINE_RULES}
 
 {MERMAID_DIAGRAM_RULES}
+
+{MAP_GENERATION_RULES}
 
 {WORD_COUNT_COMPRESSION_RULES}
 

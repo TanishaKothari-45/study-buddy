@@ -8,6 +8,7 @@ import { fetchApi } from "@/lib/api";
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, BookOpen } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { cn } from "@/lib/utils";
 
 interface Feedback {
@@ -298,7 +299,11 @@ export default function EvaluatePage() {
                                 </CardHeader>
                                 <CardContent className="p-6">
                                     <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900 prose-a:text-indigo-600">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm]}
+                                            components={markdownComponents}
+                                            urlTransform={urlTransform}
+                                        >
                                             {result.improved_answer}
                                         </ReactMarkdown>
                                     </div>

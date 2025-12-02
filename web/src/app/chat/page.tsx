@@ -8,6 +8,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Send, User, Bot, Loader2, BookOpen, AlertCircle, Plus } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { cn } from "@/lib/utils";
 import { TypewriterEffect } from "@/components/ui/typewriter-effect";
 
@@ -264,7 +265,11 @@ export default function ChatPage() {
                                                 ) : index === messages.length - 1 && loading ? (
                                                     <TypewriterEffect content={message.content} />
                                                 ) : (
-                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                    <ReactMarkdown
+                                                        remarkPlugins={[remarkGfm]}
+                                                        components={markdownComponents}
+                                                        urlTransform={urlTransform}
+                                                    >
                                                         {message.content}
                                                     </ReactMarkdown>
                                                 )}

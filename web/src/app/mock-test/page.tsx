@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Play, CheckCircle, XCircle, RefreshCw, Clock, BookOpen, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
+import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 
 // UPSC Geography Taxonomy (Mirrors backend/app/utils/metadata_enricher.py)
 const GEOGRAPHY_DOMAINS: Record<string, string[]> = {
@@ -402,7 +403,12 @@ export default function MockTestPage() {
                                         <div className="mt-4 p-4 bg-muted/30 rounded-lg text-sm space-y-2 border border-border">
                                             <p className="font-semibold text-foreground">Explanation:</p>
                                             <div className="text-muted-foreground leading-relaxed">
-                                                <ReactMarkdown>{q.explanation}</ReactMarkdown>
+                                                <ReactMarkdown
+                                                    components={markdownComponents}
+                                                    urlTransform={urlTransform}
+                                                >
+                                                    {q.explanation}
+                                                </ReactMarkdown>
                                             </div>
                                         </div>
                                     )}

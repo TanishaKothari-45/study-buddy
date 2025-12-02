@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import mermaid from 'mermaid';
+import { Map } from './map';
 
 interface MermaidProps {
     chart: string;
@@ -146,6 +147,22 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
 
 // Custom markdown components for ReactMarkdown
 export const markdownComponents = {
+    p({ node, children, ...props }: any) {
+        // Check if children contains an image or map (which renders as div)
+        // If so, render as div to avoid "div inside p" hydration error
+        const hasImage = Array.isArray(children)
+            ? children.some((child: any) =>
+                child?.type === 'img' ||
+                (child?.props && (child.props.src?.startsWith('data:') || child.type?.name === 'Map'))
+            )
+            : children?.type === 'img' ||
+            (children?.props && (children.props.src?.startsWith('data:') || children.type?.name === 'Map'));
+
+        if (hasImage) {
+            return <div className="my-4" {...props}>{children}</div>;
+        }
+        return <p className="mb-4 leading-relaxed" {...props}>{children}</p>;
+    },
     code({ node, inline, className, children, ...props }: any) {
         const match = /language-mermaid/.test(className || '');
         const code = String(children).replace(/\n$/, '');
@@ -158,4 +175,44 @@ export const markdownComponents = {
             </code>
         );
     },
+    img({ node, src, alt, ...props }: any) {
+        console.log('📸 img handler called:', {
+            hasSrc: !!src,
+            srcLength: src?.length || 0,
+            srcStart: src?.substring(0, 50),
+            alt
+        });
+
+        // Handle base64 SVG maps (from map generation service)
+        // Use custom Map component to bypass ReactMarkdown's data URL restrictions
+        if (src && src.startsWith('data:image/svg+xml;base64,')) {
+            console.log('✅ Detected base64 SVG map, rendering Map component');
+            return <Map src={src} alt={alt} />;
+        }
+
+        // Handle regular images - don't render if src is empty
+        if (!src) {
+            console.log('⚠️ Empty src, returning null');
+            return null;
+        }
+
+        console.log('📷 Rendering regular image');
+        return (
+            <img
+                src={src}
+                alt={alt || ''}
+                className="max-w-full h-auto rounded-lg"
+                {...props}
+            />
+        );
+    },
+};
+
+// URL transform function to allow data URLs (for base64 maps)
+export const urlTransform = (url: string) => {
+    if (url.startsWith('data:')) return url;
+    if (url.startsWith('http:') || url.startsWith('https:')) return url;
+    if (url.startsWith('/')) return url;
+    if (url.startsWith('#')) return url;
+    return url;
 };

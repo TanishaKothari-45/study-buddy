@@ -46,11 +46,14 @@ try:
     from ..utils.question_parser import parse_question_for_search
     from ..utils.context_retriever import retrieve_context_for_question
     from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
+    from ..utils.map_proxy import parse_and_generate_maps, check_map_service_health
 except ImportError as e:
     parse_question_for_search = None
     retrieve_context_for_question = None
     fetch_current_affairs_for_question = None
     format_bullets_for_context = None
+    parse_and_generate_maps = None
+    check_map_service_health = None
     logger.warning(f"Could not import utilities: {e}")
 
 # Import shared prompts for consistency with mains_answer.py
@@ -204,6 +207,15 @@ async def evaluate_answer_endpoint(
         logger.info(f"   • Question: {question[:100] if question else 'None (will identify)'}...")
         logger.info(f"   • Word count: {word_count_int}")
         logger.info("=" * 70)
+        
+        # Check map service health (non-blocking)
+        if check_map_service_health:
+            logger.info("🔍 [EVALUATE] Checking map service health...")
+            map_service_healthy = await check_map_service_health()
+            if map_service_healthy:
+                logger.info("✅ [EVALUATE] Map service is available")
+            else:
+                logger.warning("⚠️  [EVALUATE] Map service is unavailable - maps will not be generated")
         
         # Process all files and save to temp directory
         temp_file_paths = []
@@ -512,6 +524,16 @@ Return ONLY a valid JSON object as specified in the system prompt. No markdown c
                 "evidence_feedback": "Unable to generate feedback - JSON parsing failed",
                 "overall_assessment": "Please review the improved answer above."
             }
+        
+        # Process map-json blocks in improved answer
+        if parse_and_generate_maps:
+            logger.info("🗺️  [EVALUATE] Checking for map-json blocks in improved answer...")
+            try:
+                improved_answer = await parse_and_generate_maps(improved_answer)
+                logger.info("✅ [EVALUATE] Map processing completed")
+            except Exception as e:
+                logger.error(f"❌ [EVALUATE] Map processing failed: {str(e)}", exc_info=True)
+                # Continue with answer even if map generation fails
         
         logger.info("=" * 70)
         logger.info("✅ Evaluation complete!")

@@ -33,6 +33,7 @@ from mains_prompt import assemble_mains_prompt
 from ..utils.context_retriever import retrieve_context_for_question
 from ..utils.question_parser import parse_question_for_search
 from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
+from ..utils.map_proxy import parse_and_generate_maps, check_map_service_health
 
 # Import Gemini client
 try:
@@ -133,8 +134,17 @@ async def generate_answer(
     # 3) Post-processing: ensure diagrams and word-count
     answer_text = enforce_diagrams(answer_text, required=1)
     # answer_text = enforce_word_count(answer_text, target=word_count)
+    
+    # 4) Process map-json blocks (if any)
+    logger.info("🗺️  Checking for map-json blocks in answer...")
+    try:
+        answer_text = await parse_and_generate_maps(answer_text)
+        logger.info("✅ Map processing completed")
+    except Exception as e:
+        logger.error(f"❌ Map processing failed: {str(e)}", exc_info=True)
+        # Continue with answer even if map generation fails
 
-    # 4) Pack result
+    # 5) Pack result
     result = {
         "answer": answer_text,
         "sources": sources  # placeholder: can integrate actual source extraction later
@@ -161,6 +171,14 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
     """
     try:
         logger.info(f"🚀 [MAINS] Received request: '{mains_request.question[:100]}...' (word_count={mains_request.word_count})")
+        
+        # Check map service health (non-blocking)
+        logger.info("🔍 [MAINS] Checking map service health...")
+        map_service_healthy = await check_map_service_health()
+        if map_service_healthy:
+            logger.info("✅ [MAINS] Map service is available")
+        else:
+            logger.warning("⚠️  [MAINS] Map service is unavailable - maps will not be generated")
         
         # Get Pinecone handler
         pinecone_handler = request.app.state.vector_handler

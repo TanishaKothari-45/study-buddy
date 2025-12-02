@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, PenTool, BookOpen, FileText, CheckCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { markdownComponents } from "@/components/ui/mermaid";
+import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { cn } from "@/lib/utils";
 
 interface Source {
@@ -152,6 +152,7 @@ export default function MainsAnswerPage() {
                                     <ReactMarkdown
                                         remarkPlugins={[remarkGfm]}
                                         components={markdownComponents}
+                                        urlTransform={urlTransform}
                                     >
                                         {result.answer}
                                     </ReactMarkdown>
