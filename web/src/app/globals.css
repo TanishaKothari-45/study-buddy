@@ -72,6 +72,16 @@ body {
   color: hsl(var(--text));
 }
 
+/* Ensure dropdowns and popovers have solid backgrounds */
+[data-radix-popper-content-wrapper] {
+  --tw-bg-opacity: 1 !important;
+}
+
+[role="listbox"],
+[data-radix-select-content] {
+  background-color: hsl(var(--card)) !important;
+}
+
 /* Answer Content Styling */
 h3 {
   font-weight: 700;
