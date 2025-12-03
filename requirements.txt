@@ -3,6 +3,9 @@ python-dotenv
 fastapi
 uvicorn[standard]
 pydantic
+python-jose[cryptography]
+passlib[bcrypt]
+google-generativeai
 langchain
 langchain-community
 langchain-core

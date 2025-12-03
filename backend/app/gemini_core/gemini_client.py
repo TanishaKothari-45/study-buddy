@@ -2,7 +2,7 @@ import asyncio
 import time
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
-from google import genai
+import google.generativeai as genai
 
 
 class GeminiClient:
@@ -25,7 +25,7 @@ class GeminiClient:
         """
         self.api_key = api_key
         self.model_name = model_name
-        self.client = genai.Client(api_key=api_key)
+        genai.configure(api_key=api_key)
     
     async def generate_response(
         self,
@@ -56,7 +56,7 @@ class GeminiClient:
         Returns:
             Response text (JSON string if response_schema provided, otherwise plain text)
         """
-        uploaded_file = None
+        uploaded_files = []
         retry_count = 0
         
         try:
@@ -64,37 +64,61 @@ class GeminiClient:
             if system_prompt is None:
                 system_prompt = self.DEFAULT_SYSTEM_PROMPT
             
-            # Upload files if needed (PDF or images) - supports multiple files
-            uploaded_files = []
+            # Upload files if needed (PDF or images)
             if pdf_path:
-                # Handle single or multiple PDFs
                 pdf_paths = [pdf_path] if isinstance(pdf_path, str) else pdf_path
                 for path in pdf_paths:
                     uploaded_file = await self._upload_file_async(path, "application/pdf")
                     uploaded_files.append(uploaded_file)
             elif image_path:
-                # Handle single or multiple images
                 image_paths = [image_path] if isinstance(image_path, str) else image_path
                 for path in image_paths:
                     mime_type = self._get_image_mime_type(path)
                     uploaded_file = await self._upload_file_async(path, mime_type)
                     uploaded_files.append(uploaded_file)
             
-            # Build content parts (now supports multiple files)
-            content_parts = self._build_content_parts(
-                user_prompt, text_input, uploaded_files
-            )
+            # Prepare contents
+            contents = []
             
-            # Build config
-            config = self._build_config(
-                response_schema, temperature, cached_content_name
+            # Add text parts
+            prompt_text = user_prompt
+            if text_input:
+                prompt_text = f"{user_prompt}\n\nContext:\n{text_input}"
+            
+            parts = [prompt_text]
+            
+            # Add file parts
+            for uploaded_file in uploaded_files:
+                parts.append(uploaded_file['file_obj'])
+            
+            contents.append({"role": "user", "parts": parts})
+            
+            # Configure generation config
+            generation_config = {
+                "temperature": temperature
+            }
+            
+            if response_schema:
+                generation_config["response_mime_type"] = "application/json"
+                generation_config["response_schema"] = response_schema
+            
+            # Initialize model
+            model = genai.GenerativeModel(
+                model_name=self.model_name,
+                system_instruction=system_prompt
             )
             
             # Make request with retry logic
             while retry_count < max_retries:
                 try:
-                    response = await self._make_request_async(
-                        system_prompt, content_parts, config, cached_content_name
+                    # Run in executor to avoid blocking
+                    loop = asyncio.get_event_loop()
+                    response = await loop.run_in_executor(
+                        None,
+                        lambda: model.generate_content(
+                            contents,
+                            generation_config=generation_config
+                        )
                     )
                     
                     if response and response.text:
@@ -105,7 +129,7 @@ class GeminiClient:
                 except Exception as e:
                     retry_count += 1
                     if retry_count < max_retries:
-                        wait_time = 2 ** retry_count  # Exponential backoff
+                        wait_time = 2 ** retry_count
                         print(f"Error: {e}. Retrying ({retry_count}/{max_retries}) after {wait_time}s...")
                         await asyncio.sleep(wait_time)
                     else:
@@ -115,7 +139,7 @@ class GeminiClient:
             raise Exception("Maximum retries reached without success")
             
         finally:
-            # Clean up uploaded files (now handles multiple)
+            # Clean up uploaded files
             if uploaded_files:
                 for file in uploaded_files:
                     await self._delete_file_async(file['name'])
@@ -130,21 +154,12 @@ class GeminiClient:
         Returns:
             Chat session object
         """
-        # Import GenerativeModel from google.generativeai
-        import google.generativeai as genai_sdk
-        
-        # Configure with API key
-        genai_sdk.configure(api_key=self.api_key)
-        
-        # Create model with system instruction
-        model = genai_sdk.GenerativeModel(
+        genai.configure(api_key=self.api_key)
+        model = genai.GenerativeModel(
             model_name=self.model_name,
             system_instruction=system_instruction
         )
-        
-        # Start chat session
-        chat = model.start_chat(history=[])
-        return chat
+        return model.start_chat(history=[])
     
     def send_chat_message(self, chat, message: str) -> str:
         """
@@ -159,7 +174,6 @@ class GeminiClient:
         """
         response = chat.send_message(message)
         return response.text
-
     
     async def _upload_file_async(self, file_path: str, mime_type: str) -> Dict[str, Any]:
         """
@@ -175,16 +189,22 @@ class GeminiClient:
         loop = asyncio.get_event_loop()
         file_obj = await loop.run_in_executor(
             None, 
-            lambda: self.client.files.upload(file=file_path)
+            lambda: genai.upload_file(path=file_path, mime_type=mime_type)
         )
         
-        # Wait a moment for file processing
-        await asyncio.sleep(1)
-        
+        # Wait for processing
+        while file_obj.state.name == "PROCESSING":
+            await asyncio.sleep(1)
+            file_obj = await loop.run_in_executor(
+                None,
+                lambda: genai.get_file(file_obj.name)
+            )
+            
         return {
             'name': file_obj.name,
             'uri': file_obj.uri,
-            'mime_type': mime_type
+            'mime_type': mime_type,
+            'file_obj': file_obj
         }
     
     async def _delete_file_async(self, file_name: str):
@@ -198,142 +218,11 @@ class GeminiClient:
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(
                 None,
-                lambda: self.client.files.delete(name=file_name)
+                lambda: genai.delete_file(file_name)
             )
         except Exception:
-            # Silently ignore deletion errors
             pass
-    
-    def _build_content_parts(
-        self, 
-        user_prompt: str, 
-        text_input: Optional[str], 
-        uploaded_files: List[Dict]
-    ) -> List[Dict[str, Any]]:
-        """
-        Build content parts for the API request.
-        
-        Args:
-            user_prompt: User's prompt
-            text_input: Optional text context
-            uploaded_files: List of uploaded file info (can be empty list)
             
-        Returns:
-            List of content parts
-        """
-        parts = []
-        
-        # Add user prompt
-        prompt_text = user_prompt
-        
-        # Add text input if provided
-        if text_input:
-            prompt_text = f"{user_prompt}\n\nContext:\n{text_input}"
-        
-        parts.append({"text": prompt_text})
-        
-        # Add all uploaded files
-        for uploaded_file in uploaded_files:
-            parts.append({
-                "file_data": {
-                    "mime_type": uploaded_file['mime_type'],
-                    "file_uri": uploaded_file['uri']
-                }
-            })
-        
-        return parts
-    
-    def _build_config(
-        self,
-        response_schema: Optional[BaseModel],
-        temperature: float,
-        cached_content_name: Optional[str]
-    ) -> Dict[str, Any]:
-        """
-        Build configuration for the API request.
-        
-        Args:
-            response_schema: Optional Pydantic schema for structured output
-            temperature: Temperature parameter
-            cached_content_name: Optional cache name
-            
-        Returns:
-            Configuration dict
-        """
-        config = {
-            "temperature": temperature
-        }
-        
-        # Add structured output config if schema provided
-        if response_schema:
-            config["response_mime_type"] = "application/json"
-            config["response_schema"] = response_schema
-        
-        # Add cache if provided
-        if cached_content_name:
-            config["cached_content"] = cached_content_name
-        
-        return config
-    
-    async def _make_request_async(
-        self,
-        system_prompt: str,
-        content_parts: List[Dict[str, Any]],
-        config: Dict[str, Any],
-        cached_content_name: Optional[str]
-    ):
-        """
-        Make async request to Gemini API.
-        
-        Args:
-            system_prompt: System prompt
-            content_parts: Content parts for the request
-            config: Configuration dict
-            cached_content_name: Optional cache name
-            
-        Returns:
-            API response
-        """
-        loop = asyncio.get_event_loop()
-        
-        # Build contents based on whether we're using cache
-        if cached_content_name:
-            # With cache, only send user message
-            contents = [
-                {
-                    "role": "user",
-                    "parts": content_parts
-                }
-            ]
-        else:
-            # Without cache, include system prompt in messages
-            contents = [
-                {
-                    "role": "user",
-                    "parts": [{"text": system_prompt}]
-                },
-                {
-                    "role": "model",
-                    "parts": [{"text": "Understood. I'm ready to help."}]
-                },
-                {
-                    "role": "user",
-                    "parts": content_parts
-                }
-            ]
-        
-        # Make request in executor to avoid blocking
-        response = await loop.run_in_executor(
-            None,
-            lambda: self.client.models.generate_content(
-                model=self.model_name,
-                contents=contents,
-                config=config
-            )
-        )
-        
-        return response
-    
     def _get_image_mime_type(self, file_path: str) -> str:
         """
         Get MIME type for image file based on extension.
