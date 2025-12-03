@@ -11,37 +11,25 @@ import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { cn } from "@/lib/utils";
 import { TypewriterEffect } from "@/components/ui/typewriter-effect";
+import { useChatStore } from "@/stores";
 
-interface Source {
-    filename: string;
-    chapter?: string;
-    section?: string;
-    page_number?: number;
-    content_source?: string;
-}
-
-interface Message {
-    id: string;
-    role: "user" | "assistant";
-    content: string;
-    sources?: Source[];
-    timestamp: Date;
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 export default function ChatPage() {
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: "welcome",
-            role: "assistant",
-            content: "Hello! I'm your Geography Study Buddy. Ask me anything about your study materials, and I'll explain it simply with examples.",
-            timestamp: new Date(),
-        },
-    ]);
+    // Persisted state from store
+    const {
+        messages,
+        sessionId,
+        addMessage,
+        appendToMessageContent,
+        setMessageSources,
+        updateMessageContent,
+        startNewChat
+    } = useChatStore();
+
+    // Local UI state
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
-    const [sessionId, setSessionId] = useState<string>(() =>
-        `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
-    );
     const [mounted, setMounted] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -57,8 +45,6 @@ export default function ChatPage() {
     // NOT when streaming chunks arrive (to prevent jittery scrolling)
     useEffect(() => {
         if (messages.length > 0) {
-            const lastMessage = messages[messages.length - 1];
-            // Scroll on any new message (user or bot placeholder)
             scrollToBottom();
         }
     }, [messages.length]); // Only trigger when message count changes, not content updates
@@ -67,31 +53,29 @@ export default function ChatPage() {
         e?.preventDefault();
         if (!input.trim() || loading) return;
 
-        const userMessage: Message = {
+        const userMessage = {
             id: Date.now().toString(),
-            role: "user",
+            role: "user" as const,
             content: input.trim(),
-            timestamp: new Date(),
+            timestamp: new Date().toISOString(),
         };
 
-        setMessages((prev) => [...prev, userMessage]);
+        addMessage(userMessage);
         setInput("");
         setLoading(true);
 
         // Create placeholder for streaming response
         const botMessageId = (Date.now() + 1).toString();
-        const botMessage: Message = {
+        const botMessage = {
             id: botMessageId,
-            role: "assistant",
+            role: "assistant" as const,
             content: "",
             sources: [],
-            timestamp: new Date(),
+            timestamp: new Date().toISOString(),
         };
-        setMessages((prev) => [...prev, botMessage]);
+        addMessage(botMessage);
 
         try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
-
             // Use streaming endpoint
             const res = await fetch(`${API_URL}/query/stream`, {
                 method: "POST",
@@ -130,79 +114,38 @@ export default function ChatPage() {
                     if (line.startsWith("data: ")) {
                         try {
                             const data = JSON.parse(line.slice(6));
-                            console.log("Received chunk:", data); // Debug
 
                             if (data.type === "sources") {
-                                // Update sources
-                                setMessages((prev) =>
-                                    prev.map((msg) =>
-                                        msg.id === botMessageId
-                                            ? { ...msg, sources: data.sources }
-                                            : msg
-                                    )
-                                );
+                                setMessageSources(botMessageId, data.sources);
                             } else if (data.type === "content") {
-                                // Append content chunk - force immediate update with flushSync
+                                // Append content chunk
                                 flushSync(() => {
-                                    setMessages((prev) =>
-                                        prev.map((msg) =>
-                                            msg.id === botMessageId
-                                                ? { ...msg, content: msg.content + data.content }
-                                                : msg
-                                        )
-                                    );
+                                    appendToMessageContent(botMessageId, data.content);
                                 });
                             } else if (data.type === "done") {
-                                console.log("Stream complete");
                                 break;
                             } else if (data.type === "error") {
                                 throw new Error(data.error);
                             }
                         } catch (e) {
-                            console.error("Parse error:", e, "Line:", line);
+                            console.error("Parse error:", e);
                         }
                     }
                 }
             }
         } catch (error) {
             console.error("Chat error:", error);
-            setMessages((prev) =>
-                prev.map((msg) =>
-                    msg.id === botMessageId
-                        ? {
-                            ...msg,
-                            content:
-                                "Sorry, I encountered an error while processing your request. Please try again.",
-                        }
-                        : msg
-                )
-            );
+            updateMessageContent(botMessageId, "Sorry, I encountered an error while processing your request. Please try again.");
         } finally {
             setLoading(false);
         }
-    };
-
-    const startNewChat = () => {
-        // Generate new session ID
-        const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-        setSessionId(newSessionId);
-
-        // Clear messages
-        setMessages([
-            {
-                id: "welcome",
-                role: "assistant",
-                content: "New chat started! How can I help you now?",
-                timestamp: new Date(),
-            },
-        ]);
     };
 
     return (
         <div className="flex flex-col h-[calc(100vh-2rem)] max-w-5xl mx-auto p-4 md:p-6">
             <div className="flex items-center justify-between mb-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Study Buddy Chat</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Study Buddy Chat</h1>
                     <p className="text-sm text-muted-foreground">Ask questions from your uploaded materials</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={startNewChat} className="text-gray-500 hover:text-violet-600">
@@ -211,8 +154,8 @@ export default function ChatPage() {
                 </Button>
             </div>
 
-            <Card className="flex-1 flex flex-col overflow-hidden border-gray-200 shadow-sm bg-white">
-                <CardContent className="flex-1 overflow-y-auto p-4 space-y-6 bg-gray-50/50">
+            <Card className="flex-1 flex flex-col overflow-hidden border-gray-200 shadow-sm bg-white dark:bg-card">
+                <CardContent className="flex-1 overflow-y-auto p-4 space-y-6 bg-gray-50/50 dark:bg-background/50">
                     {messages.map((message, index) => (
                         <div
                             key={message.id}
@@ -306,7 +249,7 @@ export default function ChatPage() {
 
                                     {mounted && (
                                         <span className="text-[10px] text-gray-400 px-1">
-                                            {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </span>
                                     )}
                                 </div>

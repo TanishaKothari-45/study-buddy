@@ -2,45 +2,37 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, PenTool, BookOpen, FileText, CheckCircle } from "lucide-react";
+import { Loader2, PenTool, BookOpen, FileText, CheckCircle, AlertCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
-import { cn } from "@/lib/utils";
+import { useMainsAnswerStore } from "@/stores";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-interface Source {
-    filename: string;
-    chapter?: string;
-    section?: string;
-    page_number?: number;
-}
-
-interface MainsAnswerResponse {
-    question: string;
-    answer: string;
-    sources: Source[];
-    word_count_actual: number;
-}
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 export default function MainsAnswerPage() {
-    const [loading, setLoading] = useState(false);
+    // Local state for form inputs and UI
     const [question, setQuestion] = useState("");
     const [wordCount, setWordCount] = useState("250");
-    const [result, setResult] = useState<MainsAnswerResponse | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    
+    // Persisted result from store
+    const { result, setResult } = useMainsAnswerStore();
 
     const handleGenerate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!question.trim()) return;
-
+        
         setLoading(true);
-        setResult(null);
-
+        setError(null);
+        
         try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
             const res = await fetch(`${API_URL}/mains-answer/generate`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -49,13 +41,17 @@ export default function MainsAnswerPage() {
                     word_count: parseInt(wordCount)
                 }),
             });
-
-            if (!res.ok) throw new Error("Failed to generate answer");
+            
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.detail || "Failed to generate answer");
+            }
+            
             const data = await res.json();
-            setResult(data);
-        } catch (error) {
-            console.error("Failed to generate answer:", error);
-            alert("Failed to generate answer. Please try again.");
+            setResult(data); // Save to store - persists across tab switches
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to generate answer";
+            setError(message);
         } finally {
             setLoading(false);
         }
@@ -64,7 +60,7 @@ export default function MainsAnswerPage() {
     return (
         <div className="p-8 max-w-5xl mx-auto space-y-8">
             <div className="flex flex-col space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
                     Mains Answer Generation
                 </h1>
                 <p className="text-muted-foreground">
@@ -124,6 +120,14 @@ export default function MainsAnswerPage() {
                         </form>
                     </CardContent>
                 </Card>
+
+                {/* Error Alert */}
+                {error && (
+                    <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                )}
 
                 {/* Output Section */}
                 {result && (

@@ -13,6 +13,7 @@ import ReactMarkdown from "react-markdown";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useMockTestStore } from "@/stores";
 
 // UPSC Geography Taxonomy (Mirrors backend/app/utils/metadata_enricher.py)
 const GEOGRAPHY_DOMAINS: Record<string, string[]> = {
@@ -51,50 +52,49 @@ const GEOGRAPHY_DOMAINS: Record<string, string[]> = {
     ]
 };
 
-interface MockTestQuestion {
-    question: string;
-    options: string[];
-    correct_answer: string;
-    explanation: string;
-    source: {
-        filename: string;
-        chapter?: string;
-        section?: string;
-    };
-}
+type JobStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'failed';
 
-interface MockTestResponse {
-    questions: MockTestQuestion[];
-    total_marks: number;
-    time_allowed: string;
-    instructions: string[];
-}
-
-type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 export default function MockTestPage() {
+    // Persisted state from store
+    const store = useMockTestStore();
+    const { 
+        testData, userAnswers, submitted, score,
+        jobId, jobStatus,
+        setTestData, updateUserAnswer, setJobId, setJobStatus,
+        submitTest: storeSubmitTest, resetTest
+    } = store;
+    
+    // Local UI state
     const [loading, setLoading] = useState(false);
-    const [testData, setTestData] = useState<MockTestResponse | null>(null);
-    const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
-    const [submitted, setSubmitted] = useState(false);
-    const [score, setScore] = useState(0);
+    const [progress, setProgress] = useState(0);
+    const [statusMessage, setStatusMessage] = useState("");
+    const [error, setError] = useState<string | null>(null);
 
-    // Configuration State
+    // Configuration State (local - doesn't need persistence)
     const [numQuestions, setNumQuestions] = useState("5");
     const [difficulty, setDifficulty] = useState("medium");
-
-    // Topic Selection State
     const [selectedDomain, setSelectedDomain] = useState<string>("");
     const [selectedSubDomain, setSelectedSubDomain] = useState<string>("");
     const [customTopic, setCustomTopic] = useState("");
 
-    // Async Job State
-    const [jobId, setJobId] = useState<string | null>(null);
-    const [jobStatus, setJobStatus] = useState<JobStatus>('pending');
-    const [progress, setProgress] = useState(0);
-    const [statusMessage, setStatusMessage] = useState("");
-    const [error, setError] = useState<string | null>(null);
     const pollingInterval = useRef<NodeJS.Timeout | null>(null);
+
+    // Resume polling if there's an in-progress job when component mounts
+    useEffect(() => {
+        if (jobId && (jobStatus === 'pending' || jobStatus === 'processing')) {
+            setLoading(true);
+            setStatusMessage("Resuming generation...");
+            startPolling(jobId);
+        }
+        
+        return () => {
+            if (pollingInterval.current) {
+                clearInterval(pollingInterval.current);
+            }
+        };
+    }, []); // Only on mount
 
     // Cleanup polling on unmount
     useEffect(() => {
@@ -107,12 +107,7 @@ export default function MockTestPage() {
 
     const generateTest = async () => {
         setLoading(true);
-        setTestData(null);
-        setUserAnswers({});
-        setSubmitted(false);
-        setScore(0);
-        setJobId(null);
-        setJobStatus('pending');
+        resetTest(); // Clear store state
         setProgress(0);
         setStatusMessage("Initializing...");
         setError(null);
@@ -130,8 +125,6 @@ export default function MockTestPage() {
         }
 
         try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
-
             // Start async job
             const res = await fetch(`${API_URL}/mock-test/generate-async`, {
                 method: "POST",
@@ -149,24 +142,23 @@ export default function MockTestPage() {
             }
 
             const data = await res.json();
-            setJobId(data.job_id);
+            setJobId(data.job_id); // Save to store for persistence
             setJobStatus('processing');
             setStatusMessage("Starting generation...");
 
             // Start polling
             startPolling(data.job_id);
 
-        } catch (error: any) {
-            console.error("Failed to start test generation:", error);
-            setError(error.message || "Failed to start mock test generation. Please try again.");
+        } catch (err) {
+            console.error("Failed to start test generation:", err);
+            const message = err instanceof Error ? err.message : "Failed to start mock test generation";
+            setError(message);
             setLoading(false);
         }
     };
 
     const startPolling = (currentJobId: string) => {
         if (pollingInterval.current) clearInterval(pollingInterval.current);
-
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
         pollingInterval.current = setInterval(async () => {
             try {
@@ -234,37 +226,11 @@ export default function MockTestPage() {
     };
 
     const handleAnswerSelect = (questionIndex: number, option: string) => {
-        if (submitted) return;
-        setUserAnswers(prev => ({
-            ...prev,
-            [questionIndex]: option
-        }));
+        updateUserAnswer(questionIndex, option); // Use store method
     };
 
     const submitTest = () => {
-        if (!testData) return;
-
-        let correctCount = 0;
-        testData.questions.forEach((q, idx) => {
-            if (userAnswers[idx] === q.correct_answer) {
-                correctCount++;
-            }
-        });
-
-        // Calculate score: +2 for correct, -0.66 for wrong
-        let calculatedScore = 0;
-        testData.questions.forEach((q, idx) => {
-            if (userAnswers[idx]) {
-                if (userAnswers[idx] === q.correct_answer) {
-                    calculatedScore += 2;
-                } else {
-                    calculatedScore -= 0.66;
-                }
-            }
-        });
-
-        setScore(parseFloat(calculatedScore.toFixed(2)));
-        setSubmitted(true);
+        storeSubmitTest(); // Use store method
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -544,7 +510,7 @@ export default function MockTestPage() {
                     </div>
 
                     <div className="flex justify-between items-center pt-6 pb-12">
-                        <Button variant="outline" onClick={() => setTestData(null)}>
+                        <Button variant="outline" onClick={resetTest}>
                             <RefreshCw className="mr-2 h-4 w-4" />
                             Generate New Test
                         </Button>
