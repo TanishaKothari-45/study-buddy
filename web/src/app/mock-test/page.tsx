@@ -59,18 +59,19 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 export default function MockTestPage() {
     // Persisted state from store
     const store = useMockTestStore();
-    const { 
+    const {
         testData, userAnswers, submitted, score,
         jobId, jobStatus,
         setTestData, updateUserAnswer, setJobId, setJobStatus,
         submitTest: storeSubmitTest, resetTest
     } = store;
-    
+
     // Local UI state
     const [loading, setLoading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [statusMessage, setStatusMessage] = useState("");
     const [error, setError] = useState<string | null>(null);
+    const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
 
     // Configuration State (local - doesn't need persistence)
     const [numQuestions, setNumQuestions] = useState("5");
@@ -88,7 +89,7 @@ export default function MockTestPage() {
             setStatusMessage("Resuming generation...");
             startPolling(jobId);
         }
-        
+
         return () => {
             if (pollingInterval.current) {
                 clearInterval(pollingInterval.current);
@@ -144,7 +145,14 @@ export default function MockTestPage() {
             const data = await res.json();
             setJobId(data.job_id); // Save to store for persistence
             setJobStatus('processing');
-            setStatusMessage("Starting generation...");
+
+            // Set initial estimated time
+            if (data.estimated_time_seconds) {
+                setEstimatedTimeRemaining(data.estimated_time_seconds);
+                setStatusMessage(`Starting generation... (~${data.estimated_time_seconds}s remaining)`);
+            } else {
+                setStatusMessage("Starting generation...");
+            }
 
             // Start polling
             startPolling(data.job_id);
@@ -170,6 +178,12 @@ export default function MockTestPage() {
                 // Update progress
                 const progressPct = Math.round((jobData.progress || 0) * 100);
                 setProgress(progressPct);
+
+                // Update estimated time countdown
+                setEstimatedTimeRemaining(prev => {
+                    if (prev === null || prev <= 0) return 0;
+                    return Math.max(0, prev - 2); // Decrease by 2s every poll
+                });
 
                 if (jobData.status === 'completed') {
                     if (pollingInterval.current) clearInterval(pollingInterval.current);
@@ -206,21 +220,30 @@ export default function MockTestPage() {
                     setJobStatus('completed');
                     setLoading(false);
                     setStatusMessage("Generation complete!");
+                    setEstimatedTimeRemaining(null);
 
                 } else if (jobData.status === 'failed') {
                     if (pollingInterval.current) clearInterval(pollingInterval.current);
                     setJobStatus('failed');
                     setError(jobData.error || "Generation failed");
                     setLoading(false);
+                    setEstimatedTimeRemaining(null);
                 } else {
                     // Still processing
                     setJobStatus('processing');
-                    setStatusMessage(`Generating questions... (${jobData.questions_generated}/${jobData.questions_target})`);
+
+                    // Update status message with countdown
+                    setEstimatedTimeRemaining(prev => {
+                        const timeLeft = prev !== null ? prev : 0;
+                        const timeMsg = timeLeft > 0 ? `(~${timeLeft}s remaining)` : "(finishing up...)";
+                        setStatusMessage(`Generating questions... ${timeMsg}`);
+                        return prev; // Return same value, update happens in the other setter
+                    });
                 }
 
             } catch (err) {
                 console.error("Polling error:", err);
-                // Don't stop polling on transient network errors, but maybe count them?
+                // Don't stop polling on transient network errors
             }
         }, 2000); // Poll every 2 seconds
     };
@@ -461,9 +484,11 @@ export default function MockTestPage() {
 
                                             if (submitted) {
                                                 if (optionLabel === q.correct_answer) {
-                                                    optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-green-200 bg-green-50 text-green-900 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300";
+                                                    // Correct answer: Light green background, dark green text
+                                                    optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-green-100 bg-green-20 text-green-800 dark:bg-green-600/20 dark:border-green-800 dark:text-green-600";
                                                 } else if (userAnswers[qIdx] === optionLabel) {
-                                                    optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-red-200 bg-red-50 text-red-900 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300";
+                                                    // Wrong answer: Light red background, dark red text
+                                                    optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-red-100 bg-red-20 text-red-800 dark:bg-red-600/20 dark:border-red-800 dark:text-red-500";
                                                 }
                                             } else if (userAnswers[qIdx] === optionLabel) {
                                                 optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-primary/20 bg-primary/5";
@@ -475,11 +500,11 @@ export default function MockTestPage() {
                                                     <div className={cn(
                                                         "w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-medium transition-all",
                                                         submitted && optionLabel === q.correct_answer ? "bg-green-600 border-green-600 text-white" :
-                                                            submitted && userAnswers[qIdx] === optionLabel ? "bg-red-600 border-red-600 text-white" :
+                                                            submitted && userAnswers[qIdx] === optionLabel ? "bg-red-400 border-red-400 text-white" :
                                                                 userAnswers[qIdx] === optionLabel ? "bg-accent border-accent text-white" : "border-border text-muted-foreground"
                                                     )}>
                                                         {userAnswers[qIdx] === optionLabel && !submitted && <div className="w-3 h-3 rounded-full bg-white" />}
-                                                        {!userAnswers[qIdx] || userAnswers[qIdx] !== optionLabel ? optionLabel : ""}
+                                                        {submitted || userAnswers[qIdx] !== optionLabel ? optionLabel : ""}
                                                     </div>
                                                     <Label htmlFor={`q${qIdx}-opt${optIdx}`} className="flex-1 cursor-pointer font-normal">
                                                         {option}
@@ -520,8 +545,62 @@ export default function MockTestPage() {
                             </Button>
                         )}
                     </div>
+
+                    {/* Score Summary Card (Bottom) */}
+                    {submitted && (
+                        <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 pb-12">
+                            <Card className="overflow-hidden border-2 border-primary/10 shadow-lg">
+                                <div className="bg-primary/5 p-6 border-b border-primary/10">
+                                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                                        <div>
+                                            <h3 className="text-2xl font-bold text-primary">Performance Summary</h3>
+                                            <p className="text-muted-foreground">Here's how you performed on this test</p>
+                                        </div>
+                                        <div className="flex items-center gap-4 bg-background p-4 rounded-xl border shadow-sm">
+                                            <div className="text-right">
+                                                <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider">Total Score</div>
+                                                <div className={cn("text-3xl font-black", score >= 0 ? "text-green-600" : "text-red-600")}>
+                                                    {score.toFixed(2)}
+                                                    <span className="text-lg text-muted-foreground font-medium ml-1">/ {testData.total_marks}</span>
+                                                </div>
+                                            </div>
+                                            <div className={cn("h-12 w-12 rounded-full flex items-center justify-center text-xl font-bold",
+                                                score >= (testData.total_marks * 0.4) ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                                            )}>
+                                                {Math.round((score / testData.total_marks) * 100)}%
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <CardContent className="p-6">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className="p-4 rounded-lg bg-muted/50 border flex flex-col items-center justify-center text-center space-y-1">
+                                            <div className="text-3xl font-bold">{testData.questions.length}</div>
+                                            <div className="text-xs text-muted-foreground uppercase font-medium">Total Questions</div>
+                                        </div>
+                                        <div className="p-4 rounded-lg bg-blue-50 border border-blue-100 dark:bg-blue-900/20 dark:border-blue-800 flex flex-col items-center justify-center text-center space-y-1">
+                                            <div className="text-3xl font-bold text-blue-700 dark:text-blue-400">{Object.keys(userAnswers).length}</div>
+                                            <div className="text-xs text-blue-600/80 dark:text-blue-400/80 uppercase font-medium">Attempted</div>
+                                        </div>
+                                        <div className="p-4 rounded-lg bg-green-50 border border-green-100 dark:bg-green-900/20 dark:border-green-800 flex flex-col items-center justify-center text-center space-y-1">
+                                            <div className="text-3xl font-bold text-green-700 dark:text-green-400">
+                                                {testData.questions.filter((q, i) => userAnswers[i] === q.correct_answer).length}
+                                            </div>
+                                            <div className="text-xs text-green-600/80 dark:text-green-400/80 uppercase font-medium">Correct</div>
+                                        </div>
+                                        <div className="p-4 rounded-lg bg-red-50 border border-red-100 dark:bg-red-900/20 dark:border-red-800 flex flex-col items-center justify-center text-center space-y-1">
+                                            <div className="text-3xl font-bold text-red-700 dark:text-red-400">
+                                                {Object.keys(userAnswers).length - testData.questions.filter((q, i) => userAnswers[i] === q.correct_answer).length}
+                                            </div>
+                                            <div className="text-xs text-red-600/80 dark:text-red-400/80 uppercase font-medium">Wrong</div>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
-    );
+    )
 }
