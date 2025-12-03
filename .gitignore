@@ -40,6 +40,7 @@ models/
 embeddings/
 .env
 *.log
+logs/
 
 # Map service
 map-service/node_modules/

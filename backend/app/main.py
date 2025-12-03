@@ -51,6 +51,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Setup centralized error handling
+from .middleware import setup_exception_handlers
+setup_exception_handlers(app)
+
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
@@ -67,7 +71,6 @@ app.include_router(query.router, prefix="/query", tags=["Query"])
 app.include_router(mock_test.router, prefix="/mock-test", tags=["Mock Test"])
 app.include_router(mains_answer.router, prefix="/mains-answer", tags=["Mains Answer"])
 app.include_router(evaluate_answer.router, prefix="/evaluate-answer", tags=["Answer Evaluation"])
-app.include_router(training_data.router, prefix="/training-data", tags=["Training Data"])
 app.include_router(training_data.router, prefix="/training-data", tags=["Training Data"])
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
