@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { AuthProvider } from "@/context/AuthContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { NavigationProgress } from "@/components/layout/NavigationProgress";
 
 export function ClientWrapper({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -12,6 +13,7 @@ export function ClientWrapper({ children }: { children: React.ReactNode }) {
 
     return (
         <AuthProvider>
+            <NavigationProgress />
             {isAuthPage ? (
                 children
             ) : (
