@@ -8,7 +8,7 @@ import { Header } from "@/components/layout/Header";
 
 export function ClientWrapper({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
-    const isAuthPage = pathname === "/login" || pathname === "/signup";
+    const isAuthPage = pathname === "/login" || pathname === "/signup" || pathname === "/forgot-password";
 
     return (
         <AuthProvider>
