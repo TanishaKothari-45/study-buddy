@@ -1212,6 +1212,12 @@ async def generate_micro_batches(
                     batches_completed=batch_num,
                     questions_generated=len(all_questions) + len(questions)
                 )
+                job_store.update_job(
+                    job_id,
+                    batches_completed=job.batches_completed,
+                    questions_generated=job.questions_generated,
+                    progress=job.progress
+                )
             
             return questions
     
@@ -1294,6 +1300,56 @@ async def fill_gaps_targeted(
     return gap_questions
 
 
+
+
+async def _run_pipeline_with_error_handling(
+    job_id: str,
+    num_questions: int,
+    topics: List[str],
+    difficulty: str,
+    pinecone_handler,
+    embedder,
+    api_key: str
+):
+    """
+    Wrapper for generate_async_pipeline that catches and logs ALL exceptions
+    """
+    job_store = get_job_store()
+    
+    try:
+        logger.info(f"🎬 [JOB {job_id[:8]}] Background task started")
+        
+        await generate_async_pipeline(
+            job_id=job_id,
+            num_questions=num_questions,
+            topics=topics,
+            difficulty=difficulty,
+            pinecone_handler=pinecone_handler,
+            embedder=embedder,
+            api_key=api_key
+        )
+        
+        logger.info(f"🎬 [JOB {job_id[:8]}] Background task completed successfully")
+        
+    except Exception as e:
+        logger.error(f"💥 [JOB {job_id[:8]}] FATAL ERROR in background task: {type(e).__name__}: {str(e)}", exc_info=True)
+        
+        # Mark job as failed in database
+        try:
+            job = job_store.get_job(job_id)
+            if job:
+                job.mark_failed(f"{type(e).__name__}: {str(e)}")
+                job_store.update_job(
+                    job_id,
+                    status=job.status,
+                    error=job.error,
+                    completed_at=job.completed_at
+                )
+                logger.info(f"📝 [JOB {job_id[:8]}] Marked job as failed in database")
+        except Exception as update_error:
+            logger.error(f"💥 Failed to update job status: {update_error}")
+
+
 async def generate_async_pipeline(
     job_id: str,
     num_questions: int,
@@ -1314,17 +1370,28 @@ async def generate_async_pipeline(
         return
     
     try:
+        logger.info(f"🚀 [JOB {job_id[:8]}] Starting async pipeline")
+        
+        # Mark as started
+        logger.info(f"📝 [JOB {job_id[:8]}] Calling job.mark_started()...")
         job.mark_started()
-        logger.info(f"🚀 Starting async pipeline for job {job_id}")
+        logger.info(f"📝 [JOB {job_id[:8]}] Calling job_store.update_job()...")
+        job_store.update_job(job_id, status=job.status, started_at=job.started_at, progress=job.progress)
+        logger.info(f"✅ [JOB {job_id[:8]}] Marked as started in database")
         
         # Step 1: Retrieve chunks (scaled)
-        logger.info(f"📚 Step 1: Retrieving content chunks")
-        pyq_chunks, content_chunks = hybrid_retrieve_for_mock_test(
-            pinecone_handler=pinecone_handler,
-            topics=topics,
-            num_questions=num_questions,
-            difficulty=difficulty
-        )
+        logger.info(f"📚 [JOB {job_id[:8]}] Step 1: Retrieving content chunks")
+        try:
+            pyq_chunks, content_chunks = hybrid_retrieve_for_mock_test(
+                pinecone_handler=pinecone_handler,
+                topics=topics,
+                num_questions=num_questions,
+                difficulty=difficulty
+            )
+            logger.info(f"✅ [JOB {job_id[:8]}] Retrieved {len(content_chunks)} content chunks, {len(pyq_chunks)} PYQ chunks")
+        except Exception as e:
+            logger.error(f"💥 [JOB {job_id[:8]}] Retrieval failed: {e}", exc_info=True)
+            raise
         
         all_chunks = content_chunks  # Use content chunks for generation
         
@@ -1332,40 +1399,56 @@ async def generate_async_pipeline(
             raise Exception(f"Insufficient content: only {len(all_chunks)} chunks retrieved")
         
         # Step 2: Generate micro-batches
-        logger.info(f"🔨 Step 2: Generating micro-batches")
-        all_questions = await generate_micro_batches(
-            all_chunks=all_chunks,
-            num_questions=num_questions,
-            difficulty=difficulty,
-            topics=topics,
-            api_key=api_key,
-            job_id=job_id,
-            job_store=job_store
-        )
-        
-        # Step 3: Semantic deduplication
-        logger.info(f"🔍 Step 3: Semantic deduplication")
-        unique_questions = await semantic_deduplicate(
-            questions=all_questions,
-            embedder=embedder,
-            threshold=0.88
-        )
-        
-        # Step 4: Gap-fill if needed
-        if len(unique_questions) < num_questions:
-            logger.info(f"🔧 Step 4: Gap-filling ({len(unique_questions)}/{num_questions})")
-            gap_fill = await fill_gaps_targeted(
-                current_questions=unique_questions,
-                target=num_questions,
+        logger.info(f"🔨 [JOB {job_id[:8]}] Step 2: Generating micro-batches")
+        try:
+            all_questions = await generate_micro_batches(
+                all_chunks=all_chunks,
+                num_questions=num_questions,
                 difficulty=difficulty,
                 topics=topics,
                 api_key=api_key,
                 job_id=job_id,
-                pinecone_handler=pinecone_handler
+                job_store=job_store
             )
-            unique_questions.extend(gap_fill)
+            logger.info(f"✅ [JOB {job_id[:8]}] Generated {len(all_questions)} total questions")
+        except Exception as e:
+            logger.error(f"💥 [JOB {job_id[:8]}] Batch generation failed: {e}", exc_info=True)
+            raise
+        
+        # Step 3: Semantic deduplication
+        logger.info(f"🔍 [JOB {job_id[:8]}] Step 3: Semantic deduplication")
+        try:
+            unique_questions = await semantic_deduplicate(
+                questions=all_questions,
+                embedder=embedder,
+                threshold=0.88
+            )
+            logger.info(f"✅ [JOB {job_id[:8]}] After deduplication: {len(unique_questions)} unique questions")
+        except Exception as e:
+            logger.error(f"💥 [JOB {job_id[:8]}] Deduplication failed: {e}", exc_info=True)
+            raise
+        
+        # Step 4: Gap-fill if needed
+        if len(unique_questions) < num_questions:
+            logger.info(f"🔧 [JOB {job_id[:8]}] Step 4: Gap-filling ({len(unique_questions)}/{num_questions})")
+            try:
+                gap_fill = await fill_gaps_targeted(
+                    current_questions=unique_questions,
+                    target=num_questions,
+                    difficulty=difficulty,
+                    topics=topics,
+                    api_key=api_key,
+                    job_id=job_id,
+                    pinecone_handler=pinecone_handler
+                )
+                unique_questions.extend(gap_fill)
+                logger.info(f"✅ [JOB {job_id[:8]}] After gap-fill: {len(unique_questions)} questions")
+            except Exception as e:
+                logger.error(f"💥 [JOB {job_id[:8]}] Gap-fill failed: {e}", exc_info=True)
+                raise
         
         # Step 5: Final selection and shuffle
+        logger.info(f"🎲 [JOB {job_id[:8]}] Step 5: Final selection and shuffle")
         if len(unique_questions) > num_questions:
             # Simple random selection (Phase 2 will add sophisticated reranking)
             unique_questions = random.sample(unique_questions, num_questions)
@@ -1391,12 +1474,23 @@ async def generate_async_pipeline(
             })
         
         # Mark job as completed
+        logger.info(f"💾 [JOB {job_id[:8]}] Marking job as completed")
         job.mark_completed(final_questions)
-        logger.info(f"✅ Job {job_id} completed: {len(final_questions)} questions")
+        job_store.update_job(
+            job_id, 
+            status=job.status, 
+            progress=job.progress, 
+            questions=job.questions,
+            completed_at=job.completed_at
+        )
+        logger.info(f"✅ [JOB {job_id[:8]}] Job completed: {len(final_questions)} questions")
     
     except Exception as e:
-        logger.error(f"❌ Job {job_id} failed: {e}")
+        logger.error(f"❌ [JOB {job_id[:8]}] Pipeline failed: {type(e).__name__}: {str(e)}", exc_info=True)
         job.mark_failed(str(e))
+        job_store.update_job(job_id, status=job.status, error=job.error, completed_at=job.completed_at)
+        raise
+
 
 
 # ============================================================================
@@ -1406,8 +1500,7 @@ async def generate_async_pipeline(
 @router.post("/generate-async")
 async def generate_async(
     request: Request,
-    test_request: MockTestRequest,
-    background_tasks: BackgroundTasks
+    test_request: MockTestRequest
 ):
     """
     Start async mock test generation (for large tests)
@@ -1436,17 +1529,22 @@ async def generate_async(
         if not api_key:
             raise HTTPException(400, "OpenAI API key not configured")
         
-        # Start background task
-        background_tasks.add_task(
-            generate_async_pipeline,
-            job_id=job_id,
-            num_questions=test_request.num_questions,
-            topics=test_request.topics,
-            difficulty=test_request.difficulty,
-            pinecone_handler=pinecone_handler,
-            embedder=embedder,
-            api_key=api_key
+        # Start background task using asyncio with error handling wrapper
+        # Use ensure_future to get a task reference (prevents garbage collection)
+        task = asyncio.ensure_future(
+            _run_pipeline_with_error_handling(
+                job_id=job_id,
+                num_questions=test_request.num_questions,
+                topics=test_request.topics,
+                difficulty=test_request.difficulty,
+                pinecone_handler=pinecone_handler,
+                embedder=embedder,
+                api_key=api_key
+            )
         )
+        
+        # Log task creation
+        logger.info(f"🎬 Created background task for job {job_id[:8]}, task_id={id(task)}")
         
         # Estimate time
         estimated_seconds = math.ceil(test_request.num_questions / 40) * 60  # ~60s per 40 questions
@@ -1455,7 +1553,7 @@ async def generate_async(
         
         return {
             "job_id": job_id,
-            "status": "processing",
+            "status": "pending",
             "estimated_time_seconds": estimated_seconds,
             "message": f"Generating {test_request.num_questions} questions. Poll /mock-test/status/{job_id} for progress."
         }

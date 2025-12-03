@@ -26,6 +26,11 @@ async def lifespan(app: FastAPI):
     # Initialize memory database
     init_memory_db()
     
+    # Clean up stale jobs (jobs stuck in "processing" from previous server run)
+    from .utils.job_tracker import get_job_store
+    job_store = get_job_store()
+    job_store.cleanup_stale_jobs()
+    
     # Initialize vector store handler (Pinecone or ChromaDB based on config)
     if settings.USE_PINECONE:
         from .utils.pinecone_handler import PineconeHandler

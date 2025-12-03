@@ -217,10 +217,17 @@ class JobStore:
     def update_job(self, job_id: str, **kwargs):
         """Update job attributes"""
         with self._lock:
-            # First get current job to ensure we have valid object
-            job = self.get_job(job_id)
-            if not job:
+            # Query database directly to avoid nested lock (deadlock)
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
+            row = cursor.fetchone()
+            
+            if not row:
+                conn.close()
                 return
+            
+            # Convert row to job object
+            job = self._row_to_job(row)
 
             # Update attributes on the object
             for key, value in kwargs.items():
@@ -228,7 +235,6 @@ class JobStore:
                     setattr(job, key, value)
             
             # Persist changes
-            conn = sqlite3.connect(self.db_path)
             conn.execute("""
                 UPDATE jobs SET
                     status = ?, progress = ?, questions_generated = ?,
@@ -275,6 +281,38 @@ class JobStore:
             if deleted > 0:
                 logger.info(f"🧹 Cleaned up {deleted} old jobs")
             self._last_cleanup = current_time
+    
+    def cleanup_stale_jobs(self):
+        """Mark stale 'processing' and 'pending' jobs as failed (from server restart)"""
+        with self._lock:
+            conn = sqlite3.connect(self.db_path)
+            
+            # Find both 'processing' and 'pending' jobs (both can be stale after restart)
+            cursor = conn.execute("""
+                SELECT job_id, status FROM jobs 
+                WHERE status IN (?, ?)
+            """, (JobStatus.PROCESSING.value, JobStatus.PENDING.value))
+            stale_jobs = cursor.fetchall()
+            
+            if stale_jobs:
+                # Mark all stale jobs as failed
+                conn.execute("""
+                    UPDATE jobs 
+                    SET status = ?, error = ?, completed_at = ?
+                    WHERE status IN (?, ?)
+                """, (
+                    JobStatus.FAILED.value,
+                    "Job interrupted by server restart",
+                    datetime.now().isoformat(),
+                    JobStatus.PROCESSING.value,
+                    JobStatus.PENDING.value
+                ))
+                conn.commit()
+                logger.info(f"🧹 Marked {len(stale_jobs)} stale jobs as failed (server restart)")
+                for job_id, status in stale_jobs:
+                    logger.debug(f"   - {job_id} (was {status})")
+            
+            conn.close()
     
     def get_stats(self) -> Dict[str, Any]:
         """Get job store statistics"""
