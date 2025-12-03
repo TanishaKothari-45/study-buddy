@@ -2,9 +2,12 @@
 Main FastAPI application
 """
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from .core.env import load_env_vars
 
 # Load environment variables at startup
@@ -16,6 +19,9 @@ from .api.v1 import router as api_v1_router
 from .utils.memory_manager import init_memory_db
 
 logger = logging.getLogger(__name__)
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -56,6 +62,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Attach limiter state to app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Setup centralized error handling
 from .middleware import setup_exception_handlers
 setup_exception_handlers(app)
@@ -82,3 +92,10 @@ async def health_check():
         "status": "healthy",
         "message": "Study Buddy AI backend is running"
     }
+
+@app.get("/api/cache/stats")
+async def cache_stats():
+    """Get cache statistics (for monitoring)"""
+    from .utils.cache_manager import get_cache_manager
+    cache = get_cache_manager()
+    return cache.get_cache_stats()

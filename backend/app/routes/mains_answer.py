@@ -34,6 +34,9 @@ from ..utils.context_retriever import retrieve_context_for_question
 from ..utils.question_parser import parse_question_for_search
 from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
 from ..utils.map_proxy import parse_and_generate_maps, check_map_service_health
+from ..utils.cache_manager import get_cache_manager
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 # Import Gemini client
 try:
@@ -44,6 +47,9 @@ except ImportError as e:
     GeminiClient = None
     GEMINI_API_KEY = None
     logger.warning(f"Could not import Gemini client: {e}")
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 # -- Utility small guards and postprocessors --
 def enforce_diagrams(answer: str, required: int = 1) -> str:
@@ -165,121 +171,208 @@ class MainsAnswerResponse(BaseModel):
     word_count_actual: int
 
 @router.post("/generate")
+@limiter.limit("20/hour")  # Rate limit: 20 requests per hour per IP
 async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequest):
     """
     Generate a comprehensive UPSC Mains style answer for Geography questions.
+    Now with Redis caching for answers and news fetches.
     """
     try:
         logger.info(f"🚀 [MAINS] Received request: '{mains_request.question[:100]}...' (word_count={mains_request.word_count})")
         
-        # Check map service health (non-blocking)
-        logger.info("🔍 [MAINS] Checking map service health...")
-        map_service_healthy = await check_map_service_health()
-        if map_service_healthy:
-            logger.info("✅ [MAINS] Map service is available")
-        else:
-            logger.warning("⚠️  [MAINS] Map service is unavailable - maps will not be generated")
+        # Initialize cache manager
+        cache = get_cache_manager()
+        model_version = "gemini-2.5-pro-v1"
         
-        # Get Pinecone handler
-        pinecone_handler = request.app.state.vector_handler
-        
-        # Use FULL question for Pinecone vector search (better semantic matching)
-        logger.info(f"📚 [MAINS] Retrieving context using full question...")
-        context, sources = retrieve_context_for_question(
-            search_query=mains_request.question,  # Full question for Pinecone
-            vector_handler=pinecone_handler,
-            mode="mains",
-            use_content_store=True,
-            k=6
+        # ============================================================
+        # STEP 1: Check answer cache (exact match)
+        # ============================================================
+        cached_answer_data = cache.get_cached_answer(
+            question=mains_request.question,
+            word_count=mains_request.word_count,
+            model_version=model_version
         )
         
-        if not context:
-            logger.warning(f"⚠️ [MAINS] No context retrieved")
+        if cached_answer_data:
+            # Cache HIT - return immediately
+            logger.info("🎯 [CACHE HIT] Returning cached answer")
+            return MainsAnswerResponse(
+                question=cached_answer_data["question"],
+                answer=cached_answer_data["answer"],
+                sources=cached_answer_data["sources"],
+                word_count_actual=len(cached_answer_data["answer"].split())
+            )
+        
+        # Cache MISS - proceed with generation
+        logger.info("⚡ [CACHE MISS] Generating new answer")
+        
+        # Dogpile protection: try to acquire lock
+        cache_key = cache.get_answer_cache_key(mains_request.question, mains_request.word_count, model_version)
+        lock_acquired = cache.acquire_lock(cache_key)
+        
+        if not lock_acquired:
+            # Another request is generating this answer - wait briefly and retry cache
+            logger.info("⏳ [LOCK] Another request is generating this answer, waiting...")
+            import asyncio
+            await asyncio.sleep(2)
+            
+            # Retry cache lookup
+            cached_answer_data = cache.get_cached_answer(
+                question=mains_request.question,
+                word_count=mains_request.word_count,
+                model_version=model_version
+            )
+            
+            if cached_answer_data:
+                logger.info("🎯 [CACHE HIT] Found answer after waiting for lock")
+                return MainsAnswerResponse(
+                    question=cached_answer_data["question"],
+                    answer=cached_answer_data["answer"],
+                    sources=cached_answer_data["sources"],
+                    word_count_actual=len(cached_answer_data["answer"].split())
+                )
+        
+        try:
+            # Check map service health (non-blocking)
+            logger.info("🔍 [MAINS] Checking map service health...")
+            map_service_healthy = await check_map_service_health()
+            if map_service_healthy:
+                logger.info("✅ [MAINS] Map service is available")
+            else:
+                logger.warning("⚠️  [MAINS] Map service is unavailable - maps will not be generated")
+            
+            # Get Pinecone handler
+            pinecone_handler = request.app.state.vector_handler
+            
+            # Use FULL question for Pinecone vector search (better semantic matching)
+            logger.info(f"📚 [MAINS] Retrieving context using full question...")
+            context, sources = retrieve_context_for_question(
+                search_query=mains_request.question,  # Full question for Pinecone
+                vector_handler=pinecone_handler,
+                mode="mains",
+                use_content_store=True,
+                k=6
+            )
+            
+            if not context:
+                logger.warning(f"⚠️ [MAINS] No context retrieved")
+                return MainsAnswerResponse(
+                    question=mains_request.question,
+                    answer="No relevant information found in the uploaded documents for this question.",
+                    sources=[],
+                    word_count_actual=0
+                )
+            
+            logger.info(f"✅ [MAINS] Retrieved context: {len(context)} chars, {len(sources)} sources")
+
+            # ============================================================
+            # STEP 2: Parse question & check news cache
+            # ============================================================
+            parsed_topics = {}
+            current_affairs_bullets = []
+            time_range = "3months"
+            
+            if GeminiClient and GEMINI_API_KEY:
+                logger.info(f"🔍 [MAINS] Parsing question for current affairs search...")
+                try:
+                    gemini_client = GeminiClient(
+                        api_key=GEMINI_API_KEY,
+                        model_name="gemini-2.5-pro"
+                    )
+                    parsed_topics = await parse_question_for_search(
+                        question=mains_request.question,
+                        gemini_client=gemini_client,
+                        model_name="gemini-2.5-pro"
+                    )
+                    logger.info(f"✅ [MAINS] Parsed for current affairs: {parsed_topics.get('search_query', '')[:50]}...")
+                except Exception as e:
+                    logger.warning(f"⚠️ [MAINS] Question parsing failed: {e}")
+                    parsed_topics = {}
+
+            # Check news cache first
+            if parsed_topics:
+                cached_news = cache.get_cached_news(parsed_topics, time_range)
+                
+                if cached_news:
+                    # News cache HIT
+                    logger.info(f"🎯 [NEWS CACHE HIT] Using cached news ({len(cached_news)} bullets)")
+                    current_affairs_bullets = cached_news
+                else:
+                    # News cache MISS - fetch from MCP
+                    logger.info(f"🗞️ [NEWS CACHE MISS] Fetching current affairs from MCP...")
+                    try:
+                        current_affairs_bullets = await fetch_current_affairs_for_question(
+                            parsed_keywords=parsed_topics,
+                            max_bullets=5,
+                            time_range=time_range
+                        )
+                        logger.info(f"✅ [MAINS] Retrieved {len(current_affairs_bullets)} current affairs bullets")
+                        
+                        # Cache the news bullets
+                        cache.set_cached_news(parsed_topics, current_affairs_bullets, time_range)
+                    except Exception as e:
+                        logger.warning(f"⚠️ [MAINS] Current affairs fetch failed: {e}")
+                        current_affairs_bullets = []
+            
+            # Append current affairs to context (additive, not replacing)
+            if current_affairs_bullets:
+                current_affairs_section = format_bullets_for_context(current_affairs_bullets)
+                logger.info(f"📝 [MAINS] Current affairs section: {current_affairs_section}")
+                context = context + current_affairs_section
+                logger.info(f"📝 [MAINS] Added current affairs to context: {len(current_affairs_section)} chars")
+
+            # ============================================================
+            # STEP 3: Generate answer using Gemini 2.5 Pro
+            # ============================================================
+            logger.info(f"🤖 [MAINS] Generating answer with Gemini 2.5 Pro...")
+            
+            # Initialize Gemini client
+            if not GeminiClient or not GEMINI_API_KEY:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Gemini client not available. Please configure GEMINI_API_KEY."
+                )
+            
+            gemini_client = GeminiClient(
+                api_key=GEMINI_API_KEY,
+                model_name="gemini-2.5-pro"
+            )
+            
+            # Call async generate_answer
+            result = await generate_answer(
+                question=mains_request.question,
+                static_context=context,
+                word_count=mains_request.word_count,
+                gemini_client=gemini_client
+            )
+            
+            answer = result["answer"]
+            word_count_actual = len(answer.split())
+            
+            logger.info(f"✅ [MAINS] Answer generated: {len(answer)} characters, {word_count_actual} words")
+            
+            # ============================================================
+            # STEP 4: Cache the answer
+            # ============================================================
+            cache.set_cached_answer(
+                question=mains_request.question,
+                word_count=mains_request.word_count,
+                answer=answer,
+                sources=sources,
+                model_version=model_version
+            )
+            
             return MainsAnswerResponse(
                 question=mains_request.question,
-                answer="No relevant information found in the uploaded documents for this question.",
-                sources=[],
-                word_count_actual=0
+                answer=answer,
+                sources=sources,
+                word_count_actual=word_count_actual
             )
         
-        logger.info(f"✅ [MAINS] Retrieved context: {len(context)} chars, {len(sources)} sources")
-
-        # Parse question for current affairs search (keywords work better for news APIs)
-        parsed_topics = {}
-        if GeminiClient and GEMINI_API_KEY:
-            logger.info(f"🔍 [MAINS] Parsing question for current affairs search...")
-            try:
-                gemini_client = GeminiClient(
-                    api_key=GEMINI_API_KEY,
-                    model_name="gemini-2.5-pro"
-                )
-                parsed_topics = await parse_question_for_search(
-                    question=mains_request.question,
-                    gemini_client=gemini_client,
-                    model_name="gemini-2.5-pro"
-                )
-                logger.info(f"✅ [MAINS] Parsed for current affairs: {parsed_topics.get('search_query', '')[:50]}...")
-            except Exception as e:
-                logger.warning(f"⚠️ [MAINS] Question parsing failed: {e}")
-                parsed_topics = {}
-
-        # Fetch current affairs using parsed keywords (in addition to static context)
-        current_affairs_bullets = []
-        if parsed_topics:
-            logger.info(f"🗞️ [MAINS] Fetching current affairs...")
-            try:
-                current_affairs_bullets = await fetch_current_affairs_for_question(
-                    parsed_keywords=parsed_topics,
-                    max_bullets=5,
-                    time_range="3months"
-                )
-                logger.info(f"✅ [MAINS] Retrieved {len(current_affairs_bullets)} current affairs bullets")
-            except Exception as e:
-                logger.warning(f"⚠️ [MAINS] Current affairs fetch failed: {e}")
-                current_affairs_bullets = []
-        
-        # Append current affairs to context (additive, not replacing)
-        if current_affairs_bullets:
-            current_affairs_section = format_bullets_for_context(current_affairs_bullets)
-            logger.info(f"📝 [MAINS] Current affairs section: {current_affairs_section}")
-            context = context + current_affairs_section
-            logger.info(f"📝 [MAINS] Added current affairs to context: {len(current_affairs_section)} chars")
-
-        # Generate answer using Gemini 2.5 Pro
-        # Note: Current affairs are already included in context via MCP fetch above
-        logger.info(f"🤖 [MAINS] Generating answer with Gemini 2.5 Pro...")
-        
-        # Initialize Gemini client
-        if not GeminiClient or not GEMINI_API_KEY:
-            raise HTTPException(
-                status_code=500,
-                detail="Gemini client not available. Please configure GEMINI_API_KEY."
-            )
-        
-        gemini_client = GeminiClient(
-            api_key=GEMINI_API_KEY,
-            model_name="gemini-2.5-pro"
-        )
-        
-        # Call async generate_answer
-        result = await generate_answer(
-            question=mains_request.question,
-            static_context=context,
-            word_count=mains_request.word_count,
-            gemini_client=gemini_client
-        )
-        
-        answer = result["answer"]
-        word_count_actual = len(answer.split())
-        
-        logger.info(f"✅ [MAINS] Answer generated: {len(answer)} characters, {word_count_actual} words")
-        
-        return MainsAnswerResponse(
-            question=mains_request.question,
-            answer=answer,
-            sources=sources,
-            word_count_actual=word_count_actual
-        )
+        finally:
+            # Release lock
+            if lock_acquired:
+                cache.release_lock(cache_key)
 
     except Exception as e:
         logger.error(f"❌ Mains answer generation failed: {e}")
