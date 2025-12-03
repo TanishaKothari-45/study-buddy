@@ -34,3 +34,5 @@ PyMuPDF>=1.23.0
 streamlit
 python-multipart
 mcp
+playwright
+chromium
