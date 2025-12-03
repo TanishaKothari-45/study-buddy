@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Database, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { API_URL } from "@/lib/api";
 
 interface UploadResult {
     filename: string;
@@ -47,7 +48,6 @@ export default function UploadPage() {
         const endpoint = mode === "pinecone" ? "/upload/" : "/upload-content-store/";
 
         try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
             const res = await fetch(`${API_URL}${endpoint}`, {
                 method: "POST",
                 body: formData,

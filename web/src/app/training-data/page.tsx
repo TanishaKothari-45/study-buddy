@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Plus, Save, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { API_URL } from "@/lib/api";
 
 interface TrainingExample {
     id: string;
@@ -40,7 +41,6 @@ export default function TrainingDataPage() {
     const fetchExamples = async () => {
         setLoading(true);
         try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
             const res = await fetch(`${API_URL}/training-data/examples`);
             if (!res.ok) throw new Error("Failed to fetch examples");
             const data = await res.json();
@@ -77,7 +77,6 @@ export default function TrainingDataPage() {
         if (question) formData.append("question", question);
 
         try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
             const res = await fetch(`${API_URL}/training-data/extract-answer`, {
                 method: "POST",
                 body: formData,
@@ -114,7 +113,6 @@ export default function TrainingDataPage() {
         formData.append("ideal_feedback", idealFeedback);
 
         try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
             const res = await fetch(`${API_URL}/training-data/submit`, {
                 method: "POST",
                 body: formData,

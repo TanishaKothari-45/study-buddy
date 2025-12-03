@@ -12,7 +12,7 @@ load_env_vars()
 
 from .core.config import settings
 from .core.database import engine, Base
-from .routes import upload, query, mock_test, mains_answer, evaluate_answer, upload_content_store, feedback, training_data, auth
+from .api.v1 import router as api_v1_router
 from .utils.memory_manager import init_memory_db
 
 logger = logging.getLogger(__name__)
@@ -72,16 +72,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(upload.router, prefix="/upload", tags=["Upload"])
-app.include_router(upload_content_store.router, prefix="/upload-content-store", tags=["Content Store Upload"])
-app.include_router(query.router, prefix="/query", tags=["Query"])
-app.include_router(mock_test.router, prefix="/mock-test", tags=["Mock Test"])
-app.include_router(mains_answer.router, prefix="/mains-answer", tags=["Mains Answer"])
-app.include_router(evaluate_answer.router, prefix="/evaluate-answer", tags=["Answer Evaluation"])
-app.include_router(training_data.router, prefix="/training-data", tags=["Training Data"])
-app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
-app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+# Include versioned API router
+app.include_router(api_v1_router, prefix="/api/v1")
 
 @app.get("/")
 async def health_check():

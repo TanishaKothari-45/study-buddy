@@ -54,7 +54,7 @@ const GEOGRAPHY_DOMAINS: Record<string, string[]> = {
 
 type JobStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'failed';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+import { API_URL } from "@/lib/api";
 
 export default function MockTestPage() {
     // Persisted state from store
