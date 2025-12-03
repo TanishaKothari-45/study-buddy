@@ -1,14 +1,17 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import warnings
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from .config import settings
 
-# Secret key to encode and decode JWT tokens
-# In production, this should be a long random string in .env
-SECRET_KEY = settings.OPENAI_API_KEY or "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# Suppress passlib bcrypt version warning (cosmetic issue with bcrypt 4.1+)
+warnings.filterwarnings("ignore", message=".*error reading bcrypt version.*")
+
+# Use JWT secret from config (validated on startup)
+SECRET_KEY = settings.JWT_SECRET_KEY
+ALGORITHM = settings.JWT_ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

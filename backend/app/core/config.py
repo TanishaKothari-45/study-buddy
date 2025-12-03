@@ -1,8 +1,12 @@
 """
-Application configuration
+Application configuration with environment variable validation
 """
 from pydantic_settings import BaseSettings
+from pydantic import Field, validator, ValidationError
 from pathlib import Path
+from typing import Optional
+import secrets
+import sys
 from .env import load_env_vars
 
 # Load environment variables first
@@ -11,12 +15,35 @@ load_env_vars()
 class Settings(BaseSettings):
     # API Settings
     PROJECT_NAME: str = "Study Buddy AI"
-    OPENAI_API_KEY: str = None  # Will be loaded from environment
+    
+    # Required API Keys (will fail if not set)
+    OPENAI_API_KEY: str = Field(..., min_length=20)
+    GEMINI_API_KEY: str = Field(..., min_length=20)
+    PINECONE_API_KEY: str = Field(..., min_length=20)
+    
+    # JWT Authentication Settings (CRITICAL: Must be set in production)
+    JWT_SECRET_KEY: str = Field(..., min_length=32)
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
+    @validator('JWT_SECRET_KEY')
+    def validate_jwt_secret(cls, v):
+        if len(v) < 32:
+            raise ValueError("JWT_SECRET_KEY must be at least 32 characters for security")
+        # Warn if using a weak/default secret
+        if v in ["your-secret-key-here", "changeme", "secret"]:
+            print("⚠️  WARNING: Using a weak JWT_SECRET_KEY. Generate a secure one!")
+        return v
+    
+    # Optional API Keys
+    GNEWS_API_KEY: Optional[str] = None
+    NEWS_API_KEY: Optional[str] = None
+    THENEWSAPI_KEY: Optional[str] = None
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
-        extra = "ignore"  # Ignore extra fields from .env that aren't in the model
+        case_sensitive = True
     
     # Directory Settings
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent

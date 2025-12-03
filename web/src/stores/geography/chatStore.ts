@@ -1,0 +1,74 @@
+import { create } from 'zustand';
+import { persist, createJSONStorage, devtools } from 'zustand/middleware';
+import { ChatMessage } from '../types';
+
+// Only persist messages and session - input/loading stays local
+interface ChatState {
+    messages: ChatMessage[];
+    sessionId: string;
+
+    addMessage: (message: ChatMessage) => void;
+    updateMessageContent: (id: string, content: string) => void;
+    appendToMessageContent: (id: string, content: string) => void;
+    setMessageSources: (id: string, sources: ChatMessage['sources']) => void;
+    startNewChat: () => void;
+}
+
+const generateSessionId = () =>
+    `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+const createWelcomeMessage = (content = "Hello! I'm your Geography Study Buddy. Ask me anything about your study materials, and I'll explain it simply with examples."): ChatMessage => ({
+    id: "welcome",
+    role: "assistant",
+    content,
+    timestamp: new Date().toISOString(), // Store as ISO string for persistence
+});
+
+export const useChatStore = create<ChatState>()(
+    devtools(
+        persist(
+            (set) => ({
+                messages: [createWelcomeMessage()],
+                sessionId: generateSessionId(),
+
+                addMessage: (message) => set((state) => ({
+                    messages: [...state.messages, message]
+                })),
+
+                updateMessageContent: (id, content) => set((state) => ({
+                    messages: state.messages.map((msg) =>
+                        msg.id === id ? { ...msg, content } : msg
+                    ),
+                })),
+
+                appendToMessageContent: (id, content) => set((state) => ({
+                    messages: state.messages.map((msg) =>
+                        msg.id === id ? { ...msg, content: msg.content + content } : msg
+                    ),
+                })),
+
+                setMessageSources: (id, sources) => set((state) => ({
+                    messages: state.messages.map((msg) =>
+                        msg.id === id ? { ...msg, sources } : msg
+                    ),
+                })),
+
+                startNewChat: () => set({
+                    messages: [createWelcomeMessage("New chat started! How can I help you now?")],
+                    sessionId: generateSessionId(),
+                }),
+            }),
+            {
+                name: 'geography-chat-storage',
+                storage: createJSONStorage(() => localStorage),
+                version: 1,
+                // Optionally limit stored messages to prevent localStorage bloat
+                partialize: (state) => ({
+                    messages: state.messages.slice(-50), // Keep last 50 messages
+                    sessionId: state.sessionId,
+                }),
+            }
+        ),
+        { name: 'ChatStore' }
+    )
+);

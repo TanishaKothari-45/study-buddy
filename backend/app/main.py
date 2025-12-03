@@ -51,12 +51,19 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Enable CORS
+# Setup centralized error handling
+from .middleware import setup_exception_handlers
+setup_exception_handlers(app)
+
+# Enable CORS (restricted to localhost for development)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -67,7 +74,6 @@ app.include_router(query.router, prefix="/query", tags=["Query"])
 app.include_router(mock_test.router, prefix="/mock-test", tags=["Mock Test"])
 app.include_router(mains_answer.router, prefix="/mains-answer", tags=["Mains Answer"])
 app.include_router(evaluate_answer.router, prefix="/evaluate-answer", tags=["Answer Evaluation"])
-app.include_router(training_data.router, prefix="/training-data", tags=["Training Data"])
 app.include_router(training_data.router, prefix="/training-data", tags=["Training Data"])
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
