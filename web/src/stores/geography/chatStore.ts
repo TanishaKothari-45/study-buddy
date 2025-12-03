@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, devtools } from 'zustand/middleware';
 import { ChatMessage } from '../types';
 
 // Only persist messages and session - input/loading stays local
@@ -25,46 +25,50 @@ const createWelcomeMessage = (content = "Hello! I'm your Geography Study Buddy. 
 });
 
 export const useChatStore = create<ChatState>()(
-    persist(
-        (set) => ({
-            messages: [createWelcomeMessage()],
-            sessionId: generateSessionId(),
-
-            addMessage: (message) => set((state) => ({
-                messages: [...state.messages, message]
-            })),
-
-            updateMessageContent: (id, content) => set((state) => ({
-                messages: state.messages.map((msg) =>
-                    msg.id === id ? { ...msg, content } : msg
-                ),
-            })),
-
-            appendToMessageContent: (id, content) => set((state) => ({
-                messages: state.messages.map((msg) =>
-                    msg.id === id ? { ...msg, content: msg.content + content } : msg
-                ),
-            })),
-
-            setMessageSources: (id, sources) => set((state) => ({
-                messages: state.messages.map((msg) =>
-                    msg.id === id ? { ...msg, sources } : msg
-                ),
-            })),
-
-            startNewChat: () => set({
-                messages: [createWelcomeMessage("New chat started! How can I help you now?")],
+    devtools(
+        persist(
+            (set) => ({
+                messages: [createWelcomeMessage()],
                 sessionId: generateSessionId(),
+
+                addMessage: (message) => set((state) => ({
+                    messages: [...state.messages, message]
+                })),
+
+                updateMessageContent: (id, content) => set((state) => ({
+                    messages: state.messages.map((msg) =>
+                        msg.id === id ? { ...msg, content } : msg
+                    ),
+                })),
+
+                appendToMessageContent: (id, content) => set((state) => ({
+                    messages: state.messages.map((msg) =>
+                        msg.id === id ? { ...msg, content: msg.content + content } : msg
+                    ),
+                })),
+
+                setMessageSources: (id, sources) => set((state) => ({
+                    messages: state.messages.map((msg) =>
+                        msg.id === id ? { ...msg, sources } : msg
+                    ),
+                })),
+
+                startNewChat: () => set({
+                    messages: [createWelcomeMessage("New chat started! How can I help you now?")],
+                    sessionId: generateSessionId(),
+                }),
             }),
-        }),
-        {
-            name: 'geography-chat-storage',
-            storage: createJSONStorage(() => localStorage),
-            // Optionally limit stored messages to prevent localStorage bloat
-            partialize: (state) => ({
-                messages: state.messages.slice(-50), // Keep last 50 messages
-                sessionId: state.sessionId,
-            }),
-        }
+            {
+                name: 'geography-chat-storage',
+                storage: createJSONStorage(() => localStorage),
+                version: 1,
+                // Optionally limit stored messages to prevent localStorage bloat
+                partialize: (state) => ({
+                    messages: state.messages.slice(-50), // Keep last 50 messages
+                    sessionId: state.sessionId,
+                }),
+            }
+        ),
+        { name: 'ChatStore' }
     )
 );

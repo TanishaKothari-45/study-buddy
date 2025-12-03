@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, devtools } from 'zustand/middleware';
 import { MockTestResponse, JobStatus } from '../types';
 
 // Only persist: test data, answers, job info for resuming
@@ -27,69 +27,73 @@ interface MockTestState {
 }
 
 export const useMockTestStore = create<MockTestState>()(
-    persist(
-        (set, get) => ({
-            testData: null,
-            userAnswers: {},
-            submitted: false,
-            score: 0,
-            jobId: null,
-            jobStatus: 'idle',
-
-            setTestData: (data) => set({ testData: data }),
-            setUserAnswers: (answers) => set({ userAnswers: answers }),
-            updateUserAnswer: (questionIndex, option) => {
-                const { submitted, userAnswers } = get();
-                if (submitted) return;
-                set({ userAnswers: { ...userAnswers, [questionIndex]: option } });
-            },
-            setSubmitted: (submitted) => set({ submitted }),
-            setScore: (score) => set({ score }),
-            setJobId: (jobId) => set({ jobId }),
-            setJobStatus: (status) => set({ jobStatus: status }),
-
-            submitTest: () => {
-                const { testData, userAnswers } = get();
-                if (!testData) return;
-
-                let calculatedScore = 0;
-                testData.questions.forEach((q, idx) => {
-                    if (userAnswers[idx]) {
-                        if (userAnswers[idx] === q.correct_answer) {
-                            calculatedScore += 2;
-                        } else {
-                            calculatedScore -= 0.66;
-                        }
-                    }
-                });
-
-                set({
-                    score: parseFloat(calculatedScore.toFixed(2)),
-                    submitted: true,
-                });
-            },
-
-            resetTest: () => set({
+    devtools(
+        persist(
+            (set, get) => ({
                 testData: null,
                 userAnswers: {},
                 submitted: false,
                 score: 0,
                 jobId: null,
                 jobStatus: 'idle',
+
+                setTestData: (data) => set({ testData: data }),
+                setUserAnswers: (answers) => set({ userAnswers: answers }),
+                updateUserAnswer: (questionIndex, option) => {
+                    const { submitted, userAnswers } = get();
+                    if (submitted) return;
+                    set({ userAnswers: { ...userAnswers, [questionIndex]: option } });
+                },
+                setSubmitted: (submitted) => set({ submitted }),
+                setScore: (score) => set({ score }),
+                setJobId: (jobId) => set({ jobId }),
+                setJobStatus: (status) => set({ jobStatus: status }),
+
+                submitTest: () => {
+                    const { testData, userAnswers } = get();
+                    if (!testData) return;
+
+                    let calculatedScore = 0;
+                    testData.questions.forEach((q, idx) => {
+                        if (userAnswers[idx]) {
+                            if (userAnswers[idx] === q.correct_answer) {
+                                calculatedScore += 2;
+                            } else {
+                                calculatedScore -= 0.66;
+                            }
+                        }
+                    });
+
+                    set({
+                        score: parseFloat(calculatedScore.toFixed(2)),
+                        submitted: true,
+                    });
+                },
+
+                resetTest: () => set({
+                    testData: null,
+                    userAnswers: {},
+                    submitted: false,
+                    score: 0,
+                    jobId: null,
+                    jobStatus: 'idle',
+                }),
             }),
-        }),
-        {
-            name: 'geography-mock-test-storage',
-            storage: createJSONStorage(() => localStorage),
-            // Only persist what's necessary
-            partialize: (state) => ({
-                testData: state.testData,
-                userAnswers: state.userAnswers,
-                submitted: state.submitted,
-                score: state.score,
-                jobId: state.jobId,
-                jobStatus: state.jobStatus,
-            }),
-        }
+            {
+                name: 'geography-mock-test-storage',
+                storage: createJSONStorage(() => localStorage),
+                version: 1,
+                // Only persist what's necessary
+                partialize: (state) => ({
+                    testData: state.testData,
+                    userAnswers: state.userAnswers,
+                    submitted: state.submitted,
+                    score: state.score,
+                    jobId: state.jobId,
+                    jobStatus: state.jobStatus,
+                }),
+            }
+        ),
+        { name: 'MockTestStore' }
     )
 );
