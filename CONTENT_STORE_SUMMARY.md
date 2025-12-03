@@ -44,7 +44,7 @@
 ## Components
 
 ### 1. Content Store (`backend/app/utils/content_store.py`)
-- **Database:** SQLite (`backend/data/chroma/content_store.db`)
+- **Database:** SQLite (`backend/data/databases/content_store.db`)
 - **Purpose:** Store full chunk content locally (no embeddings)
 - **Key Methods:**
   - `store_chunk()` - Store full content with metadata
@@ -236,7 +236,7 @@ backend/
 │   │   └── upload_content_store.py  # Content store upload endpoint
 │   └── main.py                       # Route registration
 └── data/
-    └── chroma/
+    └── databases/
         └── content_store.db          # SQLite database
 
 frontend/
@@ -270,7 +270,7 @@ frontend/
 ## Configuration
 
 ### Database Location
-- **Path:** `backend/data/chroma/content_store.db`
+- **Path:** `backend/data/databases/content_store.db`
 - **Config:** `settings.DB_DIR` in `backend/app/core/config.py`
 
 ### Chunk Limits

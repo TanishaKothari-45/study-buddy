@@ -200,9 +200,9 @@ record_recent_question(
 
 ## Database File
 
-- **Memory DB:** `backend/data/chroma/memory.db`
+- **Memory DB:** `backend/data/databases/memory.db`
 
-Single SQLite database storing both recency and feedback data, located alongside ChromaDB data.
+Single SQLite database storing both recency and feedback data, located in the databases folder.
 
 ## Usage Flow
 

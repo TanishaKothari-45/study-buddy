@@ -593,9 +593,10 @@ npm start
 
 ### Database Locations
 ```
-backend/data/chroma/
+backend/data/databases/
 ├── content_store.db    # SQLite content store
 ├── memory.db          # Recency & feedback memory
+├── chroma.sqlite3     # ChromaDB (fallback vector store)
 └── sql_app.db         # User authentication
 ```
 

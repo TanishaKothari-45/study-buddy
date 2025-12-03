@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # Directory Settings
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
-    DB_DIR: Path = BASE_DIR / "data" / "chroma"
+    DB_DIR: Path = BASE_DIR / "data" / "databases"
     
     # PDF Chunking Settings
     CHUNK_SIZE_WORDS: int = 500  # Standard chunk size in words

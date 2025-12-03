@@ -847,8 +847,8 @@ class PineconeHandler:
                 }
             )
             
-            # Retrieve diverse chunks
-            docs = retriever.get_relevant_documents(query_text)
+            # Retrieve diverse chunks (using new LangChain API)
+            docs = retriever.invoke(query_text)
             
             # Format results
             formatted_results = []
