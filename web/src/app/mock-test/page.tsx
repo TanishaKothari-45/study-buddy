@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Play, CheckCircle, XCircle, RefreshCw, Clock, BookOpen, ClipboardList } from "lucide-react";
+import { Loader2, Play, CheckCircle, XCircle, RefreshCw, Clock, BookOpen, ClipboardList, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // UPSC Geography Taxonomy (Mirrors backend/app/utils/metadata_enricher.py)
 const GEOGRAPHY_DOMAINS: Record<string, string[]> = {
@@ -68,6 +70,8 @@ interface MockTestResponse {
     instructions: string[];
 }
 
+type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
 export default function MockTestPage() {
     const [loading, setLoading] = useState(false);
     const [testData, setTestData] = useState<MockTestResponse | null>(null);
@@ -84,12 +88,34 @@ export default function MockTestPage() {
     const [selectedSubDomain, setSelectedSubDomain] = useState<string>("");
     const [customTopic, setCustomTopic] = useState("");
 
+    // Async Job State
+    const [jobId, setJobId] = useState<string | null>(null);
+    const [jobStatus, setJobStatus] = useState<JobStatus>('pending');
+    const [progress, setProgress] = useState(0);
+    const [statusMessage, setStatusMessage] = useState("");
+    const [error, setError] = useState<string | null>(null);
+    const pollingInterval = useRef<NodeJS.Timeout | null>(null);
+
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (pollingInterval.current) {
+                clearInterval(pollingInterval.current);
+            }
+        };
+    }, []);
+
     const generateTest = async () => {
         setLoading(true);
         setTestData(null);
         setUserAnswers({});
         setSubmitted(false);
         setScore(0);
+        setJobId(null);
+        setJobStatus('pending');
+        setProgress(0);
+        setStatusMessage("Initializing...");
+        setError(null);
 
         // Determine topics list
         let topics: string[] = [];
@@ -98,9 +124,6 @@ export default function MockTestPage() {
         } else if (selectedSubDomain && selectedSubDomain !== "all") {
             topics = [selectedSubDomain];
         } else if (selectedDomain) {
-            // If only domain is selected, include all its subtopics or just the domain name
-            // The backend likely handles broad topics, but let's be specific if possible
-            // or just send the domain name.
             topics = [selectedDomain];
         } else {
             topics = ["Geography"]; // Fallback
@@ -108,7 +131,9 @@ export default function MockTestPage() {
 
         try {
             const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
-            const res = await fetch(`${API_URL}/mock-test/generate`, {
+
+            // Start async job
+            const res = await fetch(`${API_URL}/mock-test/generate-async`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -118,15 +143,94 @@ export default function MockTestPage() {
                 }),
             });
 
-            if (!res.ok) throw new Error("Failed to generate test");
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.detail || "Failed to start generation job");
+            }
+
             const data = await res.json();
-            setTestData(data);
-        } catch (error) {
-            console.error("Failed to generate test:", error);
-            alert("Failed to generate mock test. Please try again.");
-        } finally {
+            setJobId(data.job_id);
+            setJobStatus('processing');
+            setStatusMessage("Starting generation...");
+
+            // Start polling
+            startPolling(data.job_id);
+
+        } catch (error: any) {
+            console.error("Failed to start test generation:", error);
+            setError(error.message || "Failed to start mock test generation. Please try again.");
             setLoading(false);
         }
+    };
+
+    const startPolling = (currentJobId: string) => {
+        if (pollingInterval.current) clearInterval(pollingInterval.current);
+
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+
+        pollingInterval.current = setInterval(async () => {
+            try {
+                const res = await fetch(`${API_URL}/mock-test/status/${currentJobId}`);
+                if (!res.ok) throw new Error("Failed to poll status");
+
+                const jobData = await res.json();
+
+                // Update progress
+                const progressPct = Math.round((jobData.progress || 0) * 100);
+                setProgress(progressPct);
+
+                if (jobData.status === 'completed') {
+                    if (pollingInterval.current) clearInterval(pollingInterval.current);
+
+                    // Process completed data
+                    const questions = jobData.questions || [];
+
+                    // Calculate metadata
+                    const minutesPerQuestion = 1.2;
+                    const totalMinutes = questions.length * minutesPerQuestion;
+                    const hours = Math.floor(totalMinutes / 60);
+                    const minutes = Math.floor(totalMinutes % 60);
+                    const timeAllowed = hours > 0
+                        ? `${hours} hour${hours > 1 ? 's' : ''} ${minutes} minute${minutes !== 1 ? 's' : ''}`
+                        : `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+
+                    const totalMarks = questions.length * 2;
+
+                    setTestData({
+                        questions,
+                        total_marks: totalMarks,
+                        time_allowed: timeAllowed,
+                        instructions: [
+                            "Attempt all questions.",
+                            `Each question carries 2 marks.`,
+                            `Total marks: ${totalMarks}.`,
+                            "Negative marking: -0.67 marks (1/3 of 2 marks) for each wrong answer.",
+                            "No marks deducted for unanswered questions.",
+                            "Choose the most appropriate option.",
+                            "Questions are based on your uploaded study materials."
+                        ]
+                    });
+
+                    setJobStatus('completed');
+                    setLoading(false);
+                    setStatusMessage("Generation complete!");
+
+                } else if (jobData.status === 'failed') {
+                    if (pollingInterval.current) clearInterval(pollingInterval.current);
+                    setJobStatus('failed');
+                    setError(jobData.error || "Generation failed");
+                    setLoading(false);
+                } else {
+                    // Still processing
+                    setJobStatus('processing');
+                    setStatusMessage(`Generating questions... (${jobData.questions_generated}/${jobData.questions_target})`);
+                }
+
+            } catch (err) {
+                console.error("Polling error:", err);
+                // Don't stop polling on transient network errors, but maybe count them?
+            }
+        }, 2000); // Poll every 2 seconds
     };
 
     const handleAnswerSelect = (questionIndex: number, option: string) => {
@@ -197,6 +301,7 @@ export default function MockTestPage() {
                                         <SelectItem value="10">10 Questions</SelectItem>
                                         <SelectItem value="20">20 Questions</SelectItem>
                                         <SelectItem value="50">50 Questions (Full Subject)</SelectItem>
+                                        <SelectItem value="100">100 Questions (Full Mock)</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -282,13 +387,34 @@ export default function MockTestPage() {
                                 </p>
                             </div>
                         </div>
+
+                        {/* Progress Indicator */}
+                        {loading && (
+                            <div className="space-y-4 pt-4 border-t animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="flex justify-between text-sm">
+                                    <span className="font-medium">{statusMessage}</span>
+                                    <span className="text-muted-foreground">{progress}%</span>
+                                </div>
+                                <Progress value={progress} className="h-2" />
+                            </div>
+                        )}
+
+                        {/* Error Message */}
+                        {error && (
+                            <Alert variant="destructive" className="mt-4">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>Error</AlertTitle>
+                                <AlertDescription>{error}</AlertDescription>
+                            </Alert>
+                        )}
+
                     </CardContent>
                     <CardFooter>
                         <Button onClick={generateTest} disabled={loading} className="w-full md:w-auto">
                             {loading ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Generating Test...
+                                    Generating...
                                 </>
                             ) : (
                                 <>
