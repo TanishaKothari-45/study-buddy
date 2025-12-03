@@ -25,3 +25,13 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+class PasswordReset(BaseModel):
+    email: EmailStr
+    new_password: str
+
+class PasswordResetResponse(BaseModel):
+    message: str
