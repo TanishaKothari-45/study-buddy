@@ -25,19 +25,19 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
                 secondaryColor: '#f9fafb', // Very light grey (gray-50)
                 tertiaryColor: '#ffffff', // White
                 fontFamily: 'inherit',
-                fontSize: '10px', // Further reduced for compact size
+                fontSize: '16px', // Increased for better readability
             },
             securityLevel: 'loose',
             flowchart: {
                 htmlLabels: true,
                 curve: 'basis',
-                padding: 8, // Further reduced
-                nodeSpacing: 25, // More compact node spacing
-                rankSpacing: 25, // More compact rank spacing
+                padding: 12, // More padding for labels
+                nodeSpacing: 35, // More spacing between nodes
+                rankSpacing: 40, // More vertical spacing
                 useMaxWidth: true,
             },
             mindmap: {
-                padding: 8, // Further reduced
+                padding: 12, // More padding
                 useMaxWidth: true,
             },
         });

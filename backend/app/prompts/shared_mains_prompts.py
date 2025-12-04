@@ -318,7 +318,7 @@ IBC_FORMAT_RULES = """
   - Each bullet MUST be on a NEW LINE (do not put multiple bullets on same line)
   - Each bullet: **Main idea** (≤ 12 words) + Evidence (named report/index/data where it adds credibility) + Example (named Indian OR named global). Write as natural English sentences, not forced templates.
   
-- **CONCLUSION**: 1 para with global best practices + SDG + policy angle + related Indian constitution articles.
+- **CONCLUSION**: 1 para with global best practices or global bodies initiatives + SDG + India's government policies or local community initiatives + related Indian constitution articles.
 INTRO -> blank line -> BODY -> blank line -> CONCLUSION
 """
 
@@ -327,13 +327,25 @@ INTRO -> blank line -> BODY -> blank line -> CONCLUSION
 # ============================================================
 
 BULLET_DISCIPLINE_RULES = """
-**RULE - BULLET DISCIPLINE**:
-- Every single bullet MUST start with • symbol
-- Every single bullet MUST be on a NEW LINE (do not put multiple bullets on same line)
-- Every single bullet should contain: Main idea + Evidence (report/index/data where credible sourcing matters) + Example (named Indian OR named global)
-- Write as natural English sentences. Quote sources strategically where they add credibility, not in every sentence.
-- Good: "• **Urban heat islands intensify** in metropolitan areas, with Delhi experiencing 45°C summers (IPCC 2023)."
-- Avoid forced templates like "Main idea — Evidence — Example." Flow naturally.
+**RULE - BULLET DISCIPLINE (CRITICAL)**:
+
+**FORMATTING - EACH BULLET ON ITS OWN LINE**:
+- Every bullet MUST be on a SEPARATE LINE (new line for each bullet)
+- NEVER put multiple bullets on the same line
+- NO empty lines between bullets - keep them consecutive
+
+WRONG (all on one line):
+• Point one about climate. • Point two about rainfall. • Point three about temperature.
+
+CORRECT (each on new line, no gaps):
+• **Point one about climate** with evidence and example.
+• **Point two about rainfall** with evidence and example.
+• **Point three about temperature** with evidence and example.
+
+**CONTENT RULES**:
+- Every bullet starts with • symbol
+- Every bullet should contain: Main idea + Evidence (where credible sourcing matters) + Example
+- Write as natural English sentences. Quote sources strategically, not everywhere.
 """
 
 # ============================================================

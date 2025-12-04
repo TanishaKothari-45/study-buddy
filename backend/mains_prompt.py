@@ -100,17 +100,17 @@ Current Affairs (use if relevant; crisp bullets):
 Constraints / Format:
 - INTRO: 2–3 lines. Must include either a definition, a data point/report citation, or a recent context or current affair (if applicable).
 - BODY: Use sub-headings and bullets. Each bullet <= 18 words. Main idea (≤ 10–12 words) — Evidence (report/data/index) — Example (India OR World).
+- BULLET FORMAT (CRITICAL): Each bullet MUST be on a SEPARATE LINE. Never put multiple bullets on the same line. Format:
+  • First bullet point here.
+  • Second bullet point here.
+  • Third bullet point here.
 - DIAGRAM: Include at least ONE Mermaid diagram in the body (flowchart, mindmap, timeline, or pie chart). Use proper Mermaid syntax wrapped in ```mermaid code blocks.
-- CONCLUSION: 1 para with global best practices + SDG + policy angle + related Indian constitution articles.
+- CONCLUSION: 1 para with global best practices or global bodies initiatives + SDG + India's government policies or local community initiatives + related Indian constitution articles.
 - Word target: ~{word_count} words. If <80%, add one short synthesis paragraph.
 - For directive words (Analyse, Evaluate, Critically examine, Discuss), follow the Directive Decoder rules in SYSTEM PROMPT.
-- Every single bullet MUST contain:
-   (a) One evidence (report/index/data),
-   (b) One example (named Indian OR named global),
-   (c) Maximum 18 words total.
 - Tone: concise, exam-style, zero fluff.
 
-Output: Provide the answer only (no metadata), using markdown bullets, sub-headings, and Mermaid diagrams.
+Output: Provide the answer only (no metadata), using markdown bullets (each on new line), sub-headings, and Mermaid diagrams.
 """
     
     # Use shared prompts if available, otherwise fallback to legacy
