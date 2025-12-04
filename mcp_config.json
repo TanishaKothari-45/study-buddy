@@ -3,13 +3,17 @@
     "current-affairs": {
       "command": "python",
       "args": [
-        "/Users/tanishakothari/Documents/Personal/study-buddy/backend/mcp_current_affairs_server.py"
+        "-m",
+        "mcp_current_affairs.mcp_current_affairs_server"
       ],
       "env": {
+        "PYTHONPATH": "/Users/tanishakothari/Documents/Personal/study-buddy/backend",
         "GNEWS_API_KEY": "${GNEWS_API_KEY}",
-        "NEWS_API_KEY": "${NEWS_API_KEY}",
+        "NEWSDATA_API_KEY": "${NEWSDATA_API_KEY}",
         "THENEWSAPI_KEY": "${THENEWSAPI_KEY}",
-        "GEMINI_API_KEY": "${GEMINI_API_KEY}"
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "6379"
       }
     }
   }

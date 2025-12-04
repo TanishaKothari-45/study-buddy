@@ -41,3 +41,4 @@ playwright
 chromium
 redis>=5.0.0
 slowapi>=0.1.9
+feedparser
