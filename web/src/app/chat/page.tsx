@@ -144,8 +144,8 @@ export default function ChatPage() {
         <div className="flex flex-col h-[calc(100vh-2rem)] max-w-5xl mx-auto p-4 md:p-6">
             <div className="flex items-center justify-between mb-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Study Buddy Chat</h1>
-                    <p className="text-sm text-muted-foreground">Ask questions from your uploaded materials</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground">Ask Your Notes</h1>
+                    <p className="text-sm text-muted-foreground">Chat with your uploaded study materials</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={startNewChat} className="text-gray-500 hover:text-violet-600">
                     <Plus className="h-4 w-4 mr-2" />

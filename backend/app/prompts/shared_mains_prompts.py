@@ -314,7 +314,7 @@ IBC_FORMAT_RULES = """
   - Each sub-heading MUST use ### markdown heading format (e.g., ### Economic and Livelihood Impact)
   - Add blank line before each new sub-heading for spacing
   - Each sub-heading has 2-4 bullets
-  - Each bullet MUST start with • symbol
+  - Each bullet MUST start with - (dash) for proper markdown list rendering
   - Each bullet MUST be on a NEW LINE (do not put multiple bullets on same line)
   - Each bullet: **Main idea** (≤ 12 words) + Evidence (named report/index/data where it adds credibility) + Example (named Indian OR named global). Write as natural English sentences, not forced templates.
   
@@ -329,21 +329,22 @@ INTRO -> blank line -> BODY -> blank line -> CONCLUSION
 BULLET_DISCIPLINE_RULES = """
 **RULE - BULLET DISCIPLINE (CRITICAL)**:
 
-**FORMATTING - EACH BULLET ON ITS OWN LINE**:
+**FORMATTING - USE MARKDOWN LIST FORMAT**:
+- Use dash (-) for bullets, NOT the • symbol
 - Every bullet MUST be on a SEPARATE LINE (new line for each bullet)
 - NEVER put multiple bullets on the same line
 - NO empty lines between bullets - keep them consecutive
 
 WRONG (all on one line):
-• Point one about climate. • Point two about rainfall. • Point three about temperature.
+- Point one. - Point two. - Point three.
 
 CORRECT (each on new line, no gaps):
-• **Point one about climate** with evidence and example.
-• **Point two about rainfall** with evidence and example.
-• **Point three about temperature** with evidence and example.
+- **Point one about climate** with evidence and example.
+- **Point two about rainfall** with evidence and example.
+- **Point three about temperature** with evidence and example.
 
 **CONTENT RULES**:
-- Every bullet starts with • symbol
+- Every bullet starts with - (dash)
 - Every bullet should contain: Main idea + Evidence (where credible sourcing matters) + Example
 - Write as natural English sentences. Quote sources strategically, not everywhere.
 """
@@ -353,7 +354,7 @@ CORRECT (each on new line, no gaps):
 # ============================================================
 
 WORD_COUNT_COMPRESSION_RULES = """
-**RULE - WORD LIMIT COMPRESSION** (when word_count <= 250):
+**RULE - WORD LIMIT COMPRESSION**:
 1) MUST preserve IBC structure but reduce density:
    - Introduction: 2 lines  
    - Body: 2-3 sub-headings, each with 1-2 bullets  

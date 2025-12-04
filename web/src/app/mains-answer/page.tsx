@@ -20,18 +20,18 @@ export default function MainsAnswerPage() {
     const [wordCount, setWordCount] = useState("250");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    
+
     // Persisted result from store
     const { result, setResult } = useMainsAnswerStore();
 
     const handleGenerate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!question.trim()) return;
-        
+
         setLoading(true);
         setError(null);
         setResult(null); // Clear previous answer immediately
-        
+
         try {
             const res = await fetch(`${API_URL}/mains-answer/generate`, {
                 method: "POST",
@@ -41,12 +41,12 @@ export default function MainsAnswerPage() {
                     word_count: parseInt(wordCount)
                 }),
             });
-            
+
             if (!res.ok) {
                 const errData = await res.json().catch(() => ({}));
                 throw new Error(errData.detail || "Failed to generate answer");
             }
-            
+
             const data = await res.json();
             setResult(data); // Save to store - persists across tab switches
         } catch (err) {
@@ -60,7 +60,7 @@ export default function MainsAnswerPage() {
     return (
         <div className="p-8 max-w-5xl mx-auto space-y-8">
             <div className="flex flex-col space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">
                     Mains Answer Generation
                 </h1>
                 <p className="text-muted-foreground">
