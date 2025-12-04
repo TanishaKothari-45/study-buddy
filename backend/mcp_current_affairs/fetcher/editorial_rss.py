@@ -8,7 +8,7 @@ import feedparser
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from ..config import (
-    RSS_BUCKETS, RSS_PER_FEED, TIME_WINDOW_DAYS, MIN_CONTENT_LENGTH
+    RSS_BUCKETS, RSS_PER_FEED, EDITORIAL_TIME_WINDOW_DAYS, MIN_CONTENT_LENGTH
 )
 from .utils import normalize_url
 
@@ -132,7 +132,7 @@ def fetch_rss_editorials_for_topic(
         List of editorial dicts with source, title, description, url, published_at, content
     """
     feeds = choose_feeds_for_topic(keywords, topic_region)
-    cutoff = datetime.utcnow() - timedelta(days=TIME_WINDOW_DAYS)
+    cutoff = datetime.utcnow() - timedelta(days=EDITORIAL_TIME_WINDOW_DAYS)
     results = []
     
     print(f"📡 Fetching from {len(feeds)} RSS feeds (region: {topic_region or detect_region_from_keywords(keywords)})")

@@ -20,7 +20,9 @@ THENEWSAPI_KEY  = os.getenv("THENEWSAPI_KEY", "")
 # -----------------------------
 # FETCH LIMITS & TIME WINDOWS
 # -----------------------------
-TIME_WINDOW_DAYS = 180                     # 6 months for editorials (with recency boost)
+ARTICLE_TIME_WINDOW_DAYS = 90              # 3 months for news articles
+EDITORIAL_TIME_WINDOW_DAYS = 180           # 6 months for editorials (with recency boost)
+TIME_WINDOW_DAYS = ARTICLE_TIME_WINDOW_DAYS  # Default (for backward compatibility)
 ARTICLES_PER_QUERY = 10                    # fetch per query
 TOTAL_ARTICLE_LIMIT = 40                   # global cap after merge
 FINAL_ARTICLE_COUNT = 4                    # one per subquery
@@ -41,11 +43,11 @@ MAX_CONCURRENT_REQUESTS = 6
 HTTP_TIMEOUT = 10                          # seconds
 
 # -----------------------------
-# CACHE TTLs
+# CACHE TTLs (configurable via .env)
 # -----------------------------
-KEYWORD_CACHE_TTL = 24 * 3600              # 24 hours
-SUMMARY_CACHE_TTL = 4 * 3600               # 4 hours
-BREAKING_NEWS_TTL = 30 * 60                # 30 minutes
+KEYWORD_CACHE_TTL = int(os.getenv("MCP_KEYWORD_CACHE_TTL", 24 * 3600))   # 24 hours default
+SUMMARY_CACHE_TTL = int(os.getenv("MCP_SUMMARY_CACHE_TTL", 4 * 3600))    # 4 hours default
+BREAKING_NEWS_TTL = int(os.getenv("MCP_BREAKING_NEWS_TTL", 30 * 60))     # 30 minutes default
 
 # -----------------------------
 # EDITORIAL RSS FEEDS & BUCKETS

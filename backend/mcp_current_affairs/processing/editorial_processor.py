@@ -19,7 +19,7 @@ from typing import List, Dict, Any, Optional
 from ..config import (
     SOFT_SIM_THRESH, HARD_SIM_THRESH, SCRAPE_TOP_N,
     SOURCE_RELIABILITY, EDITORIAL_QUALITY_WEIGHTS,
-    MIN_EDITORIAL_WORDS, TIME_WINDOW_DAYS, MIN_CONTENT_LENGTH
+    MIN_EDITORIAL_WORDS, EDITORIAL_TIME_WINDOW_DAYS, MIN_CONTENT_LENGTH
 )
 from .relevance_filter import compute_relevance_scores, filter_by_relevance
 from ..fetcher.editorial_rss import fetch_rss_editorials_for_topic
@@ -31,7 +31,7 @@ def calculate_recency_boost(published_at: str) -> float:
     Calculate recency boost factor.
     Fresher items get higher boost (up to 10% bonus).
     
-    Formula: 1 + (1 - days_old/TIME_WINDOW_DAYS) * 0.1
+    Formula: 1 + (1 - days_old/EDITORIAL_TIME_WINDOW_DAYS) * 0.1
     """
     if not published_at:
         return 1.0  # No boost for unknown dates
@@ -46,11 +46,11 @@ def calculate_recency_boost(published_at: str) -> float:
         days_old = (datetime.utcnow() - pub_date.replace(tzinfo=None)).days
         days_old = max(0, days_old)  # Ensure non-negative
         
-        if days_old >= TIME_WINDOW_DAYS:
+        if days_old >= EDITORIAL_TIME_WINDOW_DAYS:
             return 1.0  # No boost for old items
         
         # Boost: 1.0 to 1.1 based on freshness
-        boost = 1 + (1 - days_old / TIME_WINDOW_DAYS) * 0.1
+        boost = 1 + (1 - days_old / EDITORIAL_TIME_WINDOW_DAYS) * 0.1
         return boost
     except Exception:
         return 1.0

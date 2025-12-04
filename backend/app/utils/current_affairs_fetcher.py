@@ -11,7 +11,7 @@ Usage:
         parsed_keywords={"search_query": "climate change India", ...},
         max_bullets=5
     )
-    # Returns: ["India launches...", "Global summit...", ...]
+    # Returns: ["• [theprint.in] India launches...", "• [scroll.in] Global summit...", ...]
 """
 
 import logging
@@ -26,19 +26,46 @@ backend_dir = Path(__file__).resolve().parent.parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-# Import MCP server class directly (not via MCP protocol)
+# Import MCP current affairs server
 try:
-    from mcp_current_affairs_server import CurrentAffairsMCPServer
+    from mcp_current_affairs.mcp_current_affairs_server import fetch_diversified_current_affairs
     MCP_AVAILABLE = True
 except ImportError as e:
     MCP_AVAILABLE = False
     logger.warning(f"Could not import MCP server: {e}")
 
 
+def format_current_affairs_to_bullets(result: Dict[str, Any], max_bullets: int = 5) -> List[str]:
+    """
+    Convert MCP output JSON to bullet point list for LLM prompt.
+    
+    Args:
+        result: MCP output with current_affairs array
+        max_bullets: Maximum bullets to return
+    
+    Returns:
+        List of summary strings (just the text, no icons/source)
+        
+    Example output:
+        ["36% of India's forest cover is in zones vulnerable...",
+         "Wildfires and flash floods are interconnected..."]
+    """
+    if not result or not result.get("current_affairs"):
+        return []
+    
+    bullets = []
+    for item in result["current_affairs"]:
+        summary = item.get("summary", "").strip()
+        if summary:
+            bullets.append(summary)
+    
+    return bullets[:max_bullets]
+
+
 async def fetch_current_affairs_for_question(
     parsed_keywords: Dict[str, Any],
     max_bullets: int = 5,
-    time_range: str = "3months"
+    time_range: str = "6months"
 ) -> List[str]:
     """
     Fetch current affairs for a question using parsed keywords.
@@ -46,7 +73,7 @@ async def fetch_current_affairs_for_question(
     Args:
         parsed_keywords: Dict with main_topic, sub_topics, search_query
         max_bullets: Maximum number of bullet points to return (default: 5)
-        time_range: Time range for news (default: 3months)
+        time_range: Time range for news (default: 6months)
     
     Returns:
         List of formatted bullet strings (40-50 words each)
@@ -61,75 +88,32 @@ async def fetch_current_affairs_for_question(
     
     search_query = parsed_keywords.get("search_query", "")
     if not search_query:
+        # Try main_topic as fallback
+        search_query = parsed_keywords.get("main_topic", "")
+    
+    if not search_query:
         logger.warning("Empty search query")
         return []
     
     try:
         logger.info(f"🗞️ Fetching current affairs for: {search_query[:50]}...")
         
-        # Create MCP server instance (reuses cached results)
-        server = CurrentAffairsMCPServer()
+        # Call the MCP server's fetch function directly
+        result = await fetch_diversified_current_affairs(topic=search_query)
         
-        # Fetch diversified current affairs with pre-parsed keywords
-        result = await server.fetch_diversified_current_affairs(
-            topic=search_query,
-            time_range=time_range,
-            total_articles=30,
-            pre_parsed_keywords=parsed_keywords
-        )
+        # Convert to bullet format for LLM
+        bullets = format_current_affairs_to_bullets(result, max_bullets)
         
-        # Extract summary bullets from result
-        summary_bullets = result.get("summary_bullets", [])
+        if bullets:
+            logger.info(f"✅ Retrieved {len(bullets)} current affairs bullets")
+            return bullets
         
-        if summary_bullets:
-            logger.info(f"✅ Retrieved {len(summary_bullets)} current affairs bullets")
-            return summary_bullets[:max_bullets]
-        
-        # Fallback: generate bullets from categories if summary_bullets not present
-        logger.info("⚠️ No summary_bullets in result, generating from categories...")
-        bullets = _extract_bullets_from_categories(result, max_bullets)
-        
-        return bullets
+        logger.info("⚠️ No current affairs found for topic")
+        return []
         
     except Exception as e:
         logger.error(f"❌ Current affairs fetch failed: {e}", exc_info=True)
         return []
-
-
-def _extract_bullets_from_categories(result: Dict[str, Any], max_bullets: int) -> List[str]:
-    """
-    Fallback: Extract bullets from categorized articles if summary_bullets not present.
-    """
-    bullets = []
-    categories = result.get("categories", {})
-    
-    priority_order = ['india_initiatives', 'india_issues', 'global_initiatives', 'global_issues', 'developments']
-    
-    for cat_key in priority_order:
-        if cat_key in categories:
-            articles = categories[cat_key].get('articles', [])
-            for article in articles[:2]:
-                summary = article.get('summary', '')
-                source = article.get('source', 'Unknown')
-                date = article.get('date', '')[:10] if article.get('date') else ''
-                
-                if summary:
-                    words = summary.split()
-                    if len(words) > 45:
-                        truncated = ' '.join(words[:45]) + '...'
-                    else:
-                        truncated = summary
-                    
-                    bullet = f"{truncated} (Source: {source}, {date})"
-                    bullets.append(bullet)
-                
-                if len(bullets) >= max_bullets:
-                    break
-        
-        if len(bullets) >= max_bullets:
-            break
-    
-    return bullets
 
 
 def format_bullets_for_context(bullets: List[str], header: str = "LATEST CURRENT AFFAIRS") -> str:
