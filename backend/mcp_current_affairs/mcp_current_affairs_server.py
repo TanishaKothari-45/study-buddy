@@ -3,18 +3,20 @@
 MCP Current Affairs Server
 Provides intelligent current affairs fetching with LLM summarization.
 
-Flow:
+OPTIMIZED FLOW (Articles Only):
 1. Extract keywords from topic (LLM)
 2. Build 4 diversified queries
-3. Fetch candidates (10 per query)
-4. Dedupe by URL
-5. Ensure content (lazy scrape if needed)
-6. Compute relevance scores (embeddings)
-7. Filter by relevance threshold
-8. Apply time filter (90 days)
-9. Select 1 article per query + 1 editorial
-10. Summarize batch (LLM)
-11. Output JSON
+3. Fetch candidates (10 per query = 40 total)
+4. **NEW: Cheap keyword pre-filter** (reject before scraping)
+5. **NEW: Enhanced deduplication** (URL + title similarity)
+6. **NEW: Smart top-8 selection** (recency, keywords, content, diversity)
+7. Scrape top 8 for full content
+8. **NEW: Batch compute embeddings** (1 API call for all)
+9. Filter by relevance threshold
+10. Apply time filter with fallback
+11. Select best 3-4 articles (1 per query with fallback)
+12. Summarize articles (batch LLM call)
+13. Output JSON
 """
 
 import asyncio
@@ -24,19 +26,23 @@ from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
 from .fetcher.news_fetcher import fetch_articles_for_query
-from .fetcher.utils import dedupe_articles, within_time_window
+from .fetcher.utils import (
+    dedupe_articles, within_time_window, 
+    cheap_keyword_match, calculate_title_similarity,
+    select_top_candidates, normalize_url
+)
 from .fetcher.content_extractor import ensure_content, get_article_text
 from .llm.keyword_parser import get_keywords, build_search_queries
 from .processing.classifier import detect_type, topic_score, mark_corroboration, set_topic_keywords
 from .processing.relevance_filter import compute_relevance_scores, filter_by_relevance
-from .processing.editorial_processor import process_editorials
-from .processing.summary_builder import extract_lead, extract_editorial_snippet
-from .llm.summarizer import summarize_articles_and_editorial_sync
+from .processing.summary_builder import extract_lead
+from .llm.summarizer import summarize_articles_only
 from .processing.cache import get_cached_summary, set_cached_summary
 from .config import (
     SUMMARY_CACHE_TTL, RELEVANCE_THRESHOLD,
-    TOP_CANDIDATES_FOR_SCRAPING, MIN_CONTENT_LENGTH,
-    FINAL_ARTICLE_COUNT
+    MAX_CANDIDATES_FOR_SCORING, MIN_CONTENT_LENGTH,
+    FINAL_ARTICLE_COUNT, KEYWORD_MATCH_MIN_COUNT,
+    URL_SIMILARITY_THRESHOLD
 )
 
 # Initialize MCP server
@@ -49,7 +55,7 @@ async def list_tools():
     return [
         Tool(
             name="fetch_diversified_current_affairs",
-            description="Fetch diversified current affairs with intelligent summarization for UPSC preparation. Returns 4 factual articles (one per query angle) and 1 editorial with detailed analysis.",
+            description="Fetch diversified current affairs articles with intelligent summarization for UPSC preparation. Returns 3-4 factual articles (one per query angle) with optimized filtering and batch processing.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -81,6 +87,7 @@ async def call_tool(name: str, arguments: dict):
 async def fetch_diversified_current_affairs(topic: str) -> dict:
     """
     Main function: Fetch diversified current affairs with intelligent summarization.
+    OPTIMIZED: No editorials, early filtering, batch embeddings, smart selection.
     """
     print(f"\n🔍 Processing topic: {topic}")
     
@@ -116,27 +123,100 @@ async def fetch_diversified_current_affairs(topic: str) -> dict:
     
     print(f"   Fetched: {len(all_articles)} candidates")
 
-    # Step 5: Dedupe by URL
-    articles = dedupe_articles(all_articles)
-    print(f"   After dedupe: {len(articles)}")
+    # Step 5: EARLY KEYWORD PRE-FILTER (cheap substring matching)
+    print("🎯 Early keyword filtering...")
+    keyword_matched = []
+    for article in all_articles:
+        has_match, match_count = cheap_keyword_match(article, keywords)
+        if has_match and match_count >= KEYWORD_MATCH_MIN_COUNT:
+            article["_keyword_matches"] = match_count
+            keyword_matched.append(article)
+    
+    print(f"   Keyword matched: {len(keyword_matched)}/{len(all_articles)}")
+    
+    if not keyword_matched:
+        print("   ⚠️ No articles matched keywords. Returning empty result.")
+        return {
+            "current_affairs": [],
+            "metadata": {
+                "keywords": keywords,
+                "message": "No relevant articles found matching topic keywords"
+            }
+        }
 
-    # Step 6: Ensure content (lazy scrape top N)
+    # Step 6: ENHANCED DEDUPLICATION (URL normalization + title similarity)
+    print("🔗 Enhanced deduplication...")
+    seen_urls = set()
+    seen_titles = []
+    deduped = []
+    
+    for article in keyword_matched:
+        # Check URL
+        url = normalize_url(article.get("url", ""))
+        if url and url in seen_urls:
+            continue
+        
+        # Check title similarity
+        title = article.get("title", "").strip()
+        is_duplicate = False
+        if title:
+            for seen_title in seen_titles:
+                similarity = calculate_title_similarity(title, seen_title)
+                if similarity >= URL_SIMILARITY_THRESHOLD:
+                    is_duplicate = True
+                    break
+        
+        if not is_duplicate:
+            if url:
+                seen_urls.add(url)
+            if title:
+                seen_titles.append(title)
+            deduped.append(article)
+    
+    print(f"   After dedupe: {len(deduped)}")
+
+    # Step 7: SMART TOP-8 SELECTION (recency + keywords + content + diversity)
+    print("⭐ Selecting top candidates...")
+    top_candidates = select_top_candidates(deduped, keywords, max_candidates=MAX_CANDIDATES_FOR_SCORING)
+    print(f"   Selected top {len(top_candidates)} for scraping & embedding")
+    
+    if not top_candidates:
+        print("   ⚠️ No candidates selected. Returning empty result.")
+        return {
+            "current_affairs": [],
+            "metadata": {
+                "keywords": keywords,
+                "message": "No quality candidates found after selection"
+            }
+        }
+
+    # Step 8: Scrape for full content
     print("📄 Ensuring content...")
-    articles = await ensure_content(
-        articles, 
+    top_candidates = await ensure_content(
+        top_candidates, 
         min_length=MIN_CONTENT_LENGTH,
-        max_to_scrape=TOP_CANDIDATES_FOR_SCRAPING
+        max_to_scrape=MAX_CANDIDATES_FOR_SCORING
     )
 
-    # Step 7: Compute relevance scores
-    print("🎯 Computing relevance scores...")
-    articles = await compute_relevance_scores(articles, keywords)
+    # Step 9: BATCH COMPUTE EMBEDDINGS (single API call!)
+    print("🎯 Computing relevance scores (batch)...")
+    top_candidates = await compute_relevance_scores(top_candidates, keywords)
     
-    # Step 8: Filter by relevance
-    relevant_articles = filter_by_relevance(articles, threshold=RELEVANCE_THRESHOLD)
+    # Step 10: Filter by relevance
+    relevant_articles = filter_by_relevance(top_candidates, threshold=RELEVANCE_THRESHOLD)
     print(f"   Relevant (>={RELEVANCE_THRESHOLD}): {len(relevant_articles)}")
 
-    # Step 9: Apply time filter with fallback for high relevance
+    if not relevant_articles:
+        print("   ⚠️ No articles passed relevance threshold. Returning empty result.")
+        return {
+            "current_affairs": [],
+            "metadata": {
+                "keywords": keywords,
+                "message": f"No articles exceeded relevance threshold of {RELEVANCE_THRESHOLD}"
+            }
+        }
+
+    # Step 11: Apply time filter with fallback for high relevance
     time_filtered = []
     old_high_relevance = []
     
@@ -152,51 +232,54 @@ async def fetch_diversified_current_affairs(topic: str) -> dict:
         needed = 3 - len(time_filtered)
         if old_high_relevance:
             print(f"   Only {len(time_filtered)} recent articles. Filling with up to {needed} old high-relevance (>0.5) articles.")
-            # Sort old ones by relevance just in case
             old_high_relevance.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
             time_filtered.extend(old_high_relevance[:needed])
         
     print(f"   After time filter (with fallback): {len(time_filtered)}")
 
-    # Step 10: Classify articles
+    if not time_filtered:
+        print("   ⚠️ No articles within time window. Returning empty result.")
+        return {
+            "current_affairs": [],
+            "metadata": {
+                "keywords": keywords,
+                "message": "No recent articles found within time window"
+            }
+        }
+
+    # Step 12: Classify articles
     for a in time_filtered:
         a["type"] = detect_type(a)
         a["topic_score"] = topic_score(a)
     time_filtered = mark_corroboration(time_filtered)
 
-    # Step 11: Select best articles (1 per query with fallback)
+    # Step 13: Select best articles (1 per query with fallback)
     articles_only = [a for a in time_filtered if a["type"] == "article"]
     final_articles = select_articles_with_fallback(articles_only, num_queries=4)
     
-    # Step 12: Process editorials using the new pipeline
-    print("\n📰 Processing editorials with quality scoring...")
-    final_editorial = await process_editorials(keywords)
-    
-    print(f"   Selected: {len(final_articles)} articles, {1 if final_editorial else 0} editorial")
+    print(f"   ✅ Selected: {len(final_articles)} articles")
 
     # Handle empty results
-    if not final_articles and not final_editorial:
+    if not final_articles:
         return {
             "current_affairs": [],
             "metadata": {
                 "keywords": keywords,
-                "message": "No relevant articles found for this topic"
+                "message": "No final articles selected despite finding candidates"
             }
         }
 
-    # Step 12: Prepare extracts for summarization
+    # Step 14: Prepare extracts for summarization
     article_leads = [get_article_text(a)[:500] for a in final_articles]
-    editorial_extract = get_article_text(final_editorial)[:1000] if final_editorial else None
 
-    # Step 13: Summarize (batch LLM call)
+    # Step 15: Summarize (batch LLM call - articles only)
     print("✍️ Generating summaries...")
-    article_summaries, editorial_summary = await asyncio.to_thread(
-        summarize_articles_and_editorial_sync,
-        article_leads,
-        editorial_extract
+    article_summaries = await asyncio.to_thread(
+        summarize_articles_only,
+        article_leads
     )
 
-    # Step 14: Build output JSON
+    # Step 16: Build output JSON (articles only, no editorial)
     out = {"current_affairs": []}
 
     for a, summary in zip(final_articles, article_summaries):
@@ -210,25 +293,18 @@ async def fetch_diversified_current_affairs(topic: str) -> dict:
             "relevance_score": a.get("relevance_score", 0)
         })
 
-    if editorial_summary and final_editorial:
-        out["current_affairs"].append({
-            "type": "editorial",
-            "summary": editorial_summary.strip(),
-            "source": final_editorial.get("source"),
-            "url": final_editorial.get("url"),
-            "published_at": final_editorial.get("published_at"),
-            "opinion_flag": True,
-            "relevance_score": final_editorial.get("relevance_score", 0)
-        })
-
     out["metadata"] = {
         "keywords": keywords,
         "queries_used": queries,
         "candidates_fetched": len(all_articles),
-        "relevant_found": len(relevant_articles)
+        "keyword_matched": len(keyword_matched),
+        "after_dedup": len(deduped),
+        "top_selected": len(top_candidates),
+        "relevant_found": len(relevant_articles),
+        "final_count": len(final_articles)
     }
 
-    # Step 15: Cache result
+    # Step 17: Cache result
     await asyncio.to_thread(set_cached_summary, cache_key, out)
     print("✅ Done!")
 

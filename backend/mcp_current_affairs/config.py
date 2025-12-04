@@ -26,15 +26,26 @@ TIME_WINDOW_DAYS = ARTICLE_TIME_WINDOW_DAYS  # Default (for backward compatibili
 ARTICLES_PER_QUERY = 10                    # fetch per query
 TOTAL_ARTICLE_LIMIT = 40                   # global cap after merge
 FINAL_ARTICLE_COUNT = 4                    # one per subquery
-FINAL_EDITORIAL_COUNT = 1                  # editorial summary
+FINAL_EDITORIAL_COUNT = 1                  # editorial summary (DEPRECATED - editorials removed)
+
+# -----------------------------
+# CANDIDATE SELECTION (NEW)
+# -----------------------------
+MAX_CANDIDATES_FOR_SCORING = 8             # Top N to scrape and embed
+KEYWORD_MATCH_MIN_COUNT = 1                # Minimum keyword matches required
 
 # -----------------------------
 # RELEVANCE FILTERING
 # -----------------------------
 RELEVANCE_THRESHOLD = 0.4                  # Semantic similarity threshold for articles
-EDITORIAL_RELEVANCE_THRESHOLD = 0.4        # Threshold for editorials
-TOP_CANDIDATES_FOR_SCRAPING = 10           # Lazy scrape only top N
+EDITORIAL_RELEVANCE_THRESHOLD = 0.2        # Threshold for editorials (DEPRECATED)
+TOP_CANDIDATES_FOR_SCRAPING = 10           # Lazy scrape only top N (DEPRECATED - use MAX_CANDIDATES_FOR_SCORING)
 MIN_CONTENT_LENGTH = 200                   # Scrape if content < this
+
+# -----------------------------
+# DEDUPLICATION
+# -----------------------------
+URL_SIMILARITY_THRESHOLD = 0.9             # Title similarity threshold for near-duplicates
 
 # -----------------------------
 # CONCURRENCY CONTROL

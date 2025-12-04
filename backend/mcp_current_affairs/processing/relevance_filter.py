@@ -36,13 +36,11 @@ async def compute_relevance_scores(
 ) -> List[Dict[str, Any]]:
     """
     Compute relevance scores for articles using embedding similarity.
+    Uses BATCH embedding API call for efficiency.
     
     Args:
         articles: List of article dicts
         topic_keywords: Keywords extracted from topic
-    
-    Returns:
-        Articles with 'relevance_score' field added
     """
     import asyncio
     
@@ -54,39 +52,44 @@ async def compute_relevance_scores(
     # Create topic embedding from keywords
     topic_text = " ".join(topic_keywords)
     
-    try:
-        topic_embedding_list = await asyncio.to_thread(
-            embedder.get_embeddings, [topic_text]
-        )
-        if not topic_embedding_list or len(topic_embedding_list) == 0:
-            print("⚠️ Failed to get topic embedding, using keyword matching fallback")
-            return _keyword_fallback(articles, topic_keywords)
-        topic_vec = topic_embedding_list[0]
-    except Exception as e:
-        print(f"⚠️ Topic embedding error: {e}, using fallback")
-        return _keyword_fallback(articles, topic_keywords)
-    
-    # Compute similarity for each article
+    # Prepare article texts for batch embedding
+    article_texts = []
     for article in articles:
         # Combine title + description for article embedding
-        article_text = f"{article.get('title', '')} {article.get('description', '')}"
+        article_text = f"{article.get('title', '')} {article.get('description', '')}".strip()
+        article_texts.append(article_text if article_text else "untitled")
+    
+    try:
+        # BATCH EMBEDDING CALL: Get all embeddings in one API request
+        print(f"   🔢 Batch embedding: 1 topic + {len(article_texts)} articles...")
+        all_texts = [topic_text] + article_texts
         
-        if not article_text.strip():
-            article["relevance_score"] = 0.0
-            continue
+        all_embeddings = await asyncio.to_thread(
+            embedder.get_embeddings, all_texts
+        )
         
-        try:
-            article_embedding = await asyncio.to_thread(
-                embedder.get_embeddings, [article_text]
-            )
-            if article_embedding and len(article_embedding) > 0:
-                similarity = cosine_similarity(topic_vec, article_embedding[0])
+        if not all_embeddings or len(all_embeddings) < len(all_texts):
+            print("⚠️ Failed to get batch embeddings, using keyword matching fallback")
+            return _keyword_fallback(articles, topic_keywords)
+        
+        # Extract topic embedding (first one)
+        topic_vec = all_embeddings[0]
+        
+        # Compute similarity for each article
+        for i, article in enumerate(articles):
+            article_vec = all_embeddings[i + 1]  # Offset by 1 (topic was first)
+            
+            if article_vec:
+                similarity = cosine_similarity(topic_vec, article_vec)
                 article["relevance_score"] = round(similarity, 3)
             else:
                 article["relevance_score"] = 0.0
-        except Exception as e:
-            print(f"⚠️ Embedding error for article: {e}")
-            article["relevance_score"] = 0.0
+        
+        print(f"   ✅ Batch embedding complete!")
+        
+    except Exception as e:
+        print(f"⚠️ Batch embedding error: {e}, using fallback")
+        return _keyword_fallback(articles, topic_keywords)
     
     return articles
 
