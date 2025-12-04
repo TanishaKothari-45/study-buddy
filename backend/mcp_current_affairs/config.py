@@ -20,7 +20,7 @@ THENEWSAPI_KEY  = os.getenv("THENEWSAPI_KEY", "")
 # -----------------------------
 # FETCH LIMITS & TIME WINDOWS
 # -----------------------------
-TIME_WINDOW_DAYS = 90                      # 3 months for better coverage
+TIME_WINDOW_DAYS = 180                     # 6 months for editorials (with recency boost)
 ARTICLES_PER_QUERY = 10                    # fetch per query
 TOTAL_ARTICLE_LIMIT = 40                   # global cap after merge
 FINAL_ARTICLE_COUNT = 4                    # one per subquery
@@ -48,11 +48,50 @@ SUMMARY_CACHE_TTL = 4 * 3600               # 4 hours
 BREAKING_NEWS_TTL = 30 * 60                # 30 minutes
 
 # -----------------------------
-# EDITORIAL RSS FEEDS
+# EDITORIAL RSS FEEDS & BUCKETS
 # -----------------------------
-RSS_FEEDS = [
-    "https://indianexpress.com/section/opinion/feed/",
-    "https://www.thehindu.com/opinion/editorial/feeder/default.rss",
-    "https://www.livemint.com/rss/opinion"
-]
+RSS_PER_FEED = 2
+SCRAPE_TOP_N = 8                           # Scrape top 8 candidates
+SOFT_SIM_THRESH = 0.3                      # Initial soft filter
+HARD_SIM_THRESH = 0.4                      # Final hard filter
+MIN_EDITORIAL_WORDS = 350                  # Prefer longer pieces
+
+RSS_BUCKETS = {
+    "india_opinion": [
+        "https://indianexpress.com/section/opinion/feed/",
+        "https://www.thehindu.com/opinion/editorial/feeder/default.rss",
+        "https://www.livemint.com/rss/opinion",
+        "https://www.deccanherald.com/rss/opinion",
+        "https://www.tribuneindia.com/rss/feed/opinion"
+    ],
+    "global_opinion": [
+        "https://www.theguardian.com/commentisfree/rss",
+        "https://www.nytimes.com/svc/collections/v1/publish/https://www.nytimes.com/column/opinion/rss.xml",
+        "https://www.washingtonpost.com/arcio/rss/?outputType=xml",
+        "https://www.aljazeera.com/xml/rss/all.xml"
+    ],
+    "policy_journals": [
+        "https://www.downtoearth.org.in/rss/section/opinion-101",
+        "https://economictimes.indiatimes.com/rssfeeds/1977021501.cms",
+        "https://www.orfonline.org/feed"
+    ]
+}
+
+# Source Reliability Weights (0.0 - 1.0)
+SOURCE_RELIABILITY = {
+    "The Hindu": 0.9,
+    "The Indian Express": 0.9,
+    "LiveMint": 0.85,
+    "The Guardian": 0.85,
+    "The New York Times": 0.85,
+    "Washington Post": 0.85,
+    "Down To Earth": 0.8,
+    "Economic Times": 0.8,
+    "Deccan Herald": 0.8,
+    "The Tribune": 0.8,
+    "ORF": 0.85,
+    "default": 0.6
+}
+
+EDITORIAL_QUALITY_WEIGHTS = {"embedding": 0.5, "source": 0.3, "length": 0.2}
 

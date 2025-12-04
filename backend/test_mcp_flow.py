@@ -130,16 +130,26 @@ async def test_mcp_flow(topic: str):
         "dropped": len(articles) - len(relevant_articles)
     })
     
-    # Step 8: Time filter
+    # Step 8: Time filter with fallback
     time_filtered = []
+    old_high_relevance = []
     for a in relevant_articles:
         pub_date = a.get("published_at")
         if pub_date and within_time_window(pub_date):
             time_filtered.append(a)
+        elif a.get("relevance_score", 0) > 0.5:
+            old_high_relevance.append(a)
+            
+    if len(time_filtered) < 3:
+        needed = 3 - len(time_filtered)
+        if old_high_relevance:
+            old_high_relevance.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+            time_filtered.extend(old_high_relevance[:needed])
     
-    log("8. Time Filter (90 days)", {
-        "passed": len(time_filtered),
-        "dropped": len(relevant_articles) - len(time_filtered)
+    log("8. Time Filter (90 days + fallback)", {
+        "total_kept": len(time_filtered),
+        "recent": len([a for a in time_filtered if within_time_window(a.get("published_at"))]),
+        "old_filled": len(time_filtered) - len([a for a in time_filtered if within_time_window(a.get("published_at"))])
     })
     
     # Step 9: Classify
@@ -196,22 +206,16 @@ async def test_mcp_flow(topic: str):
     
     final_articles = select_articles_with_fallback(time_filtered)
     
-    # Get editorial with lower threshold (0.3)
-    from mcp_current_affairs.config import EDITORIAL_RELEVANCE_THRESHOLD
-    rss_editorials = fetch_editorial_rss()
-    if rss_editorials:
-        rss_editorials = await compute_relevance_scores(rss_editorials, keywords)
-        rss_editorials = filter_by_relevance(rss_editorials, threshold=EDITORIAL_RELEVANCE_THRESHOLD)
+    # Get editorial using new processor with quality scoring
+    from mcp_current_affairs.processing.editorial_processor import process_editorials
     
-    editorials_pool = [a for a in time_filtered if a["type"] == "editorial"]
-    editorials_pool.extend(rss_editorials)
-    editorials_pool.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
-    final_editorial = editorials_pool[0] if editorials_pool else None
+    log("10. Processing Editorials (New Pipeline)", "Using quality scoring + recency boost...")
+    final_editorial = await process_editorials(keywords)
     
     log("10. Selection", {
         "articles_selected": len(final_articles),
         "articles": [{"title": a.get("title", "")[:40], "query": a.get("_query_index"), "relevance": a.get("relevance_score")} for a in final_articles],
-        "editorial": {"title": final_editorial.get("title", "")[:40], "relevance": final_editorial.get("relevance_score")} if final_editorial else None
+        "editorial": {"title": final_editorial.get("title", "")[:40], "relevance": final_editorial.get("relevance_score"), "quality": final_editorial.get("quality_score")} if final_editorial else None
     })
     
     if not final_articles and not final_editorial:

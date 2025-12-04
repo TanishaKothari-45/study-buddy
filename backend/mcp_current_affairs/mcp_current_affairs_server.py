@@ -24,18 +24,17 @@ from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
 from .fetcher.news_fetcher import fetch_articles_for_query
-from .fetcher.editorial_rss import fetch_editorial_rss
 from .fetcher.utils import dedupe_articles, within_time_window
 from .fetcher.content_extractor import ensure_content, get_article_text
 from .llm.keyword_parser import get_keywords, build_search_queries
 from .processing.classifier import detect_type, topic_score, mark_corroboration, set_topic_keywords
 from .processing.relevance_filter import compute_relevance_scores, filter_by_relevance
-from .processing.selector import select_articles_and_editorials
+from .processing.editorial_processor import process_editorials
 from .processing.summary_builder import extract_lead, extract_editorial_snippet
 from .llm.summarizer import summarize_articles_and_editorial_sync
 from .processing.cache import get_cached_summary, set_cached_summary
 from .config import (
-    SUMMARY_CACHE_TTL, RELEVANCE_THRESHOLD, EDITORIAL_RELEVANCE_THRESHOLD,
+    SUMMARY_CACHE_TTL, RELEVANCE_THRESHOLD,
     TOP_CANDIDATES_FOR_SCRAPING, MIN_CONTENT_LENGTH,
     FINAL_ARTICLE_COUNT
 )
@@ -169,20 +168,9 @@ async def fetch_diversified_current_affairs(topic: str) -> dict:
     articles_only = [a for a in time_filtered if a["type"] == "article"]
     final_articles = select_articles_with_fallback(articles_only, num_queries=4)
     
-    # Get editorials (from RSS + any classified as editorial)
-    editorials_pool = [a for a in time_filtered if a["type"] == "editorial"]
-    rss_editorials = fetch_editorial_rss()
-    
-    # Score and filter RSS editorials with LOWER threshold
-    if rss_editorials:
-        rss_editorials = await compute_relevance_scores(rss_editorials, keywords)
-        for e in rss_editorials:
-            e["type"] = "editorial"
-        editorials_pool.extend(filter_by_relevance(rss_editorials, threshold=EDITORIAL_RELEVANCE_THRESHOLD))
-    
-    # Pick best editorial
-    editorials_pool.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
-    final_editorial = editorials_pool[0] if editorials_pool else None
+    # Step 12: Process editorials using the new pipeline
+    print("\n📰 Processing editorials with quality scoring...")
+    final_editorial = await process_editorials(keywords)
     
     print(f"   Selected: {len(final_articles)} articles, {1 if final_editorial else 0} editorial")
 
