@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { API_URL } from "@/lib/api";
 
 export default function SignupPage() {
     const [email, setEmail] = useState("");
@@ -23,7 +24,7 @@ export default function SignupPage() {
         setLoading(true);
 
         try {
-            const response = await fetch("http://localhost:8001/auth/signup", {
+            const response = await fetch(`${API_URL}/auth/signup`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

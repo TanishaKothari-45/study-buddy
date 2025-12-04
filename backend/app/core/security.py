@@ -1,8 +1,12 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import warnings
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from .config import settings
+
+# Suppress passlib bcrypt version warning (cosmetic issue with bcrypt 4.1+)
+warnings.filterwarnings("ignore", message=".*error reading bcrypt version.*")
 
 # Use JWT secret from config (validated on startup)
 SECRET_KEY = settings.JWT_SECRET_KEY

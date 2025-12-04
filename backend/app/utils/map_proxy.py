@@ -5,12 +5,14 @@ This module provides utilities to:
 1. Call the Node.js map generation microservice
 2. Parse map-json blocks from LLM output
 3. Generate and embed SVG maps in markdown
+4. Cache generated maps in Redis
 """
 
 import httpx
 import re
 import json
 import logging
+import base64
 from typing import Optional, Dict, Any
 
 # Configure logging
@@ -23,7 +25,12 @@ MAP_SERVICE_TIMEOUT = 30.0  # seconds
 
 async def generate_map_from_json(map_data: Dict[str, Any]) -> str:
     """
-    Call Node microservice to generate map, return markdown image.
+    Generate map with Redis caching.
+    
+    Flow:
+    1. Check Redis cache for map (based on map spec hash)
+    2. If HIT: Return cached SVG
+    3. If MISS: Call Node.js service -> Cache result -> Return SVG
     
     Args:
         map_data: Map configuration JSON
@@ -35,9 +42,24 @@ async def generate_map_from_json(map_data: Dict[str, Any]) -> str:
         Exception: If map generation fails
     """
     try:
-        logger.info(f"🗺️  Generating map: {map_data.get('title', 'Untitled')}")
+        from ..utils.cache_manager import get_cache_manager
+        cache = get_cache_manager()
+        
+        title = map_data.get('title', 'Map')
+        logger.info(f"🗺️  Generating map: {title}")
         logger.debug(f"Map config: {json.dumps(map_data, indent=2)}")
         
+        # Check cache first
+        if cache and cache.enabled:
+            cached_svg_base64 = cache.get_cached_map(map_data)
+            
+            if cached_svg_base64:
+                logger.info(f"🎯 [MAP CACHE HIT] Using cached map for '{title}'")
+                return f"![{title}](data:image/svg+xml;base64,{cached_svg_base64})"
+            else:
+                logger.info(f"❌ [MAP CACHE MISS] Generating map for '{title}'")
+        
+        # Cache MISS - call Node.js service
         async with httpx.AsyncClient(timeout=MAP_SERVICE_TIMEOUT) as client:
             response = await client.post(
                 f"{MAP_SERVICE_URL}/generate-map",
@@ -47,14 +69,22 @@ async def generate_map_from_json(map_data: Dict[str, Any]) -> str:
             result = response.json()
             
             logger.info(f"✅ Map generated successfully")
-            logger.debug(f"Map hash: {result.get('hash')}, Cached: {result.get('cached')}")
+            logger.debug(f"Map hash: {result.get('hash')}, Service cached: {result.get('cached')}")
             
-            # Return base64 embedded image
+            # Get SVG base64 from response
             svg_base64 = result['svg_base64']
-            title = map_data.get('title', 'Map')
+            
+            # Store in Redis cache
+            if cache and cache.enabled:
+                cache.set_cached_map(map_data, svg_base64)
             
             return f"![{title}](data:image/svg+xml;base64,{svg_base64})"
             
+    except ImportError:
+        # Cache manager not available - proceed without caching
+        logger.warning("⚠️  Cache manager not available, proceeding without map caching")
+        # Fall through to generate without cache
+        pass
     except httpx.TimeoutException as e:
         logger.error(f"❌ Map generation timeout: {str(e)}")
         return f"\n\n**[Map generation timed out]**\n\n"

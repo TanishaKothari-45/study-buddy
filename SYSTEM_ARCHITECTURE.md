@@ -56,8 +56,13 @@ MCP Server: Python (Model Context Protocol for current affairs)
 study-buddy/
 ├── backend/                    # FastAPI application
 │   ├── app/
-│   │   ├── core/              # Config, database, security, env
+│   │   ├── api/               # Versioned API routers
+│   │   │   └── v1/            # API v1 (current)
+│   │   │       ├── router.py  # Aggregates all endpoints
+│   │   │       └── endpoints/ # Future: migrated endpoints
+│   │   ├── core/              # Config, database, security, exceptions
 │   │   ├── gemini_core/       # Gemini client wrapper
+│   │   ├── middleware/        # Error handling middleware
 │   │   ├── models/            # SQLAlchemy models (User)
 │   │   ├── prompts/           # Shared prompt templates
 │   │   ├── routes/            # API endpoints
@@ -72,7 +77,8 @@ study-buddy/
 │       ├── app/               # Pages (App Router)
 │       ├── components/        # UI components
 │       ├── context/           # Auth context
-│       └── lib/               # Utilities
+│       ├── lib/               # API utilities (centralized)
+│       └── stores/            # Zustand state management
 │
 ├── map-service/               # D3.js map generation
 │   ├── generate_map.js        # SVG generation logic
@@ -86,46 +92,51 @@ study-buddy/
 
 ## 4. BACKEND API ENDPOINTS
 
-### Authentication (`/auth`)
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/auth/signup` | POST | Create new user account |
-| `/auth/login` | POST | Login and get JWT token |
-| `/auth/me` | GET | Get current user info (protected) |
+> **API Versioning**: All endpoints are now under `/api/v1/` prefix.
+> Centralized API URL in frontend: `web/src/lib/api.ts`
 
-### Content Upload (`/upload`, `/upload-content-store`)
+### Authentication (`/api/v1/auth`)
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/upload/` | POST | Upload PDF → chunk → embed → store in Pinecone |
-| `/upload-content-store/` | POST | Upload PDF → chunk → store full text in SQLite |
+| `/api/v1/auth/signup` | POST | Create new user account |
+| `/api/v1/auth/login` | POST | Login and get JWT token |
+| `/api/v1/auth/me` | GET | Get current user info (protected) |
 
-### Query & Chat (`/query`)
+### Content Upload (`/api/v1/upload`, `/api/v1/upload-content-store`)
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/query/` | POST | RAG query with streaming response |
-| `/query/stream` | POST | Streaming Q&A with context |
+| `/api/v1/upload/` | POST | Upload PDF → chunk → embed → store in Pinecone |
+| `/api/v1/upload-content-store/` | POST | Upload PDF → chunk → store full text in SQLite |
 
-### Mock Test (`/mock-test`)
+### Query & Chat (`/api/v1/query`)
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/mock-test/generate` | POST | Generate Prelims MCQs with PYQ-style patterns |
-| `/mock-test/feedback` | POST | Submit quality feedback on questions |
+| `/api/v1/query/` | POST | RAG query with streaming response |
+| `/api/v1/query/stream` | POST | Streaming Q&A with context |
 
-### Mains Answer (`/mains-answer`)
+### Mock Test (`/api/v1/mock-test`)
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/mains-answer/generate` | POST | Generate structured Mains answer (IBC format) |
+| `/api/v1/mock-test/generate` | POST | Generate Prelims MCQs (sync, small batches) |
+| `/api/v1/mock-test/generate-async` | POST | Generate MCQs (async batch processing) |
+| `/api/v1/mock-test/status/{job_id}` | GET | Poll async job status and progress |
+| `/api/v1/mock-test/feedback` | POST | Submit quality feedback on questions |
 
-### Evaluate Answer (`/evaluate-answer`)
+### Mains Answer (`/api/v1/mains-answer`)
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/evaluate-answer/` | POST | Upload handwritten answer → OCR → evaluate → improve |
+| `/api/v1/mains-answer/generate` | POST | Generate structured Mains answer (IBC format) |
 
-### Training Data (`/training-data`)
+### Evaluate Answer (`/api/v1/evaluate-answer`)
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/training-data/extract-answer` | POST | OCR extract from answer sheets |
-| `/training-data/submit` | POST | Submit training example for feedback improvement |
+| `/api/v1/evaluate-answer/` | POST | Upload handwritten answer → OCR → evaluate → improve |
+
+### Training Data (`/api/v1/training-data`)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/training-data/extract-answer` | POST | OCR extract from answer sheets |
+| `/api/v1/training-data/submit` | POST | Submit training example for feedback improvement |
 
 ---
 
@@ -211,33 +222,70 @@ GeminiClient
     → Score on multiple dimensions
 ```
 
-### 5.4 Mock Test Generation Flow
+### 5.4 Mock Test Generation Flow (Async Batch Processing)
+
+**New: Scalable batch processing for large question sets (5-100 questions)**
+
 ```
-Configuration (topics, difficulty, num_questions)
+POST /api/v1/mock-test/generate-async
     ↓
-StyleLearning
-    → 40% PYQ chunks from database
-    → 40% Patterns from JSON
-    → 20% High-quality feedback examples
+Job Tracker (SQLite-backed)
+    → Create job entry
+    → Return job_id immediately
     ↓
-MemoryManager
-    → Filter recently asked questions
-    → Avoid topic repetition
+Background Task
     ↓
-ContextRetrieval
+Context Retrieval
     → Query Pinecone for topic-relevant chunks
-    → Apply source diversity (enforce different files)
+    → Apply source diversity
     ↓
-UPSC Prompt Assembly
-    → Style examples + context + constraints
+Micro-batch Planning
+    → 5 questions per batch (optimal for quality)
+    → 10% buffer for validation failures
+    → Parallel execution with semaphore (limit: 3)
     ↓
-OpenAI GPT-4o
-    → Generate MCQs with 4 options
-    → Include detailed explanations
+For Each Batch (parallel):
+    → StyleLearning (40% PYQ + 40% Patterns + 20% Feedback)
+    → UPSC Prompt Assembly
+    → OpenAI GPT-4o Generation
+    → Batch Validation (schema + quality checks)
     ↓
-Recency Recording
-    → Store generated questions in memory
-    → Prevent future repetition
+Aggregation
+    → Collect all valid questions
+    → Hash-based deduplication (fast)
+    ↓
+Semantic Deduplication
+    → Embed all questions (batch API call)
+    → Cosine similarity matrix
+    → Remove questions > 88% similar
+    ↓
+Final Validation
+    → Quality score calculation
+    → Trim to requested count
+    ↓
+Job Complete
+    → Store results in job tracker
+    → Client polls GET /status/{job_id}
+```
+
+**Batch Validation Checks:**
+- Required fields: question, options (exactly 4), correct_answer (A/B/C/D), explanation
+- Unique options (no duplicates)
+- Minimum lengths (question > 20 chars, explanation > 30 chars)
+- UPSC style indicators
+
+**Job Status Response:**
+```json
+{
+    "job_id": "uuid",
+    "status": "processing",
+    "progress": 0.6,
+    "questions_generated": 30,
+    "questions_target": 50,
+    "batches_completed": 6,
+    "total_batches": 10,
+    "elapsed_seconds": 45
+}
 ```
 
 ---
@@ -341,6 +389,64 @@ chunks(
 - Topic-level filtering
 - Quality-based example selection for few-shot prompting
 
+### 6.7 JobTracker (`utils/job_tracker.py`)
+**Purpose**: SQLite-backed job tracking for async operations
+
+**Features**:
+- Persistent job storage (survives server restarts)
+- Progress tracking with batch-level granularity
+- Stale job cleanup on startup
+- Thread-safe with locking
+
+**Schema**:
+```sql
+jobs(
+    job_id TEXT PRIMARY KEY,
+    status TEXT,  -- pending, processing, completed, failed
+    progress REAL,
+    num_questions INTEGER,
+    topics TEXT,  -- JSON array
+    difficulty TEXT,
+    questions_generated INTEGER,
+    batches_completed INTEGER,
+    total_batches INTEGER,
+    questions TEXT,  -- JSON array (results)
+    error TEXT,
+    created_at TEXT,
+    completed_at TEXT
+)
+```
+
+### 6.8 BatchValidator (`utils/batch_validator.py`)
+**Purpose**: Validate MCQ batches for schema and quality
+
+**Validation Checks**:
+- Required fields present
+- Exactly 4 unique, non-empty options
+- Valid correct_answer (A/B/C/D)
+- Minimum content lengths
+- UPSC style indicators
+
+**Quality Score Calculation**:
+```python
+score = (
+    avg_question_length / 100 * 0.3 +
+    avg_explanation_length / 200 * 0.3 +
+    upsc_style_ratio * 0.4
+)
+```
+
+### 6.9 SemanticDedup (`utils/semantic_dedup.py`)
+**Purpose**: Remove duplicate questions using embedding similarity
+
+**Algorithm**:
+1. Batch embed all questions (single API call)
+2. Compute cosine similarity matrix (vectorized numpy)
+3. Find pairs above threshold (default: 88%)
+4. Keep question with longer explanation
+
+**Fallback**: Hash-based deduplication if embeddings fail
+
 ---
 
 ## 7. PROMPT ENGINEERING
@@ -435,8 +541,40 @@ MapProxy
 - **Header**: Theme toggle + Auth modal trigger
 - **AuthModal**: Login/Signup modal with state switching
 - **Dialog**: Radix UI-based modal with theme support
+- **Mermaid**: Diagram renderer with theme support
+- **Progress**: Progress bar for async job tracking
 
-### 9.3 Theme System
+### 9.3 State Management (Zustand)
+
+**Stores with localStorage persistence** (`web/src/stores/`):
+
+| Store | Purpose | Persisted Data |
+|-------|---------|----------------|
+| `mockTestStore` | Mock test state | testData, userAnswers, jobId, jobStatus |
+| `mainsAnswerStore` | Mains answers | Generated answer result |
+| `chatStore` | Chat history | messages, sessionId |
+
+**Mock Test Store Features**:
+- Persists job ID for resuming generation after page refresh
+- Tracks user answers for scoring
+- Negative marking calculation (-0.66 per wrong)
+
+### 9.4 Centralized API Client
+
+**Location**: `web/src/lib/api.ts`
+
+```typescript
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+const API_VERSION = "v1";
+export const API_URL = `${API_BASE_URL}/api/${API_VERSION}`;
+
+export async function fetchApi(endpoint: string, options?: RequestInit);
+export async function fetchApiFormData(endpoint: string, formData: FormData);
+```
+
+All components import `API_URL` from `@/lib/api` - single source of truth.
+
+### 9.5 Theme System
 **Light Theme (Oatmilk)**:
 ```css
 --bg: 40 33% 98%          /* Warm off-white */
@@ -455,25 +593,64 @@ MapProxy
 
 ---
 
-## 10. AUTHENTICATION SYSTEM
+## 10. ERROR HANDLING
 
-### 10.1 Flow
+### 10.1 Custom Exceptions (`core/exceptions.py`)
+
+| Exception | Status | Error Code |
+|-----------|--------|------------|
+| `ValidationException` | 400 | VALIDATION_ERROR |
+| `NotFoundException` | 404 | NOT_FOUND |
+| `AuthenticationException` | 401 | AUTHENTICATION_ERROR |
+| `AuthorizationException` | 403 | AUTHORIZATION_ERROR |
+| `ExternalServiceException` | 503 | EXTERNAL_SERVICE_ERROR |
+| `RateLimitException` | 429 | RATE_LIMIT_EXCEEDED |
+
+### 10.2 Centralized Error Handler (`middleware/error_handler.py`)
+
+All errors return consistent JSON:
+```json
+{
+    "error": "Human-readable message",
+    "error_code": "ERROR_CODE",
+    "details": {"field": "value"},
+    "timestamp": "2024-12-03T10:00:00Z",
+    "path": "/api/v1/..."
+}
+```
+
+**Handlers**:
+- `app_exception_handler`: Custom AppException types
+- `validation_exception_handler`: Pydantic validation errors
+- `http_exception_handler`: Standard HTTP exceptions
+- `global_exception_handler`: Catch-all for unhandled errors
+
+### 10.3 Logging
+
+- Console output + file logging (`logs/app.log`)
+- Structured logging with context (path, method, error details)
+
+---
+
+## 11. AUTHENTICATION SYSTEM
+
+### 11.1 Flow
 ```
 Signup → Hash password (bcrypt) → Store in SQLite
 Login → Verify password → Generate JWT (30min expiry)
 Protected Routes → Verify JWT → Extract user email
 ```
 
-### 10.2 Security Notes
+### 11.2 Security Notes
 - JWT secret should be moved to `.env` (currently uses fallback)
 - Token expiry: 30 minutes
 - Password hashing: bcrypt
 
 ---
 
-## 11. DATABASE SCHEMAS
+## 12. DATABASE SCHEMAS
 
-### 11.1 Users (`users` table)
+### 12.1 Users (`users` table)
 ```sql
 id INTEGER PRIMARY KEY
 email TEXT UNIQUE
@@ -482,7 +659,7 @@ hashed_password TEXT
 is_active BOOLEAN
 ```
 
-### 11.2 Content Store (`chunks` table)
+### 12.2 Content Store (`chunks` table)
 ```sql
 chunk_id TEXT
 filename TEXT
@@ -496,7 +673,7 @@ micro_topic TEXT
 source_type TEXT
 ```
 
-### 11.3 Memory (`recent_questions`, `question_feedback`)
+### 12.3 Memory (`recent_questions`, `question_feedback`)
 ```sql
 -- Recent questions
 question_hash TEXT UNIQUE
@@ -510,9 +687,26 @@ quality TEXT  -- 'good', 'bad', 'excellent'
 reason TEXT
 ```
 
+### 12.4 Job Tracker (`jobs` table)
+```sql
+job_id TEXT PRIMARY KEY
+status TEXT  -- pending, processing, completed, failed
+progress REAL
+num_questions INTEGER
+topics TEXT  -- JSON array
+difficulty TEXT
+questions_generated INTEGER
+batches_completed INTEGER
+total_batches INTEGER
+questions TEXT  -- JSON array (results)
+error TEXT
+created_at TEXT
+completed_at TEXT
+```
+
 ---
 
-## 12. ENVIRONMENT VARIABLES
+## 13. ENVIRONMENT VARIABLES
 
 ```env
 # LLM APIs
@@ -522,6 +716,7 @@ GEMINI_API_KEY=...
 # Vector Store
 PINECONE_API_KEY=...
 PINECONE_INDEX_NAME=study-buddy
+USE_PINECONE=true
 
 # News APIs (for current affairs)
 GNEWS_API_KEY=...
@@ -538,33 +733,32 @@ JWT_SECRET_KEY=...
 
 ---
 
-## 13. CURRENT LIMITATIONS & KNOWN ISSUES
+## 14. CURRENT LIMITATIONS & KNOWN ISSUES
 
 1. **JWT Secret**: Currently falls back to OpenAI key if not set
 2. **Node.js Version**: Frontend requires Node.js >= 20.9.0 (Next.js 16)
 3. **Map Service**: Must be running on port 3001 for maps to work
 4. **ChromaDB Fallback**: Less tested than Pinecone path
-5. **Training Data Router**: Registered twice in main.py (duplicate)
 
 ---
 
-## 14. RECOMMENDED IMPROVEMENTS
+## 15. RECOMMENDED IMPROVEMENTS
 
-### 14.1 High Priority
+### 15.1 High Priority
 1. **Proper JWT Secret**: Add `JWT_SECRET_KEY` to `.env` and use it
 2. **Rate Limiting**: Add rate limits to prevent API abuse
-3. **Error Handling**: Centralized error handling middleware
-4. **Logging**: Structured logging with log levels
+3. ~~**Error Handling**: Centralized error handling middleware~~ ✅ Implemented
+4. ~~**Logging**: Structured logging with log levels~~ ✅ Implemented
 5. **Testing**: Unit tests for core utilities
 
-### 14.2 Medium Priority
+### 15.2 Medium Priority
 1. **Caching**: Redis for session management and API response caching
 2. **User Progress Tracking**: Store quiz scores, answer history
 3. **Spaced Repetition**: Implement SRS for topic review
 4. **Multi-Subject Support**: Extend beyond Geography
 5. **PDF Annotation**: Highlight source chunks in original PDFs
 
-### 14.3 Future Features
+### 15.3 Future Features
 1. **Study Plans**: AI-generated personalized study schedules
 2. **Peer Comparison**: Anonymous benchmarking
 3. **Voice Input**: Speech-to-text for answer dictation
@@ -573,58 +767,110 @@ JWT_SECRET_KEY=...
 
 ---
 
-## 15. DEVELOPMENT WORKFLOW
+## 16. DEVELOPMENT WORKFLOW
 
 ### Running the System
 ```bash
-# Backend (port 8001)
+# Terminal 1: Backend (port 8001)
 cd backend
-source venv/bin/activate
+source venv/bin/activate  # Create if needed: python -m venv venv
+pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
-# Frontend (port 3000)
+# Terminal 2: Frontend (port 3000)
 cd web
+npm install
 npm run dev
 
-# Map Service (port 3001)
+# Terminal 3: Map Service (port 3001)
 cd map-service
+npm install
 npm start
 ```
+
+### Port Reference
+| Service | Port | URL |
+|---------|------|-----|
+| Backend API | 8001 | http://localhost:8001/api/v1 |
+| Frontend | 3000 | http://localhost:3000 |
+| Map Service | 3001 | http://localhost:3001 |
 
 ### Database Locations
 ```
 backend/data/databases/
 ├── content_store.db    # SQLite content store
 ├── memory.db          # Recency & feedback memory
+├── job_tracker.db     # Async job tracking
 ├── chroma.sqlite3     # ChromaDB (fallback vector store)
 └── sql_app.db         # User authentication
 ```
 
 ---
 
-## 16. QUICK REFERENCE: KEY FILES
+## 17. QUICK REFERENCE: KEY FILES
 
 | Purpose | File |
 |---------|------|
 | Main FastAPI app | `backend/app/main.py` |
+| API v1 Router | `backend/app/api/v1/router.py` |
 | Configuration | `backend/app/core/config.py` |
+| Custom Exceptions | `backend/app/core/exceptions.py` |
+| Error Middleware | `backend/app/middleware/error_handler.py` |
 | Mains answer generation | `backend/app/routes/mains_answer.py` |
 | Answer evaluation | `backend/app/routes/evaluate_answer.py` |
 | Mock test generation | `backend/app/routes/mock_test.py` |
+| Job tracker | `backend/app/utils/job_tracker.py` |
+| Batch validator | `backend/app/utils/batch_validator.py` |
+| Semantic dedup | `backend/app/utils/semantic_dedup.py` |
 | Vector store handler | `backend/app/utils/pinecone_handler.py` |
 | Content store | `backend/app/utils/content_store.py` |
 | Document chunker | `backend/app/utils/hierarchical_chunker.py` |
 | Question parser | `backend/app/utils/question_parser.py` |
+| Map proxy | `backend/app/utils/map_proxy.py` |
 | Current affairs | `backend/mcp_current_affairs_server.py` |
 | Gemini client | `backend/app/gemini_core/gemini_client.py` |
 | Mains prompts | `backend/mains_prompt.py` |
-| Frontend layout | `web/src/app/layout.tsx` |
+| Frontend API client | `web/src/lib/api.ts` |
+| Frontend stores | `web/src/stores/` |
+| Mermaid component | `web/src/components/ui/mermaid.tsx` |
 | Auth context | `web/src/context/AuthContext.tsx` |
 | Theme CSS | `web/src/app/globals.css` |
 | Map generation | `map-service/generate_map.js` |
 
 ---
 
-*Document Version: 1.0*  
+## 18. RECENT CHANGES (December 2024)
+
+### API Versioning
+- All endpoints moved under `/api/v1/` prefix
+- Centralized `API_URL` in `web/src/lib/api.ts`
+- Prepared for future subject-based routing
+
+### Prelims Batch Processing
+- Async job-based generation (`/generate-async`, `/status/{job_id}`)
+- Micro-batch architecture (5 questions per batch, parallel execution)
+- SQLite-backed job tracking (persistent across server restarts)
+- Semantic deduplication using embeddings (88% similarity threshold)
+- Batch validation with quality scoring
+
+### Error Handling
+- Custom exception classes (`core/exceptions.py`)
+- Centralized error handler middleware
+- Consistent JSON error responses
+- Structured logging to file
+
+### Frontend Improvements
+- Zustand stores with localStorage persistence
+- Job resumption after page refresh
+- Progress bar for async operations
+- Mermaid diagram rendering with theme support
+
+### Diagram Enforcement
+- Minimum 1 Mermaid diagram per mains answer
+- Auto-insertion of fallback diagram if missing
+
+---
+
+*Document Version: 2.0*  
 *Last Updated: December 2024*  
 *Generated for: Study Buddy AI v1.0*

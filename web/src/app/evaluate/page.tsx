@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchApi } from "@/lib/api";
+import { fetchApi, API_URL } from "@/lib/api";
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, BookOpen } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -67,7 +67,6 @@ export default function EvaluatePage() {
 
         try {
             // We need to use fetch directly for FormData instead of our JSON wrapper
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
             const res = await fetch(`${API_URL}/evaluate-answer/`, {
                 method: "POST",
                 body: formData,

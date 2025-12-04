@@ -12,8 +12,7 @@ import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { useMainsAnswerStore } from "@/stores";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+import { API_URL } from "@/lib/api";
 
 export default function MainsAnswerPage() {
     // Local state for form inputs and UI

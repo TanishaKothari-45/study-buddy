@@ -3,6 +3,9 @@ python-dotenv
 fastapi
 uvicorn[standard]
 pydantic
+python-jose[cryptography]
+passlib[bcrypt]
+google-generativeai
 langchain
 langchain-community
 langchain-core
@@ -34,3 +37,7 @@ PyMuPDF>=1.23.0
 streamlit
 python-multipart
 mcp
+playwright
+chromium
+redis>=5.0.0
+slowapi>=0.1.9

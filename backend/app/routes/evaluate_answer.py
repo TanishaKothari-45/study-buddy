@@ -47,6 +47,7 @@ try:
     from ..utils.context_retriever import retrieve_context_for_question
     from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
     from ..utils.map_proxy import parse_and_generate_maps, check_map_service_health
+    from ..utils.cache_manager import get_cache_manager
 except ImportError as e:
     parse_question_for_search = None
     retrieve_context_for_question = None
@@ -54,6 +55,7 @@ except ImportError as e:
     format_bullets_for_context = None
     parse_and_generate_maps = None
     check_map_service_health = None
+    get_cache_manager = None
     logger.warning(f"Could not import utilities: {e}")
 
 # Import shared prompts for consistency with mains_answer.py
@@ -341,22 +343,41 @@ Return ONLY the question text, nothing else. If you can't find an explicit quest
                 parsed_topics = {}
         
         # ============================================================
-        # STEP 4: Fetch current affairs using parsed keywords
+        # STEP 4: Fetch current affairs using parsed keywords (with caching)
         # ============================================================
         current_affairs_bullets = []
+        time_range = "3months"
         
         if fetch_current_affairs_for_question and parsed_topics:
-            logger.info("🗞️ STEP 4: Fetching current affairs...")
-            try:
-                current_affairs_bullets = await fetch_current_affairs_for_question(
-                    parsed_keywords=parsed_topics,
-                    max_bullets=5,
-                    time_range="3months"
-                )
-                logger.info(f"✅ Retrieved {len(current_affairs_bullets)} current affairs bullets")
-            except Exception as e:
-                logger.warning(f"⚠️ Current affairs fetch failed: {e}")
-                current_affairs_bullets = []
+            # Initialize cache manager
+            cache = get_cache_manager() if get_cache_manager else None
+            cached_news = None
+            
+            # Check news cache first
+            if cache:
+                cached_news = cache.get_cached_news(parsed_topics, time_range)
+            
+            if cached_news:
+                # News cache HIT
+                logger.info(f"🎯 STEP 4: [NEWS CACHE HIT] Using cached news ({len(cached_news)} bullets)")
+                current_affairs_bullets = cached_news
+            else:
+                # News cache MISS - fetch from MCP
+                logger.info("🗞️ STEP 4: [NEWS CACHE MISS] Fetching current affairs from MCP...")
+                try:
+                    current_affairs_bullets = await fetch_current_affairs_for_question(
+                        parsed_keywords=parsed_topics,
+                        max_bullets=5,
+                        time_range=time_range
+                    )
+                    logger.info(f"✅ Retrieved {len(current_affairs_bullets)} current affairs bullets")
+                    
+                    # Cache the news bullets
+                    if cache:
+                        cache.set_cached_news(parsed_topics, current_affairs_bullets, time_range)
+                except Exception as e:
+                    logger.warning(f"⚠️ Current affairs fetch failed: {e}")
+                    current_affairs_bullets = []
         else:
             logger.info("⚠️ STEP 4: Skipping current affairs fetch")
         

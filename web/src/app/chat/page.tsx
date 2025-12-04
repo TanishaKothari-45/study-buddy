@@ -12,8 +12,7 @@ import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { cn } from "@/lib/utils";
 import { TypewriterEffect } from "@/components/ui/typewriter-effect";
 import { useChatStore } from "@/stores";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+import { API_URL } from "@/lib/api";
 
 export default function ChatPage() {
     // Persisted state from store

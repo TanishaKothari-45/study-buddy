@@ -46,41 +46,38 @@ async def semantic_deduplicate(
         # Convert to numpy array for efficient computation
         embeddings_array = np.array(embeddings)
         
-        # Compute pairwise cosine similarity
+        # Compute pairwise cosine similarity (vectorized)
         # Normalize embeddings
         norms = np.linalg.norm(embeddings_array, axis=1, keepdims=True)
         normalized = embeddings_array / norms
         
-        # Cosine similarity matrix
+        # Cosine similarity matrix (vectorized - much faster than nested loops)
         similarity_matrix = np.dot(normalized, normalized.T)
         
-        # Find duplicates (upper triangle only, avoid diagonal)
+        # Find duplicates using vectorized operations
+        # Create upper triangle mask (exclude diagonal and lower triangle)
+        upper_triangle_mask = np.triu(np.ones_like(similarity_matrix, dtype=bool), k=1)
+        
+        # Find all pairs above threshold
+        duplicate_mask = (similarity_matrix > threshold) & upper_triangle_mask
+        duplicate_indices = np.argwhere(duplicate_mask)
+        
+        # For each duplicate pair, keep the one with longer explanation
         duplicates: Set[int] = set()
         duplicate_pairs = []
         
-        for i in range(len(questions)):
-            if i in duplicates:
+        for i, j in duplicate_indices:
+            if i in duplicates or j in duplicates:
                 continue
             
-            for j in range(i + 1, len(questions)):
-                if j in duplicates:
-                    continue
-                
-                if similarity_matrix[i][j] > threshold:
-                    # Found a duplicate pair
-                    # Keep the one with longer explanation (quality heuristic)
-                    exp_i = len(str(questions[i].get("explanation", "")))
-                    exp_j = len(str(questions[j].get("explanation", "")))
-                    
-                    if exp_i < exp_j:
-                        worse_idx = i
-                        better_idx = j
-                    else:
-                        worse_idx = j
-                        better_idx = i
-                    
-                    duplicates.add(worse_idx)
-                    duplicate_pairs.append((i, j, similarity_matrix[i][j]))
+            # Keep the one with longer explanation (quality heuristic)
+            exp_i = len(str(questions[i].get("explanation", "")))
+            exp_j = len(str(questions[j].get("explanation", "")))
+            
+            worse_idx = i if exp_i < exp_j else j
+            duplicates.add(worse_idx)
+            duplicate_pairs.append((i, j, similarity_matrix[i][j]))
+
         
         # Log duplicate pairs
         if duplicate_pairs:

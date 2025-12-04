@@ -13,6 +13,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { API_URL } from "@/lib/api";
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -59,7 +60,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         setLoading(true);
 
         try {
-            const response = await fetch("http://localhost:8001/auth/login", {
+            const response = await fetch(`${API_URL}/auth/login`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -88,7 +89,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         setLoading(true);
 
         try {
-            const response = await fetch("http://localhost:8001/auth/signup", {
+            const response = await fetch(`${API_URL}/auth/signup`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -119,7 +120,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         setLoading(true);
 
         try {
-            const response = await fetch("http://localhost:8001/auth/forgot-password", {
+            const response = await fetch(`${API_URL}/auth/forgot-password`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -158,7 +159,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         setLoading(true);
 
         try {
-            const response = await fetch("http://localhost:8001/auth/reset-password", {
+            const response = await fetch(`${API_URL}/auth/reset-password`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
