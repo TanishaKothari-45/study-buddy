@@ -5,7 +5,7 @@ Uses batch API call for efficiency.
 """
 
 import json
-from .prompts import BATCH_SUMMARY_PROMPT
+from .prompts import BATCH_SUMMARY_PROMPT, ARTICLE_ONE_LINER_PROMPT
 
 # Lazy-loaded client
 _openai_client = None

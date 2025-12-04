@@ -15,8 +15,8 @@ Centralizing prompts ensures consistency across both endpoints.
 MERMAID_DIAGRAM_RULES = """
 **RULE - DIAGRAM DISCIPLINE (Mermaid.js)**:
 
-You MUST include **exactly ONE** Mermaid diagram in the Body (not more, not less).
-- Include **a diagram when relevant**.
+For answers with word count ≥ 200: You MUST include **exactly ONE** Mermaid diagram in the Body.
+For answers with word count ≤ 150: Diagrams are **good to have but only if necessary** — include only when visualization adds significant clarity.
 
 **Diagram Type Selection Guide**:
 
@@ -36,6 +36,10 @@ You MUST include **exactly ONE** Mermaid diagram in the Body (not more, not less
 4. **Pie Chart** (pie): For proportions, distributions, percentages
    - Use: Land use distribution, Sectoral contributions, Resource allocation
    - Syntax: `pie` with title and data
+
+5. **Cycle Diagram** (graph with circular flow): For cyclical processes, feedback loops
+   - Use: Climate cycles, Poverty traps, Water cycles, Reinforcing feedback systems
+   - Syntax: `graph TD` or `graph LR` with arrows forming a loop (A->B->C->D->A)
 
 **Quality Guidelines**:
 - **Text Safety**: ALWAYS enclose node labels in double quotes (e.g., A["Label (Text)"]). Keep labels SHORT (max 3-4 words). Use `<br/>` for line breaks.
@@ -97,6 +101,15 @@ pie title Land Use in India
     "Others" : 10
 ```
 
+Example 5 - Cycle Diagram (Feedback Loop):
+```mermaid
+graph TD
+    A["Low Income"] --> B["Poor Nutrition"]
+    B --> C["Low Productivity"]
+    C --> D["Limited Employment"]
+    D --> A
+```
+
 **CRITICAL FORMATTING**:
 - Wrap diagram in markdown code block: ```mermaid
 - Close with ```
@@ -123,8 +136,8 @@ graph TD
 
 ### Physical Factors Affecting Monsoons
 
-• **Differential heating**: IMD 2023 — Example: Delhi temperature gap 6–8°C.
-• **Orographic effect**: Western Ghats force air upward causing condensation (IPCC AR6) — Example: Cherrapunji receives 11,000mm annual rainfall
+• **Differential heating** creates pressure gradients driving monsoon winds. For instance, Delhi experiences a temperature gap of 6–8°C (IMD 2023).
+• **Orographic effect**: Western Ghats force air upward causing condensation, leading to Cherrapunji receiving 11,000mm annual rainfall.
 
 **IMPORTANT**: If diagram syntax is complex or uncertain, prefer simpler flowchart (graph TD) format.
 """
@@ -285,7 +298,7 @@ Major Indian cities (lon, lat):
 
 **IMPORTANT**: 
 - Maps are OPTIONAL and should only be used when geographic visualization adds significant value
-- You MUST still include the required Mermaid diagram
+- For word count ≥ 200: Include the required Mermaid diagram. For word count ≤ 150: Diagrams are optional.
 - Keep map data accurate and simple
 - Always list locations in text below the map for accessibility
 """
@@ -303,7 +316,7 @@ IBC_FORMAT_RULES = """
   - Each sub-heading has 2-4 bullets
   - Each bullet MUST start with • symbol
   - Each bullet MUST be on a NEW LINE (do not put multiple bullets on same line)
-  - Each bullet: **Main idea** (≤ 12 words) — Evidence (named report/index/data) — Example (named Indian OR named global)
+  - Each bullet: **Main idea** (≤ 12 words) + Evidence (named report/index/data where it adds credibility) + Example (named Indian OR named global). Write as natural English sentences, not forced templates.
   
 - **CONCLUSION**: 1 para with global best practices + SDG + policy angle + related Indian constitution articles.
 INTRO -> blank line -> BODY -> blank line -> CONCLUSION
@@ -317,9 +330,10 @@ BULLET_DISCIPLINE_RULES = """
 **RULE - BULLET DISCIPLINE**:
 - Every single bullet MUST start with • symbol
 - Every single bullet MUST be on a NEW LINE (do not put multiple bullets on same line)
-- Every single bullet MUST contain: (a) One evidence (report/index/data), (b) One example (named Indian OR named global), (c) Maximum 18 words total
-- Format: • **Main idea** — Evidence (Report Name Year) — Example: Specific case/location
-- Example: "• **Urban heat islands intensify** — IPCC 2023 reports 2°C rise — Example: Delhi experiences 45°C summers"
+- Every single bullet should contain: Main idea + Evidence (report/index/data where credible sourcing matters) + Example (named Indian OR named global)
+- Write as natural English sentences. Quote sources strategically where they add credibility, not in every sentence.
+- Good: "• **Urban heat islands intensify** in metropolitan areas, with Delhi experiencing 45°C summers (IPCC 2023)."
+- Avoid forced templates like "Main idea — Evidence — Example." Flow naturally.
 """
 
 # ============================================================
@@ -422,10 +436,10 @@ def get_mains_answer_system_prompt() -> str:
 
 **CRITICAL**: 
 - Follow ALL rules strictly.
-- Include exactly ONE Mermaid diagram (as per MERMAID_DIAGRAM_RULES).
+- Diagrams: For word count ≥ 200, include exactly ONE Mermaid diagram. For word count ≤ 150, include only if necessary.
 - Optionally include ONE map diagram (as per MAP_GENERATION_RULES) if geographic visualization adds value.
 - Maintain IBC structure.
-- Ensure every bullet has evidence + example.
+- Write bullets as natural English sentences with strategic source citations where credibility matters.
 - Keep diagrams simple and compact (stick to token budget).
 """
 

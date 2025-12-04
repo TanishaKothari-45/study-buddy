@@ -137,7 +137,7 @@ export default function MainsAnswerPage() {
                                     <CheckCircle className="h-5 w-5" />
                                     Generation Complete
                                 </div>
-                                <div className="text-sm text-green-800 dark:text-green-300">
+                                <div className="text-sm text-green-800 dark:text-green-500">
                                     <p>Actual Word Count: {result.word_count_actual}</p>
                                     <p>Sources Used: {result.sources.length}</p>
                                 </div>
