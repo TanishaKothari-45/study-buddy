@@ -99,12 +99,14 @@ Current Affairs (use if relevant; crisp bullets):
 
 Constraints / Format:
 - INTRO: 2–3 lines. Must include either a definition, a data point/report citation, or a recent context or current affair (if applicable).
-- BODY: Use sub-headings and bullets. Each bullet <= 18 words. Main idea (≤ 10–12 words) — Evidence (report/data/index) — Example (India OR World).
-- BULLET FORMAT (CRITICAL): Use markdown list format with dash (-). Each bullet on its own line:
-  DO NOT put multiple bullets on the same line. Each - starts a new line.
+- BODY: Use sub-headings and bullets. Each bullet <= 18 words.
+- BULLET FORMAT (CRITICAL): Every bullet MUST start with a dash (-). Example:
+  - **Main point one** with evidence (IPCC 2023) and example.
+  - **Main point two** with evidence and example.
+  Never write bullets without the dash prefix. Each bullet on its own line.
 - DIAGRAM: Include at least ONE Mermaid diagram in the body (flowchart, mindmap, timeline, or pie chart). Use proper Mermaid syntax wrapped in ```mermaid code blocks.
 - CONCLUSION: 1 para with global best practices or global bodies initiatives + SDG + India's government policies or local community initiatives + related Indian constitution articles.
-- Word target: ~{word_count} words. If <80%, add one short synthesis paragraph.
+- WORD COUNT: Target ~{word_count} words. Acceptable range: 80%-140% of target. Only compress bullet language if exceeding 140%.
 - For directive words (Analyse, Evaluate, Critically examine, Discuss), follow the Directive Decoder rules in SYSTEM PROMPT.
 - Tone: concise, exam-style, zero fluff.
 

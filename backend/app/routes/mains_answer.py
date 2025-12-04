@@ -65,6 +65,38 @@ def enforce_diagrams(answer: str, required: int = 1) -> str:
     
     return answer
 
+def count_words_excluding_visuals(text: str) -> int:
+    """
+    Count words in text, EXCLUDING all visual content:
+    - Mermaid diagram blocks (```mermaid ... ```)
+    - Map JSON blocks (```map-json ... ```)
+    - Any code blocks (``` ... ```)
+    - Base64 images (![...](data:image/...))
+    - Inline base64 data
+    
+    This gives accurate word count for the actual prose content only.
+    """
+    cleaned_text = text
+    
+    # Remove ```mermaid ... ``` blocks
+    cleaned_text = re.sub(r'```mermaid[\s\S]*?```', '', cleaned_text)
+    
+    # Remove ```map-json ... ``` blocks
+    cleaned_text = re.sub(r'```map-json[\s\S]*?```', '', cleaned_text)
+    
+    # Remove any other code blocks
+    cleaned_text = re.sub(r'```[\s\S]*?```', '', cleaned_text)
+    
+    # Remove base64 images: ![alt](data:image/...) 
+    cleaned_text = re.sub(r'!\[[^\]]*\]\(data:image[^\)]+\)', '', cleaned_text)
+    
+    # Remove any remaining base64 data strings
+    cleaned_text = re.sub(r'data:image/[^;\s]+;base64,[A-Za-z0-9+/=]+', '', cleaned_text)
+    
+    # Count words in remaining prose
+    return len(cleaned_text.split())
+
+
 def enforce_word_count(answer: str, target: int) -> str:
     words = len(answer.split())
     if words > target * 1.2:
@@ -200,7 +232,7 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
                 question=cached_answer_data["question"],
                 answer=cached_answer_data["answer"],
                 sources=cached_answer_data["sources"],
-                word_count_actual=len(cached_answer_data["answer"].split())
+                word_count_actual=count_words_excluding_visuals(cached_answer_data["answer"])
             )
         
         # Cache MISS - proceed with generation
@@ -229,7 +261,7 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
                     question=cached_answer_data["question"],
                     answer=cached_answer_data["answer"],
                     sources=cached_answer_data["sources"],
-                    word_count_actual=len(cached_answer_data["answer"].split())
+                    word_count_actual=count_words_excluding_visuals(cached_answer_data["answer"])
                 )
         
         try:
@@ -347,7 +379,7 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             )
             
             answer = result["answer"]
-            word_count_actual = len(answer.split())
+            word_count_actual = count_words_excluding_visuals(answer)
             
             logger.info(f"✅ [MAINS] Answer generated: {len(answer)} characters, {word_count_actual} words")
             

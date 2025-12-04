@@ -329,24 +329,24 @@ INTRO -> blank line -> BODY -> blank line -> CONCLUSION
 BULLET_DISCIPLINE_RULES = """
 **RULE - BULLET DISCIPLINE (CRITICAL)**:
 
-**FORMATTING - USE MARKDOWN LIST FORMAT**:
-- Use dash (-) for bullets, NOT the • symbol
-- Every bullet MUST be on a SEPARATE LINE (new line for each bullet)
-- NEVER put multiple bullets on the same line
-- NO empty lines between bullets - keep them consecutive
+**EVERY BULLET MUST START WITH A DASH (-)**:
+- This is a correct bullet with dash prefix.
+- This is another correct bullet.
 
-WRONG (all on one line):
-- Point one. - Point two. - Point three.
+WRONG - Missing dash prefix:
+Point one about climate.
+Point two about rainfall.
 
-CORRECT (each on new line, no gaps):
-- **Point one about climate** with evidence and example.
+CORRECT - Each line starts with dash:
+- **Point one about climate** with evidence (IPCC 2023) and example.
 - **Point two about rainfall** with evidence and example.
 - **Point three about temperature** with evidence and example.
 
-**CONTENT RULES**:
-- Every bullet starts with - (dash)
-- Every bullet should contain: Main idea + Evidence (where credible sourcing matters) + Example
-- Write as natural English sentences. Quote sources strategically, not everywhere.
+RULES:
+- Every bullet starts with - (dash) at the beginning of the line
+- Every bullet on a SEPARATE LINE
+- NO empty lines between bullets
+- Write as natural English sentences
 """
 
 # ============================================================
@@ -354,13 +354,20 @@ CORRECT (each on new line, no gaps):
 # ============================================================
 
 WORD_COUNT_COMPRESSION_RULES = """
-**RULE - WORD LIMIT COMPRESSION**:
-1) MUST preserve IBC structure but reduce density:
-   - Introduction: 2 lines  
-   - Body: 2-3 sub-headings, each with 1-2 bullets  
-   - Conclusion: 1 line  
-2) Compress bullets to: Main idea (≤ 7-9 words) — Evidence (short: "IPCC 2023") — Example (single phrase).
-3) Max 2 bullets per sub-heading, max 3 sub-headings in Body.
+**RULE - WORD COUNT MANAGEMENT**:
+
+TARGET: Aim for ~{word_count} words. Acceptable range: {word_count} to {word_count} + 40%.
+
+IF answer is UNDER 80% of word_count:
+- Add one synthesis paragraph to body
+- Expand examples with more detail
+
+IF answer is OVER 140% of word_count:
+- Compress bullet language: Main idea (≤7 words) + Evidence ("IPCC 2023") + Example (phrase only)
+
+IF answer is WITHIN acceptable range (80%-140%):
+- Use natural English sentences for bullets.
+- No compression needed, preserve content quality
 """
 
 # ============================================================

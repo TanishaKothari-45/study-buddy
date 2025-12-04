@@ -15,14 +15,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { API_URL } from "@/lib/api";
 
 export default function MainsAnswerPage() {
-    // Local state for form inputs and UI
-    const [question, setQuestion] = useState("");
-    const [wordCount, setWordCount] = useState("250");
+    // Local state for UI only
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Persisted result from store
-    const { result, setResult } = useMainsAnswerStore();
+    // Persisted state from store (question, wordCount, and result)
+    const { question, wordCount, result, setQuestion, setWordCount, setResult } = useMainsAnswerStore();
 
     const handleGenerate = async (e: React.FormEvent) => {
         e.preventDefault();
