@@ -121,10 +121,10 @@ def build_search_queries(keywords: list, topic: str) -> list:
     
     # Broader queries for better coverage
     queries = [
-        f"{core} India latest",                    # India-specific current
-        f"{primary} report study data",            # Research/data angle
-        f"{core} government scheme",               # Policy angle  
-        f"{primary} solution measures",            # Best practices
+        f"{core} India latest",                                                  # India-specific current
+        f"{primary} global report study data",                                   # Research/data angle
+        f"{core} government scheme policy OR local initiatives",                 # Policy angle  
+        f"{primary} global solution measures",                                   # Best practices
     ]
     
     return queries

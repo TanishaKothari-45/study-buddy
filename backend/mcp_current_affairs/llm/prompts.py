@@ -11,15 +11,14 @@ ARTICLE_ONE_LINER_PROMPT = """
 Summarize this news for UPSC preparation in 30-50 words.
 
 RULES:
-- State the KEY FACT: WHO did WHAT, WHEN, WHERE, HOW MUCH
-- Keep ALL numbers, percentages, amounts, dates, source names
-- NO generic statements like "this highlights the need for..." or "this is important because..."
-- If there's a study/report, name it
-- End with the fact, not with implications
+- START DIRECTLY with the fact/event. NO "India has experienced..." or "This article reports..."
+- Format: "Factors contributing to rise include X, Y, Z, as per [Source]."
+- Keep ALL numbers, percentages, amounts, dates.
+- NO extra wording. Be telegraphic but grammatically correct.
 
 EXAMPLE:
-❌ "Climate change is causing wildfires. Experts say urgent action is needed to protect public health."
-✅ "Canada's 2023 wildfires released 647 million tonnes of CO2, equivalent to India's annual emissions, according to Copernicus Atmosphere Monitoring Service."
+❌ "India has seen a surge in fires. Data shows 50% increase."
+✅ "50% increase in forest fires recorded due to dry spell and shifting agriculture, as per FSI data."
 
 ARTICLE:
 """
@@ -31,11 +30,11 @@ EDITORIAL_SUMMARY_PROMPT = """
 Summarize this editorial's argument in 80-120 words.
 
 RULES:
-- State the main thesis/argument first
-- Include 2-3 key supporting points with specific examples
-- Note any policy recommendations
-- Keep cited data, names, case studies
-- NO generic filler phrases
+- START DIRECTLY with the argument. NO "The editorial argues..." or "The author suggests..."
+- Format: "Rapid urbanization in Asia poses flood risks due to X. Regions experiencing Y. Urgent need for Z."
+- Use bullet points if helpful for suggestions.
+- Keep cited data, names, case studies.
+- NO filler phrases.
 
 EDITORIAL:
 """
@@ -55,17 +54,16 @@ OUTPUT: JSON with this exact structure:
 }
 
 ARTICLE SUMMARY RULES:
-- State KEY FACT: WHO, WHAT, WHEN, WHERE, HOW MUCH
-- Keep ALL numbers, percentages, dates, source names
-- NO generic phrases like "this highlights..." or "experts say..."
-- If study/report mentioned, name it
-- End with fact, not implications
+- START DIRECTLY with fact/event. NO "The article states..."
+- "Factors include X, Y, Z, as per [Source]."
+- Keep ALL numbers, percentages, dates.
+- NO extra wording.
 
 EDITORIAL SUMMARY RULES:
-- State main thesis first
-- Include 2-3 supporting points with examples
-- Keep cited data and case studies
-- Note policy recommendations if any
+- START DIRECTLY with argument. NO "The editorial argues..."
+- "Rapid urbanization poses risks due to X. Urgent need for Y."
+- Keep cited data and case studies.
+- NO filler phrases.
 
 RETURN ONLY VALID JSON.
 """

@@ -30,7 +30,7 @@ FINAL_EDITORIAL_COUNT = 1                  # editorial summary
 # RELEVANCE FILTERING
 # -----------------------------
 RELEVANCE_THRESHOLD = 0.4                  # Semantic similarity threshold for articles
-EDITORIAL_RELEVANCE_THRESHOLD = 0.3        # Lower threshold for editorials
+EDITORIAL_RELEVANCE_THRESHOLD = 0.4        # Threshold for editorials
 TOP_CANDIDATES_FOR_SCRAPING = 10           # Lazy scrape only top N
 MIN_CONTENT_LENGTH = 200                   # Scrape if content < this
 

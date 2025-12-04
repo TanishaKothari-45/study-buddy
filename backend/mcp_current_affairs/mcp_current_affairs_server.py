@@ -137,13 +137,27 @@ async def fetch_diversified_current_affairs(topic: str) -> dict:
     relevant_articles = filter_by_relevance(articles, threshold=RELEVANCE_THRESHOLD)
     print(f"   Relevant (>={RELEVANCE_THRESHOLD}): {len(relevant_articles)}")
 
-    # Step 9: Apply time filter
+    # Step 9: Apply time filter with fallback for high relevance
     time_filtered = []
+    old_high_relevance = []
+    
     for a in relevant_articles:
         pub_date = a.get("published_at")
         if pub_date and within_time_window(pub_date):
             time_filtered.append(a)
-    print(f"   After time filter: {len(time_filtered)}")
+        elif a.get("relevance_score", 0) > 0.5:
+            old_high_relevance.append(a)
+            
+    # If we have fewer than 3 recent articles, fill up with old high-relevance ones
+    if len(time_filtered) < 3:
+        needed = 3 - len(time_filtered)
+        if old_high_relevance:
+            print(f"   Only {len(time_filtered)} recent articles. Filling with up to {needed} old high-relevance (>0.5) articles.")
+            # Sort old ones by relevance just in case
+            old_high_relevance.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+            time_filtered.extend(old_high_relevance[:needed])
+        
+    print(f"   After time filter (with fallback): {len(time_filtered)}")
 
     # Step 10: Classify articles
     for a in time_filtered:
