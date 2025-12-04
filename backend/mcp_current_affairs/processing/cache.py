@@ -1,6 +1,11 @@
 # processing/cache.py
+"""
+Redis caching with metrics tracking for MCP Current Affairs.
+"""
+
 import json
 from ..config import SUMMARY_CACHE_TTL, REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD, REDIS_PREFIX
+from ..metrics import metrics
 
 # Lazy-loaded Redis client
 _redis_client = None
@@ -27,11 +32,14 @@ def get_cached_summary(key: str):
         r = _get_redis_client()
         data = r.get(_full_key(key))
         if not data:
+            metrics.record_cache_miss()
             return None
+        metrics.record_cache_hit()
         return json.loads(data)
     except Exception as e:
         # Log or ignore - do not break pipeline
         print("cache get error:", e)
+        metrics.record_cache_miss()
         return None
 
 def set_cached_summary(key: str, value, ttl: int = SUMMARY_CACHE_TTL):

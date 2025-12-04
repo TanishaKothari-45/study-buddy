@@ -75,7 +75,10 @@ RSS_BUCKETS = {
     "policy_journals": [
         "https://www.downtoearth.org.in/rss/section/opinion-101",
         "https://economictimes.indiatimes.com/rssfeeds/1977021501.cms",
-        "https://www.orfonline.org/feed"
+        "https://www.orfonline.org/feed",
+        "https://www.epw.in/rss/feed.xml",                          # EPW
+        "https://frontline.thehindu.com/feeder/default.rss",        # Frontline
+        "https://caravanmagazine.in/rss"                            # Caravan
     ]
 }
 
@@ -92,6 +95,9 @@ SOURCE_RELIABILITY = {
     "Deccan Herald": 0.8,
     "The Tribune": 0.8,
     "ORF": 0.85,
+    "EPW": 0.9,                       # Economic & Political Weekly
+    "Frontline": 0.88,                # The Hindu Frontline
+    "Caravan": 0.85,                  # Caravan Magazine
     "default": 0.6
 }
 
