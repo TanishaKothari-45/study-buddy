@@ -30,6 +30,7 @@ export default function MainsAnswerPage() {
         
         setLoading(true);
         setError(null);
+        setResult(null); // Clear previous answer immediately
         
         try {
             const res = await fetch(`${API_URL}/mains-answer/generate`, {
@@ -197,6 +198,16 @@ export default function MainsAnswerPage() {
                         <h3 className="text-lg font-medium text-foreground">Ready to Generate</h3>
                         <p className="text-muted-foreground max-w-sm mt-2">
                             Enter a question and word limit to generate a structured Mains answer with introduction, body, conclusion, and diagrams.
+                        </p>
+                    </div>
+                )}
+
+                {!result && loading && (
+                    <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg bg-muted/30 text-center">
+                        <Loader2 className="h-16 w-16 text-primary animate-spin mb-4" />
+                        <h3 className="text-lg font-medium text-foreground">Generating Answer...</h3>
+                        <p className="text-muted-foreground max-w-sm mt-2">
+                            Please wait while we generate a comprehensive answer with relevant sources.
                         </p>
                     </div>
                 )}
