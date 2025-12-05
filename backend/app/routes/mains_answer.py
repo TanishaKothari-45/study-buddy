@@ -35,6 +35,7 @@ from ..utils.question_parser import parse_question_for_search
 from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
 from ..utils.map_proxy import parse_and_generate_maps, check_map_service_health
 from ..utils.cache_manager import get_cache_manager
+from ..utils.answer_compressor import compress_answer
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -199,8 +200,10 @@ class MainsAnswerRequest(BaseModel):
 class MainsAnswerResponse(BaseModel):
     question: str
     answer: str
+    compressed_answer: Optional[str] = None  # Compressed version (if applied)
     sources: List[Dict[str, Any]]
     word_count_actual: int
+    word_count_compressed: Optional[int] = None  # Compressed word count
 
 @router.post("/generate")
 @limiter.limit("20/hour")  # Rate limit: 20 requests per hour per IP
@@ -226,13 +229,38 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
         )
         
         if cached_answer_data:
-            # Cache HIT - return immediately
+            # Cache HIT - but still need to compress if overlong
             logger.info("🎯 [CACHE HIT] Returning cached answer")
+            cached_answer = cached_answer_data["answer"]
+            word_count_actual = count_words_excluding_visuals(cached_answer)
+            
+            # Initialize Gemini client for compression
+            compressed_answer = None
+            word_count_compressed = None
+            
+            if GeminiClient and GEMINI_API_KEY:
+                gemini_client = GeminiClient(
+                    api_key=GEMINI_API_KEY,
+                    model_name="gemini-2.5-pro"
+                )
+                compressed = await compress_answer(
+                    original_answer=cached_answer,
+                    target_word_count=mains_request.word_count,
+                    gemini_client=gemini_client,
+                    threshold_ratio=1.4
+                )
+                if compressed:
+                    compressed_answer = compressed
+                    word_count_compressed = count_words_excluding_visuals(compressed)
+                    logger.info(f"🗜️ [CACHE] Compressed cached answer: {word_count_actual} -> {word_count_compressed}")
+            
             return MainsAnswerResponse(
                 question=cached_answer_data["question"],
-                answer=cached_answer_data["answer"],
+                answer=cached_answer,
+                compressed_answer=compressed_answer,
                 sources=cached_answer_data["sources"],
-                word_count_actual=count_words_excluding_visuals(cached_answer_data["answer"])
+                word_count_actual=word_count_actual,
+                word_count_compressed=word_count_compressed
             )
         
         # Cache MISS - proceed with generation
@@ -257,11 +285,35 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             
             if cached_answer_data:
                 logger.info("🎯 [CACHE HIT] Found answer after waiting for lock")
+                cached_answer = cached_answer_data["answer"]
+                word_count_actual = count_words_excluding_visuals(cached_answer)
+                
+                # Compress if overlong
+                compressed_answer = None
+                word_count_compressed = None
+                
+                if GeminiClient and GEMINI_API_KEY:
+                    gemini_client = GeminiClient(
+                        api_key=GEMINI_API_KEY,
+                        model_name="gemini-2.5-pro"
+                    )
+                    compressed = await compress_answer(
+                        original_answer=cached_answer,
+                        target_word_count=mains_request.word_count,
+                        gemini_client=gemini_client,
+                        threshold_ratio=1.4
+                    )
+                    if compressed:
+                        compressed_answer = compressed
+                        word_count_compressed = count_words_excluding_visuals(compressed)
+                
                 return MainsAnswerResponse(
                     question=cached_answer_data["question"],
-                    answer=cached_answer_data["answer"],
+                    answer=cached_answer,
+                    compressed_answer=compressed_answer,
                     sources=cached_answer_data["sources"],
-                    word_count_actual=count_words_excluding_visuals(cached_answer_data["answer"])
+                    word_count_actual=word_count_actual,
+                    word_count_compressed=word_count_compressed
                 )
         
         try:
@@ -384,7 +436,25 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             logger.info(f"✅ [MAINS] Answer generated: {len(answer)} characters, {word_count_actual} words")
             
             # ============================================================
-            # STEP 4: Cache the answer
+            # STEP 4: Compress if exceeds 140% of target word count
+            # ============================================================
+            compressed_answer = None
+            word_count_compressed = None
+            
+            compressed = await compress_answer(
+                original_answer=answer,
+                target_word_count=mains_request.word_count,
+                gemini_client=gemini_client,
+                threshold_ratio=1.4
+            )
+            
+            if compressed:
+                compressed_answer = compressed
+                word_count_compressed = count_words_excluding_visuals(compressed)
+                logger.info(f"🗜️ [MAINS] Compressed: {word_count_actual} -> {word_count_compressed} words")
+            
+            # ============================================================
+            # STEP 5: Cache the answer
             # ============================================================
             cache.set_cached_answer(
                 question=mains_request.question,
@@ -397,8 +467,10 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             return MainsAnswerResponse(
                 question=mains_request.question,
                 answer=answer,
+                compressed_answer=compressed_answer,
                 sources=sources,
-                word_count_actual=word_count_actual
+                word_count_actual=word_count_actual,
+                word_count_compressed=word_count_compressed
             )
         
         finally:

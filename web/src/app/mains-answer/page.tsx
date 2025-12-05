@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, PenTool, BookOpen, FileText, CheckCircle, AlertCircle } from "lucide-react";
+import { Loader2, PenTool, BookOpen, FileText, CheckCircle, AlertCircle, ChevronDown, Minimize2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
@@ -18,6 +18,8 @@ export default function MainsAnswerPage() {
     // Local state for UI only
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showCompressed, setShowCompressed] = useState(true); // Compressed answer accordion
+    const [showOriginal, setShowOriginal] = useState(false); // Original answer accordion
 
     // Persisted state from store (question, wordCount, and result)
     const { question, wordCount, result, setQuestion, setWordCount, setResult } = useMainsAnswerStore();
@@ -130,63 +132,125 @@ export default function MainsAnswerPage() {
                 {/* Output Section */}
                 {result && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        {/* Status Card */}
                         <Card className="bg-green-50/50 border-green-200 dark:bg-green-900/10 dark:border-green-900">
                             <CardContent className="pt-6">
                                 <div className="flex items-center gap-2 text-green-700 dark:text-green-400 font-medium mb-2">
                                     <CheckCircle className="h-5 w-5" />
                                     Generation Complete
+                                    {result.compressed_answer && (
+                                        <span className="ml-2 inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
+                                            <Minimize2 className="h-3 w-3" />
+                                            Compressed
+                                        </span>
+                                    )}
                                 </div>
-                                <div className="text-sm text-green-800 dark:text-green-500">
-                                    <p>Actual Word Count: {result.word_count_actual}</p>
+                                <div className="text-sm text-green-800 dark:text-green-500 space-y-1">
+                                    <p>Original Word Count: {result.word_count_actual}</p>
+                                    {result.word_count_compressed && (
+                                        <p>Compressed Word Count: {result.word_count_compressed}
+                                            <span className="text-green-600 dark:text-green-400 ml-1">
+                                                ({Math.round((1 - result.word_count_compressed / result.word_count_actual) * 100)}% reduced)
+                                            </span>
+                                        </p>
+                                    )}
                                     <p>Sources Used: {result.sources.length}</p>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="h-full flex flex-col">
-                            <CardHeader className="bg-muted/50 border-b">
+                        {/* Question Title Card */}
+                        <Card className="bg-muted/30">
+                            <CardHeader className="pb-4">
                                 <CardTitle className="text-lg font-medium leading-relaxed">
                                     {result.question}
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="flex-1 p-6">
-                                <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary">
-                                    <ReactMarkdown
-                                        remarkPlugins={[remarkGfm]}
-                                        components={markdownComponents}
-                                        urlTransform={urlTransform}
-                                    >
-                                        {result.answer}
-                                    </ReactMarkdown>
-                                </div>
-
-                                {result.sources.length > 0 && (
-                                    <div className="mt-8 pt-6 border-t">
-                                        <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                                            <BookOpen className="h-4 w-4" />
-                                            References
-                                        </h4>
-                                        <div className="grid gap-2 sm:grid-cols-2">
-                                            {result.sources.map((source, idx) => (
-                                                <div key={idx} className="bg-muted/50 p-2 rounded text-xs border text-muted-foreground">
-                                                    <p className="font-medium text-foreground truncate" title={source.filename}>
-                                                        {source.filename}
-                                                    </p>
-                                                    <div className="flex gap-2 mt-0.5">
-                                                        {source.page_number && <span>Page {source.page_number}</span>}
-                                                        {source.chapter && (
-                                                            <span className="truncate max-w-[150px]" title={source.chapter}>
-                                                                {source.chapter}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </CardContent>
                         </Card>
+
+                        {/* Compressed Answer Accordion (shown if compression was applied) */}
+                        {result.compressed_answer && (
+                            <Card>
+                                <button
+                                    onClick={() => setShowCompressed(!showCompressed)}
+                                    className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors border-b"
+                                >
+                                    <span className="font-medium text-foreground flex items-center gap-2">
+                                        <Minimize2 className="h-4 w-4 text-blue-500" />
+                                        Compressed Answer ({result.word_count_compressed} words)
+                                    </span>
+                                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showCompressed ? 'rotate-180' : ''}`} />
+                                </button>
+                                {showCompressed && (
+                                    <CardContent className="p-6">
+                                        <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary">
+                                            <ReactMarkdown
+                                                remarkPlugins={[remarkGfm]}
+                                                components={markdownComponents}
+                                                urlTransform={urlTransform}
+                                            >
+                                                {result.compressed_answer}
+                                            </ReactMarkdown>
+                                        </div>
+                                    </CardContent>
+                                )}
+                            </Card>
+                        )}
+
+                        {/* Original Answer Accordion */}
+                        <Card className={result.compressed_answer ? "border-dashed" : ""}>
+                            <button
+                                onClick={() => setShowOriginal(!showOriginal)}
+                                className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors border-b"
+                            >
+                                <span className="font-medium text-foreground">
+                                    {result.compressed_answer ? "Original Answer" : "Generated Answer"} ({result.word_count_actual} words)
+                                </span>
+                                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${(showOriginal || !result.compressed_answer) ? 'rotate-180' : ''}`} />
+                            </button>
+                            {(showOriginal || !result.compressed_answer) && (
+                                <CardContent className="p-6">
+                                    <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary">
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm]}
+                                            components={markdownComponents}
+                                            urlTransform={urlTransform}
+                                        >
+                                            {result.answer}
+                                        </ReactMarkdown>
+                                    </div>
+                                </CardContent>
+                            )}
+                        </Card>
+
+                        {/* References Card */}
+                        {result.sources.length > 0 && (
+                            <Card>
+                                <CardContent className="pt-6">
+                                    <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                                        <BookOpen className="h-4 w-4" />
+                                        References
+                                    </h4>
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                        {result.sources.map((source, idx) => (
+                                            <div key={idx} className="bg-muted/50 p-2 rounded text-xs border text-muted-foreground">
+                                                <p className="font-medium text-foreground truncate" title={source.filename}>
+                                                    {source.filename}
+                                                </p>
+                                                <div className="flex gap-2 mt-0.5">
+                                                    {source.page_number && <span>Page {source.page_number}</span>}
+                                                    {source.chapter && (
+                                                        <span className="truncate max-w-[150px]" title={source.chapter}>
+                                                            {source.chapter}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
                     </div>
                 )}
 

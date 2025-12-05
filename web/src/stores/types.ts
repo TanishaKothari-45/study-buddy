@@ -38,8 +38,10 @@ export interface MockTestResponse {
 export interface MainsAnswerResponse {
     question: string;
     answer: string;
+    compressed_answer: string | null;
     sources: Source[];
     word_count_actual: number;
+    word_count_compressed: number | null;
 }
 
 export type JobStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'failed';

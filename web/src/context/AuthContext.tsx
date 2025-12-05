@@ -68,6 +68,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const logout = () => {
         localStorage.removeItem("token");
+        // Clear all persisted store data on logout
+        localStorage.removeItem("geography-mains-answer-storage");
+        localStorage.removeItem("mock-test-storage");
+        localStorage.removeItem("chat-storage");
         setToken(null);
         setUser(null);
         router.push("/login");
