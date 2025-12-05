@@ -47,12 +47,38 @@ For answers with word count ≤ 150: Diagrams are **good to have but only if nec
 - **Simplicity**: Maximum 8 nodes, 10 connections.
 - **Diagram token budget**: keep diagram compact (labels ≤ 40 tokens total).
 
-**Diagram Placement**:
-- Insert diagram BEFORE the sub-heading (diagram comes first, then the sub-heading)
-- Add a label line above code block: **Diagram: [Descriptive Title]**
-- Ensure blank line before and after the fenced block.
-- The flow should be: **Diagram: Title** → mermaid block → blank line → ### Sub-heading → blank line → bullets (each on new line) → blank line → next section
-  
+**Diagram Placement (CRITICAL)**:
+- **NEVER place a diagram between a sub-heading and its bullet points** — this breaks readability.
+- Place diagram BEFORE the related sub-heading OR at the END of a section AFTER all bullets.
+
+WRONG placement (breaks context):
+### Sub-heading Title
+```mermaid
+graph TD...
+```
+- Bullet point 1
+- Bullet point 2
+
+CORRECT placement (diagram before sub-heading):
+**Diagram: Title**
+```mermaid
+graph TD...
+```
+
+### Sub-heading Title
+- Bullet point 1
+- Bullet point 2
+
+CORRECT placement (diagram after all bullets):
+### Sub-heading Title
+- Bullet point 1
+- Bullet point 2
+
+**Diagram: Title**
+```mermaid
+graph TD...
+```
+
 
 **Mermaid Syntax Examples**:
 
