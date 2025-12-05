@@ -38,6 +38,16 @@ def _cache_key(topic: str) -> str:
     return f"{REDIS_PREFIX}:keywords:{topic.lower().strip()}"
 
 
+try:
+    from app.utils.langsmith_tracer import trace_llm
+except ImportError:
+    # Fallback if app module not found (e.g. running standalone)
+    def trace_llm(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
+@trace_llm("mcp_keyword_extraction")
 def get_keywords_sync(topic: str) -> list:
     """
     Synchronous keyword extraction with caching.

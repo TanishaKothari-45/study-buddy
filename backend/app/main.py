@@ -13,6 +13,10 @@ from .core.env import load_env_vars
 # Load environment variables at startup
 load_env_vars()
 
+# Configure LangSmith tracing (must be before other imports)
+from .core.langsmith_config import configure_langsmith
+configure_langsmith()
+
 from .core.config import settings
 from .core.database import engine, Base
 from .api.v1 import router as api_v1_router

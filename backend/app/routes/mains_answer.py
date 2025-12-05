@@ -114,6 +114,9 @@ def enforce_word_count(answer: str, target: int) -> str:
         return answer + f"\n\n(Addendum: In short, the above points suggest that a balanced policy mix is required.)"
     return answer
 
+from ..utils.langsmith_tracer import trace_gemini
+
+@trace_gemini("mains_answer_generation")
 async def generate_answer(
     question: str,
     static_context: Optional[str] = None,

@@ -56,6 +56,9 @@ Output: {"main_topic": "urbanization groundwater India", "sub_topics": ["effects
 """
 
 
+from .langsmith_tracer import trace_gemini
+
+@trace_gemini("question_parser")
 async def parse_question_for_search(
     question: str,
     gemini_client,

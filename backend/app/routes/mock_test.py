@@ -235,6 +235,9 @@ def generate_fewshot_examples(
         logger.error(f"❌ Failed to generate few-shot examples: {str(e)}")
         return "", ""
 
+from ..utils.langsmith_tracer import trace_llm
+
+@trace_llm("mock_test_generation")
 def generate_question_paper(pyq_chunks: List[Dict], content_chunks: List[Dict], 
                             request: MockTestRequest, api_key: str, app_state=None) -> MockTestResponse:
     """

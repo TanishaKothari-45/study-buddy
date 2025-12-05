@@ -194,6 +194,9 @@ def safe_json_parse(text: str) -> List[Dict[str, Any]]:
     return objects
 
 
+from .langsmith_tracer import trace_llm
+
+@trace_llm("metadata_enrichment_batch")
 def enrich_batch(batch: List[Dict[str, Any]], client: OpenAI) -> List[Dict[str, Any]]:
     """Send a batch of chunks to GPT and return enriched classifications."""
     # Prepare combined input

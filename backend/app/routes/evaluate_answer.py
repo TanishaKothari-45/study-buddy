@@ -160,7 +160,10 @@ You MUST return a JSON object with the following structure:
 """
 
 
+from ..utils.langsmith_tracer import trace_chain
+
 @router.post("/")
+@trace_chain("evaluate_answer_endpoint")
 async def evaluate_answer_endpoint(
     request: Request,
     files: List[UploadFile] = File(...),
