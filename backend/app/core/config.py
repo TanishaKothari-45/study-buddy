@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # JWT Authentication Settings (CRITICAL: Must be set in production)
     JWT_SECRET_KEY: str = Field(..., min_length=32)
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 2880  # 2 days (48 hours)
     
     @validator('JWT_SECRET_KEY')
     def validate_jwt_secret(cls, v):

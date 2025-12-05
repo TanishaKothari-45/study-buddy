@@ -47,13 +47,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (response.ok) {
                 const userData = await response.json();
                 setUser(userData);
-            } else {
-                // Token invalid
+            } else if (response.status === 401) {
+                // Only logout on explicit 401 Unauthorized (token expired/invalid)
+                console.log("Token invalid or expired, logging out");
                 logout();
+            } else {
+                // Other errors (500, etc.) - keep token, just don't set user
+                console.warn("Failed to fetch user, status:", response.status);
             }
         } catch (error) {
-            console.error("Failed to fetch user", error);
-            logout();
+            // Network errors - keep token, user can retry
+            // This prevents logout on page refresh when API is temporarily unavailable
+            console.error("Network error fetching user, keeping session:", error);
         } finally {
             setIsLoading(false);
         }
