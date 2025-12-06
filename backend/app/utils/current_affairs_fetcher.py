@@ -95,11 +95,20 @@ async def fetch_current_affairs_for_question(
         logger.warning("Empty search query")
         return []
     
+    # Extract keywords array from parsed data (avoid redundant LLM extraction)
+    keywords_array = None
+    if parsed_keywords.get("sub_topics"):
+        # Use sub_topics as keyword array (already extracted by question parser)
+        main = parsed_keywords.get("main_topic", "").split()
+        subs = parsed_keywords.get("sub_topics", [])
+        keywords_array = list(set(main + subs))  # Combine and dedupe
+        logger.info(f"🎯 Using pre-parsed keywords: {keywords_array}")
+    
     try:
         logger.info(f"🗞️ Fetching current affairs for: {search_query[:50]}...")
         
-        # Call the MCP server's fetch function directly
-        result = await fetch_diversified_current_affairs(topic=search_query)
+        # Call the MCP server's fetch function directly with pre-parsed keywords
+        result = await fetch_diversified_current_affairs(topic=search_query, keywords=keywords_array)
         
         # Convert to bullet format for LLM
         bullets = format_current_affairs_to_bullets(result, max_bullets)

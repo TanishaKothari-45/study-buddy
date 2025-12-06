@@ -335,10 +335,27 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             # Get Pinecone handler
             pinecone_handler = request.app.state.vector_handler
             
-            # Use FULL question for Pinecone vector search (better semantic matching)
-            logger.info(f"📚 [MAINS] Retrieving context using full question...")
+            # ============================================================
+            # STEP 2: Parse question FIRST (for both Pinecone & news)
+            # ============================================================
+            parsed_topics = {}
+            logger.info(f"🔍 [MAINS] Parsing question for optimized search...")
+            try:
+                parsed_topics = await parse_question_for_search(
+                    question=mains_request.question,
+                    openai_api_key=OPENAI_API_KEY
+                )
+                search_query = parsed_topics.get('search_query', mains_request.question)
+                logger.info(f"✅ [MAINS] Parsed search query: {search_query}")
+            except Exception as e:
+                logger.warning(f"⚠️ [MAINS] Question parsing failed, using full question: {e}")
+                parsed_topics = {}
+                search_query = mains_request.question
+            
+            # Use parsed search query for Pinecone (better vector search)
+            logger.info(f"📚 [MAINS] Retrieving context using parsed query...")
             context, sources = retrieve_context_for_question(
-                search_query=mains_request.question,  # Full question for Pinecone
+                search_query=search_query,  # Use parsed keywords for Pinecone
                 vector_handler=pinecone_handler,
                 mode="mains",
                 use_content_store=True,
@@ -357,24 +374,12 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             logger.info(f"✅ [MAINS] Retrieved context: {len(context)} chars, {len(sources)} sources")
 
             # ============================================================
-            # STEP 2: Parse question & check news cache
+            # STEP 3: Fetch current affairs using parsed keywords (already have parsed_topics)
             # ============================================================
-            parsed_topics = {}
             current_affairs_bullets = []
             time_range = "3months"
-            
-            logger.info(f"🔍 [MAINS] Parsing question for current affairs search...")
-            try:
-                parsed_topics = await parse_question_for_search(
-                    question=mains_request.question,
-                    openai_api_key=OPENAI_API_KEY
-                )
-                logger.info(f"✅ [MAINS] Parsed for current affairs: {parsed_topics.get('search_query', '')[:50]}...")
-            except Exception as e:
-                logger.warning(f"⚠️ [MAINS] Question parsing failed: {e}")
-                parsed_topics = {}
 
-            # Check news cache first
+            # Check news cache first (using parsed_topics from step 2)
             if parsed_topics:
                 cached_news = cache.get_cached_news(parsed_topics, time_range)
                 

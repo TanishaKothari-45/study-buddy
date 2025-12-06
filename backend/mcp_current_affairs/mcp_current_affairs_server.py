@@ -78,16 +78,21 @@ async def call_tool(name: str, arguments: dict):
         if not topic:
             return [TextContent(type="text", text="Error: topic is required")]
         
-        result = await fetch_diversified_current_affairs(topic)
+        keywords = arguments.get("keywords")  # Optional pre-parsed keywords
+        result = await fetch_diversified_current_affairs(topic, keywords=keywords)
         return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
     
     raise ValueError(f"Unknown tool: {name}")
 
 
-async def fetch_diversified_current_affairs(topic: str) -> dict:
+async def fetch_diversified_current_affairs(topic: str, keywords: list = None) -> dict:
     """
     Main function: Fetch diversified current affairs with intelligent summarization.
     OPTIMIZED: No editorials, early filtering, batch embeddings, smart selection.
+    
+    Args:
+        topic: Topic or question for current affairs
+        keywords: Optional pre-parsed keywords (skips LLM extraction if provided)
     """
     print(f"\n🔍 Processing topic: {topic}")
     
@@ -98,9 +103,13 @@ async def fetch_diversified_current_affairs(topic: str) -> dict:
         print("📦 Returning cached result")
         return cached
 
-    # Step 2: Extract keywords
-    print("🔑 Extracting keywords...")
-    keywords = await get_keywords(topic)
+    # Step 2: Extract keywords (or use provided)
+    if keywords:
+        print(f"🎯 Using pre-parsed keywords: {keywords}")
+    else:
+        print("🔑 Extracting keywords...")
+        keywords = await get_keywords(topic)
+    
     set_topic_keywords(keywords)
     print(f"   Keywords: {keywords}")
 
