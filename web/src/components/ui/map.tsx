@@ -53,24 +53,17 @@ export function Map({ src, alt, className = '' }: MapProps) {
 
     // Render immediately, let the browser handle the image loading
     return (
-        <div className="my-6 flex flex-col items-center">
-            <div className="w-full max-w-4xl">
-                <img
-                    src={src}
-                    alt={alt || 'Generated Map'}
-                    className={`w-full h-auto rounded-lg border border-gray-200 shadow-sm ${className}`}
-                    style={{ maxHeight: '800px', objectFit: 'contain' }}
-                    onError={(e) => {
-                        console.error('❌ Failed to load map image:', e);
-                        setError('Failed to load map image');
-                    }}
-                />
-            </div>
-            {alt && (
-                <p className="text-sm text-muted-foreground mt-3 italic text-center max-w-2xl">
-                    {alt}
-                </p>
-            )}
+        <div className="my-6">
+            <img
+                src={src}
+                alt={alt || 'Generated Map'}
+                className={`w-full h-auto rounded-lg border border-gray-200 shadow-sm ${className}`}
+                style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
+                onError={(e) => {
+                    console.error('❌ Failed to load map image:', e);
+                    setError('Failed to load map image');
+                }}
+            />
         </div>
     );
 }

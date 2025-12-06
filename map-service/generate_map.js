@@ -15,13 +15,20 @@ const __dirname = path.dirname(__filename);
  * @returns {Object} - {svgContent, meta, base64}
  */
 async function generateMap(config) {
-    console.log('🗺️ Map Service v1.2 - Scale 2000, Darker Colors');
+    console.log('🗺️ Map Service v1.3 - World Map Support');
+    
+    // Extract region first to determine default topoKey
+    const regionValue = config.region || 'india';
+    
+    // Set topoKey based on region if not explicitly provided
+    const defaultTopoKey = regionValue === 'world' ? 'world_countries_v1' : 'india_states_v1';
+    
     const {
         mapType = 'combined',
-        topoKey = 'india_states_v1',
-        region = 'india',
-        width = 900,
-        height = 1100,
+        topoKey = defaultTopoKey,
+        region = regionValue,
+        width = region === 'world' ? 800 : 900,
+        height = region === 'world' ? 450 : 1100,
         projection: projectionOverride = {},
         choropleth = null,
         markers = [],
@@ -32,6 +39,8 @@ async function generateMap(config) {
         style = {},
         output = { format: 'svg' }
     } = config;
+    
+    console.log(`🌍 Region: ${region}, TopoKey: ${topoKey}`);
 
     // Load TopoJSON
     const topoPath = path.join(__dirname, 'data', `${topoKey}.topojson`);
@@ -62,11 +71,25 @@ async function generateMap(config) {
     const dom = new JSDOM('<!DOCTYPE html><body></body>');
     const body = d3.select(dom.window.document.querySelector('body'));
 
-    // Create SVG
+    // Create SVG with viewBox for responsive sizing
     const svg = body.append('svg')
         .attr('xmlns', 'http://www.w3.org/2000/svg')
-        .attr('width', width)
-        .attr('height', height);
+        .attr('viewBox', `0 0 ${width} ${height}`)
+        .attr('width', '100%')
+        .attr('height', '100%')
+        .attr('preserveAspectRatio', 'xMidYMid meet');
+
+    // === DEBUG: Log geoData before projection ===
+    console.log('--- DEBUG: geoData type and feature count ---');
+    if (geoData) {
+        console.log('  geoData.features?.length =', geoData.features?.length);
+        console.log('  geoData sample feature type =', geoData.features?.[0]?.geometry?.type);
+        console.log('  geoData sample feature name =', geoData.features?.[0]?.properties?.name || geoData.features?.[0]?.properties?.NAME);
+        console.log('  geoData bbox =', JSON.stringify(d3.geoBounds(geoData)));
+    } else {
+        console.log('  geoData is null/undefined');
+    }
+    console.log('--- END DEBUG ---');
 
     // Set up projection - pass geoData for automatic fitSize calculation
     const projection = getProjection(region, width, height, projectionOverride, geoData);
@@ -253,7 +276,7 @@ async function generateMap(config) {
     if (title) {
         svg.append('text')
             .attr('x', 20)
-            .attr('y', 35)
+            .attr('y', 30)
             .attr('font-size', 18)
             .attr('font-weight', '600')
             .attr('fill', '#333')
@@ -263,7 +286,7 @@ async function generateMap(config) {
     // Source attribution
     svg.append('text')
         .attr('x', 20)
-        .attr('y', height - 15)
+        .attr('y', height - 10)
         .attr('font-size', 10)
         .attr('fill', '#666')
         .text('Source: Natural Earth / Study Buddy');

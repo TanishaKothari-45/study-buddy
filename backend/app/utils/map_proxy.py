@@ -138,6 +138,9 @@ async def parse_and_generate_maps(content: str) -> str:
             # Parse JSON
             try:
                 map_data = json.loads(map_json_str)
+                # Log the map data to debug region issues
+                logger.info(f"📋 Map JSON block {i}: region='{map_data.get('region')}', title='{map_data.get('title')}'")
+                logger.debug(f"Full map JSON: {json.dumps(map_data, indent=2)}")
             except json.JSONDecodeError as e:
                 logger.error(f"❌ Invalid JSON in map block {i}: {str(e)}")
                 logger.debug(f"Invalid JSON: {map_json_str[:200]}...")

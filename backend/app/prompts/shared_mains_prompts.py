@@ -15,7 +15,8 @@ Centralizing prompts ensures consistency across both endpoints.
 MERMAID_DIAGRAM_RULES = """
 **RULE - DIAGRAM DISCIPLINE (Mermaid.js)**:
 
-For answers with word count ≥ 200: You MUST include **exactly ONE** Mermaid diagram in the Body.
+For answers with word count ≥ 200: Prefer including **one** Mermaid diagram in the Body (Mermaid_count ≤ 1). This restriction does NOT apply to simple Maps — a Map may be added in addition when spatial clarity improves the answer.
+
 For answers with word count ≤ 150: Diagrams are **good to have but only if necessary** — include only when visualization adds significant clarity.
 
 **Diagram Type Selection Guide**:
@@ -169,13 +170,51 @@ graph TD
 """
 
 # ============================================================
+# GEO-VISUAL INTELLIGENCE (Auto-infer maps/diagrams)
+# ============================================================
+GEO_VISUAL_INTELLIGENCE_RULES = """
+**GEO-VISUAL INTELLIGENCE (priority & scope)**:
+- MERMAID vs MAP: Treat Mermaid diagrams and Maps as distinct visual assets.
+  - The system MAY include **exactly ONE** Mermaid diagram per answer (Mermaid_count = 0 or 1).
+  - **Maps (India or World text/labelled JSON)** are NOT counted against the Mermaid limit and MAY be included in addition when spatial clarity requires it.
+- Decision flow to decide visuals:
+  - For distribution-type questions, generating a Map is mandatory because spatial clarity is integral to score maximization.
+  - If question = distribution / location / resource belt / regional hotspots → include a small Map.
+  - If question asks for process/explanation/causal chain → include Mermaid (max 1).
+  - If both spatial context + causal explanation are important → include Map + **one** Mermaid.
+  - If visuals would be redundant or exceed succinctness, prefer a single visual (choose the one with highest explanatory value).
+- Presentation rules:
+  - Put Map under a "Map/Diagram" heading immediately after INTRO (or right before Body if more appropriate).
+  - Put Mermaid under "Diagram" or inside the Body where the process/discussion begins.
+  - All visuals must be concise, exam-friendly, and accessible (follow with a labelled list of items/regions).
+"""
+
+# Tie-breaker when both visuals seem useful:
+VISUAL_TIEBREAKER = """
+If both a Map and a Mermaid appear useful, include both only when each adds distinct explanatory value (Map = spatial context; Mermaid = process/causal flow). 
+If including both would exceed succinctness, prefer the Map for distribution questions and the Mermaid for process/causal questions.
+"""
+
+# ============================================================
 # MAP DIAGRAM INSTRUCTIONS
 # ============================================================
 
 MAP_GENERATION_RULES = """
 **RULE - MAP DIAGRAMS (Geographic Visualization)**:
 
-When the answer involves **geography, spatial relationships, or location-based data**, you MAY include a map diagram IN ADDITION to the required Mermaid diagram.
+Maps visualize spatial relationships and location-based data. They are IN ADDITION to Mermaid diagrams.
+
+**MAP_TRIGGER_RULES (MANDATORY map inclusion)**:
+For ANY question involving:
+  • distribution of resources/industries/crops/minerals (e.g., "Describing the distribution of rubber producing countries")
+  • spatial patterns across India or the world
+  • global or regional concentration
+  • directive words: "locate", "identify regions", "where", "areas", "belts", "hotspots", "mark on map"
+  
+  → A Map MUST be generated. This is NOT optional.
+  
+- The Map should appear even if a Mermaid diagram is also required for a process or impact.
+- The Map should be generated using the map-json schema below.
 
 **When to use maps**:
 - Physical geography (rivers, mountains, climate zones, monsoon patterns)
@@ -294,6 +333,30 @@ Major Indian cities (lon, lat):
 }
 ```
 
+**Example 4 - World Map (Global Resource Distribution)**:
+**USE THIS FORMAT FOR GLOBAL/INTERNATIONAL QUESTIONS** (e.g., "distribution of rubber producing countries", "major oil exporters", "wheat producing nations")
+
+```map-json
+{
+  "type": "map",
+  "mapType": "markers",
+  "region": "world",
+  "title": "Major Rubber Producing Countries",
+  "markers": [
+    {"name": "Thailand", "coordinates": [100.5, 13.7], "type": "crop", "label": "Thailand"},
+    {"name": "Indonesia", "coordinates": [106.8, -6.2], "type": "crop", "label": "Indonesia"},
+    {"name": "Vietnam", "coordinates": [105.8, 21.0], "type": "crop", "label": "Vietnam"},
+    {"name": "India", "coordinates": [77.2, 8.5], "type": "crop", "label": "India"},
+    {"name": "Malaysia", "coordinates": [101.9, 4.2], "type": "crop", "label": "Malaysia"},
+    {"name": "China", "coordinates": [102.7, 25.0], "type": "crop", "label": "China"},
+    {"name": "Sri Lanka", "coordinates": [80.7, 7.8], "type": "crop", "label": "Sri Lanka"}
+  ],
+  "style": {"theme": "warm"}
+}
+```
+
+**IMPORTANT**: When question asks about COUNTRIES or GLOBAL distribution, use `"region": "world"`, NOT `"region": "india"`
+
 **Map Placement in Answer**:
 - Insert map-json block AFTER the relevant sub-heading
 - Add a label line above code block: **Map: [Descriptive Title]**
@@ -322,10 +385,11 @@ Major Indian cities (lon, lat):
 • **Raniganj (West Bengal)**: Second largest, supplies Eastern India
 • **Korba (Chhattisgarh)**: Major thermal power generation hub
 
-**IMPORTANT**: 
-- Maps are OPTIONAL and should only be used when geographic visualization adds significant value
-- For word count ≥ 200: Include the required Mermaid diagram. For word count ≤ 150: Diagrams are optional.
-- Keep map data accurate and simple
+**CRITICAL MAP RULES**: 
+- Maps are MANDATORY when question matches MAP_TRIGGER_RULES (distribution, locate, belts, hotspots, spatial patterns)
+- Maps can be for India (region: "india") OR world (region: "world") depending on question scope
+- For word count ≥ 200: Include the required Mermaid diagram. Maps are additional when triggered.
+- Keep map data accurate and simple (max 15-20 markers/countries)
 - Always list locations in text below the map for accessibility
 """
 
@@ -433,25 +497,7 @@ SCORING_RUBRIC = """
 Priorities: Relevance 30% | Facts & Examples 30% | Structure & Clarity 20% | Diagram 10% | Conclusion 10%.
 Use this to order what you include when space is limited.
 """
-
 # ============================================================
-# EXAMPLE OUTPUT TEMPLATE
-# ============================================================
-
-EXAMPLE_OUTPUT_TEMPLATE = """
-**OUTPUT TEMPLATE (must follow exactly)**
-
-INTRO:
-2–3 lines (definition/data point/context)
-
-### [Sub-heading 1]
-**Diagram: [Short Title]**
-```mermaid
-graph TD
-    A["Causes"] --> B["Impacts"]
-    B --> C["Mitigation"]
-```
-"""# ============================================================
 # COMPLETE SYSTEM PROMPT FOR ANSWER GENERATION
 # ============================================================
 
@@ -468,6 +514,10 @@ def get_mains_answer_system_prompt() -> str:
 
 {MERMAID_DIAGRAM_RULES}
 
+{GEO_VISUAL_INTELLIGENCE_RULES}
+
+{VISUAL_TIEBREAKER}
+
 {MAP_GENERATION_RULES}
 
 {DIAGRAM_TOKEN_BUDGET}
@@ -478,12 +528,11 @@ def get_mains_answer_system_prompt() -> str:
 
 {FACTUAL_ACCURACY_RULES}
 
-{EXAMPLE_OUTPUT_TEMPLATE}
 
 **CRITICAL**: 
 - Follow ALL rules strictly.
 - Diagrams: For word count ≥ 200, include exactly ONE Mermaid diagram. For word count ≤ 150, include only if necessary.
-- Optionally include ONE map diagram (as per MAP_GENERATION_RULES) if geographic visualization adds value.
+- MAP RULE (mandatory when triggered): If the question matches MAP_TRIGGER_RULES (distribution, locate, belts, hotspots, spatial patterns), the model MUST include a map-json block following MAP_GENERATION_RULES. This is not optional for those questions.
 - Maintain IBC structure.
 - Write bullets as natural English sentences with strategic source citations where credibility matters.
 - Keep diagrams simple and compact (stick to token budget).
@@ -517,6 +566,10 @@ Use the provided REFERENCE CONTEXT to:
 {BULLET_DISCIPLINE_RULES}
 
 {MERMAID_DIAGRAM_RULES}
+
+{GEO_VISUAL_INTELLIGENCE_RULES}
+
+{VISUAL_TIEBREAKER}
 
 {MAP_GENERATION_RULES}
 

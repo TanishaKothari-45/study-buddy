@@ -20,8 +20,8 @@ function getProjection(region, width, height, override = {}, geoData = null) {
         },
         world: {
             type: 'geoNaturalEarth1',
-            center: [0, 0],
-            scale: 180,
+            center: [0, 20],
+            scale: 160,
             translate: [width / 2, height / 2]
         }
     };
@@ -48,13 +48,13 @@ function getProjection(region, width, height, override = {}, geoData = null) {
     }
 
     // If geoData is provided, use fitExtent to auto-calculate scale and translate
-    if (geoData && region === 'india') {
-        const padding = finalConfig.padding || 40;
+    if (geoData) {
+        const padding = finalConfig.padding || (region === 'world' ? 50 : 40);
         projection.fitExtent(
             [[padding, padding], [width - padding, height - padding]],
             geoData
         );
-        console.log('   Projection fitted to geoData bounds');
+        console.log(`   Projection fitted to geoData bounds with ${padding}px padding`);
     } else if (finalConfig.center && finalConfig.scale) {
         // Fall back to manual configuration
         projection
