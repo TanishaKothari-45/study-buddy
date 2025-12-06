@@ -146,13 +146,12 @@ class CurrentAffairsMCPServer:
                 return cached["data"]
         
         # Try LLM parsing
-        if self.gemini_client and PARSER_AVAILABLE:
+        if PARSER_AVAILABLE:
             try:
-                print(f"🔍 Parsing topic with LLM: {topic[:50]}...")
+                print(f"🔍 Parsing topic with GPT-4o-mini: {topic[:50]}...")
                 parsed = await parse_question_for_search(
                     question=topic,
-                    gemini_client=self.gemini_client,
-                    model_name="gemini-2.5-pro"
+                    openai_api_key=os.getenv("OPENAI_API_KEY")
                 )
                 
                 # Cache the result

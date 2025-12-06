@@ -41,6 +41,10 @@ except ImportError as e:
     GEMINI_API_KEY = None
     logger.warning(f"Could not import Gemini client: {e}")
 
+# Import config for OpenAI API key
+from ..core.config import settings
+OPENAI_API_KEY = settings.OPENAI_API_KEY
+
 # Import utilities
 try:
     from ..utils.question_parser import parse_question_for_search
@@ -337,8 +341,7 @@ Return ONLY the question text, nothing else. If you can't find an explicit quest
             try:
                 parsed_topics = await parse_question_for_search(
                     question=identified_question,
-                    gemini_client=gemini_client,
-                    model_name="gemini-2.5-pro"
+                    openai_api_key=OPENAI_API_KEY
                 )
                 logger.info(f"✅ Parsed for current affairs: {parsed_topics.get('search_query', '')[:50]}...")
             except Exception as e:

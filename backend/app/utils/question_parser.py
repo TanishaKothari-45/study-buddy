@@ -3,13 +3,14 @@ question_parser.py
 
 LLM-powered question parser that extracts search-friendly terms from UPSC questions.
 Converts verbose questions into optimized search queries for vector embedding retrieval.
+Now uses GPT-4o-mini with Redis caching for better performance.
 
 Usage:
     from question_parser import parse_question_for_search
     
     result = await parse_question_for_search(
         question="Discuss climate change and its impact on agriculture and latest initiatives to mitigate it",
-        gemini_client=client
+        openai_api_key="sk-..."
     )
     # Returns: {
     #     "main_topic": "climate change",
@@ -20,57 +21,65 @@ Usage:
 
 import logging
 import json
+import hashlib
 from typing import Optional
+from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
+# Redis cache for parsed questions
+try:
+    from .cache_manager import get_cache_manager
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    logger.warning("⚠️ Cache manager not available for question parser")
+
 # System prompt for question parsing
-QUESTION_PARSER_SYSTEM_PROMPT = """You are an expert at extracting key search terms from UPSC Geography questions.
+QUESTION_PARSER_SYSTEM_PROMPT = """
+You extract search-focused keywords from UPSC questions.
 
-Your task is to analyze a question and extract the core concepts that would be best for vector embedding search.
+TASK:
+- MAIN TOPIC: 1–3 word core subject.
+- SUB TOPICS: 2–5 short aspects (1–4 words each).
+- Remove filler verbs (discuss, examine, critically, etc.).
+- Keep only nouns/concepts useful for vector search.
+- SEARCH_QUERY = main_topic + sub_topics (space-separated).
 
-RULES:
-1. Extract the MAIN TOPIC - the central subject of the question (1-3 words)
-2. Extract SUB TOPICS - specific aspects, dimensions, or related concepts mentioned (2-5 items, each 1-4 words)
-3. Remove filler words like "discuss", "explain", "examine", "critically", "analyze", "elaborate", "to what extent", etc.
-4. Focus on NOUNS and KEY CONCEPTS that would appear in relevant documents
-5. Combine into a search_query that is optimized for vector similarity search
-
-OUTPUT FORMAT (JSON only, no markdown):
+Return ONLY JSON:
 {
-    "main_topic": "climate change",
-    "sub_topics": ["impact on agriculture", "mitigation initiatives", "adaptation strategies"],
-    "search_query": "climate change impact agriculture mitigation initiatives adaptation"
+ "main_topic": "...",
+ "sub_topics": ["...", "..."],
+ "search_query": "..."
 }
 
-EXAMPLES:
+Examples:
+Q: "Causes and impacts of forest fires in India; suggest mitigation measures."
+→ {"main_topic":"forest fires India","sub_topics":["causes","impacts","mitigation"],"search_query":"forest fires India causes impacts mitigation"}
 
-Question: "Discuss the causes and impacts of increasing forest fires in India and suggest mitigation measures."
-Output: {"main_topic": "forest fires India", "sub_topics": ["causes", "impacts", "mitigation measures"], "search_query": "forest fires India causes impacts mitigation measures"}
+Q: "Role of monsoons in shaping Indian agriculture; recent trends."
+→ {"main_topic":"monsoons Indian agriculture","sub_topics":["role","recent trends","impact"],"search_query":"monsoons Indian agriculture role recent trends impact"}
 
-Question: "Critically examine the role of monsoons in shaping Indian agriculture. What are the recent trends?"
-Output: {"main_topic": "monsoons Indian agriculture", "sub_topics": ["role", "recent trends", "impact"], "search_query": "monsoons Indian agriculture role trends impact"}
-
-Question: "To what extent has urbanization affected the groundwater resources in India? Suggest remedial measures."
-Output: {"main_topic": "urbanization groundwater India", "sub_topics": ["effects", "remedial measures", "depletion"], "search_query": "urbanization groundwater India effects depletion remedial measures"}
+Q: "Urbanization affecting groundwater in India; remedial measures."
+→ {"main_topic":"urbanization groundwater India","sub_topics":["effects","depletion","remedial measures"],"search_query":"urbanization groundwater India effects depletion remedial measures"}
 """
 
 
-from .langsmith_tracer import trace_gemini
 
-@trace_gemini("question_parser")
+from .langsmith_tracer import trace_llm
+
+@trace_llm("question_parser")
 async def parse_question_for_search(
     question: str,
-    gemini_client,
-    model_name: str = "gemini-2.5-pro"
+    openai_api_key: Optional[str] = None
 ) -> dict:
     """
     Parse a UPSC question to extract search-friendly terms for vector retrieval.
+    Uses GPT-4o-mini with Redis caching for speed.
     
     Args:
         question: The full question text
-        gemini_client: GeminiClient instance
-        model_name: Gemini model to use (default: gemini-2.5-pro)
+        openai_api_key: OpenAI API key (optional, will use env var if not provided)
     
     Returns:
         dict with keys:
@@ -86,6 +95,20 @@ async def parse_question_for_search(
             "search_query": ""
         }
     
+    # Check cache first
+    if CACHE_AVAILABLE:
+        cache = get_cache_manager()
+        cache_key = f"qparse:{hashlib.md5(question.encode()).hexdigest()}"
+        
+        try:
+            if cache.enabled:
+                cached_result = cache.redis.get(cache_key)
+                if cached_result:
+                    logger.info(f"🎯 [CACHE HIT] Question parser cache hit")
+                    return json.loads(cached_result)
+        except Exception as e:
+            logger.warning(f"⚠️ Cache read failed: {e}")
+    
     user_prompt = f"""Extract search terms from this UPSC question:
 
 Question: {question}
@@ -93,24 +116,25 @@ Question: {question}
 Return ONLY valid JSON with main_topic, sub_topics, and search_query fields. No markdown, no explanation."""
 
     try:
-        logger.info(f"🔍 Parsing question for search terms: {question[:80]}...")
+        logger.info(f"🔍 [CACHE MISS] Parsing question with GPT-4o-mini: {question[:80]}...")
         
-        # Store original model and temporarily switch if needed
-        original_model = gemini_client.model_name
-        gemini_client.model_name = model_name
+        # Use GPT-4o-mini for faster parsing
+        client = AsyncOpenAI(api_key=openai_api_key)
         
-        response = await gemini_client.generate_response(
-            user_prompt=user_prompt,
-            system_prompt=QUESTION_PARSER_SYSTEM_PROMPT,
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": QUESTION_PARSER_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt}
+            ],
             temperature=0.0,  # Deterministic output
-            max_retries=2
+            top_p=0.0,  # No nucleus sampling - fully deterministic
+            max_tokens=200  # Short response expected
         )
         
-        # Restore original model
-        gemini_client.model_name = original_model
+        response_text = response.choices[0].message.content.strip()
         
         # Clean response - remove markdown code blocks if present
-        response_text = response.strip()
         if response_text.startswith("```"):
             # Remove markdown code block
             lines = response_text.split("\n")
@@ -119,6 +143,7 @@ Return ONLY valid JSON with main_topic, sub_topics, and search_query fields. No 
                 lines = lines[1:]
             if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
+            response_text = "\n".join(lines)
             response_text = "\n".join(lines)
         
         # Parse JSON response
@@ -143,6 +168,19 @@ Return ONLY valid JSON with main_topic, sub_topics, and search_query fields. No 
         logger.info(f"   • Main topic: {parsed_result['main_topic']}")
         logger.info(f"   • Sub topics: {parsed_result['sub_topics']}")
         logger.info(f"   • Search query: {parsed_result['search_query']}")
+        
+        # Cache the result (7 days TTL)
+        if CACHE_AVAILABLE:
+            try:
+                if cache.enabled:
+                    cache.redis.set(
+                        cache_key,
+                        json.dumps(parsed_result),
+                        ex=604800  # 7 days in seconds
+                    )
+                    logger.info(f"💾 Cached parsed question for 7 days")
+            except Exception as e:
+                logger.warning(f"⚠️ Cache write failed: {e}")
         
         return parsed_result
         

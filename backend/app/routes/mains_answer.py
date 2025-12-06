@@ -36,6 +36,7 @@ from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, 
 from ..utils.map_proxy import parse_and_generate_maps, check_map_service_health
 from ..utils.cache_manager import get_cache_manager
 from ..utils.answer_compressor import compress_answer
+from ..core.config import settings
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -48,6 +49,9 @@ except ImportError as e:
     GeminiClient = None
     GEMINI_API_KEY = None
     logger.warning(f"Could not import Gemini client: {e}")
+
+# OpenAI API key for question parser
+OPENAI_API_KEY = settings.OPENAI_API_KEY
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -359,22 +363,16 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             current_affairs_bullets = []
             time_range = "3months"
             
-            if GeminiClient and GEMINI_API_KEY:
-                logger.info(f"🔍 [MAINS] Parsing question for current affairs search...")
-                try:
-                    gemini_client = GeminiClient(
-                        api_key=GEMINI_API_KEY,
-                        model_name="gemini-2.5-pro"
-                    )
-                    parsed_topics = await parse_question_for_search(
-                        question=mains_request.question,
-                        gemini_client=gemini_client,
-                        model_name="gemini-2.5-pro"
-                    )
-                    logger.info(f"✅ [MAINS] Parsed for current affairs: {parsed_topics.get('search_query', '')[:50]}...")
-                except Exception as e:
-                    logger.warning(f"⚠️ [MAINS] Question parsing failed: {e}")
-                    parsed_topics = {}
+            logger.info(f"🔍 [MAINS] Parsing question for current affairs search...")
+            try:
+                parsed_topics = await parse_question_for_search(
+                    question=mains_request.question,
+                    openai_api_key=OPENAI_API_KEY
+                )
+                logger.info(f"✅ [MAINS] Parsed for current affairs: {parsed_topics.get('search_query', '')[:50]}...")
+            except Exception as e:
+                logger.warning(f"⚠️ [MAINS] Question parsing failed: {e}")
+                parsed_topics = {}
 
             # Check news cache first
             if parsed_topics:
