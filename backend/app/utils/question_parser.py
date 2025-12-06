@@ -37,14 +37,21 @@ except ImportError:
 
 # System prompt for question parsing
 QUESTION_PARSER_SYSTEM_PROMPT = """
-You extract search-focused keywords from UPSC questions.
+You extract search-focused keywords from UPSC questions for vector retrieval and news search.
 
 TASK:
-- MAIN TOPIC: 1–3 word core subject.
-- SUB TOPICS: 2–5 short aspects (1–4 words each).
-- Remove filler verbs (discuss, examine, critically, etc.).
-- Keep only nouns/concepts useful for vector search.
-- SEARCH_QUERY = main_topic + sub_topics (space-separated).
+- MAIN TOPIC: Combine core subject + specific entity/demographic (2-4 words)
+  Examples: "tribal agriculture", "coastal flooding", "urban migration", "forest fires"
+- SUB TOPICS: 2-5 meaningful phrases ranked by importance (1-3 words each)
+  Priority: Geography > Qualifiers > Related concepts
+- SEARCH_QUERY: main_topic + sub_topics (space-separated)
+- Remove filler verbs (discuss, examine, critically, analyze)
+
+KEYWORD COMBINATION RULES:
+1. Combine subject + entity in MAIN TOPIC: "tribal agriculture" NOT "agriculture" + "tribal" separately
+2. Keep geographic names in SUB TOPICS: "Odisha", "Northeast India", "Western Ghats"
+3. Combine related qualifiers: "drought impact" NOT "drought" + "impact" separately
+4. Rank SUB TOPICS by importance: region first, then qualifiers, then generic terms
 
 Return ONLY JSON:
 {
@@ -54,14 +61,23 @@ Return ONLY JSON:
 }
 
 Examples:
+Q: "Impact of drought on tribal agriculture in Odisha"
+→ {"main_topic":"tribal agriculture drought","sub_topics":["Odisha","rural livelihoods","food security"],"search_query":"tribal agriculture drought Odisha rural livelihoods"}
+
 Q: "Causes and impacts of forest fires in India; suggest mitigation measures."
-→ {"main_topic":"forest fires India","sub_topics":["causes","impacts","mitigation"],"search_query":"forest fires India causes impacts mitigation"}
+→ {"main_topic":"forest fires","sub_topics":["causes impacts","mitigation measures","India"],"search_query":"forest fires causes impacts mitigation measures India"}
 
 Q: "Role of monsoons in shaping Indian agriculture; recent trends."
-→ {"main_topic":"monsoons Indian agriculture","sub_topics":["role","recent trends","impact"],"search_query":"monsoons Indian agriculture role recent trends impact"}
+→ {"main_topic":"monsoon agriculture","sub_topics":["India","rainfall patterns","crop production"],"search_query":"monsoon agriculture India rainfall patterns crop production"}
+
+Q: "Climate change effects on coastal women in Kerala"
+→ {"main_topic":"coastal communities climate","sub_topics":["Kerala","women livelihoods","vulnerability"],"search_query":"coastal communities climate Kerala women livelihoods vulnerability"}
+
+Q: "Migration patterns of scheduled tribes in Northeast India"
+→ {"main_topic":"tribal migration","sub_topics":["Northeast India","displacement patterns","indigenous rights"],"search_query":"tribal migration Northeast India displacement patterns"}
 
 Q: "Urbanization affecting groundwater in India; remedial measures."
-→ {"main_topic":"urbanization groundwater India","sub_topics":["effects","depletion","remedial measures"],"search_query":"urbanization groundwater India effects depletion remedial measures"}
+→ {"main_topic":"urbanization groundwater","sub_topics":["depletion impacts","remedial measures","India"],"search_query":"urbanization groundwater depletion impacts remedial measures India"}
 """
 
 

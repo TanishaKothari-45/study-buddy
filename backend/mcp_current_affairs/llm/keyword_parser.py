@@ -118,23 +118,32 @@ def build_search_queries(keywords: list, topic: str) -> list:
     Build 4 diversified search queries from keywords.
     
     Args:
-        keywords: Extracted keywords (3-5)
+        keywords: Keyword PHRASES from question parser (e.g., ["tribal agriculture drought", "Odisha", "rural livelihoods"])
+                 Each keyword is already a meaningful phrase, not individual words
         topic: Original topic for fallback
     
     Returns:
         4 search queries for different angles
     """
-    # Use first 2 keywords as core query
-    core = " ".join(keywords[:2]) if keywords else topic
-    # Use first keyword alone for broader matches
-    primary = keywords[0] if keywords else topic.split()[0]
+    if not keywords:
+        # Fallback: split topic into words
+        keywords = [" ".join(topic.split()[:3])]
     
-    # Broader queries for better coverage
+    # Keywords are already combined phrases from question parser
+    # e.g., ["tribal agriculture drought", "Odisha", "rural livelihoods", "food security"]
+    
+    # Use first keyword phrase as primary (e.g., "tribal agriculture drought")
+    primary = keywords[0] if len(keywords) > 0 else topic
+    
+    # Combine first 2 keyword phrases for core query (e.g., "tribal agriculture drought Odisha")
+    core = " ".join(keywords[:2]) if len(keywords) >= 2 else primary
+    
+    # Diversified queries optimized for news APIs
     queries = [
-        f"{core} India latest",                                                  # India-specific current
-        f"{primary} global report study data",                                   # Research/data angle
-        f"{core} government scheme policy OR local initiatives",                 # Policy angle  
-        f"{primary} global solution measures",                                   # Best practices
+        f"{core} India latest",                                    # India-specific (first 2 phrases)
+        f"{primary} global report study data",                     # Global research (first phrase)
+        f"{core} government scheme policy OR local initiatives",   # Policy angle (first 2 phrases)
+        f"{primary} global solution measures",                     # Best practices (first phrase)
     ]
     
     return queries

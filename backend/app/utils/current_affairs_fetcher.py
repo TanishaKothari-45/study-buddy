@@ -97,12 +97,16 @@ async def fetch_current_affairs_for_question(
     
     # Extract keywords array from parsed data (avoid redundant LLM extraction)
     keywords_array = None
-    if parsed_keywords.get("sub_topics"):
-        # Use sub_topics as keyword array (already extracted by question parser)
-        main = parsed_keywords.get("main_topic", "").split()
-        subs = parsed_keywords.get("sub_topics", [])
-        keywords_array = list(set(main + subs))  # Combine and dedupe
-        logger.info(f"🎯 Using pre-parsed keywords: {keywords_array}")
+    if parsed_keywords.get("main_topic") or parsed_keywords.get("sub_topics"):
+        # Keep combined phrases from question parser (e.g., "tribal agriculture drought" as one keyword)
+        main_topic = parsed_keywords.get("main_topic", "").strip()
+        sub_topics = parsed_keywords.get("sub_topics", [])
+        
+        # Build keyword array: [main_topic, sub_topic1, sub_topic2, ...]
+        keywords_array = [main_topic] if main_topic else []
+        keywords_array.extend(sub_topics)
+        
+        logger.info(f"🎯 Using pre-parsed keywords (as phrases): {keywords_array}")
     
     try:
         logger.info(f"🗞️ Fetching current affairs for: {search_query[:50]}...")
