@@ -35,11 +35,11 @@ export default function EvaluatePage() {
     const { token } = useAuth();
     
     const [files, setFiles] = useState<File[]>([]);
-
     const [question, setQuestion] = useState("");
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<EvaluationResult | null>(null);
     const [error, setError] = useState("");
+    const [showBanner, setShowBanner] = useState(false);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -70,7 +70,8 @@ export default function EvaluatePage() {
             if (statusRes.ok) {
                 const status = await statusRes.json();
                 if (!status.has_api_key) {
-                    setError("Please set your Gemini API key first. You'll see a banner at the top of the page.");
+                    setShowBanner(true);
+                    setError("Please set your Gemini API key using the banner above.");
                     return;
                 }
             }
@@ -116,7 +117,7 @@ export default function EvaluatePage() {
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-8">
             {/* API Key Banner */}
-            <ApiKeyBanner />
+            <ApiKeyBanner showBanner={showBanner} onKeySet={() => { setShowBanner(false); setError(""); }} />
             
             <div className="flex flex-col space-y-2">
                 <h1 className="text-3xl font-bold tracking-tight text-foreground">

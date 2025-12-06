@@ -8,9 +8,10 @@ import { useTheme } from "next-themes";
 
 interface ApiKeyBannerProps {
     onKeySet?: () => void;
+    showBanner?: boolean;
 }
 
-export default function ApiKeyBanner({ onKeySet }: ApiKeyBannerProps) {
+export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBannerProps) {
     const { token } = useAuth();
     const { theme, resolvedTheme } = useTheme();
     const [hasApiKey, setHasApiKey] = useState<boolean>(false);
@@ -22,13 +23,31 @@ export default function ApiKeyBanner({ onKeySet }: ApiKeyBannerProps) {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [showSuccessBanner, setShowSuccessBanner] = useState(false);
-    const [fadeOut, setFadeOut] = useState(false);
+    const [fadeOutSuccess, setFadeOutSuccess] = useState(false);
 
-    // Debug: Log the current theme
+    // Session-based dismissal (resets on page refresh/logout)
+    const [bannerDismissed, setBannerDismissed] = useState<boolean>(false);
+
+    // Track previous hasApiKey value to detect changes
+    const prevHasApiKeyRef = React.useRef(hasApiKey);
+
+    // Track previous showBanner value to detect transitions
+    const prevShowBannerRef = React.useRef(showBanner);
+
+    // Reset dismissal only when showBanner changes from false to true (page navigation)
+    useEffect(() => {
+        if (showBanner && !prevShowBannerRef.current && bannerDismissed) {
+            setBannerDismissed(false);
+        }
+        prevShowBannerRef.current = showBanner;
+    }, [showBanner, bannerDismissed]);
+
+    // Debug: log theme
     useEffect(() => {
         console.log('🎨 ApiKeyBanner Theme:', { theme, resolvedTheme, isDark: document.documentElement.classList.contains('dark') });
     }, [theme, resolvedTheme]);
 
+    // Load API key status
     useEffect(() => {
         const loadStatus = async () => {
             if (!token) {
@@ -43,7 +62,14 @@ export default function ApiKeyBanner({ onKeySet }: ApiKeyBannerProps) {
 
                 if (response.ok) {
                     const data = await response.json();
+                    const hadKey = prevHasApiKeyRef.current;
                     setHasApiKey(data.has_api_key);
+                    prevHasApiKeyRef.current = data.has_api_key;
+                    
+                    // If API key was just added, notify parent
+                    if (!hadKey && data.has_api_key && onKeySet) {
+                        onKeySet();
+                    }
                 }
             } catch (error) {
                 console.error("Failed to check API key status:", error);
@@ -53,15 +79,16 @@ export default function ApiKeyBanner({ onKeySet }: ApiKeyBannerProps) {
         };
 
         loadStatus();
-    }, [token]);
+    }, [token, onKeySet]);
 
+    // Success banner auto-hide - show message for 3 seconds before fading
     useEffect(() => {
         if (showSuccessBanner) {
-            const fadeTimer = setTimeout(() => setFadeOut(true), 2000);
+            const fadeTimer = setTimeout(() => setFadeOutSuccess(true), 3000);
             const removeTimer = setTimeout(() => {
                 setShowSuccessBanner(false);
-                setFadeOut(false);
-            }, 2500);
+                setFadeOutSuccess(false);
+            }, 3500);
             return () => {
                 clearTimeout(fadeTimer);
                 clearTimeout(removeTimer);
@@ -114,21 +141,31 @@ export default function ApiKeyBanner({ onKeySet }: ApiKeyBannerProps) {
     };
 
     if (isLoading) return null;
+    
+    // Don't show if showBanner prop is false (for mains/evaluate pages initially)
+    if (!showBanner) return null;
+    
+    // Don't show if API key exists
+    if (hasApiKey) return null;
+    
+    // Don't show if user dismissed it (session-based, resets on refresh/logout)
+    if (bannerDismissed && !showInput) return null;
 
+    // Success toast (unchanged)
     if (showSuccessBanner) {
         return (
-            <div 
-                className={`bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-l-4 border-green-500 p-4 mb-6 rounded-lg shadow-sm transition-opacity duration-500 ${
-                    fadeOut ? 'opacity-0' : 'opacity-100'
+            <div
+                className={`bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-l-4 border-green-500 p-3 mb-4 rounded-md shadow-sm transition-opacity duration-500 ${
+                    fadeOutSuccess ? 'opacity-0' : 'opacity-100'
                 }`}
             >
                 <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400 shrink-0" />
+                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
                     <div>
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
-                            API Key Configured Successfully! 🎉
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-0.5">
+                            Its Okay!! You can configure it anytime from your profile.
                         </h3>
-                        <p className="text-sm text-gray-700 dark:text-gray-300">
+                        <p className="text-xs text-gray-700 dark:text-gray-300">
                             Your Gemini API key is set and all AI features are now enabled.
                         </p>
                     </div>
@@ -137,65 +174,103 @@ export default function ApiKeyBanner({ onKeySet }: ApiKeyBannerProps) {
         );
     }
 
+    // Determine theme colors (same values as you had)
+    const lightBg = "#FBF7FF";
+    const lightBorder = "#EDE6FF";
+    const darkBg = "#151225";
+    const darkBorder = "rgba(255,255,255,0.06)";
+    const titleColorLight = "#3B2B55";
+    const bodyColorLight = "#5A3FB5";
+    const titleColorDark = "#EDE7FF";
+    const bodyColorDark = "#D9C7FF";
+
+    // Slim banner (or the input variant)
     if (!hasApiKey && !showInput) {
         return (
-            <div className="bg-[#F7F2FF] dark:bg-[#1A162B] border border-[#E7DAFF] dark:border-white/10 p-6 mb-6 rounded-2xl shadow-sm" style={{ backgroundColor: theme === 'dark' ? '#1A162B' : '#F7F2FF', borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#E7DAFF' }}>
-                <div className="flex items-start gap-4">
-                    <div className="shrink-0">
-                        <div className="p-2.5 bg-purple-500 rounded-xl shadow-sm">
-                            <Key className="h-5 w-5 text-white" />
+            <div
+                className="mb-4 rounded-lg shadow-sm border p-3 flex items-center gap-4"
+                style={{
+                    backgroundColor: theme === 'dark' ? darkBg : lightBg,
+                    borderColor: theme === 'dark' ? darkBorder : lightBorder,
+                    alignItems: 'center'
+                }}
+            >
+                <div style={{ flexShrink: 0 }}>
+                    <div
+                        style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 10,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: theme === 'dark' ? 'linear-gradient(180deg,#6f2ad6,#a14bf2)' : 'linear-gradient(180deg,#9b6bff,#6f2ad6)',
+                            boxShadow: theme === 'dark' ? '0 1px 4px rgba(0,0,0,0.4)' : '0 1px 6px rgba(107,70,193,0.12)'
+                        }}
+                    >
+                        <Key className="h-4 w-4 text-white" />
+                    </div>
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+                        <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: theme === 'dark' ? titleColorDark : titleColorLight, lineHeight: '1.05' }}>
+                                Set up your Gemini API key
+                            </div>
+                            <div style={{ fontSize: 13, color: theme === 'dark' ? bodyColorDark : 'rgb(100, 67, 155)', marginTop: 6, opacity: 0.95 }}>
+                                Connect your free Gemini API key to unlock AI features — answers, generation, and mock tests.
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 8 }}>
+                            <button
+                                onClick={() => setShowInput(true)}
+                                className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-semibold"
+                                style={{
+                                    background: theme === 'dark' ? 'linear-gradient(90deg,#7B3BFF,#5C20D6)' : 'linear-gradient(90deg,#8E5CFF,#6F2AD6)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    boxShadow: theme === 'dark' ? '0 2px 8px rgba(96, 65, 189, 0.25)' : '0 2px 10px rgba(111, 42, 214, 0.12)'
+                                }}
+                            >
+                                <Key className="h-3.5 w-3.5 mr-2" />
+                                Configure
+                            </button>
                         </div>
                     </div>
 
-                    <div className="flex-1">
-                        <h3 className="text-base font-semibold text-[#2D1B4E] dark:text-[#E8DAFF] mb-2">
-                            Set Up Your Gemini API Key
-                        </h3>
+                    <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <a
+                            href="https://aistudio.google.com/app/apikey"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: 13, color: theme === 'dark' ? bodyColorDark : bodyColorLight, textDecoration: 'none', fontWeight: 600 }}
+                        >
+                            Get free API key <ExternalLink className="inline-block ml-1" />
+                        </a>
 
-                        <p className="text-sm text-[#3D2A62] dark:text-purple-400 mb-4 leading-relaxed" style={{ color: theme === 'dark' ? 'rgb(192, 132, 252)' : 'rgb(192, 132, 252)' }}>
-                            Connect your free Gemini API key to unlock powerful AI features including chat, answer generation, question creation, and mock tests.
-                        </p>
-
-                        <div className="flex flex-wrap items-center gap-3">
-                            <button
-                                onClick={() => setShowInput(true)}
-                                className="inline-flex items-center px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl transition-colors shadow cursor-pointer"
-                            >
-                                <Key className="h-4 w-4 mr-2" />
-                                Configure API Key
-                            </button>
-
-                            <a
-                                href="https://aistudio.google.com/app/apikey"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center text-sm text-[#5A3FB5] dark:text-purple-400 hover:text-[#452ea0]"
-                            >
-                                Get Free API Key
-                                <ExternalLink className="h-4 w-4 ml-1.5" />
-                            </a>
+                        <div style={{ fontSize: 13, color: theme === 'dark' ? 'rgba(255,255,255,0.65)' : 'rgba(59,43,85,0.8)', fontWeight: 600 }}>
+                            💡 Free forever — no credit card required
                         </div>
-
-                        <p className="text-sm text-[#3D2A62] dark:text-purple-300 mt-3 font-semibold" style={{ color: theme === 'dark' ? 'rgb(216, 180, 254)' : 'rgb(109, 40, 217)' }}>
-                            💡 Free forever — No credit card required
-                        </p>
                     </div>
                 </div>
             </div>
         );
     }
 
+    // Input form (kept compact)
     if (showInput) {
         return (
-            <div className="bg-[#F7F2FF] dark:bg-[#1A162B] border border-[#E7DAFF] dark:border-white/10 p-6 mb-6 rounded-2xl shadow-sm" style={{ backgroundColor: theme === 'dark' ? '#1A162B' : '#F7F2FF', borderColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : '#E7DAFF' }}>
-                <div className="flex items-start justify-between mb-5">
+            <div className="mb-4 rounded-lg border p-3 shadow-sm" style={{ backgroundColor: theme === 'dark' ? darkBg : lightBg, borderColor: theme === 'dark' ? darkBorder : lightBorder }}>
+                <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-500 rounded-xl shadow-sm">
-                            <Key className="h-5 w-5 text-white" />
+                        <div style={{ width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', background: theme === 'dark' ? 'linear-gradient(180deg,#6f2ad6,#a14bf2)' : 'linear-gradient(180deg,#9b6bff,#6f2ad6)' }}>
+                            <Key className="h-4 w-4 text-white" />
                         </div>
-                        <h3 className="text-lg font-semibold text-[#3D2A62] dark:text-[#E8DAFF]">
-                            Enter Your Gemini API Key
-                        </h3>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: theme === 'dark' ? '#EDE7FF' : '#3B2B55' }}>
+                            Enter your Gemini API key
+                        </div>
                     </div>
 
                     <button
@@ -205,82 +280,76 @@ export default function ApiKeyBanner({ onKeySet }: ApiKeyBannerProps) {
                             setError(null);
                             setShowKey(false);
                         }}
-                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                        className="text-sm"
+                        style={{ color: theme === 'dark' ? 'rgba(255,255,255,0.7)' : '#6B5B86' }}
                     >
-                        <X className="h-5 w-5" />
+                        <X className="h-4 w-4" />
                     </button>
                 </div>
 
-                <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-semibold text-[#3D2A62] dark:text-purple-200 mb-2">
-                            API Key
-                        </label>
-
-                        <div className="relative">
-                            <input
-                                type={showKey ? "text" : "password"}
-                                value={apiKey}
-                                onChange={(e) => {
-                                    setApiKey(e.target.value);
-                                    setError(null);
-                                }}
-                                placeholder="AIza..."
-                                className="w-full px-4 py-2.5 pr-12 border border-[#DCCBFF] dark:border-purple-800 bg-[#FAF8FF] dark:bg-[#151228] text-[#2D1B4E] dark:text-gray-100 placeholder-[#9B8BC7] rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm"
-                                style={{ backgroundColor: theme === 'dark' ? '#151228' : '#FAF8FF', borderColor: theme === 'dark' ? 'rgb(126, 58, 183)' : '#DCCBFF', color: theme === 'dark' ? 'rgb(243, 244, 246)' : '#2D1B4E' }}
-                            />
-
-                            <button
-                                onClick={() => setShowKey(!showKey)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-600 dark:text-purple-300 hover:text-purple-700"
-                            >
-                                {showKey ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                            </button>
-                        </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <label style={{ fontSize: 13, fontWeight: 700, color: theme === 'dark' ? '#EDE7FF' : '#3B2B55' }}>API Key</label>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input
+                            type={showKey ? "text" : "password"}
+                            value={apiKey}
+                            onChange={(e) => {
+                                setApiKey(e.target.value);
+                                setError(null);
+                            }}
+                            placeholder="AIza..."
+                            style={{
+                                flex: 1,
+                                padding: '10px 12px',
+                                borderRadius: 10,
+                                border: `1px solid ${theme === 'dark' ? '#4B2F78' : '#EADFFF'}`,
+                                backgroundColor: theme === 'dark' ? '#0F0C16' : '#FFFFFF',
+                                color: theme === 'dark' ? '#F3F4F6' : '#2D1B4E',
+                                fontFamily: 'monospace',
+                                fontSize: 13
+                            }}
+                        />
+                        <button onClick={() => setShowKey(!showKey)} style={{ background: 'transparent', border: 'none', color: theme === 'dark' ? '#CDBEF8' : '#7B52D3', cursor: 'pointer' }}>
+                            {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
                     </div>
 
                     {error && (
-                        <div className="flex items-center gap-2 text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-900/30">
-                            <AlertCircle className="h-4 w-4 shrink-0" />
-                            <span>{error}</span>
+                        <div style={{ padding: 8, borderRadius: 8, backgroundColor: theme === 'dark' ? 'rgba(255,0,0,0.06)' : '#FFF5F5', color: theme === 'dark' ? '#FFB4B4' : '#C53030', fontSize: 13 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <AlertCircle className="h-4 w-4" />
+                                <span>{error}</span>
+                            </div>
                         </div>
                     )}
 
                     {success && (
-                        <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-900/30">
-                            <CheckCircle2 className="h-4 w-4 shrink-0" />
-                            <span>{success}</span>
+                        <div style={{ padding: 8, borderRadius: 8, backgroundColor: '#ECFDF5', color: '#065F46', fontSize: 13 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <CheckCircle2 className="h-4 w-4" />
+                                <span>{success}</span>
+                            </div>
                         </div>
                     )}
 
-                    <div className="flex items-start gap-3 bg-[#F5F0FF] dark:bg-[#161327] p-4 rounded-xl border border-[#E7DAFF] dark:border-purple-900/40" style={{ backgroundColor: theme === 'dark' ? '#161327' : '#F5F0FF', borderColor: theme === 'dark' ? 'rgba(126, 34, 206, 0.4)' : '#E7DAFF' }}>
-                        <AlertCircle className="h-5 w-5 text-purple-600 dark:text-purple-300 shrink-0" />
-                        <div className="text-sm text-purple-400 dark:text-purple-100" style={{ color: theme === 'dark' ? 'rgb(216, 180, 254)' : 'rgb(192, 132, 252)' }}>
-                            <p className="font-semibold mb-1.5">🔒 Your API key is encrypted and secure</p>
-                            <p className="leading-relaxed">
-                                We encrypt your API key before storage. It&apos;s never stored in plain text and can only be decrypted by you.
-                            </p>
-                            <a
-                                href="https://aistudio.google.com/app/apikey"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center text-[#5A3FB5] dark:text-purple-200 hover:text-[#452ea0] mt-2.5"
-                                style={{ color: theme === 'dark' ? 'rgb(233, 213, 255)' : 'rgb(109, 40, 217)' }}
-                            >
-                                Get your free API key from Google AI Studio
-                                <ExternalLink className="h-3.5 w-3.5 ml-1.5" style={{ color: theme === 'dark' ? 'rgb(233, 213, 255)' : 'rgb(109, 40, 217)' }} />
-                            </a>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3 pt-2">
+                    <div style={{ display: 'flex', gap: 8 }}>
                         <button
                             onClick={handleSaveApiKey}
                             disabled={isSaving || !apiKey.trim()}
-                            className="flex-1 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white text-sm font-semibold rounded-xl shadow transition-colors cursor-pointer"
-                            style={{ backgroundColor: (isSaving || !apiKey.trim()) ? (theme === 'dark' ? 'rgb(55, 65, 81)' : 'rgb(209, 213, 219)') : undefined }}
+                            style={{
+                                flex: 1,
+                                padding: '8px 12px',
+                                borderRadius: 10,
+                                background: (isSaving || !apiKey.trim())
+                                    ? (theme === 'dark' ? '#374151' : '#E5E7EB')
+                                    : (theme === 'dark' ? 'linear-gradient(90deg,#7B3BFF,#5C20D6)' : 'linear-gradient(90deg,#8E5CFF,#6F2AD6)'),
+                                color: '#fff',
+                                fontWeight: 700,
+                                border: 'none',
+                                cursor: isSaving || !apiKey.trim() ? 'not-allowed' : 'pointer'
+                            }}
                         >
-                            {isSaving ? "Saving..." : "Save API Key"}
+                            {isSaving ? "Saving..." : "Save"}
                         </button>
 
                         <button
@@ -290,8 +359,14 @@ export default function ApiKeyBanner({ onKeySet }: ApiKeyBannerProps) {
                                 setError(null);
                                 setShowKey(false);
                             }}
-                            className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg cursor-pointer"
-                            style={{ backgroundColor: theme === 'dark' ? 'rgb(31, 41, 55)' : 'rgb(243, 244, 246)', color: theme === 'dark' ? 'rgb(209, 213, 219)' : 'rgb(55, 65, 81)' }}
+                            style={{
+                                padding: '8px 12px',
+                                borderRadius: 10,
+                                background: theme === 'dark' ? '#0F1724' : '#F3F4F6',
+                                color: theme === 'dark' ? '#E5E7EB' : '#374151',
+                                border: 'none',
+                                cursor: 'pointer'
+                            }}
                         >
                             Cancel
                         </button>

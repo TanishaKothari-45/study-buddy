@@ -22,6 +22,7 @@ export default function MainsAnswerPage() {
     // Local state for UI only
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showBanner, setShowBanner] = useState(false);
     const [showCompressed, setShowCompressed] = useState(true); // Compressed answer accordion
     const [showOriginal, setShowOriginal] = useState(false); // Original answer accordion
     const [historyOpen, setHistoryOpen] = useState(false); // History dropdown
@@ -50,7 +51,8 @@ export default function MainsAnswerPage() {
             if (statusRes.ok) {
                 const status = await statusRes.json();
                 if (!status.has_api_key) {
-                    setError("Please set your Gemini API key first. You'll see a banner at the top of the page.");
+                    setShowBanner(true);
+                    setError("Please set your Gemini API key using the banner above.");
                     return;
                 }
             }
@@ -124,7 +126,7 @@ export default function MainsAnswerPage() {
             )}
             <div className="p-8 max-w-5xl mx-auto space-y-8">
                 {/* API Key Banner */}
-                <ApiKeyBanner />
+                <ApiKeyBanner showBanner={showBanner} onKeySet={() => { setShowBanner(false); setError(null); }} />
                 
                 {/* Header with New Answer and History buttons */}
                 <div className="flex items-start justify-between">

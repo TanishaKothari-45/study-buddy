@@ -1,29 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { User, LogOut, Key, ChevronDown } from "lucide-react";
+import { User, LogOut, Key } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { AuthModal } from "@/components/layout/AuthModal";
-import { DeleteApiKeyModal } from "@/components/layout/DeleteApiKeyModal";
+import { ApiKeyModal } from "@/components/layout/ApiKeyModal";
 import { useAuth } from "@/context/AuthContext";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 
 export function Header() {
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-    const [isDeleteApiKeyModalOpen, setIsDeleteApiKeyModalOpen] = useState(false);
+    const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+    const [selectValue, setSelectValue] = useState<string>("");
     const { user, logout, isLoading } = useAuth();
 
-    const handleApiKeyDeleted = () => {
-        // Refresh the page to update the API key status
-        window.location.reload();
+    const handleProfileAction = (value: string) => {
+        if (value === "api-key") {
+            setIsApiKeyModalOpen(true);
+            // Reset select value so it can be selected again
+            setTimeout(() => setSelectValue(""), 100);
+        } else if (value === "logout") {
+            logout();
+        }
     };
 
     return (
@@ -35,24 +34,20 @@ export function Header() {
                     {!isLoading && (
                         <>
                             {user ? (
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            className="flex items-center gap-2"
-                                        >
-                                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                                <User className="h-5 w-5 text-primary" />
+                                <Select value={selectValue} onValueChange={handleProfileAction}>
+                                    <SelectTrigger className="w-[200px]">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                                                <User className="h-4 w-4 text-primary" />
                                             </div>
-                                            <span className="text-sm font-medium hidden sm:inline">
+                                            <span className="text-sm font-medium truncate">
                                                 {user.full_name || user.email}
                                             </span>
-                                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-56" style={{ zIndex: 9999 }}>
-                                        <DropdownMenuLabel>
-                                            <div className="flex flex-col space-y-1">
+                                        </div>
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-card z-50">
+                                        <SelectItem value="info" disabled>
+                                            <div className="flex flex-col space-y-1 py-1">
                                                 <p className="text-sm font-medium leading-none">
                                                     {user.full_name || "Account"}
                                                 </p>
@@ -60,25 +55,21 @@ export function Header() {
                                                     {user.email}
                                                 </p>
                                             </div>
-                                        </DropdownMenuLabel>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                            onClick={() => setIsDeleteApiKeyModalOpen(true)}
-                                            className="cursor-pointer"
-                                        >
-                                            <Key className="mr-2 h-4 w-4" />
-                                            <span>Manage API Key</span>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                            onClick={logout}
-                                            className="cursor-pointer text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
-                                        >
-                                            <LogOut className="mr-2 h-4 w-4" />
-                                            <span>Logout</span>
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                        </SelectItem>
+                                        <SelectItem value="api-key">
+                                            <div className="flex items-center">
+                                                <Key className="mr-2 h-4 w-4" />
+                                                <span>Manage API Key</span>
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="logout">
+                                            <div className="flex items-center text-red-600 dark:text-red-400">
+                                                <LogOut className="mr-2 h-4 w-4" />
+                                                <span>Logout</span>
+                                            </div>
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
                             ) : (
                                 <Button
                                     variant="ghost"
@@ -100,10 +91,9 @@ export function Header() {
                 onClose={() => setIsAuthModalOpen(false)}
             />
             
-            <DeleteApiKeyModal
-                isOpen={isDeleteApiKeyModalOpen}
-                onClose={() => setIsDeleteApiKeyModalOpen(false)}
-                onSuccess={handleApiKeyDeleted}
+            <ApiKeyModal
+                isOpen={isApiKeyModalOpen}
+                onClose={() => setIsApiKeyModalOpen(false)}
             />
         </>
     );
