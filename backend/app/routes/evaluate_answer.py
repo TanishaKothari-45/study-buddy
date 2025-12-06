@@ -21,15 +21,57 @@ Usage:
 import os
 import logging
 import tempfile
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Request, Form, File, UploadFile, HTTPException
 from pathlib import Path
 import json
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
+
+# ============================================================
+# Pydantic Models for Gemini Structured Output
+# ============================================================
+
+class FeedbackDetails(BaseModel):
+    """Structured feedback for student answer evaluation."""
+    strengths: List[str] = Field(
+        default_factory=list,
+        description="Specific strengths of the student's answer"
+    )
+    missing_elements: List[str] = Field(
+        default_factory=list,
+        description="Key points missing from the student's answer"
+    )
+    improvements_needed: List[str] = Field(
+        default_factory=list,
+        description="Actionable suggestions for improvement"
+    )
+    structure_feedback: str = Field(
+        default="",
+        description="Comment on IBC format adherence and structure"
+    )
+    evidence_feedback: str = Field(
+        default="",
+        description="Comment on use of reports/data/indices/examples"
+    )
+    overall_assessment: str = Field(
+        default="",
+        description="Brief overall assessment and encouragement"
+    )
+
+class EvaluationResponse(BaseModel):
+    """Structured response for answer evaluation."""
+    improved_answer: str = Field(
+        min_length=1,
+        description="Improved answer in markdown format following IBC rules"
+    )
+    feedback: FeedbackDetails = Field(
+        description="Detailed feedback on the student's answer"
+    )
 
 # Import Gemini client
 try:
@@ -519,8 +561,11 @@ Return ONLY a valid JSON object as specified in the system prompt. No markdown c
         
         logger.info(f"✅ Received response: {len(response_text)} chars")
         
-        # Parse JSON response (json already imported at top of file)
+        # Parse response - try structured format first, then fallback to JSON parsing
         try:
+            # Try parsing as structured Pydantic response
+            logger.info("🔍 Attempting to parse Gemini response as structured output...")
+            
             # Clean response text (remove markdown code blocks if present)
             cleaned_response = response_text.strip()
             if cleaned_response.startswith("```json"):
@@ -531,15 +576,29 @@ Return ONLY a valid JSON object as specified in the system prompt. No markdown c
                 cleaned_response = cleaned_response[:-3]  # Remove trailing ```
             cleaned_response = cleaned_response.strip()
             
+            # Parse JSON first
             response_data = json.loads(cleaned_response)
-            improved_answer = response_data.get("improved_answer", "")
-            feedback = response_data.get("feedback", {})
             
-            logger.info(f"✅ Parsed JSON response successfully")
+            # Validate with Pydantic (provides type safety and defaults)
+            evaluation_response = EvaluationResponse(**response_data)
+            
+            # Extract from validated model
+            improved_answer = evaluation_response.improved_answer
+            feedback = {
+                "strengths": evaluation_response.feedback.strengths,
+                "missing_elements": evaluation_response.feedback.missing_elements,
+                "improvements_needed": evaluation_response.feedback.improvements_needed,
+                "structure_feedback": evaluation_response.feedback.structure_feedback,
+                "evidence_feedback": evaluation_response.feedback.evidence_feedback,
+                "overall_assessment": evaluation_response.feedback.overall_assessment
+            }
+            
+            logger.info(f"✅ Parsed response with Pydantic validation")
             logger.info(f"   • Improved answer: {len(improved_answer)} chars")
             logger.info(f"   • Feedback sections: {list(feedback.keys())}")
+            
         except json.JSONDecodeError as e:
-            logger.warning(f"⚠️ Failed to parse JSON response: {e}")
+            logger.warning(f"⚠️ JSON parsing failed: {e}")
             logger.warning(f"   Response preview: {response_text[:200]}...")
             # Fallback: treat entire response as improved answer
             improved_answer = response_text
@@ -551,6 +610,33 @@ Return ONLY a valid JSON object as specified in the system prompt. No markdown c
                 "evidence_feedback": "Unable to generate feedback - JSON parsing failed",
                 "overall_assessment": "Please review the improved answer above."
             }
+        except Exception as e:
+            logger.warning(f"⚠️ Pydantic validation failed: {e}")
+            logger.warning(f"   Falling back to direct JSON extraction")
+            # Fallback to direct dict access (backward compatibility)
+            try:
+                improved_answer = response_data.get("improved_answer", response_text)
+                feedback_data = response_data.get("feedback", {})
+                feedback = {
+                    "strengths": feedback_data.get("strengths", []),
+                    "missing_elements": feedback_data.get("missing_elements", []),
+                    "improvements_needed": feedback_data.get("improvements_needed", []),
+                    "structure_feedback": feedback_data.get("structure_feedback", ""),
+                    "evidence_feedback": feedback_data.get("evidence_feedback", ""),
+                    "overall_assessment": feedback_data.get("overall_assessment", "")
+                }
+                logger.info(f"✅ Using fallback JSON extraction (backward compatible)")
+            except:
+                # Ultimate fallback
+                improved_answer = response_text
+                feedback = {
+                    "strengths": [],
+                    "missing_elements": [],
+                    "improvements_needed": [],
+                    "structure_feedback": "Unable to generate feedback",
+                    "evidence_feedback": "Unable to generate feedback",
+                    "overall_assessment": "Please review the improved answer above."
+                }
         
         # Process map-json blocks in improved answer
         if parse_and_generate_maps:

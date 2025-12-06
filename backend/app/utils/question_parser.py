@@ -1,9 +1,13 @@
 """
 question_parser.py
 
-LLM-powered question parser that extracts search-friendly terms from UPSC questions.
-Converts verbose questions into optimized search queries for vector embedding retrieval.
-Now uses GPT-4o-mini with Redis caching for better performance.
+LLM-powered question parser that extracts search-friendly keywords from UPSC questions.
+Converts verbose questions into optimized search queries for NEWS/CURRENT AFFAIRS retrieval only.
+
+NOTE: This is NOT used for vector database retrieval - that uses the full question directly.
+      Keywords work better for news search, while full questions work better for embeddings.
+
+Uses GPT-4o-mini with Structured Output (Pydantic) and Redis caching for better performance.
 
 Usage:
     from question_parser import parse_question_for_search
@@ -24,8 +28,27 @@ import json
 import hashlib
 from typing import Optional
 from openai import AsyncOpenAI
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+# ============================================================
+# Pydantic Models for Structured Output
+# ============================================================
+
+class ParsedQuestion(BaseModel):
+    """Structured output schema for question parsing."""
+    main_topic: str = Field(
+        description="Core subject combined with specific entity/demographic (2-4 words). Examples: 'tribal agriculture', 'coastal flooding', 'urban migration'"
+    )
+    sub_topics: list[str] = Field(
+        description="2-5 meaningful phrases ranked by importance (1-3 words each). Priority: Geography > Qualifiers > Related concepts",
+        min_items=0,
+        max_items=5
+    )
+    search_query: str = Field(
+        description="Combined main_topic + sub_topics (space-separated, optimized for vector search)"
+    )
 
 # Redis cache for parsed questions
 try:
@@ -35,16 +58,16 @@ except ImportError:
     CACHE_AVAILABLE = False
     logger.warning("⚠️ Cache manager not available for question parser")
 
-# System prompt for question parsing
+# System prompt for question parsing (for news/current affairs search only)
 QUESTION_PARSER_SYSTEM_PROMPT = """
-You extract search-focused keywords from UPSC questions for vector retrieval and news search.
+You extract search-focused keywords from UPSC questions for NEWS and CURRENT AFFAIRS search.
 
 TASK:
 - MAIN TOPIC: Combine core subject + specific entity/demographic (2-4 words)
   Examples: "tribal agriculture", "coastal flooding", "urban migration", "forest fires"
 - SUB TOPICS: 2-5 meaningful phrases ranked by importance (1-3 words each)
   Priority: Geography > Qualifiers > Related concepts
-- SEARCH_QUERY: main_topic + sub_topics (space-separated)
+- SEARCH_QUERY: main_topic + sub_topics (space-separated, optimized for news search)
 - Remove filler verbs (discuss, examine, critically, analyze)
 
 KEYWORD COMBINATION RULES:
@@ -52,13 +75,6 @@ KEYWORD COMBINATION RULES:
 2. Keep geographic names in SUB TOPICS: "Odisha", "Northeast India", "Western Ghats"
 3. Combine related qualifiers: "drought impact" NOT "drought" + "impact" separately
 4. Rank SUB TOPICS by importance: region first, then qualifiers, then generic terms
-
-Return ONLY JSON:
-{
- "main_topic": "...",
- "sub_topics": ["...", "..."],
- "search_query": "..."
-}
 
 Examples:
 Q: "Impact of drought on tribal agriculture in Odisha"
@@ -90,8 +106,10 @@ async def parse_question_for_search(
     openai_api_key: Optional[str] = None
 ) -> dict:
     """
-    Parse a UPSC question to extract search-friendly terms for vector retrieval.
-    Uses GPT-4o-mini with Redis caching for speed.
+    Parse a UPSC question to extract search-friendly keywords for NEWS/CURRENT AFFAIRS retrieval.
+    Uses GPT-4o-mini with Structured Output (Pydantic) and Redis caching.
+    
+    NOTE: This is ONLY for news search. Vector database uses the full question directly.
     
     Args:
         question: The full question text
@@ -101,7 +119,7 @@ async def parse_question_for_search(
         dict with keys:
             - main_topic: str - central subject (1-3 words)
             - sub_topics: list[str] - specific aspects (2-5 items)
-            - search_query: str - combined query optimized for embedding
+            - search_query: str - combined query optimized for news search
     """
     if not question or not question.strip():
         logger.warning("Empty question provided to parser")
@@ -125,62 +143,37 @@ async def parse_question_for_search(
         except Exception as e:
             logger.warning(f"⚠️ Cache read failed: {e}")
     
-    user_prompt = f"""Extract search terms from this UPSC question:
+    user_prompt = f"""Extract search keywords from this UPSC question for NEWS search:
 
-Question: {question}
-
-Return ONLY valid JSON with main_topic, sub_topics, and search_query fields. No markdown, no explanation."""
+Question: {question}"""
 
     try:
-        logger.info(f"🔍 [CACHE MISS] Parsing question with GPT-4o-mini: {question[:80]}...")
+        logger.info(f"🔍 [CACHE MISS] Parsing question with GPT-4o-mini (Structured Output): {question[:80]}...")
         
-        # Use GPT-4o-mini for faster parsing
+        # Use GPT-4o-mini with Structured Output
         client = AsyncOpenAI(api_key=openai_api_key)
         
-        response = await client.chat.completions.create(
+        response = await client.beta.chat.completions.parse(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": QUESTION_PARSER_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt}
             ],
+            response_format=ParsedQuestion,
             temperature=0.0,  # Deterministic output
-            top_p=0.0,  # No nucleus sampling - fully deterministic
-            max_tokens=200  # Short response expected
         )
         
-        response_text = response.choices[0].message.content.strip()
+        # Extract parsed object directly (no JSON parsing needed!)
+        parsed_obj = response.choices[0].message.parsed
         
-        # Clean response - remove markdown code blocks if present
-        if response_text.startswith("```"):
-            # Remove markdown code block
-            lines = response_text.split("\n")
-            # Remove first line (```json) and last line (```)
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            response_text = "\n".join(lines)
-            response_text = "\n".join(lines)
-        
-        # Parse JSON response
-        result = json.loads(response_text)
-        
-        # Validate required fields
-        main_topic = result.get("main_topic", "")
-        sub_topics = result.get("sub_topics", [])
-        search_query = result.get("search_query", "")
-        
-        # If search_query is empty, construct it from main_topic and sub_topics
-        if not search_query and (main_topic or sub_topics):
-            search_query = f"{main_topic} {' '.join(sub_topics)}".strip()
-        
+        # Convert Pydantic model to dict
         parsed_result = {
-            "main_topic": main_topic,
-            "sub_topics": sub_topics if isinstance(sub_topics, list) else [sub_topics],
-            "search_query": search_query
+            "main_topic": parsed_obj.main_topic,
+            "sub_topics": parsed_obj.sub_topics,
+            "search_query": parsed_obj.search_query
         }
         
-        logger.info(f"✅ Parsed question:")
+        logger.info(f"✅ Parsed question with Structured Output:")
         logger.info(f"   • Main topic: {parsed_result['main_topic']}")
         logger.info(f"   • Sub topics: {parsed_result['sub_topics']}")
         logger.info(f"   • Search query: {parsed_result['search_query']}")
@@ -199,13 +192,6 @@ Return ONLY valid JSON with main_topic, sub_topics, and search_query fields. No 
                 logger.warning(f"⚠️ Cache write failed: {e}")
         
         return parsed_result
-        
-    except json.JSONDecodeError as e:
-        logger.warning(f"⚠️ Failed to parse JSON response: {e}")
-        logger.warning(f"   Raw response: {response[:200]}...")
-        
-        # Fallback: use simple extraction
-        return _fallback_parse(question)
         
     except Exception as e:
         logger.error(f"❌ Question parsing failed: {e}", exc_info=True)

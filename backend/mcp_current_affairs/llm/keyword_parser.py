@@ -2,12 +2,24 @@
 """
 LLM-based keyword extraction from UPSC-style topics.
 Extracts 3-5 searchable keywords for news queries.
+Now uses OpenAI Structured Output with Pydantic for guaranteed schema compliance.
 """
 
 import json
 import asyncio
+from pydantic import BaseModel, Field
+from typing import List
 from ..config import KEYWORD_CACHE_TTL, REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD, REDIS_PREFIX
 from .prompts import KEYWORD_EXTRACTION_PROMPT
+
+# Pydantic model for structured output
+class KeywordExtraction(BaseModel):
+    """Structured output schema for keyword extraction."""
+    keywords: List[str] = Field(
+        min_items=3,
+        max_items=5,
+        description="3-5 searchable keywords for news queries"
+    )
 
 # Lazy-loaded clients
 _openai_client = None
@@ -50,7 +62,7 @@ except ImportError:
 @trace_llm("mcp_keyword_extraction")
 def get_keywords_sync(topic: str) -> list:
     """
-    Synchronous keyword extraction with caching.
+    Synchronous keyword extraction with OpenAI Structured Output and caching.
     
     Args:
         topic: User's UPSC-style question/topic
@@ -71,38 +83,74 @@ def get_keywords_sync(topic: str) -> list:
     except Exception as e:
         print(f"⚠️ Redis get error: {e}")
 
-    # Call OpenAI
-    res = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": KEYWORD_EXTRACTION_PROMPT + topic}],
-        max_tokens=100,
-        temperature=0.2
-    )
-
-    # Extract content
+    # Call OpenAI with Structured Output
     try:
-        choice = res.choices[0]
-        if hasattr(choice, 'message') and hasattr(choice.message, 'content'):
-            content = choice.message.content
-        elif isinstance(choice, dict) and "message" in choice:
-            content = choice["message"]["content"]
-        else:
-            content = str(choice)
+        # Try structured output first (OpenAI beta API)
+        print(f"🔍 Extracting keywords with Structured Output...")
+        res = client.beta.chat.completions.parse(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": KEYWORD_EXTRACTION_PROMPT + topic}],
+            response_format=KeywordExtraction,
+            temperature=0.2
+        )
+        
+        # Extract parsed keywords directly
+        parsed_obj = res.choices[0].message.parsed
+        parsed = parsed_obj.keywords
+        print(f"✅ Extracted {len(parsed)} keywords via Structured Output")
+        
+    except AttributeError:
+        # Fallback: beta API not available, use regular completion
+        print(f"⚠️ Structured Output API not available, using legacy JSON parsing")
+        res = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": KEYWORD_EXTRACTION_PROMPT + topic}],
+            max_tokens=100,
+            temperature=0.2
+        )
+        
+        # Extract content (backward compatible)
+        try:
+            choice = res.choices[0]
+            if hasattr(choice, 'message') and hasattr(choice.message, 'content'):
+                content = choice.message.content
+            elif isinstance(choice, dict) and "message" in choice:
+                content = choice["message"]["content"]
+            else:
+                content = str(choice)
+        except Exception as e:
+            raise RuntimeError(f"Unexpected OpenAI response: {e}")
+
+        # Parse JSON array (legacy fallback)
+        try:
+            parsed = json.loads(content)
+        except:
+            # Try to extract JSON substring
+            start = content.find("[")
+            end = content.rfind("]")
+            if start == -1 or end == -1:
+                # Ultimate fallback: split topic into words
+                parsed = topic.lower().split()[:5]
+                print(f"⚠️ Using fallback: split topic into words")
+            else:
+                parsed = json.loads(content[start:end+1])
+        
+        print(f"✅ Extracted {len(parsed)} keywords via legacy parsing")
+    
     except Exception as e:
-        raise RuntimeError(f"Unexpected OpenAI response: {e}")
+        # Ultimate fallback on any error
+        print(f"❌ Keyword extraction failed: {e}")
+        print(f"⚠️ Using ultimate fallback: topic word split")
+        parsed = topic.lower().split()[:5]
 
-    # Parse JSON array
-    try:
-        parsed = json.loads(content)
-    except:
-        # Try to extract JSON substring
-        start = content.find("[")
-        end = content.rfind("]")
-        if start == -1 or end == -1:
-            # Fallback: split topic into words
-            parsed = topic.lower().split()[:5]
-        else:
-            parsed = json.loads(content[start:end+1])
+    # Ensure we have 3-5 keywords
+    if len(parsed) < 3:
+        # Pad with topic words if needed
+        topic_words = topic.lower().split()
+        parsed.extend([w for w in topic_words if w not in parsed])
+        parsed = parsed[:5]  # Limit to 5
+    elif len(parsed) > 5:
+        parsed = parsed[:5]  # Truncate to 5
 
     # Cache result
     try:
