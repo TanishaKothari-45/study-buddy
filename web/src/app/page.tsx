@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageWrapper } from "@/components/layout/PageWrapper";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -15,7 +16,7 @@ import {
 
 export default function Home() {
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <PageWrapper className="max-w-7xl mx-auto space-y-8">
       <div className="flex flex-col space-y-2">
         <h1 className="text-4xl font-bold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">
           Study Buddy AI
@@ -99,6 +100,6 @@ export default function Home() {
           </Card>
         </Link>
       </div>
-    </div>
+    </PageWrapper>
   );
 }

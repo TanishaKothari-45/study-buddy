@@ -111,14 +111,17 @@ class GeminiClient:
             # Make request with retry logic
             while retry_count < max_retries:
                 try:
-                    # Run in executor to avoid blocking
+                    # Run in executor to avoid blocking with 60s timeout
                     loop = asyncio.get_event_loop()
-                    response = await loop.run_in_executor(
-                        None,
-                        lambda: model.generate_content(
-                            contents,
-                            generation_config=generation_config
-                        )
+                    response = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None,
+                            lambda: model.generate_content(
+                                contents,
+                                generation_config=generation_config
+                            )
+                        ),
+                        timeout=60.0  # 60 second timeout
                     )
                     
                     if response and response.text:

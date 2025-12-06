@@ -773,7 +773,7 @@ JWT_SECRET_KEY=...
 ```bash
 # Terminal 1: Backend (port 8001)
 cd backend
-source venv/bin/activate  # Create if needed: python -m venv venv
+source ../venv/bin/activate  # Create if needed: python -m venv venv
 pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 

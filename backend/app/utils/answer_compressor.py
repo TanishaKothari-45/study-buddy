@@ -14,15 +14,17 @@ COMPRESSION_PROMPT = """You are an expert editor. Condense the following answer 
 - All key facts and evidence (reports, data, examples)
 - The original tone and voice (formal/analytical)
 - The IBC structure (intro, body with sub-headings, conclusion)
-- All Mermaid diagrams and maps (copy diagram code blocks and map JSON exactly as-is, do not modify them)
+- All Mermaid diagrams and maps EXACTLY as they appear
 
 Rules:
 1. Prefer concise rephrasing and combining sentences over deleting content.
 2. Shorten examples first, then remove least important supporting sentences.
 3. Keep all sub-headings (### format) and maintain bullet format with dash (-).
 4. PRESERVE bold formatting (**text**) in bullet point headings - the main idea of each bullet must stay bold.
-5. Copy all ```mermaid code blocks and ```map-json blocks exactly as they appear.
-6. Return only the final condensed answer, no commentary or explanation.
+5. Copy all ```mermaid code blocks EXACTLY as they appear, character-for-character.
+6. CRITICAL: Copy all map images EXACTLY as they appear. Maps look like: ![Map Title](data:image/svg+xml;base64,LONG_STRING). Copy the ENTIRE markdown image including the full base64 string without any modifications, truncation, or replacement.
+7. Do NOT convert map images back to JSON or any other format. Keep them as markdown images.
+8. Return only the final condensed answer, no commentary or explanation.
 
 Original answer (word count = {actual_words}):
 

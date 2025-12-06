@@ -13,8 +13,12 @@ import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { useMainsAnswerStore } from "@/stores";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { API_URL } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
 
 export default function MainsAnswerPage() {
+    const { token } = useAuth();
+    
     // Local state for UI only
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -35,6 +39,26 @@ export default function MainsAnswerPage() {
         e.preventDefault();
         if (!question.trim()) return;
 
+        // Check if user has API key set before starting
+        try {
+            const statusRes = await fetch(`${API_URL}/api-key/status`, {
+                headers: {
+                    ...(token && { "Authorization": `Bearer ${token}` })
+                }
+            });
+            
+            if (statusRes.ok) {
+                const status = await statusRes.json();
+                if (!status.has_api_key) {
+                    setError("Please set your Gemini API key first. You'll see a banner at the top of the page.");
+                    return;
+                }
+            }
+        } catch (err) {
+            // If status check fails, let the main request handle it
+            console.warn("Failed to check API key status:", err);
+        }
+
         setLoading(true);
         setError(null);
         setResult(null); // Clear previous answer immediately
@@ -42,7 +66,10 @@ export default function MainsAnswerPage() {
         try {
             const res = await fetch(`${API_URL}/mains-answer/generate`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    ...(token && { "Authorization": `Bearer ${token}` })
+                },
                 body: JSON.stringify({
                     question: question.trim(),
                     word_count: parseInt(wordCount)
@@ -96,6 +123,9 @@ export default function MainsAnswerPage() {
                 </div>
             )}
             <div className="p-8 max-w-5xl mx-auto space-y-8">
+                {/* API Key Banner */}
+                <ApiKeyBanner />
+                
                 {/* Header with New Answer and History buttons */}
                 <div className="flex items-start justify-between">
                     <div className="flex flex-col space-y-2">
@@ -210,9 +240,9 @@ export default function MainsAnswerPage() {
 
                     {/* Error Alert */}
                     {error && (
-                        <Alert variant="destructive">
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription>{error}</AlertDescription>
+                        <Alert variant="destructive" className="border-2 border-red-500 bg-red-50 dark:bg-red-900/20">
+                            <AlertCircle className="h-5 w-5" />
+                            <AlertDescription className="font-semibold text-base">{error}</AlertDescription>
                         </Alert>
                     )}
 

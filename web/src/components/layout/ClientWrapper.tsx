@@ -6,6 +6,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { NavigationProgress } from "@/components/layout/NavigationProgress";
+import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
 
 export function ClientWrapper({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();

@@ -22,7 +22,7 @@ import os
 import logging
 import tempfile
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Request, Form, File, UploadFile, HTTPException
+from fastapi import APIRouter, Request, Form, File, UploadFile, HTTPException, Depends
 from pathlib import Path
 import json
 from pydantic import BaseModel, Field
@@ -85,6 +85,8 @@ except ImportError as e:
 
 # Import config for OpenAI API key
 from ..core.config import settings
+from ..core.deps import get_current_user
+from ..models.user import User
 OPENAI_API_KEY = settings.OPENAI_API_KEY
 
 # Import utilities
@@ -94,6 +96,7 @@ try:
     from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
     from ..utils.map_proxy import parse_and_generate_maps, check_map_service_health
     from ..utils.cache_manager import get_cache_manager
+    from ..utils.user_api_key import get_gemini_api_key_for_request
 except ImportError as e:
     parse_question_for_search = None
     retrieve_context_for_question = None
@@ -102,6 +105,7 @@ except ImportError as e:
     parse_and_generate_maps = None
     check_map_service_health = None
     get_cache_manager = None
+    get_gemini_api_key_for_request = None
     logger.warning(f"Could not import utilities: {e}")
 
 # Import shared prompts for consistency with mains_answer.py
@@ -213,7 +217,8 @@ from ..utils.langsmith_tracer import trace_chain
 async def evaluate_answer_endpoint(
     request: Request,
     files: List[UploadFile] = File(...),
-    question: Optional[str] = Form(default=None)
+    question: Optional[str] = Form(default=None),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Evaluate and improve student answer using Gemini with context retrieval and current affairs.
@@ -239,10 +244,25 @@ async def evaluate_answer_endpoint(
     # Use default word count
     word_count_int = 350
     
-    if not GeminiClient or not GEMINI_API_KEY:
+    if not GeminiClient:
         raise HTTPException(
             status_code=500, 
-            detail="Gemini client not available. Please check GEMINI_API_KEY configuration."
+            detail="Gemini client not available. Please check configuration."
+        )
+    
+    # Get Gemini API key (user's personal key or system default)
+    try:
+        gemini_api_key = get_gemini_api_key_for_request(current_user) if get_gemini_api_key_for_request else GEMINI_API_KEY
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail="No Gemini API key configured. Please set your personal API key in settings to use this feature."
+        )
+    
+    if not gemini_api_key:
+        raise HTTPException(
+            status_code=400, 
+            detail="No Gemini API key available. Please set your personal API key in settings to use this feature."
         )
     
     # Create temp directory for file
@@ -300,9 +320,9 @@ async def evaluate_answer_endpoint(
             all_is_pdf = all_is_pdf and is_pdf
             all_is_image = all_is_image and is_image
         
-        # Initialize Gemini client with Pro model
+        # Initialize Gemini client with Pro model and user's API key
         gemini_client = GeminiClient(
-            api_key=GEMINI_API_KEY,
+            api_key=gemini_api_key,
             model_name="gemini-2.5-pro"
         )
         

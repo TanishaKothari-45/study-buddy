@@ -10,6 +10,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
 
 interface Feedback {
     strengths: string[];
@@ -30,6 +32,8 @@ interface EvaluationResult {
 }
 
 export default function EvaluatePage() {
+    const { token } = useAuth();
+    
     const [files, setFiles] = useState<File[]>([]);
 
     const [question, setQuestion] = useState("");
@@ -55,6 +59,26 @@ export default function EvaluatePage() {
             return;
         }
 
+        // Check if user has API key set before starting
+        try {
+            const statusRes = await fetch(`${API_URL}/api-key/status`, {
+                headers: {
+                    ...(token && { "Authorization": `Bearer ${token}` })
+                }
+            });
+            
+            if (statusRes.ok) {
+                const status = await statusRes.json();
+                if (!status.has_api_key) {
+                    setError("Please set your Gemini API key first. You'll see a banner at the top of the page.");
+                    return;
+                }
+            }
+        } catch (err) {
+            // If status check fails, let the main request handle it
+            console.warn("Failed to check API key status:", err);
+        }
+
         setLoading(true);
         setError("");
         setResult(null);
@@ -70,6 +94,9 @@ export default function EvaluatePage() {
             const res = await fetch(`${API_URL}/evaluate-answer/`, {
                 method: "POST",
                 body: formData,
+                headers: {
+                    ...(token && { "Authorization": `Bearer ${token}` })
+                }
             });
 
             if (!res.ok) {
@@ -88,8 +115,11 @@ export default function EvaluatePage() {
 
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-8">
+            {/* API Key Banner */}
+            <ApiKeyBanner />
+            
             <div className="flex flex-col space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">
                     Evaluate Answer
                 </h1>
                 <p className="text-muted-foreground">
@@ -188,9 +218,9 @@ export default function EvaluatePage() {
 
 
                                 {error && (
-                                    <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md flex items-center gap-2">
-                                        <AlertCircle className="h-4 w-4" />
-                                        {error}
+                                    <div className="p-4 text-base font-semibold text-red-700 bg-red-50 dark:bg-red-900/20 rounded-lg border-2 border-red-500 flex items-center gap-3">
+                                        <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                                        <span>{error}</span>
                                     </div>
                                 )}
 

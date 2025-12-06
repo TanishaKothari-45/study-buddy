@@ -15,6 +15,7 @@ class UserLogin(BaseModel):
 class User(UserBase):
     id: int
     is_active: bool
+    has_gemini_api_key: Optional[bool] = False  # Frontend only needs to know if key is set
 
     class Config:
         from_attributes = True

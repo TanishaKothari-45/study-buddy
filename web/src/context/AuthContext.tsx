@@ -3,10 +3,12 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
+import { useMainsAnswerStore, useChatStore, useMockTestStore } from "@/stores";
 
 interface User {
     email: string;
     full_name?: string;
+    has_gemini_api_key?: boolean;
 }
 
 interface AuthContextType {
@@ -76,7 +78,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Clear all persisted store data on logout
         localStorage.removeItem("geography-mains-answer-storage");
         localStorage.removeItem("mock-test-storage");
-        localStorage.removeItem("chat-storage");
+        localStorage.removeItem("geography-chat-storage");
+        
+        // Reset stores to initial state
+        useMainsAnswerStore.getState().clear();
+        useMainsAnswerStore.getState().clearHistory();
+        useChatStore.getState().startNewChat();
+        
         setToken(null);
         setUser(null);
         router.push("/login");

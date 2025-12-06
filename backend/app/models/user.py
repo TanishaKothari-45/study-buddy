@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String
+from sqlalchemy import Boolean, Column, Integer, String, Text
 from ..core.database import Base
 
 class User(Base):
@@ -9,3 +9,4 @@ class User(Base):
     full_name = Column(String, index=True)
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
+    encrypted_gemini_api_key = Column(Text, nullable=True)  # Encrypted user Gemini API key

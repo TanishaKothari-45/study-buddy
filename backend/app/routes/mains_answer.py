@@ -18,7 +18,7 @@ import logging
 import re
 from typing import Optional, List, Dict, Any
 from pathlib import Path
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 from pydantic import BaseModel
 
 # Add backend directory to path for imports
@@ -36,7 +36,10 @@ from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, 
 from ..utils.map_proxy import parse_and_generate_maps, check_map_service_health
 from ..utils.cache_manager import get_cache_manager
 from ..utils.answer_compressor import compress_answer
+from ..utils.user_api_key import get_gemini_api_key_for_request
 from ..core.config import settings
+from ..core.deps import get_current_user
+from ..models.user import User
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -214,13 +217,39 @@ class MainsAnswerResponse(BaseModel):
 
 @router.post("/generate")
 @limiter.limit("20/hour")  # Rate limit: 20 requests per hour per IP
-async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequest):
+async def generate_mains_answer(
+    request: Request,
+    mains_request: MainsAnswerRequest,
+    current_user: User = Depends(get_current_user)
+):
     """
     Generate a comprehensive UPSC Mains style answer for Geography questions.
     Now with Redis caching for answers and news fetches.
+    Uses user's personal Gemini API key if set, otherwise system default.
     """
     try:
         logger.info(f"🚀 [MAINS] Received request: '{mains_request.question[:100]}...' (word_count={mains_request.word_count})")
+        
+        # Get Gemini API key (user's personal key or system default)
+        try:
+            gemini_api_key = get_gemini_api_key_for_request(current_user)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail="No Gemini API key configured. Please set your personal API key in settings to use this feature."
+            )
+        
+        if not gemini_api_key:
+            raise HTTPException(
+                status_code=400,
+                detail="No Gemini API key available. Please set your personal API key in settings to use this feature."
+            )
+        
+        # Initialize Gemini client with user's API key
+        gemini_client = GeminiClient(
+            api_key=gemini_api_key,
+            model_name="gemini-2.5-pro"
+        )
         
         # Initialize cache manager
         cache = get_cache_manager()
@@ -241,25 +270,20 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             cached_answer = cached_answer_data["answer"]
             word_count_actual = count_words_excluding_visuals(cached_answer)
             
-            # Initialize Gemini client for compression
+            # Compress using existing gemini_client (already initialized with user's API key)
             compressed_answer = None
             word_count_compressed = None
             
-            if GeminiClient and GEMINI_API_KEY:
-                gemini_client = GeminiClient(
-                    api_key=GEMINI_API_KEY,
-                    model_name="gemini-2.5-pro"
-                )
-                compressed = await compress_answer(
-                    original_answer=cached_answer,
-                    target_word_count=mains_request.word_count,
-                    gemini_client=gemini_client,
-                    threshold_ratio=1.4
-                )
-                if compressed:
-                    compressed_answer = compressed
-                    word_count_compressed = count_words_excluding_visuals(compressed)
-                    logger.info(f"🗜️ [CACHE] Compressed cached answer: {word_count_actual} -> {word_count_compressed}")
+            compressed = await compress_answer(
+                original_answer=cached_answer,
+                target_word_count=mains_request.word_count,
+                gemini_client=gemini_client,
+                threshold_ratio=1.4
+            )
+            if compressed:
+                compressed_answer = compressed
+                word_count_compressed = count_words_excluding_visuals(compressed)
+                logger.info(f"🗜️ [CACHE] Compressed cached answer: {word_count_actual} -> {word_count_compressed}")
             
             return MainsAnswerResponse(
                 question=cached_answer_data["question"],
@@ -295,24 +319,19 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
                 cached_answer = cached_answer_data["answer"]
                 word_count_actual = count_words_excluding_visuals(cached_answer)
                 
-                # Compress if overlong
+                # Compress using existing gemini_client
                 compressed_answer = None
                 word_count_compressed = None
                 
-                if GeminiClient and GEMINI_API_KEY:
-                    gemini_client = GeminiClient(
-                        api_key=GEMINI_API_KEY,
-                        model_name="gemini-2.5-pro"
-                    )
-                    compressed = await compress_answer(
-                        original_answer=cached_answer,
-                        target_word_count=mains_request.word_count,
-                        gemini_client=gemini_client,
-                        threshold_ratio=1.4
-                    )
-                    if compressed:
-                        compressed_answer = compressed
-                        word_count_compressed = count_words_excluding_visuals(compressed)
+                compressed = await compress_answer(
+                    original_answer=cached_answer,
+                    target_word_count=mains_request.word_count,
+                    gemini_client=gemini_client,
+                    threshold_ratio=1.4
+                )
+                if compressed:
+                    compressed_answer = compressed
+                    word_count_compressed = count_words_excluding_visuals(compressed)
                 
                 return MainsAnswerResponse(
                     question=cached_answer_data["question"],
@@ -417,17 +436,7 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             logger.info(f"🤖 [MAINS] Generating answer with Gemini 2.5 Pro...")
             
             # Initialize Gemini client
-            if not GeminiClient or not GEMINI_API_KEY:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Gemini client not available. Please configure GEMINI_API_KEY."
-                )
-            
-            gemini_client = GeminiClient(
-                api_key=GEMINI_API_KEY,
-                model_name="gemini-2.5-pro"
-            )
-            
+            # gemini_client already initialized with user's API key at start
             # Call async generate_answer
             result = await generate_answer(
                 question=mains_request.question,

@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 2880  # 2 days (48 hours)
     
+    # API Key Encryption (for user-specific Gemini keys)
+    ENCRYPTION_KEY: Optional[str] = Field(None, min_length=32)
+    
     @validator('JWT_SECRET_KEY')
     def validate_jwt_secret(cls, v):
         if len(v) < 32:

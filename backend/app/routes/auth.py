@@ -40,7 +40,10 @@ def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserSchema)
 def read_users_me(current_user: User = Depends(get_current_user)):
-    return current_user
+    # Add has_gemini_api_key flag to response
+    response_data = UserSchema.model_validate(current_user)
+    response_data.has_gemini_api_key = current_user.encrypted_gemini_api_key is not None
+    return response_data
 
 @router.post("/forgot-password", response_model=PasswordResetResponse)
 def forgot_password(request: PasswordResetRequest, db: Session = Depends(get_db)):

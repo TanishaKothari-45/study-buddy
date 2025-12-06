@@ -176,7 +176,7 @@ GEO_VISUAL_INTELLIGENCE_RULES = """
 **GEO-VISUAL INTELLIGENCE (priority & scope)**:
 - MERMAID vs MAP: Treat Mermaid diagrams and Maps as distinct visual assets.
   - The system MAY include **exactly ONE** Mermaid diagram per answer (Mermaid_count = 0 or 1).
-  - **Maps (India or World text/labelled JSON)** are NOT counted against the Mermaid limit and MAY be included in addition when spatial clarity requires it.
+  - **Maps (India or World text/ASCII/labelled JSON)** are NOT counted against the Mermaid limit and MAY be included in addition when spatial clarity requires it.
 - Decision flow to decide visuals:
   - For distribution-type questions, generating a Map is mandatory because spatial clarity is integral to score maximization.
   - If question = distribution / location / resource belt / regional hotspots → include a small Map.
