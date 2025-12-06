@@ -336,26 +336,11 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             pinecone_handler = request.app.state.vector_handler
             
             # ============================================================
-            # STEP 2: Parse question FIRST (for both Pinecone & news)
+            # STEP 2: Pinecone retrieval using FULL question (for better recall)
             # ============================================================
-            parsed_topics = {}
-            logger.info(f"🔍 [MAINS] Parsing question for optimized search...")
-            try:
-                parsed_topics = await parse_question_for_search(
-                    question=mains_request.question,
-                    openai_api_key=OPENAI_API_KEY
-                )
-                search_query = parsed_topics.get('search_query', mains_request.question)
-                logger.info(f"✅ [MAINS] Parsed search query: {search_query}")
-            except Exception as e:
-                logger.warning(f"⚠️ [MAINS] Question parsing failed, using full question: {e}")
-                parsed_topics = {}
-                search_query = mains_request.question
-            
-            # Use parsed search query for Pinecone (better vector search)
-            logger.info(f"📚 [MAINS] Retrieving context using parsed query...")
+            logger.info(f"📚 [MAINS] Retrieving context using full question...")
             context, sources = retrieve_context_for_question(
-                search_query=search_query,  # Use parsed keywords for Pinecone
+                search_query=mains_request.question,  # Use FULL question for Pinecone (better semantic matching)
                 vector_handler=pinecone_handler,
                 mode="mains",
                 use_content_store=True,
@@ -374,12 +359,27 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             logger.info(f"✅ [MAINS] Retrieved context: {len(context)} chars, {len(sources)} sources")
 
             # ============================================================
-            # STEP 3: Fetch current affairs using parsed keywords (already have parsed_topics)
+            # STEP 3: Parse question for news search (optimized keywords)
+            # ============================================================
+            parsed_topics = {}
+            logger.info(f"🔍 [MAINS] Parsing question for news search...")
+            try:
+                parsed_topics = await parse_question_for_search(
+                    question=mains_request.question,
+                    openai_api_key=OPENAI_API_KEY
+                )
+                logger.info(f"✅ [MAINS] Parsed for news: {parsed_topics.get('search_query', '')[:50]}...")
+            except Exception as e:
+                logger.warning(f"⚠️ [MAINS] Question parsing failed: {e}")
+                parsed_topics = {}
+
+            # ============================================================
+            # STEP 4: Fetch current affairs using parsed keywords
             # ============================================================
             current_affairs_bullets = []
             time_range = "3months"
 
-            # Check news cache first (using parsed_topics from step 2)
+            # Check news cache first (using parsed_topics)
             if parsed_topics:
                 cached_news = cache.get_cached_news(parsed_topics, time_range)
                 
@@ -412,7 +412,7 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
                 logger.info(f"📝 [MAINS] Added current affairs to context: {len(current_affairs_section)} chars")
 
             # ============================================================
-            # STEP 3: Generate answer using Gemini 2.5 Pro
+            # STEP 5: Generate answer using Gemini 2.5 Pro
             # ============================================================
             logger.info(f"🤖 [MAINS] Generating answer with Gemini 2.5 Pro...")
             
@@ -442,7 +442,7 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
             logger.info(f"✅ [MAINS] Answer generated: {len(answer)} characters, {word_count_actual} words")
             
             # ============================================================
-            # STEP 4: Compress if exceeds 140% of target word count
+            # STEP 6: Compress if exceeds 140% of target word count
             # ============================================================
             compressed_answer = None
             word_count_compressed = None
@@ -460,7 +460,7 @@ async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequ
                 logger.info(f"🗜️ [MAINS] Compressed: {word_count_actual} -> {word_count_compressed} words")
             
             # ============================================================
-            # STEP 5: Cache the answer
+            # STEP 7: Cache the answer
             # ============================================================
             cache.set_cached_answer(
                 question=mains_request.question,
