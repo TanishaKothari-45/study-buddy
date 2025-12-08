@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Plus, Save, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_URL } from "@/lib/api";
+import { authFetch, showToast } from "@/lib/authHandler";
 
 interface TrainingExample {
     id: string;
@@ -41,12 +42,12 @@ export default function TrainingDataPage() {
     const fetchExamples = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/training-data/examples`);
+            const res = await authFetch(`${API_URL}/training-data/examples`);
             if (!res.ok) throw new Error("Failed to fetch examples");
             const data = await res.json();
             setExamples(data.training_examples || []);
         } catch (err: any) {
-            console.error(err);
+            showToast("Failed to load training examples", "error");
             setError("Failed to load training examples.");
         } finally {
             setLoading(false);
@@ -77,7 +78,7 @@ export default function TrainingDataPage() {
         if (question) formData.append("question", question);
 
         try {
-            const res = await fetch(`${API_URL}/training-data/extract-answer`, {
+            const res = await authFetch(`${API_URL}/training-data/extract-answer`, {
                 method: "POST",
                 body: formData,
             });
@@ -113,7 +114,7 @@ export default function TrainingDataPage() {
         formData.append("ideal_feedback", idealFeedback);
 
         try {
-            const res = await fetch(`${API_URL}/training-data/submit`, {
+            const res = await authFetch(`${API_URL}/training-data/submit`, {
                 method: "POST",
                 body: formData,
             });
@@ -131,9 +132,8 @@ export default function TrainingDataPage() {
             setExtractionSuccess(false);
             fetchExamples();
 
-            // Switch to list tab (optional, but good UX)
-            // For now, just show success message or clear state
-            alert("Training example saved successfully!");
+            // Show success notification
+            showToast("Training example saved successfully!", "success");
         } catch (err: any) {
             setError(err.message);
         } finally {

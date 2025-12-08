@@ -14,6 +14,7 @@ import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useMockTestStore } from "@/stores";
+import { authFetch, showToast } from "@/lib/authHandler";
 
 // UPSC Geography Taxonomy (Mirrors backend/app/utils/metadata_enricher.py)
 const GEOGRAPHY_DOMAINS: Record<string, string[]> = {
@@ -127,7 +128,7 @@ export default function MockTestPage() {
 
         try {
             // Start async job
-            const res = await fetch(`${API_URL}/mock-test/generate-async`, {
+            const res = await authFetch(`${API_URL}/mock-test/generate-async`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -158,8 +159,8 @@ export default function MockTestPage() {
             startPolling(data.job_id);
 
         } catch (err) {
-            console.error("Failed to start test generation:", err);
             const message = err instanceof Error ? err.message : "Failed to start mock test generation";
+            showToast(message, "error");
             setError(message);
             setLoading(false);
         }
@@ -170,7 +171,7 @@ export default function MockTestPage() {
 
         pollingInterval.current = setInterval(async () => {
             try {
-                const res = await fetch(`${API_URL}/mock-test/status/${currentJobId}`);
+                const res = await authFetch(`${API_URL}/mock-test/status/${currentJobId}`);
                 if (!res.ok) throw new Error("Failed to poll status");
 
                 const jobData = await res.json();
@@ -241,9 +242,9 @@ export default function MockTestPage() {
                     });
                 }
 
-            } catch (err) {
-                console.error("Polling error:", err);
-                // Don't stop polling on transient network errors
+            } catch {
+                // Don't show toast for transient network errors during polling
+                // They will auto-retry and showing multiple toasts would be annoying
             }
         }, 2000); // Poll every 2 seconds
     };

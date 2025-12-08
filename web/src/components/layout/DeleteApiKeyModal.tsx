@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { AlertCircle, Key, X } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { showToast } from "@/lib/authHandler";
 
 interface DeleteApiKeyModalProps {
     isOpen: boolean;
@@ -37,9 +38,10 @@ export function DeleteApiKeyModal({ isOpen, onClose, onSuccess }: DeleteApiKeyMo
                 const errorData = await response.json();
                 setError(errorData.detail || "Failed to delete API key");
             }
-        } catch (error) {
-            setError("Network error. Please try again.");
-            console.error("Delete API key error:", error);
+        } catch {
+            const message = "Network error. Please try again.";
+            setError(message);
+            showToast(message, "error");
         } finally {
             setIsDeleting(false);
         }

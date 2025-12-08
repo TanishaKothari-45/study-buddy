@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Database, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_URL } from "@/lib/api";
+import { authFetch } from "@/lib/authHandler";
 
 interface UploadResult {
     filename: string;
@@ -48,7 +49,7 @@ export default function UploadPage() {
         const endpoint = mode === "pinecone" ? "/upload/" : "/upload-content-store/";
 
         try {
-            const res = await fetch(`${API_URL}${endpoint}`, {
+            const res = await authFetch(`${API_URL}${endpoint}`, {
                 method: "POST",
                 body: formData,
             });

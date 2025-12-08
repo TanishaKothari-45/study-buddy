@@ -5,6 +5,7 @@ import { X, Key, ExternalLink, AlertCircle, CheckCircle2, Eye, EyeOff } from "lu
 import { API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "next-themes";
+import { authFetch, showToast } from "@/lib/authHandler";
 
 interface ApiKeyBannerProps {
     onKeySet?: () => void;
@@ -15,6 +16,7 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
     const { token } = useAuth();
     const { theme, resolvedTheme } = useTheme();
     const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState(true);
     const [showInput, setShowInput] = useState(false);
     const [apiKey, setApiKey] = useState("");
@@ -47,23 +49,21 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
         console.log('🎨 ApiKeyBanner Theme:', { theme, resolvedTheme, isDark: document.documentElement.classList.contains('dark') });
     }, [theme, resolvedTheme]);
 
-    // Load API key status
+    // Load API key status - memoize to prevent unnecessary re-fetches
     useEffect(() => {
+        let isMounted = true;
+        
         const loadStatus = async () => {
-            if (!token) {
-                setIsLoading(false);
-                return;
-            }
-
             try {
-                const response = await fetch(`${API_URL}/api-key/status`, {
-                    headers: { Authorization: `Bearer ${token}` },
+                const response = await authFetch(`${API_URL}/api-key/status`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
 
-                if (response.ok) {
+                if (response.ok && isMounted) {
                     const data = await response.json();
                     const hadKey = prevHasApiKeyRef.current;
                     setHasApiKey(data.has_api_key);
+                    setIsAuthenticated(data.is_authenticated);
                     prevHasApiKeyRef.current = data.has_api_key;
                     
                     // If API key was just added, notify parent
@@ -71,15 +71,24 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
                         onKeySet();
                     }
                 }
-            } catch (error) {
-                console.error("Failed to check API key status:", error);
+            } catch {
+                if (isMounted) {
+                    showToast("Failed to check API key status", "error");
+                }
             } finally {
-                setIsLoading(false);
+                if (isMounted) {
+                    setIsLoading(false);
+                }
             }
         };
 
         loadStatus();
-    }, [token, onKeySet]);
+        
+        // Cleanup function to prevent state updates on unmounted component
+        return () => {
+            isMounted = false;
+        };
+    }, [token]); // Only depend on token, not onKeySet which changes every render
 
     // Success banner auto-hide - show message for 3 seconds before fading
     useEffect(() => {
@@ -144,6 +153,9 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
     
     // Don't show if showBanner prop is false (for mains/evaluate pages initially)
     if (!showBanner) return null;
+    
+    // Don't show if user is not authenticated (login redirect will handle it)
+    if (!isAuthenticated) return null;
     
     // Don't show if API key exists
     if (hasApiKey) return null;

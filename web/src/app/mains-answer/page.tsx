@@ -12,12 +12,21 @@ import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { useMainsAnswerStore } from "@/stores";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
+import api, { ApiError } from "@/lib/apiClient";
+
+interface MainsAnswerResponse {
+    question: string;
+    answer: string;
+    compressed_answer?: string | null;
+    sources: Array<{ filename: string; page: number; chunk_id: string }>;
+    word_count_actual: number;
+    word_count_compressed?: number | null;
+}
 
 export default function MainsAnswerPage() {
-    const { token } = useAuth();
+    const { } = useAuth();
     
     // Local state for UI only
     const [loading, setLoading] = useState(false);
@@ -40,55 +49,43 @@ export default function MainsAnswerPage() {
         e.preventDefault();
         if (!question.trim()) return;
 
-        // Check if user has API key set before starting
-        try {
-            const statusRes = await fetch(`${API_URL}/api-key/status`, {
-                headers: {
-                    ...(token && { "Authorization": `Bearer ${token}` })
-                }
-            });
-            
-            if (statusRes.ok) {
-                const status = await statusRes.json();
-                if (!status.has_api_key) {
-                    setShowBanner(true);
-                    setError("Please set your Gemini API key using the banner above.");
-                    return;
-                }
-            }
-        } catch (err) {
-            // If status check fails, let the main request handle it
-            console.warn("Failed to check API key status:", err);
-        }
-
         setLoading(true);
         setError(null);
         setResult(null); // Clear previous answer immediately
 
         try {
-            const res = await fetch(`${API_URL}/mains-answer/generate`, {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json",
-                    ...(token && { "Authorization": `Bearer ${token}` })
-                },
-                body: JSON.stringify({
-                    question: question.trim(),
-                    word_count: parseInt(wordCount)
-                }),
+            // Use new API client with built-in error handling
+            const data = await api.post<MainsAnswerResponse>('/mains-answer/generate', {
+                question: question.trim(),
+                word_count: parseInt(wordCount)
             });
 
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.detail || "Failed to generate answer");
-            }
+            // Normalize undefined to null for store compatibility
+            const normalizedData = {
+                ...data,
+                compressed_answer: data.compressed_answer ?? null,
+                word_count_compressed: data.word_count_compressed ?? null,
+            };
 
-            const data = await res.json();
-            setResult(data); // Save to store - persists across tab switches
-            addToHistory(data); // Add to history
+            setResult(normalizedData); // Save to store - persists across tab switches
+            addToHistory(normalizedData); // Add to history
         } catch (err) {
-            const message = err instanceof Error ? err.message : "Failed to generate answer";
+            // Error toast is already shown by apiClient
+            // Just set local error state for UI feedback
+            let message = "Failed to generate answer";
+            
+            if (err instanceof ApiError) {
+                message = err.message;
+            } else if (err instanceof Error) {
+                message = err.message;
+            }
+            
             setError(message);
+            
+            // If error is about missing API key, show the banner
+            if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("gemini")) {
+                setShowBanner(true);
+            }
         } finally {
             setLoading(false);
         }

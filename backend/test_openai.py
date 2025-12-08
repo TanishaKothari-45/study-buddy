@@ -16,7 +16,7 @@ def test_openai():
     api_key = os.getenv("OPENAI_API_KEY")
     print(f"API Key found: {bool(api_key)}")
     if api_key:
-        print(f"API Key: {api_key}")
+        print(f"API Key: ")
     
     try:
         print("\nTesting OpenAI connection...")

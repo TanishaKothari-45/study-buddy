@@ -29,6 +29,56 @@ if str(backend_dir) not in sys.path:
 logger = logging.getLogger("mains_answer")
 logging.basicConfig(level=logging.INFO)
 
+def clean_gemini_error(error_msg: str) -> str:
+    """
+    Clean Gemini API error messages for user-friendly display.
+    Provides actionable guidance to help users resolve the issue.
+    """
+    # For quota errors (429)
+    if '429' in error_msg and 'quota' in error_msg.lower():
+        return "Failed to generate answer: You have exceeded your Gemini API quota. Please check your usage at https://aistudio.google.com/app/apikey and upgrade your plan if needed, or try again after some time."
+    
+    if '429' in error_msg and 'rate limit' in error_msg.lower():
+        return "Failed to generate answer: Too many requests to Gemini API. Please wait a few minutes and try again."
+    
+    # For auth errors
+    if ('401' in error_msg or '403' in error_msg) and 'API key' in error_msg:
+        return "Failed to generate answer: Invalid Gemini API key. Please update your API key in Settings. You can get a new key from https://aistudio.google.com/app/apikey"
+    
+    # For timeout errors
+    if 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower():
+        return "Failed to generate answer: Request timed out. The AI service is taking longer than expected. Please try again, or try with a shorter question."
+    
+    # For network/connection errors
+    if 'connection' in error_msg.lower() or 'network' in error_msg.lower():
+        return "Failed to generate answer: Network connection error. Please check your internet connection and try again."
+    
+    # For empty response
+    if 'empty response' in error_msg.lower():
+        return "Failed to generate answer: Received empty response from AI service. This is usually temporary - please try again in a moment."
+    
+    # For service unavailable
+    if 'service unavailable' in error_msg.lower() or '503' in error_msg:
+        return "Failed to generate answer: AI service is temporarily unavailable. Please try again in a few minutes."
+    
+    # For server errors
+    if '500' in error_msg or 'internal server error' in error_msg.lower():
+        return "Failed to generate answer: Server error occurred. We're working to fix this. Please try again or contact support if the issue persists."
+    
+    # Generic fallback with first sentence
+    first_line = error_msg.split('\n')[0]
+    first_sentence = first_line.split('.')[0]
+    
+    # Limit to reasonable length
+    if len(first_sentence) > 120:
+        first_sentence = first_sentence[:117] + '...'
+    
+    # Always prefix with "Failed to generate answer:"
+    if first_sentence and not first_sentence.startswith('Failed to generate answer'):
+        return f"Failed to generate answer: {first_sentence}. Please try again or contact support if the issue persists."
+    
+    return "Failed to generate answer: An unexpected error occurred. Please try again or contact support if the issue persists."
+
 from mains_prompt import assemble_mains_prompt
 from ..utils.context_retriever import retrieve_context_for_question
 from ..utils.question_parser import parse_question_for_search
@@ -164,21 +214,24 @@ async def generate_answer(
 
         logger.info(f"🤖 Calling Gemini 2.5 Pro for answer generation...")
         
-        # Call Gemini with async
+        # Call Gemini (retries transient errors internally, up to 2 retries)
         response = await gemini_client.generate_response(
             user_prompt=user_msg,
             system_prompt=system_msg,
             temperature=0.15,  # Low temperature for consistency
-            max_retries=2
+            max_retries=2  # Retry only Gemini call, not the whole pipeline
         )
         
         answer_text = response.strip()
         logger.info(f"✅ Gemini response received: {len(answer_text)} chars")
         
     except Exception as e:
-        logger.error(f"❌ Gemini call failed: {e}")
-        # Fallback simple template answer to avoid blank responses
-        answer_text = f"**Introduction**\nBrief introduction based on provided materials.\n\n**Body**\n• Key point 1\n• Key point 2\n\n**Conclusion**\nSynthesis and policy suggestion."
+        error_msg = str(e)
+        logger.error(f"❌ Gemini call failed: {error_msg}")
+        # Clean error message for user display
+        clean_msg = clean_gemini_error(error_msg)
+        # Re-raise with cleaned message
+        raise RuntimeError(clean_msg)
 
     # 3) Post-processing: ensure diagrams and word-count
     answer_text = enforce_diagrams(answer_text, required=1)
@@ -258,41 +311,41 @@ async def generate_mains_answer(
         # ============================================================
         # STEP 1: Check answer cache (exact match)
         # ============================================================
-        cached_answer_data = cache.get_cached_answer(
-            question=mains_request.question,
-            word_count=mains_request.word_count,
-            model_version=model_version
-        )
+        # cached_answer_data = cache.get_cached_answer(
+        #     question=mains_request.question,
+        #     word_count=mains_request.word_count,
+        #     model_version=model_version
+        # )
         
-        if cached_answer_data:
-            # Cache HIT - but still need to compress if overlong
-            logger.info("🎯 [CACHE HIT] Returning cached answer")
-            cached_answer = cached_answer_data["answer"]
-            word_count_actual = count_words_excluding_visuals(cached_answer)
+        # if cached_answer_data:
+        #     # Cache HIT - but still need to compress if overlong
+        #     logger.info("🎯 [CACHE HIT] Returning cached answer")
+        #     cached_answer = cached_answer_data["answer"]
+        #     word_count_actual = count_words_excluding_visuals(cached_answer)
             
-            # Compress using existing gemini_client (already initialized with user's API key)
-            compressed_answer = None
-            word_count_compressed = None
+        #     # Compress using existing gemini_client (already initialized with user's API key)
+        #     compressed_answer = None
+        #     word_count_compressed = None
             
-            compressed = await compress_answer(
-                original_answer=cached_answer,
-                target_word_count=mains_request.word_count,
-                gemini_client=gemini_client,
-                threshold_ratio=1.4
-            )
-            if compressed:
-                compressed_answer = compressed
-                word_count_compressed = count_words_excluding_visuals(compressed)
-                logger.info(f"🗜️ [CACHE] Compressed cached answer: {word_count_actual} -> {word_count_compressed}")
+        #     compressed = await compress_answer(
+        #         original_answer=cached_answer,
+        #         target_word_count=mains_request.word_count,
+        #         gemini_client=gemini_client,
+        #         threshold_ratio=1.4
+        #     )
+        #     if compressed:
+        #         compressed_answer = compressed
+        #         word_count_compressed = count_words_excluding_visuals(compressed)
+        #         logger.info(f"🗜️ [CACHE] Compressed cached answer: {word_count_actual} -> {word_count_compressed}")
             
-            return MainsAnswerResponse(
-                question=cached_answer_data["question"],
-                answer=cached_answer,
-                compressed_answer=compressed_answer,
-                sources=cached_answer_data["sources"],
-                word_count_actual=word_count_actual,
-                word_count_compressed=word_count_compressed
-            )
+        #     return MainsAnswerResponse(
+        #         question=cached_answer_data["question"],
+        #         answer=cached_answer,
+        #         compressed_answer=compressed_answer,
+        #         sources=cached_answer_data["sources"],
+        #         word_count_actual=word_count_actual,
+        #         word_count_compressed=word_count_compressed
+        #     )
         
         # Cache MISS - proceed with generation
         logger.info("⚡ [CACHE MISS] Generating new answer")
@@ -435,9 +488,7 @@ async def generate_mains_answer(
             # ============================================================
             logger.info(f"🤖 [MAINS] Generating answer with Gemini 2.5 Pro...")
             
-            # Initialize Gemini client
-            # gemini_client already initialized with user's API key at start
-            # Call async generate_answer
+            # Call async generate_answer - let exceptions propagate
             result = await generate_answer(
                 question=mains_request.question,
                 static_context=context,
@@ -456,17 +507,21 @@ async def generate_mains_answer(
             compressed_answer = None
             word_count_compressed = None
             
-            compressed = await compress_answer(
-                original_answer=answer,
-                target_word_count=mains_request.word_count,
-                gemini_client=gemini_client,
-                threshold_ratio=1.4
-            )
-            
-            if compressed:
-                compressed_answer = compressed
-                word_count_compressed = count_words_excluding_visuals(compressed)
-                logger.info(f"🗜️ [MAINS] Compressed: {word_count_actual} -> {word_count_compressed} words")
+            try:
+                compressed = await compress_answer(
+                    original_answer=answer,
+                    target_word_count=mains_request.word_count,
+                    gemini_client=gemini_client,
+                    threshold_ratio=1.4
+                )
+                
+                if compressed:
+                    compressed_answer = compressed
+                    word_count_compressed = count_words_excluding_visuals(compressed)
+                    logger.info(f"🗜️ [MAINS] Compressed: {word_count_actual} -> {word_count_compressed} words")
+            except Exception as e:
+                # Compression failure is not critical - just log and continue with uncompressed answer
+                logger.warning(f"⚠️ [MAINS] Compression failed: {e}")
             
             # ============================================================
             # STEP 7: Cache the answer
@@ -493,9 +548,16 @@ async def generate_mains_answer(
             if lock_acquired:
                 cache.release_lock(cache_key)
 
+    except HTTPException:
+        # Re-raise HTTPException as-is (already has proper status code and detail)
+        raise
     except Exception as e:
-        logger.error(f"❌ Mains answer generation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Catch unexpected errors
+        error_msg = str(e)
+        logger.error(f"❌ Mains answer generation failed: {error_msg}")
+        # Clean error message for user display
+        clean_msg = clean_gemini_error(error_msg)
+        raise HTTPException(status_code=500, detail=clean_msg)
 
 # Quick test function
 if __name__ == "__main__":

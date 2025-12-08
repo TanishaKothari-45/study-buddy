@@ -41,10 +41,12 @@ export default function ForgotPasswordPage() {
             if (response.ok) {
                 setStep("reset");
             } else {
-                setError(data.detail || "Email not found");
+                // Show the actual error message from the API
+                const errorMessage = data.detail || data.error || "Email not found. Please check and try again.";
+                setError(errorMessage);
             }
         } catch {
-            setError("An error occurred. Please try again.");
+            setError("Network error. Please check your connection and try again.");
         } finally {
             setLoading(false);
         }
@@ -80,10 +82,12 @@ export default function ForgotPasswordPage() {
             if (response.ok) {
                 setStep("success");
             } else {
-                setError(data.detail || "Failed to reset password");
+                // Show the actual error message from the API
+                const errorMessage = data.detail || data.error || "Failed to reset password. Please try again.";
+                setError(errorMessage);
             }
         } catch {
-            setError("An error occurred. Please try again.");
+            setError("Network error. Please check your connection and try again.");
         } finally {
             setLoading(false);
         }

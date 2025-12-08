@@ -11,7 +11,7 @@ from typing import Optional
 import logging
 
 from ..core.database import get_db
-from ..core.deps import get_current_user
+from ..core.deps import get_current_user, get_current_user_optional
 from ..core.encryption import get_api_key_encryptor
 from ..models.user import User
 
@@ -29,6 +29,7 @@ class ApiKeySetRequest(BaseModel):
 class ApiKeyStatusResponse(BaseModel):
     """Response showing API key status"""
     has_api_key: bool
+    is_authenticated: bool
     masked_key: Optional[str] = None
 
 class ApiKeySetResponse(BaseModel):
@@ -48,12 +49,21 @@ class ApiKeyDeleteResponse(BaseModel):
 
 @router.get("/status", response_model=ApiKeyStatusResponse)
 def get_api_key_status(
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: Session = Depends(get_db)
 ):
     """
     Check if user has set their Gemini API key (without exposing the actual key)
+    Works for both authenticated and unauthenticated requests.
     """
+    # If user is not authenticated, return early
+    if current_user is None:
+        return {
+            "has_api_key": False,
+            "is_authenticated": False,
+            "masked_key": None
+        }
+    
     has_key = current_user.encrypted_gemini_api_key is not None
     masked_key = None
     
@@ -66,6 +76,7 @@ def get_api_key_status(
     
     return {
         "has_api_key": has_key,
+        "is_authenticated": True,
         "masked_key": masked_key
     }
 

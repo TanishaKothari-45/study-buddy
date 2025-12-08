@@ -20,8 +20,7 @@ def load_env_vars():
     print(f"- .env path: {env_path}")
     print(f"- .env file exists: {env_path.exists()}")
     print(f"- OpenAI API Key found: {bool(api_key)}")
-    if api_key:
-        print(f"- API Key: {api_key}")  # Print full key for debugging
+    if api_key: 
         if api_key.startswith('sk-'):
             print("- API Key format looks valid (starts with 'sk-')")
         else:

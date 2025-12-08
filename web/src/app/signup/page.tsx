@@ -38,10 +38,12 @@ export default function SignupPage() {
                 // Redirect to login page after successful signup
                 router.push("/login");
             } else {
-                setError(data.detail || "Signup failed");
+                // Show the actual error message from the API
+                const errorMessage = data.detail || data.error || "Signup failed. Please try again.";
+                setError(errorMessage);
             }
         } catch (err) {
-            setError("An error occurred. Please try again.");
+            setError("Network error. Please check your connection and try again.");
         } finally {
             setLoading(false);
         }

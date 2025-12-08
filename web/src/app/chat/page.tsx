@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { TypewriterEffect } from "@/components/ui/typewriter-effect";
 import { useChatStore } from "@/stores";
 import { API_URL } from "@/lib/api";
+import { authFetch, showToast } from "@/lib/authHandler";
 
 export default function ChatPage() {
     // Persisted state from store
@@ -76,7 +77,7 @@ export default function ChatPage() {
 
         try {
             // Use streaming endpoint
-            const res = await fetch(`${API_URL}/query/stream`, {
+            const res = await authFetch(`${API_URL}/query/stream`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -127,13 +128,14 @@ export default function ChatPage() {
                                 throw new Error(data.error);
                             }
                         } catch (e) {
-                            console.error("Parse error:", e);
+                            showToast("Error parsing response", "error");
                         }
                     }
                 }
             }
         } catch (error) {
-            console.error("Chat error:", error);
+            const message = error instanceof Error ? error.message : "Chat error occurred";
+            showToast(message, "error");
             updateMessageContent(botMessageId, "Sorry, I encountered an error while processing your request. Please try again.");
         } finally {
             setLoading(false);

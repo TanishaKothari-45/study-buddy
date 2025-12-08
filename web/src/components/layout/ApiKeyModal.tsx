@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Key, ExternalLink, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { showToast } from "@/lib/authHandler";
 import {
     Dialog,
     DialogContent,
@@ -27,13 +28,7 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (isOpen) {
-            checkApiKeyStatus();
-        }
-    }, [isOpen]);
-
-    const checkApiKeyStatus = async () => {
+    const checkApiKeyStatus = React.useCallback(async () => {
         try {
             const response = await fetch(`${API_URL}/api-key/status`, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -43,10 +38,16 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
                 const data = await response.json();
                 setHasApiKey(data.has_api_key);
             }
-        } catch (error) {
-            console.error("Failed to check API key status:", error);
+        } catch {
+            showToast("Failed to check API key status", "error");
         }
-    };
+    }, [token]);
+
+    useEffect(() => {
+        if (isOpen) {
+            checkApiKeyStatus();
+        }
+    }, [isOpen, checkApiKeyStatus]);
 
     const handleSaveApiKey = async () => {
         if (!apiKey.trim()) {

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
 import { useMainsAnswerStore, useChatStore, useMockTestStore } from "@/stores";
+import { getReturnUrl, clearReturnUrl } from "@/lib/authHandler";
 
 interface User {
     email: string;
@@ -70,7 +71,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem("token", newToken);
         setToken(newToken);
         fetchUser(newToken);
-        router.push("/");
+        
+        // Get return URL from session storage (defaults to /dashboard if not set or expired)
+        const returnUrl = getReturnUrl();
+        clearReturnUrl();
+        
+        router.push(returnUrl);
     };
 
     const logout = () => {

@@ -36,10 +36,12 @@ export default function LoginPage() {
             if (response.ok) {
                 login(data.access_token);
             } else {
-                setError(data.detail || "Login failed");
+                // Show the actual error message from the API
+                const errorMessage = data.detail || data.error || "Login failed. Please try again.";
+                setError(errorMessage);
             }
         } catch (err) {
-            setError("An error occurred. Please try again.");
+            setError("Network error. Please check your connection and try again.");
         } finally {
             setLoading(false);
         }

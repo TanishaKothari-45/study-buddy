@@ -41,6 +41,7 @@ class GeminiClient:
     ) -> str:
         """
         Generate response from Gemini API with optional caching.
+        Retries ONLY the Gemini API call (not the context retrieval).
         
         Args:
             user_prompt: The main query/instruction (required)
@@ -51,7 +52,7 @@ class GeminiClient:
             response_schema: Optional Pydantic model for structured output
             temperature: Temperature for response generation (default: 0.0)
             cached_content_name: Optional cache name to use for context caching
-            max_retries: Maximum number of retry attempts (default: 2)
+            max_retries: Maximum retry attempts for transient errors (default: 2)
             
         Returns:
             Response text (JSON string if response_schema provided, otherwise plain text)
@@ -108,8 +109,8 @@ class GeminiClient:
                 system_instruction=system_prompt
             )
             
-            # Make request with retry logic
-            while retry_count < max_retries:
+            # Retry loop for transient Gemini API errors
+            while retry_count <= max_retries:
                 try:
                     # Run in executor to avoid blocking with 60s timeout
                     loop = asyncio.get_event_loop()
@@ -128,18 +129,27 @@ class GeminiClient:
                         return response.text
                     else:
                         raise Exception("Empty response from Gemini API")
-                        
+                
                 except Exception as e:
+                    error_str = str(e).lower()
+                    
+                    # Don't retry quota errors (429) - they need time, not retries
+                    if '429' in error_str or 'quota' in error_str:
+                        raise
+                    
+                    # Don't retry auth errors (401, 403)
+                    if '401' in error_str or '403' in error_str or 'api key' in error_str:
+                        raise
+                    
+                    # Retry transient errors (timeouts, 500s, network issues)
                     retry_count += 1
-                    if retry_count < max_retries:
-                        wait_time = 2 ** retry_count
-                        print(f"Error: {e}. Retrying ({retry_count}/{max_retries}) after {wait_time}s...")
+                    if retry_count <= max_retries:
+                        wait_time = 2 ** (retry_count - 1)  # Exponential backoff: 1s, 2s
+                        print(f"⚠️  Gemini API error: {e}. Retrying ({retry_count}/{max_retries}) after {wait_time}s...")
                         await asyncio.sleep(wait_time)
                     else:
-                        print(f"Max retries reached. Error: {e}")
+                        # Max retries reached
                         raise
-            
-            raise Exception("Maximum retries reached without success")
             
         finally:
             # Clean up uploaded files

@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
+from typing import Optional
 from .database import get_db
 from .security import SECRET_KEY, ALGORITHM
 from ..models.user import User
@@ -27,4 +28,28 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     user = db.query(User).filter(User.email == token_data.email).first()
     if user is None:
         raise credentials_exception
+    return user
+
+async def get_current_user_optional(
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """
+    Optional authentication dependency - returns None for unauthenticated requests
+    instead of raising 401. Useful for endpoints that need to differentiate between
+    authenticated and unauthenticated states.
+    """
+    if not token:
+        return None
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            return None
+        token_data = TokenData(email=email)
+    except JWTError:
+        return None
+    
+    user = db.query(User).filter(User.email == token_data.email).first()
     return user

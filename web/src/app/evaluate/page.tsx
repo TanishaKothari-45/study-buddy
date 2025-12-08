@@ -10,8 +10,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/context/AuthContext";
 import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
+import { apiClient, ApiError } from "@/lib/apiClient";
 
 interface Feedback {
     strengths: string[];
@@ -32,8 +32,6 @@ interface EvaluationResult {
 }
 
 export default function EvaluatePage() {
-    const { token } = useAuth();
-    
     const [files, setFiles] = useState<File[]>([]);
     const [question, setQuestion] = useState("");
     const [loading, setLoading] = useState(false);
@@ -59,27 +57,6 @@ export default function EvaluatePage() {
             return;
         }
 
-        // Check if user has API key set before starting
-        try {
-            const statusRes = await fetch(`${API_URL}/api-key/status`, {
-                headers: {
-                    ...(token && { "Authorization": `Bearer ${token}` })
-                }
-            });
-            
-            if (statusRes.ok) {
-                const status = await statusRes.json();
-                if (!status.has_api_key) {
-                    setShowBanner(true);
-                    setError("Please set your Gemini API key using the banner above.");
-                    return;
-                }
-            }
-        } catch (err) {
-            // If status check fails, let the main request handle it
-            console.warn("Failed to check API key status:", err);
-        }
-
         setLoading(true);
         setError("");
         setResult(null);
@@ -91,24 +68,30 @@ export default function EvaluatePage() {
         if (question) formData.append("question", question);
 
         try {
-            // We need to use fetch directly for FormData instead of our JSON wrapper
-            const res = await fetch(`${API_URL}/evaluate-answer/`, {
-                method: "POST",
+            // Use apiClient for FormData (no JSON serialization)
+            const data = await apiClient<EvaluationResult>('/evaluate-answer/', {
+                method: 'POST',
                 body: formData,
-                headers: {
-                    ...(token && { "Authorization": `Bearer ${token}` })
-                }
+                headers: {}, // Let browser set Content-Type for FormData
             });
 
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.detail || "Evaluation failed");
-            }
-
-            const data = await res.json();
             setResult(data);
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err) {
+            // Error toast already shown by apiClient
+            let message = "Evaluation failed";
+            
+            if (err instanceof ApiError) {
+                message = err.message;
+            } else if (err instanceof Error) {
+                message = err.message;
+            }
+            
+            setError(message);
+            
+            // If error is about missing API key, show the banner
+            if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("gemini")) {
+                setShowBanner(true);
+            }
         } finally {
             setLoading(false);
         }
