@@ -1,58 +1,62 @@
 # Core FastAPI dependencies
-fastapi==0.115.6
-uvicorn==0.34.0
-python-multipart==0.0.6
-python-dotenv==1.0.1
-pydantic==2.5.0
-pydantic-settings>=2.0.0
+fastapi==0.122.0
+uvicorn==0.38.0
+python-multipart==0.0.20
+python-dotenv==1.2.1
+pydantic==2.12.4
+pydantic-settings==2.12.0
 
 # LangChain and Tools
-langchain==0.3.13
-langchain-community>=0.3.0
-langchain-core>=0.3.0
-llama-cpp-python==0.2.39  # For Llama 3 integration
-googlesearch-python==1.2.3
-beautifulsoup4==4.12.2
-requests==2.31.0
-httpx>=0.28.0  # For async HTTP requests (MCP server)
+langchain==1.1.0
+langchain-community==0.4.1
+langchain-core==1.1.0
+llama-cpp-python==0.3.16  # For Llama 3 integration
+googlesearch-python==1.3.0
+beautifulsoup4==4.14.2
+requests==2.32.5
+httpx==0.28.1  # For async HTTP requests (MCP server)
 # Note: mcp package requires Python 3.10+ - install separately if using Python 3.10+
 # pip install mcp  # Requires Python >=3.10
 
 # PDF Processing
 PyPDF2==3.0.1
-pdfplumber==0.10.3
-PyMuPDF>=1.23.0  # For fitz (PDF manipulation)
-weasyprint==60.2
-pdf2image==1.16.3  # For PDF to image conversion (OCR)
+pdfplumber==0.11.8
+PyMuPDF==1.26.6  # For fitz (PDF manipulation)
+weasyprint==66.0
+pdf2image==1.17.0  # For PDF to image conversion (OCR)
 
 # Image Processing (for ROI extraction)
-opencv-python>=4.8.0,<4.10  # Image processing for ROI cropping (compatible with numpy<2)
-Pillow>=9.0.0  # Image manipulation
-reportlab>=4.0.0  # PDF generation
+opencv-python==4.12.0.88  # Image processing for ROI cropping (compatible with numpy<2)
+Pillow==12.0.0  # Image manipulation
+reportlab==4.4.5  # PDF generation
 
 # Google Cloud Vision API (for OCR with batch processing)
-google-cloud-vision>=3.0.0  # Google Vision API client library
-google-generativeai>=0.8.0  # Google Gemini API client library
+google-cloud-vision==3.11.0  # Google Vision API client library
+google-generativeai==0.8.5  # Google Gemini API client library
 
 # Data Storage
-chromadb==0.4.18
-sentence-transformers>=2.3.0
-pinecone-client>=3.0.0  # Pinecone vector database
-langchain-pinecone>=0.0.3  # LangChain integration for Pinecone
+chromadb==0.3.26
+sentence-transformers==5.1.2
+pinecone-client==6.0.0  # Pinecone vector database
+langchain-pinecone==0.2.13  # LangChain integration for Pinecone
 
 # Utilities
 python-magic==0.4.27
-tiktoken==0.5.2
-chardet>=5.0.0  # Character encoding detection
-numpy>=1.24.0,<2  # Compatible with PyTorch and sentence-transformers (torch 2.2.x needs numpy<2)
-pandas==2.0.3
-nltk>=3.8.0  # Natural language processing
-openai>=1.0.0  # OpenAI API client
-tqdm>=4.65.0  # Progress bars for batch processing
+tiktoken==0.12.0
+chardet==5.2.0  # Character encoding detection
+numpy==2.2.6  # Compatible with PyTorch and sentence-transformers (torch 2.2.x needs numpy<2)
+pandas==2.3.3
+nltk==3.9.2  # Natural language processing
+openai==2.8.1  # OpenAI API client
+tqdm==4.67.1  # Progress bars for batch processing
 
 
 # Authentication & Database
-sqlalchemy>=2.0.0
-passlib[bcrypt]>=1.7.4
-python-jose[cryptography]>=3.3.0
-email-validator>=2.0.0
+sqlalchemy==2.0.44
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.2
+python-jose[cryptography]==3.5.0
+email-validator==2.3.0
+
+slowapi==0.1.9
+redis==7.1.0

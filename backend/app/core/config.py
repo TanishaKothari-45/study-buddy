@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     
     # Gemini Models
     GEMINI_MODEL_PRO: str = "gemini-2.5-pro"  # For mains answer & evaluation (superior reasoning)
-    GEMINI_MODEL_FLASH: str = "gemini-2.0-flash-exp"  # For speed-critical tasks (if needed)
+    GEMINI_MODEL_FLASH: str = "gemini-2.5-flash"  # For speed-critical tasks (if needed)
     
     # Default LLM (for backward compatibility)
     LLM_MODEL: str = "gpt-4o-mini"
