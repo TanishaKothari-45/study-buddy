@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Response, Form
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Response, Form, Depends
 from typing import List, Optional
 import os
 import shutil
@@ -6,7 +6,7 @@ import logging
 from ..utils.pdf_reader import extract_text_from_pdf
 from ..utils.ocr_processor import process_handwritten_document
 from ..utils.handwritten_processor import process_pdf_with_roi, process_image_with_roi
-from ..utils.ocr_processor_v2 import process_pages_parallel_google_vision
+from ..utils.gemini_ocr import process_pages_with_gemini_ocr
 from ..utils.pdf_generator import generate_pdf_from_ocr_results
 from ..utils.answer_reconstructor import reconstruct_pages_blocks
 from ..core.config import settings
@@ -398,22 +398,30 @@ async def upload_pdfs(
                         "roi_image_preprocessed": roi_result["roi_image_preprocessed"]
                     }]
                     
-                    # Step 3: Run OCR using Google Vision API
+                    # Step 3: Run OCR using Gemini API
                     logger.info("")
                     logger.info("   " + "="*70)
                     logger.info("   🔍 STEP 3: Starting OCR Processing")
                     logger.info("   " + "="*70)
-                    logger.info("   📋 OCR Pipeline: Google Vision API")
-                    logger.info("   ⏳ Processing with Google Vision API...")
+                    logger.info("   📋 OCR Pipeline: Gemini 2.5 Pro")
+                    logger.info("   ⏳ Processing with Gemini OCR...")
                     logger.info("   " + "="*70)
                     logger.info("")
                     try:
-                        ocr_results = process_pages_parallel_google_vision(page_data, max_workers=1)
+                        # Get Gemini API key
+                        from ..core.config import settings
+                        from ..gemini_core import settings_gemini_key
+                        gemini_api_key = settings_gemini_key.GEMINI_API_KEY
+                        
+                        if not gemini_api_key:
+                            raise Exception("GEMINI_API_KEY not configured")
+                        
+                        ocr_results = process_pages_with_gemini_ocr(page_data, gemini_api_key, max_workers=1)
                         logger.info("")
                         logger.info("   ✅ STEP 3: OCR Processing Complete!")
                         logger.info("")
                         
-                        # Step 4: No post-processing cleaning - only block filtering (len > 2) done in vision_blocks
+                        # Step 4: No post-processing cleaning - only block filtering (len > 2) done in Gemini output
                         # Blocks are primary data - merged text is for backward compatibility only
                         # No cleaning applied to preserve spatial structure
                     except Exception as ocr_error:
@@ -421,7 +429,7 @@ async def upload_pdfs(
                         # Create empty OCR result so PDF can still be generated
                         ocr_results = [{
                             "page_number": 1,
-                            "text": f"OCR processing failed: {str(ocr_error)}\n\nPlease check:\n1. Google Vision API credentials are set\n2. GOOGLE_APPLICATION_CREDENTIALS environment variable\n3. Backend logs for details",
+                            "text": f"OCR processing failed: {str(ocr_error)}\n\nPlease check:\n1. GEMINI_API_KEY is set in environment\n2. Gemini API is accessible\n3. Backend logs for details",
                             "error": str(ocr_error),
                             "blocks": []
                         }]
@@ -542,7 +550,7 @@ async def upload_pdfs(
                             {
                                 "page_number": r["page_number"],
                                 "text": r.get("text", ""),  # Original merged text from blocks
-                                "full_text": r.get("full_text", ""),  # Full text from Vision API
+                                "full_text": r.get("full_text", ""),  # Full text from Gemini OCR
                                 "reconstructed_text": r.get("reconstructed_text", ""),  # LLM reconstructed prose
                                 "identified_question": r.get("identified_question", ""),  # Question identified from OCR blocks
                                 "text_length": len(r.get("text", "")),
@@ -552,7 +560,7 @@ async def upload_pdfs(
                                 "width": r.get("width", 0),
                                 "height": r.get("height", 0),
                                 "blocks": r.get("blocks", []),  # Include raw blocks data (with conf) sent to LLM
-                                "ocr_method": "google_vision"
+                                "ocr_method": "gemini"
                             }
                             for r in ocr_results
                         ],
