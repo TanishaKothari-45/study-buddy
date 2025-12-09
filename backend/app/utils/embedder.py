@@ -1,21 +1,20 @@
 """
-Text embedding utilities using OpenAI's text-embedding-3-small with Sentence Transformers fallback
+Text embedding utilities using OpenAI's text-embedding-3-small with Sentence Transformers fallback (lazy-loaded)
 """
 import logging
 import os
-from typing import List
+from typing import List, Optional
 import time
 from openai import OpenAI, RateLimitError
-from sentence_transformers import SentenceTransformer
 from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
 class Embedder:
     def __init__(self):
-        """Initialize embedders"""
+        """Initialize embedders (SentenceTransformer lazy-loaded only when needed)"""
         self.openai_client = None
-        self.sbert_model = None
+        self._sbert_model: Optional[any] = None  # Lazy-loaded
         
         # Try to initialize OpenAI first
         api_key = os.getenv("OPENAI_API_KEY")
@@ -26,14 +25,28 @@ class Embedder:
             except Exception as e:
                 logger.warning(f"⚠️ OpenAI initialization failed: {e}")
         
-        # Always initialize Sentence Transformers as fallback
+        # SentenceTransformer is now lazy-loaded (see _get_sbert_model())
+        logger.info("ℹ️  SentenceTransformer will be loaded only when needed (lazy-loaded)")
+    
+    def _get_sbert_model(self):
+        """
+        Lazy-load SentenceTransformer model only when actually needed.
+        This avoids startup overhead when OpenAI embeddings are used.
+        """
+        if self._sbert_model is not None:
+            return self._sbert_model
+        
         try:
-            self.sbert_model = SentenceTransformer(settings.FALLBACK_MODEL)
-            logger.info(f"✅ Sentence Transformers initialized with model: {settings.FALLBACK_MODEL}")
+            from sentence_transformers import SentenceTransformer
+            logger.info(f"🔧 Loading SentenceTransformer model: {settings.FALLBACK_MODEL} (lazy-loaded)...")
+            self._sbert_model = SentenceTransformer(settings.FALLBACK_MODEL)
+            logger.info(f"✅ SentenceTransformer initialized with model: {settings.FALLBACK_MODEL}")
+            return self._sbert_model
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Sentence Transformers: {e}")
+            logger.error(f"❌ Failed to initialize SentenceTransformer: {e}")
             if not self.openai_client:
                 raise RuntimeError("No embedding models available")
+            raise
 
     def get_openai_embeddings(self, texts: List[str], max_retries: int = 3) -> List[List[float]]:
         """Generate embeddings using OpenAI with retry logic"""
@@ -167,9 +180,11 @@ class Embedder:
                 raise
 
     def get_sbert_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings using Sentence Transformers"""
+        """Generate embeddings using Sentence Transformers (lazy-loaded)"""
         try:
-            embeddings = self.sbert_model.encode(texts)
+            # Lazy-load model only when this method is called
+            sbert_model = self._get_sbert_model()
+            embeddings = sbert_model.encode(texts)
             if hasattr(embeddings, "tolist"):
                 embeddings = embeddings.tolist()
             logger.info(f"✅ Generated {len(embeddings)} embeddings using Sentence Transformers")

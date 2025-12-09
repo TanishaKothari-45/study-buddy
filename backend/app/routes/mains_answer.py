@@ -5,7 +5,7 @@ Main handler for mains answer generation using Gemini 2.5 Pro.
 Uses MCP current affairs server for latest news (not web_searcher).
 
 Usage:
-  from mains_prompt import assemble_mains_prompt
+  from app.prompts.mains_prompt import assemble_mains_prompt
   from mains_answer import generate_answer
 
 Config:
@@ -20,11 +20,6 @@ from typing import Optional, List, Dict, Any
 from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException, Depends
 from pydantic import BaseModel
-
-# Add backend directory to path for imports
-backend_dir = Path(__file__).resolve().parent.parent.parent
-if str(backend_dir) not in sys.path:
-    sys.path.insert(0, str(backend_dir))
 
 logger = logging.getLogger("mains_answer")
 logging.basicConfig(level=logging.INFO)
@@ -79,7 +74,7 @@ def clean_gemini_error(error_msg: str) -> str:
     
     return "Failed to generate answer: An unexpected error occurred. Please try again or contact support if the issue persists."
 
-from mains_prompt import assemble_mains_prompt
+from ..prompts.mains_prompt import assemble_mains_prompt
 from ..utils.context_retriever import retrieve_context_for_question
 from ..utils.question_parser import parse_question_for_search
 from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
