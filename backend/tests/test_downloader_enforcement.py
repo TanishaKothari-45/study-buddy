@@ -5,8 +5,8 @@ import sys
 import os
 from pathlib import Path
 
-# Add backend to path
-backend_path = Path(__file__).parent.parent
+# Add backend to path (parent of tests/)
+backend_path = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(backend_path))
 
 from app.utils.current_affairs_downloader import process_extracted_pdf

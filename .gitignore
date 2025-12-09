@@ -72,42 +72,24 @@ yarn.lock
 web/package-lock.json
 
 
-google_vision.json!web/src/lib/
+!web/src/lib/
 
 backend/uploads/
 venv_python39_backup/
 =2.5.0
-CHANGES_SUMMARY.md
-CONTENT_STORE_IMPLEMENTATION.md
-INTRINSIC_SCORING_IMPLEMENTATION.md
-PINECONE_MIGRATION_GUIDE.md
-PINECONE_READ_ONLY_VERIFICATION.md
-SOURCE_TYPE_IMPLEMENTATION.md
-VARIABLE_PRESERVATION_CHECK.md
-VERIFY_PIPELINE.md
-backend/README_ADD_INTRINSIC_SCORES.md
-backend/add_intrinsic_scores.py
+
+# Organized files (now in proper directories, but keeping some patterns for safety)
+# Config files that shouldn't be committed
+config/google_vision.json
+config/cleaned_metadata_backup.json
+
+# Backend cache/temporary files
 backend/app/routes/ocr.py
 backend/app/utils/intrinsic_scorer.py
-backend/delete_content_store_chunks.py
-backend/update_content_store_source_type.py
-backend/update_pinecone_source_type.py
-cleaned_metadata_backup.json
-debug_chroma_mmr.py
-delete_chroma_collection.py
-delete_pinecone_chunks.py
-example_use_precleaner.py
-export_chunks.py
-fix_chromadb_collection.py
-google_vision.json
-migrate_chroma_to_pinecone.py
-pinecone_auto_cleaner.py
-run_add_intrinsic_scores.sh
-test_chunking.py
-test_mmr_debug.py
-test_paddleocr.py
 backend/web_cache.json
 
-backend/web_cache.json
+# Documentation (now in docs/, but most should be committed)
+# Only ignore generated/temporary analysis files
+docs/analysis/*.json
 
 web/package-lock.json

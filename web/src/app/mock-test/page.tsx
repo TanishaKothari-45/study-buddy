@@ -563,7 +563,7 @@ export default function MockTestPage() {
                                     <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                                         <div>
                                             <h3 className="text-2xl font-bold text-primary">Performance Summary</h3>
-                                            <p className="text-muted-foreground">Here's how you performed on this test</p>
+                                            <p className="text-muted-foreground">Here is how you performed on this test</p>
                                         </div>
                                         <div className="flex items-center gap-4 bg-background p-4 rounded-xl border shadow-sm">
                                             <div className="text-right">
