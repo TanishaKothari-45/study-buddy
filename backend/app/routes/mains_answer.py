@@ -396,31 +396,82 @@ async def generate_mains_answer(
                 )
         
         try:
-            # Check map service health (non-blocking)
-            logger.info("🔍 [MAINS] Checking map service health...")
-            map_service_healthy = await check_map_service_health()
-            if map_service_healthy:
-                logger.info("✅ [MAINS] Map service is available")
-            else:
-                logger.warning("⚠️  [MAINS] Map service is unavailable - maps will not be generated")
-            
             # Get Pinecone handler
             pinecone_handler = request.app.state.vector_handler
             
             # ============================================================
-            # STEP 2: Pinecone retrieval using FULL question (for better recall)
+            # PARALLEL EXECUTION BLOCK 1: Independent operations
+            # Health Check + Context Retrieval + (Question Parsing + News Fetch)
             # ============================================================
-            logger.info(f"📚 [MAINS] Retrieving context using full question...")
-            context, sources = retrieve_context_for_question(
-                search_query=mains_request.question,  # Use FULL question for Pinecone (better semantic matching)
-                vector_handler=pinecone_handler,
-                mode="mains",
-                use_content_store=True,
-                k=6
+            logger.info("🚀 [MAINS] Starting parallel execution: health + retrieval + parsing + news")
+            
+            # Helper function to combine parsing + news fetch (they depend on each other)
+            async def fetch_news_with_parsing():
+                """Parse question and fetch news in sequence, but run parallel to retrieval"""
+                parsed_topics = {}
+                current_affairs_bullets = []
+                time_range = "3months"
+                
+                try:
+                    # Step 1: Parse question for news search
+                    logger.info(f"🔍 [PARSE] Parsing question for news search...")
+                    parsed_topics = await parse_question_for_search(
+                        question=mains_request.question,
+                        openai_api_key=OPENAI_API_KEY
+                    )
+                    logger.info(f"✅ [PARSE] Parsed: {parsed_topics.get('search_query', '')[:50]}...")
+                    
+                    # Step 2: Fetch news using parsed keywords (check cache first)
+                    if parsed_topics:
+                        cached_news = cache.get_cached_news(parsed_topics, time_range)
+                        
+                        if cached_news:
+                            logger.info(f"🎯 [NEWS CACHE HIT] Using cached news ({len(cached_news)} bullets)")
+                            current_affairs_bullets = cached_news
+                        else:
+                            logger.info(f"🗞️ [NEWS CACHE MISS] Fetching from MCP...")
+                            current_affairs_bullets = await fetch_current_affairs_for_question(
+                                parsed_keywords=parsed_topics,
+                                max_bullets=5,
+                                time_range=time_range
+                            )
+                            logger.info(f"✅ [NEWS] Retrieved {len(current_affairs_bullets)} bullets")
+                            cache.set_cached_news(parsed_topics, current_affairs_bullets, time_range)
+                
+                except Exception as e:
+                    logger.warning(f"⚠️ [PARSE/NEWS] Failed: {e}")
+                
+                return parsed_topics, current_affairs_bullets
+            
+            # Launch all operations in parallel
+            import asyncio
+            
+            map_service_healthy, (context, sources), (parsed_topics, current_affairs_bullets) = await asyncio.gather(
+                # 1. Map service health check (50-100ms)
+                check_map_service_health(),
+                
+                # 2. Context retrieval from Pinecone + SQLite (300-600ms)
+                asyncio.to_thread(
+                    retrieve_context_for_question,
+                    search_query=mains_request.question,
+                    vector_handler=pinecone_handler,
+                    mode="mains",
+                    use_content_store=True,
+                    k=6
+                ),
+                
+                # 3. Question parsing + news fetch bundled (800-2000ms)
+                fetch_news_with_parsing()
             )
             
+            # Log results
+            if map_service_healthy:
+                logger.info("✅ [PARALLEL] Map service is available")
+            else:
+                logger.warning("⚠️ [PARALLEL] Map service is unavailable - maps will not be generated")
+            
             if not context:
-                logger.warning(f"⚠️ [MAINS] No context retrieved")
+                logger.warning(f"⚠️ [PARALLEL] No context retrieved")
                 return MainsAnswerResponse(
                     question=mains_request.question,
                     answer="No relevant information found in the uploaded documents for this question.",
@@ -428,53 +479,9 @@ async def generate_mains_answer(
                     word_count_actual=0
                 )
             
-            logger.info(f"✅ [MAINS] Retrieved context: {len(context)} chars, {len(sources)} sources")
-
-            # ============================================================
-            # STEP 3: Parse question for news search (optimized keywords)
-            # ============================================================
-            parsed_topics = {}
-            logger.info(f"🔍 [MAINS] Parsing question for news search...")
-            try:
-                parsed_topics = await parse_question_for_search(
-                    question=mains_request.question,
-                    openai_api_key=OPENAI_API_KEY
-                )
-                logger.info(f"✅ [MAINS] Parsed for news: {parsed_topics.get('search_query', '')[:50]}...")
-            except Exception as e:
-                logger.warning(f"⚠️ [MAINS] Question parsing failed: {e}")
-                parsed_topics = {}
-
-            # ============================================================
-            # STEP 4: Fetch current affairs using parsed keywords
-            # ============================================================
-            current_affairs_bullets = []
-            time_range = "3months"
-
-            # Check news cache first (using parsed_topics)
-            if parsed_topics:
-                cached_news = cache.get_cached_news(parsed_topics, time_range)
-                
-                if cached_news:
-                    # News cache HIT
-                    logger.info(f"🎯 [NEWS CACHE HIT] Using cached news ({len(cached_news)} bullets)")
-                    current_affairs_bullets = cached_news
-                else:
-                    # News cache MISS - fetch from MCP
-                    logger.info(f"🗞️ [NEWS CACHE MISS] Fetching current affairs from MCP...")
-                    try:
-                        current_affairs_bullets = await fetch_current_affairs_for_question(
-                            parsed_keywords=parsed_topics,
-                            max_bullets=5,
-                            time_range=time_range
-                        )
-                        logger.info(f"✅ [MAINS] Retrieved {len(current_affairs_bullets)} current affairs bullets")
-                        
-                        # Cache the news bullets
-                        cache.set_cached_news(parsed_topics, current_affairs_bullets, time_range)
-                    except Exception as e:
-                        logger.warning(f"⚠️ [MAINS] Current affairs fetch failed: {e}")
-                        current_affairs_bullets = []
+            logger.info(f"✅ [PARALLEL] Context: {len(context)} chars, {len(sources)} sources")
+            logger.info(f"✅ [PARALLEL] News: {len(current_affairs_bullets)} bullets")
+            logger.info("🎯 [PARALLEL] All operations completed in parallel!")
             
             # Append current affairs to context (additive, not replacing)
             if current_affairs_bullets:

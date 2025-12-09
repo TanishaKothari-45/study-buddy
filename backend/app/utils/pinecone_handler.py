@@ -225,27 +225,29 @@ class ContentStoreRetriever(BaseRetriever):
             logger.warning("⚠️ [ContentStoreRetriever] Content store disabled - returning Pinecone preview content only")
             return docs
         
-        # STEP 3: Enrich each document with full content from SQLite
-        logger.info(f"💾 [ContentStoreRetriever] Step 2: Enriching {len(docs)} docs from SQLite content store...")
-        enriched_docs = []
-        sqlite_success = 0
-        sqlite_failed = 0
-        preview_used = 0
+        # STEP 3: Enrich documents with full content from SQLite (PARALLEL for k=20 support)
+        logger.info(f"💾 [ContentStoreRetriever] Step 2: Enriching {len(docs)} docs from SQLite (parallel reads)...")
         
-        for i, doc in enumerate(docs, 1):
+        # Import concurrent.futures and time for parallel execution and metrics
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import time
+        
+        # Start timing SQLite enrichment
+        sqlite_start = time.perf_counter()
+        
+        # Helper function to fetch single chunk from SQLite
+        def fetch_single_chunk(doc):
+            """Fetch full content for a single document (runs in thread pool)"""
+            chunk_start = time.perf_counter()
             meta = doc.metadata
             chunk_id = meta.get("chunk_id")
             filename = meta.get("filename")
             chapter = meta.get("chapter")
             
-            logger.debug(f"   [{i}/{len(docs)}] Looking up chunk_id={chunk_id}, filename={filename}, chapter={chapter}")
-            
-            # Step 4: Hydrate from SQLite
             full_content = None
             if chunk_id and filename:
                 try:
-                    # Try exact chunk_id first (handles split chunks like "1_1_1_split1")
-                    logger.debug(f"      → Querying SQLite for exact chunk_id: {chunk_id}")
+                    # Try exact chunk_id first
                     full_content = self.content_store.get_chunk(
                         chunk_id=chunk_id, filename=filename, chapter=chapter
                     )
@@ -253,20 +255,54 @@ class ContentStoreRetriever(BaseRetriever):
                     # If not found and chunk_id has split suffix, try base chunk_id
                     if not full_content and '_split' in chunk_id:
                         base_chunk_id = chunk_id.rsplit('_split', 1)[0]
-                        logger.debug(f"      → Split chunk not found, trying base chunk_id: {base_chunk_id}")
                         full_content = self.content_store.get_chunk(
                             chunk_id=base_chunk_id, filename=filename, chapter=chapter
                         )
-                    
-                    if full_content:
-                        logger.debug(f"      ✅ Found in SQLite: {len(full_content)} chars")
-                    else:
-                        logger.debug(f"      ⚠️ Not found in SQLite")
                 except Exception as e:
-                    logger.warning(f"      ❌ SQLite lookup failed for {chunk_id}: {e}")
-                    sqlite_failed += 1
+                    logger.warning(f"SQLite lookup failed for {chunk_id}: {e}")
             
-            # Step 5: Replace preview with full text if available
+            chunk_time = (time.perf_counter() - chunk_start) * 1000  # Convert to ms
+            return full_content, chunk_time
+        
+        # Fetch all chunks in parallel using thread pool
+        # WAL mode supports unlimited concurrent readers - no need to batch
+        # For k=20: Sequential would be 20×20ms=400ms, Parallel is max(20ms)=20ms
+        with ThreadPoolExecutor() as executor:
+            # Submit all fetch tasks
+            future_to_doc = {executor.submit(fetch_single_chunk, doc): doc for doc in docs}
+            
+            # Collect results in original order
+            results = []
+            for doc in docs:
+                for future, future_doc in future_to_doc.items():
+                    if future_doc is doc:
+                        results.append(future.result())
+                        break
+        
+        # Unpack results and timing
+        full_contents = [content for content, _ in results]
+        chunk_times = [chunk_time for _, chunk_time in results]
+        
+        # Calculate timing metrics
+        sqlite_total_time = (time.perf_counter() - sqlite_start) * 1000  # ms
+        avg_chunk_time = sum(chunk_times) / len(chunk_times) if chunk_times else 0
+        max_chunk_time = max(chunk_times) if chunk_times else 0
+        min_chunk_time = min(chunk_times) if chunk_times else 0
+        
+        # Sequential time would be sum of all chunk times
+        sequential_time_estimate = sum(chunk_times)
+        time_saved = sequential_time_estimate - sqlite_total_time
+        
+        # Now enrich documents with fetched content
+        enriched_docs = []
+        sqlite_success = 0
+        sqlite_failed = 0
+        preview_used = 0
+        
+        for i, (doc, full_content) in enumerate(zip(docs, full_contents), 1):
+            meta = doc.metadata
+            
+            # Replace preview with full text if available
             preview_length = len(doc.page_content.strip()) if doc.page_content else 0
             if full_content and len(full_content.strip()) > preview_length:
                 # Full content is longer than preview, replace it
@@ -275,15 +311,16 @@ class ContentStoreRetriever(BaseRetriever):
                 object.__setattr__(doc, 'text', full_content)
                 meta["_content_source"] = "content_store"
                 sqlite_success += 1
-                logger.debug(f"      ✅ Enriched: {preview_length} → {len(full_content)} chars (from SQLite)")
+                logger.debug(f"[{i}/{len(docs)}] ✅ Enriched: {preview_length} → {len(full_content)} chars")
             else:
                 # Use preview content (either no full content found, or preview is same/longer)
                 meta["_content_source"] = "content_preview"
                 preview_used += 1
                 if full_content:
-                    logger.debug(f"      ⚠️ Keeping preview (full content {len(full_content)} <= preview {preview_length})")
+                    logger.debug(f"[{i}/{len(docs)}] ⚠️ Keeping preview (full {len(full_content)} <= preview {preview_length})")
                 else:
-                    logger.debug(f"      ⚠️ Using preview (not found in SQLite)")
+                    logger.debug(f"[{i}/{len(docs)}] ⚠️ Using preview (not in SQLite)")
+                    sqlite_failed += 1
             
             enriched_docs.append(doc)
         
@@ -292,8 +329,27 @@ class ContentStoreRetriever(BaseRetriever):
         logger.info(f"   • Enriched from SQLite: {sqlite_success}")
         logger.info(f"   • Using Pinecone preview: {preview_used}")
         logger.info(f"   • SQLite lookup failed: {sqlite_failed}")
+        logger.info(f"⏱️  [PERFORMANCE METRICS - SQLite Reads]:")
+        logger.info(f"   • Total time (parallel): {sqlite_total_time:.1f}ms")
+        logger.info(f"   • Per-chunk time: avg={avg_chunk_time:.1f}ms, min={min_chunk_time:.1f}ms, max={max_chunk_time:.1f}ms")
+        logger.info(f"   • Sequential would take: {sequential_time_estimate:.1f}ms")
+        logger.info(f"   • ⚡ TIME SAVED: {time_saved:.1f}ms ({(time_saved/sequential_time_estimate*100) if sequential_time_estimate > 0 else 0:.0f}% faster)")
         
         return enriched_docs
+    
+    def get_relevant_documents(self, query: str, *, run_manager: Optional[Any] = None) -> List[Document]:
+        """
+        LangChain BaseRetriever method - retrieve relevant documents.
+        This is the standard method that LangChain expects.
+        
+        Args:
+            query: Query string
+            run_manager: Optional callback manager
+            
+        Returns:
+            List of Document objects with full content from content store
+        """
+        return self._get_relevant_documents(query)
     
     def invoke(self, input: str, config: Optional[Any] = None, **kwargs) -> List[Document]:
         """
