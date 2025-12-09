@@ -109,6 +109,7 @@ async def generate_map_from_json(map_data: Dict[str, Any]) -> str:
 async def parse_and_generate_maps(content: str) -> str:
     """
     Find map-json blocks in content and replace with generated maps.
+    ALL maps are generated in PARALLEL for better performance.
     
     Args:
         content: Markdown content with potential map-json blocks
@@ -116,6 +117,9 @@ async def parse_and_generate_maps(content: str) -> str:
     Returns:
         Content with map-json blocks replaced by SVG images
     """
+    import asyncio
+    import time
+    
     logger.info("🔍 Parsing content for map-json blocks")
     
     # Pattern to match map-json code blocks
@@ -129,47 +133,71 @@ async def parse_and_generate_maps(content: str) -> str:
     
     logger.info(f"📍 Found {len(matches)} map-json block(s)")
     
-    # Process matches in reverse order to preserve indices
-    for i, match in enumerate(reversed(matches), 1):
+    # Start timing for performance metrics
+    parallel_start = time.perf_counter()
+    
+    # Helper function to process a single map block
+    async def process_single_map(match, index):
+        """Process a single map block and return (match, result, time)"""
+        map_start = time.perf_counter()
         try:
             map_json_str = match.group(1)
-            logger.debug(f"Processing map block {i}/{len(matches)}")
+            logger.debug(f"Processing map block {index}/{len(matches)}")
             
             # Parse JSON
             try:
                 map_data = json.loads(map_json_str)
-                # Log the map data to debug region issues
-                logger.info(f"📋 Map JSON block {i}: region='{map_data.get('region')}', title='{map_data.get('title')}'")
+                logger.info(f"📋 Map JSON block {index}: region='{map_data.get('region')}', title='{map_data.get('title')}'")
                 logger.debug(f"Full map JSON: {json.dumps(map_data, indent=2)}")
             except json.JSONDecodeError as e:
-                logger.error(f"❌ Invalid JSON in map block {i}: {str(e)}")
-                logger.debug(f"Invalid JSON: {map_json_str[:200]}...")
-                # Replace with error message
-                content = content[:match.start()] + \
-                         f"\n\n**[Invalid map JSON: {str(e)}]**\n\n" + \
-                         content[match.end():]
-                continue
+                logger.error(f"❌ Invalid JSON in map block {index}: {str(e)}")
+                map_time = (time.perf_counter() - map_start) * 1000
+                return (match, f"\n\n**[Invalid map JSON: {str(e)}]**\n\n", map_time, False)
             
             # Validate map data
             if not isinstance(map_data, dict) or map_data.get('type') != 'map':
-                logger.warning(f"⚠️  Map block {i} missing 'type': 'map'")
+                logger.warning(f"⚠️  Map block {index} missing 'type': 'map'")
             
             # Generate map
             map_markdown = await generate_map_from_json(map_data)
+            map_time = (time.perf_counter() - map_start) * 1000
             
-            # Replace the map-json block with the generated map
-            content = content[:match.start()] + map_markdown + content[match.end():]
-            
-            logger.info(f"✅ Replaced map block {i}/{len(matches)}")
+            logger.info(f"✅ Map block {index} processed in {map_time:.1f}ms")
+            return (match, map_markdown, map_time, True)
             
         except Exception as e:
-            logger.error(f"❌ Error processing map block {i}: {str(e)}", exc_info=True)
-            # Replace with error message
-            content = content[:match.start()] + \
-                     f"\n\n**[Map processing error: {str(e)}]**\n\n" + \
-                     content[match.end():]
+            logger.error(f"❌ Error processing map block {index}: {str(e)}", exc_info=True)
+            map_time = (time.perf_counter() - map_start) * 1000
+            return (match, f"\n\n**[Map processing error: {str(e)}]**\n\n", map_time, False)
     
-    logger.info(f"✅ Completed map processing: {len(matches)} block(s) processed")
+    # Process ALL maps in parallel
+    logger.info(f"⚡ Processing {len(matches)} map(s) in PARALLEL...")
+    map_tasks = [process_single_map(match, i) for i, match in enumerate(reversed(matches), 1)]
+    results = await asyncio.gather(*map_tasks)
+    
+    # Calculate timing metrics
+    parallel_total_time = (time.perf_counter() - parallel_start) * 1000
+    map_times = [result[2] for result in results]
+    sequential_estimate = sum(map_times)
+    time_saved = sequential_estimate - parallel_total_time
+    successful_maps = sum(1 for result in results if result[3])
+    
+    # Log performance metrics
+    logger.info(f"⏱️  [PERFORMANCE METRICS - Map Generation]:")
+    logger.info(f"   • Total maps: {len(matches)}")
+    logger.info(f"   • Successful: {successful_maps}, Failed: {len(matches) - successful_maps}")
+    logger.info(f"   • Per-map time: avg={sum(map_times)/len(map_times):.1f}ms, min={min(map_times):.1f}ms, max={max(map_times):.1f}ms")
+    logger.info(f"   • Total parallel time: {parallel_total_time:.1f}ms")
+    logger.info(f"   • Sequential would take: {sequential_estimate:.1f}ms")
+    if len(matches) > 1:
+        logger.info(f"   • ⚡ TIME SAVED: {time_saved:.1f}ms ({(time_saved/sequential_estimate*100):.0f}% faster)")
+    
+    # Replace map blocks with generated maps (in reverse order to preserve indices)
+    for match, map_markdown, _, _ in results:
+        # Replace the map-json block with the generated map
+        content = content[:match.start()] + map_markdown + content[match.end():]
+    
+    logger.info(f"✅ Completed map processing: {len(matches)} block(s) processed in parallel")
     return content
 
 

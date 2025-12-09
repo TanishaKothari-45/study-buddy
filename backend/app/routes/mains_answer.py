@@ -237,7 +237,7 @@ async def generate_answer(
     answer_text = enforce_diagrams(answer_text, required=1)
     # answer_text = enforce_word_count(answer_text, target=word_count)
     
-    # 4) Process map-json blocks (if any)
+    # 4) Process map-json blocks in parallel (if any)
     logger.info("🗺️  Checking for map-json blocks in answer...")
     try:
         answer_text = await parse_and_generate_maps(answer_text)
@@ -405,28 +405,40 @@ async def generate_mains_answer(
             # ============================================================
             logger.info("🚀 [MAINS] Starting parallel execution: health + retrieval + parsing + news")
             
+            # Import timing utilities
+            import asyncio
+            import time
+            
+            # Start overall timing
+            parallel_start = time.perf_counter()
+            
             # Helper function to combine parsing + news fetch (they depend on each other)
             async def fetch_news_with_parsing():
                 """Parse question and fetch news in sequence, but run parallel to retrieval"""
+                task_start = time.perf_counter()
                 parsed_topics = {}
                 current_affairs_bullets = []
                 time_range = "3months"
                 
                 try:
                     # Step 1: Parse question for news search
+                    parse_start = time.perf_counter()
                     logger.info(f"🔍 [PARSE] Parsing question for news search...")
                     parsed_topics = await parse_question_for_search(
                         question=mains_request.question,
                         openai_api_key=OPENAI_API_KEY
                     )
-                    logger.info(f"✅ [PARSE] Parsed: {parsed_topics.get('search_query', '')[:50]}...")
+                    parse_time = (time.perf_counter() - parse_start) * 1000
+                    logger.info(f"✅ [PARSE] Parsed: {parsed_topics.get('search_query', '')[:50]}... ({parse_time:.1f}ms)")
                     
                     # Step 2: Fetch news using parsed keywords (check cache first)
                     if parsed_topics:
+                        news_start = time.perf_counter()
                         cached_news = cache.get_cached_news(parsed_topics, time_range)
                         
                         if cached_news:
-                            logger.info(f"🎯 [NEWS CACHE HIT] Using cached news ({len(cached_news)} bullets)")
+                            news_time = (time.perf_counter() - news_start) * 1000
+                            logger.info(f"🎯 [NEWS CACHE HIT] Using cached news ({len(cached_news)} bullets, {news_time:.1f}ms)")
                             current_affairs_bullets = cached_news
                         else:
                             logger.info(f"🗞️ [NEWS CACHE MISS] Fetching from MCP...")
@@ -435,34 +447,69 @@ async def generate_mains_answer(
                                 max_bullets=5,
                                 time_range=time_range
                             )
-                            logger.info(f"✅ [NEWS] Retrieved {len(current_affairs_bullets)} bullets")
+                            news_time = (time.perf_counter() - news_start) * 1000
+                            logger.info(f"✅ [NEWS] Retrieved {len(current_affairs_bullets)} bullets ({news_time:.1f}ms)")
                             cache.set_cached_news(parsed_topics, current_affairs_bullets, time_range)
                 
                 except Exception as e:
                     logger.warning(f"⚠️ [PARSE/NEWS] Failed: {e}")
                 
-                return parsed_topics, current_affairs_bullets
+                task_time = (time.perf_counter() - task_start) * 1000
+                return parsed_topics, current_affairs_bullets, task_time
             
-            # Launch all operations in parallel
-            import asyncio
-            
-            map_service_healthy, (context, sources), (parsed_topics, current_affairs_bullets) = await asyncio.gather(
-                # 1. Map service health check (50-100ms)
-                check_map_service_health(),
-                
-                # 2. Context retrieval from Pinecone + SQLite (300-600ms)
-                asyncio.to_thread(
+            # Helper to time retrieval
+            async def timed_retrieval():
+                """Time the context retrieval operation"""
+                task_start = time.perf_counter()
+                result = await asyncio.to_thread(
                     retrieve_context_for_question,
                     search_query=mains_request.question,
                     vector_handler=pinecone_handler,
                     mode="mains",
                     use_content_store=True,
                     k=6
-                ),
+                )
+                task_time = (time.perf_counter() - task_start) * 1000
+                return result[0], result[1], task_time  # context, sources, time
+            
+            # Helper to time health check
+            async def timed_health_check():
+                """Time the map service health check"""
+                task_start = time.perf_counter()
+                result = await check_map_service_health()
+                task_time = (time.perf_counter() - task_start) * 1000
+                return result, task_time
+            
+            # Launch all operations in parallel
+            results = await asyncio.gather(
+                # 1. Map service health check (50-100ms)
+                timed_health_check(),
+                
+                # 2. Context retrieval from Pinecone + SQLite (300-600ms)
+                timed_retrieval(),
                 
                 # 3. Question parsing + news fetch bundled (800-2000ms)
                 fetch_news_with_parsing()
             )
+            
+            # Unpack results with timing
+            (map_service_healthy, health_time) = results[0]
+            (context, sources, retrieval_time) = results[1]
+            (parsed_topics, current_affairs_bullets, parse_news_time) = results[2]
+            
+            # Calculate total parallel time and metrics
+            parallel_total_time = (time.perf_counter() - parallel_start) * 1000
+            sequential_estimate = health_time + retrieval_time + parse_news_time
+            time_saved = sequential_estimate - parallel_total_time
+            
+            # Log performance metrics
+            logger.info("⏱️  [PERFORMANCE METRICS - Parallel Execution]:")
+            logger.info(f"   • Health check: {health_time:.1f}ms")
+            logger.info(f"   • Context retrieval (Pinecone + SQLite): {retrieval_time:.1f}ms")
+            logger.info(f"   • Question parsing + news fetch: {parse_news_time:.1f}ms")
+            logger.info(f"   • Total parallel time: {parallel_total_time:.1f}ms")
+            logger.info(f"   • Sequential would take: {sequential_estimate:.1f}ms")
+            logger.info(f"   • ⚡ TIME SAVED: {time_saved:.1f}ms ({(time_saved/sequential_estimate*100) if sequential_estimate > 0 else 0:.0f}% faster)")
             
             # Log results
             if map_service_healthy:
