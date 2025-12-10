@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, PenTool, BookOpen, FileText, CheckCircle, AlertCircle, ChevronDown, Minimize2, RefreshCw, History, X } from "lucide-react";
+import { Loader2, PenTool, BookOpen, FileText, CheckCircle, AlertCircle, ChevronDown, Minimize2, RefreshCw, History } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
@@ -35,21 +35,31 @@ export default function MainsAnswerPage() {
     const [showCompressed, setShowCompressed] = useState(true); // Compressed answer accordion
     const [showOriginal, setShowOriginal] = useState(false); // Original answer accordion
     const [historyOpen, setHistoryOpen] = useState(false); // History dropdown
-    const [selectedHistoryItem, setSelectedHistoryItem] = useState<{
-        question: string;
-        answer: string;
-        compressed_answer: string | null;
-        word_count_actual: number;
-    } | null>(null); // Selected history item for modal
 
     // Abort controller for cancellation
     const [abortController, setAbortController] = useState<AbortController | null>(null);
 
-    // Persisted state from store (question, wordCount, result, and history)
-    const { question, wordCount, result, history, setQuestion, setWordCount, setResult, addToHistory, clear } = useMainsAnswerStore();
+    // Persist state from store
+    const {
+        question,
+        wordCount,
+        result,
+        history,
+        isLoadingHistory,
+        setQuestion,
+        setWordCount,
+        setResult,
+        fetchHistory,
+        clear
+    } = useMainsAnswerStore();
 
-    const handleGenerate = async (e: React.FormEvent) => {
-        e.preventDefault();
+    // Fetch history on mount
+    useEffect(() => {
+        fetchHistory();
+    }, [fetchHistory]);
+
+    const handleGenerate = async (e?: React.FormEvent) => {
+        e?.preventDefault(); // Optional event for manual calls
         if (!question.trim()) return;
 
         // Create new abort controller
@@ -76,8 +86,8 @@ export default function MainsAnswerPage() {
                 word_count_compressed: data.word_count_compressed ?? null,
             };
 
-            setResult(normalizedData); // Save to store - persists across tab switches
-            addToHistory(normalizedData); // Add to history
+            setResult(normalizedData); // Save to store
+            fetchHistory(); // Refresh history list after new generation
         } catch (err) {
             // Ignore abort errors (user cancelled)
             if (err instanceof Error && err.name === 'AbortError') {
@@ -105,36 +115,21 @@ export default function MainsAnswerPage() {
         }
     };
 
+    const handleHistoryClick = (item: any) => {
+        // Load history item into form and regenerate (fetches from cache)
+        setQuestion(item.question);
+        setWordCount(item.word_count?.toString() || "250");
+        setHistoryOpen(false);
+
+        // Trigger generation (needs timeout to allow state updates to propagate if batched)
+        // Using setTimeout(..., 0) pushes it to end of event loop
+        setTimeout(() => {
+            handleGenerate();
+        }, 0);
+    };
+
     return (
         <>
-            {/* History Modal - Rendered at top level for proper z-index */}
-            {selectedHistoryItem && (
-                <div className="fixed inset-0 bg-black/80 z-[9999] flex items-start justify-center p-8 pt-16 overflow-y-auto" onClick={() => setSelectedHistoryItem(null)}>
-                    <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
-                        {/* Modal Header */}
-                        <div className="bg-white dark:bg-zinc-900 border-b p-6 rounded-t-xl">
-                            <div className="flex items-start justify-between gap-4">
-                                <h2 className="font-semibold text-lg text-gray-900 dark:text-gray-100 pr-8">{selectedHistoryItem.question}</h2>
-                                <Button variant="outline" size="sm" onClick={() => setSelectedHistoryItem(null)} className="shrink-0">
-                                    <X className="h-4 w-4" />
-                                </Button>
-                            </div>
-                        </div>
-                        {/* Modal Body */}
-                        <div className="p-6 bg-white dark:bg-zinc-900 rounded-b-xl">
-                            <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-p:text-gray-700 dark:prose-p:text-gray-300">
-                                <ReactMarkdown
-                                    remarkPlugins={[remarkGfm]}
-                                    components={markdownComponents}
-                                    urlTransform={urlTransform}
-                                >
-                                    {selectedHistoryItem.compressed_answer || selectedHistoryItem.answer}
-                                </ReactMarkdown>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
             <div className="p-8 max-w-5xl mx-auto space-y-8">
                 {/* API Key Banner */}
                 <ApiKeyBanner showBanner={showBanner} onKeySet={() => { setShowBanner(false); setError(null); }} />
@@ -168,28 +163,29 @@ export default function MainsAnswerPage() {
                                 size="sm"
                                 onClick={() => setHistoryOpen(!historyOpen)}
                                 className="flex items-center gap-2"
-                                disabled={history.length === 0}
+                                disabled={history.length === 0 && !isLoadingHistory}
                             >
-                                <History className="h-4 w-4" />
+                                {isLoadingHistory ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <History className="h-4 w-4" />
+                                )}
                                 History {history.length > 0 && `(${history.length})`}
                             </Button>
                             {historyOpen && history.length > 0 && (
                                 <div className="absolute right-0 top-full mt-2 w-96 rounded-lg shadow-2xl z-50 max-h-96 overflow-y-auto border-2 bg-white dark:bg-zinc-900">
                                     <div className="p-3 border-b font-semibold text-sm bg-gray-50 dark:bg-zinc-800 rounded-t-lg">
-                                        Previous Answers
+                                        Previous Answers (Redises)
                                     </div>
                                     {history.map((item) => (
                                         <button
                                             key={item.id}
-                                            onClick={() => {
-                                                setSelectedHistoryItem(item);
-                                                setHistoryOpen(false);
-                                            }}
+                                            onClick={() => handleHistoryClick(item)}
                                             className="w-full text-left p-4 hover:bg-gray-100 dark:hover:bg-zinc-800 border-b last:border-b-0 transition-colors bg-white dark:bg-zinc-900"
                                         >
                                             <p className="text-sm font-medium line-clamp-2 text-gray-900 dark:text-gray-100">{item.question}</p>
                                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                {item.word_count_compressed || item.word_count_actual} words • {new Date(item.timestamp).toLocaleDateString()}
+                                                {item.word_count || "250"} words • {new Date(item.timestamp).toLocaleDateString()}
                                             </p>
                                         </button>
                                     ))}

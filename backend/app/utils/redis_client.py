@@ -164,6 +164,38 @@ class RedisClient:
         self.pool.disconnect()
         logger.info("Redis connection pool closed")
 
+    # ============================================================
+    # LIST OPERATIONS & PIPELINE
+    # ============================================================
+    
+    def pipeline(self, transaction: bool = True, shard_hint: str = None):
+        """Get a pipeline object"""
+        return self.client.pipeline(transaction=transaction, shard_hint=shard_hint)
+        
+    def lpush(self, key: str, *values: str) -> Optional[int]:
+        """Prepend values to list"""
+        try:
+            return self.client.lpush(key, *values)
+        except redis.RedisError as e:
+            logger.error(f"Redis LPUSH error for key '{key}': {e}")
+            return None
+            
+    def ltrim(self, key: str, start: int, end: int) -> bool:
+        """Trim list to range"""
+        try:
+            return self.client.ltrim(key, start, end)
+        except redis.RedisError as e:
+            logger.error(f"Redis LTRIM error for key '{key}': {e}")
+            return False
+            
+    def lrange(self, key: str, start: int, end: int) -> list:
+        """Get range of elements from list"""
+        try:
+            return self.client.lrange(key, start, end)
+        except redis.RedisError as e:
+            logger.error(f"Redis LRANGE error for key '{key}': {e}")
+            return []
+
 
 # Global singleton instance
 _redis_client: Optional[RedisClient] = None

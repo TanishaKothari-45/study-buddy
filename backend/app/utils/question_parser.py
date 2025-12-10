@@ -42,9 +42,7 @@ class ParsedQuestion(BaseModel):
         description="Core subject combined with specific entity/demographic (2-4 words). Examples: 'tribal agriculture', 'coastal flooding', 'urban migration'"
     )
     sub_topics: list[str] = Field(
-        description="2-5 meaningful phrases ranked by importance (1-3 words each). Priority: Geography > Qualifiers > Related concepts",
-        min_items=0,
-        max_items=5
+        description="2-5 meaningful phrases ranked by importance (1-3 words each). Priority: Geography > Qualifiers > Related concepts"
     )
     search_query: str = Field(
         description="Combined main_topic + sub_topics (space-separated, optimized for vector search)"

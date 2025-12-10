@@ -1,15 +1,14 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
 import { MainsAnswerResponse } from '../types';
+import api from '../../lib/apiClient';
 
 // History item for previous Q&As
 interface HistoryItem {
     id: string;
     question: string;
-    answer: string;
-    compressed_answer: string | null;
-    word_count_actual: number;
-    word_count_compressed: number | null;
+    preview?: string; // Short preview provided by backend
+    word_count?: number;
     timestamp: string;
 }
 
@@ -19,15 +18,13 @@ interface MainsAnswerState {
     wordCount: string;
     result: MainsAnswerResponse | null;
     history: HistoryItem[];
+    isLoadingHistory: boolean;
     setQuestion: (question: string) => void;
     setWordCount: (wordCount: string) => void;
     setResult: (result: MainsAnswerResponse | null) => void;
-    addToHistory: (result: MainsAnswerResponse) => void;
-    clearHistory: () => void;
+    fetchHistory: () => Promise<void>;
     clear: () => void;
 }
-
-const MAX_HISTORY = 10;
 
 export const useMainsAnswerStore = create<MainsAnswerState>()(
     devtools(
@@ -37,31 +34,33 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                 wordCount: '250',
                 result: null,
                 history: [],
+                isLoadingHistory: false,
                 setQuestion: (question) => set({ question }),
                 setWordCount: (wordCount) => set({ wordCount }),
                 setResult: (result) => set({ result }),
-                addToHistory: (result) => {
-                    const newItem: HistoryItem = {
-                        id: Date.now().toString(),
-                        question: result.question,
-                        answer: result.answer,
-                        compressed_answer: result.compressed_answer,
-                        word_count_actual: result.word_count_actual,
-                        word_count_compressed: result.word_count_compressed,
-                        timestamp: new Date().toISOString(),
-                    };
-                    const currentHistory = get().history;
-                    // Add to front, keep max 10
-                    const updatedHistory = [newItem, ...currentHistory].slice(0, MAX_HISTORY);
-                    set({ history: updatedHistory });
+                fetchHistory: async () => {
+                    set({ isLoadingHistory: true });
+                    try {
+                        const data = await api.get<{ history: HistoryItem[] }>('/mains-answer/history');
+                        set({ history: data.history || [] });
+                    } catch (error) {
+                        console.error("Failed to fetch history:", error);
+                    } finally {
+                        set({ isLoadingHistory: false });
+                    }
                 },
-                clearHistory: () => set({ history: [] }),
                 clear: () => set({ question: '', wordCount: '250', result: null }),
             }),
             {
                 name: 'geography-mains-answer-storage',
                 storage: createJSONStorage(() => localStorage),
-                version: 3, // Bump version for history migration
+                version: 5, // Bump version
+                partialize: (state) => ({
+                    // Persist everything EXCEPT history
+                    question: state.question,
+                    wordCount: state.wordCount,
+                    result: state.result
+                }),
             }
         ),
         { name: 'MainsAnswerStore' }

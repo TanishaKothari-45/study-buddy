@@ -583,6 +583,17 @@ async def generate_mains_answer(
                 sources=sources,
                 model_version=model_version
             )
+
+            # ============================================================
+            # STEP 8: Add to User History (Redis List)
+            # ============================================================
+            user_id = str(current_user.id) if current_user.id else current_user.email
+            cache.add_user_history(
+                user_id=user_id,
+                question=mains_request.question,
+                word_count=mains_request.word_count,
+                answer_preview=answer
+            )
             
             return MainsAnswerResponse(
                 question=mains_request.question,
@@ -608,6 +619,25 @@ async def generate_mains_answer(
         # Clean error message for user display
         clean_msg = clean_gemini_error(error_msg)
         raise HTTPException(status_code=500, detail=clean_msg)
+
+@router.get("/history")
+async def get_mains_answer_history(
+    limit: int = 20,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get user's history of mains answers from Redis.
+    Returns list of {question, timestamp, word_count, id}.
+    """
+    try:
+        cache = get_cache_manager()
+        user_id = str(current_user.id) if current_user.id else current_user.email
+        
+        history = cache.get_user_history(user_id, limit=limit)
+        return {"history": history}
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch history: {e}")
+        return {"history": []}
 
 # Quick test function
 if __name__ == "__main__":
