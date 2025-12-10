@@ -263,6 +263,19 @@ class MainsAnswerResponse(BaseModel):
     word_count_actual: int
     word_count_compressed: Optional[int] = None  # Compressed word count
 
+# Helper for connection check
+async def check_connection(request: Request):
+    """
+    Check if client is still connected.
+    If disconnected, raise exception to stop processing.
+    """
+    if await request.is_disconnected():
+        logger.warning("⚠️ [CANCEL] Client disconnected, stopping generation")
+        raise HTTPException(
+            status_code=499, # Client Closed Request
+            detail="Client closed request"
+        )
+
 @router.post("/generate")
 @limiter.limit("20/hour")  # Rate limit: 20 requests per hour per IP
 async def generate_mains_answer(
@@ -306,41 +319,43 @@ async def generate_mains_answer(
         # ============================================================
         # STEP 1: Check answer cache (exact match)
         # ============================================================
-        # cached_answer_data = cache.get_cached_answer(
-        #     question=mains_request.question,
-        #     word_count=mains_request.word_count,
-        #     model_version=model_version
-        # )
         
-        # if cached_answer_data:
-        #     # Cache HIT - but still need to compress if overlong
-        #     logger.info("🎯 [CACHE HIT] Returning cached answer")
-        #     cached_answer = cached_answer_data["answer"]
-        #     word_count_actual = count_words_excluding_visuals(cached_answer)
+        cached_answer_data = cache.get_cached_answer(mains_request.question, mains_request.word_count, model_version)
+        
+        if cached_answer_data:
+            # Cache HIT
+            logger.info("⚡ [CACHE HIT] Returning cached answer")
+            cached_answer = cached_answer_data["answer"]
+            word_count_actual = cached_answer_data.get("word_count_actual") or count_words_excluding_visuals(cached_answer)
             
-        #     # Compress using existing gemini_client (already initialized with user's API key)
-        #     compressed_answer = None
-        #     word_count_compressed = None
+            # Check for compressed version in cache or generate it
+            compressed_answer = cached_answer_data.get("compressed_answer")
+            word_count_compressed = cached_answer_data.get("word_count_compressed")
             
-        #     compressed = await compress_answer(
-        #         original_answer=cached_answer,
-        #         target_word_count=mains_request.word_count,
-        #         gemini_client=gemini_client,
-        #         threshold_ratio=1.4
-        #     )
-        #     if compressed:
-        #         compressed_answer = compressed
-        #         word_count_compressed = count_words_excluding_visuals(compressed)
-        #         logger.info(f"🗜️ [CACHE] Compressed cached answer: {word_count_actual} -> {word_count_compressed}")
-            
-        #     return MainsAnswerResponse(
-        #         question=cached_answer_data["question"],
-        #         answer=cached_answer,
-        #         compressed_answer=compressed_answer,
-        #         sources=cached_answer_data["sources"],
-        #         word_count_actual=word_count_actual,
-        #         word_count_compressed=word_count_compressed
-        #     )
+            # If not compressed but needs it, try to compress (optional self-healing)
+            if not compressed_answer and word_count_actual > mains_request.word_count * 1.4:
+                try:
+                     logger.info("🗜️ [CACHE] Compressing cached answer...")
+                     compressed = await compress_answer(
+                        original_answer=cached_answer,
+                        target_word_count=mains_request.word_count,
+                        gemini_client=gemini_client,
+                        threshold_ratio=1.4
+                    )
+                     if compressed:
+                        compressed_answer = compressed
+                        word_count_compressed = count_words_excluding_visuals(compressed)
+                except Exception as e:
+                    logger.warning(f"⚠️ [CACHE] Compression failed: {e}")
+
+            return MainsAnswerResponse(
+                question=cached_answer_data["question"],
+                answer=cached_answer,
+                compressed_answer=compressed_answer,
+                sources=cached_answer_data["sources"],
+                word_count_actual=word_count_actual,
+                word_count_compressed=word_count_compressed
+            )
         
         # Cache MISS - proceed with generation
         logger.info("⚡ [CACHE MISS] Generating new answer")
@@ -353,42 +368,28 @@ async def generate_mains_answer(
             # Another request is generating this answer - wait briefly and retry cache
             logger.info("⏳ [LOCK] Another request is generating this answer, waiting...")
             import asyncio
-            await asyncio.sleep(2)
-            
-            # Retry cache lookup
-            cached_answer_data = cache.get_cached_answer(
-                question=mains_request.question,
-                word_count=mains_request.word_count,
-                model_version=model_version
-            )
-            
-            if cached_answer_data:
-                logger.info("🎯 [CACHE HIT] Found answer after waiting for lock")
-                cached_answer = cached_answer_data["answer"]
-                word_count_actual = count_words_excluding_visuals(cached_answer)
+            for _ in range(5): # Wait up to 5 seconds
+                if await request.is_disconnected():
+                     logger.warning("⚠️ [CANCEL] Client disconnected while waiting for lock")
+                     return # Just return, don't raise
+                await asyncio.sleep(1)
                 
-                # Compress using existing gemini_client
-                compressed_answer = None
-                word_count_compressed = None
-                
-                compressed = await compress_answer(
-                    original_answer=cached_answer,
-                    target_word_count=mains_request.word_count,
-                    gemini_client=gemini_client,
-                    threshold_ratio=1.4
+            # After waiting, try cache again
+            retry_cache = cache.get_cached_answer(mains_request.question, mains_request.word_count, model_version)
+            if retry_cache:
+                 logger.info("⚡ [LOCK] Retrieved answer after wait")
+                 return MainsAnswerResponse(
+                    question=retry_cache["question"],
+                    answer=retry_cache["answer"],
+                    compressed_answer=retry_cache.get("compressed_answer"),
+                    sources=retry_cache["sources"],
+                    word_count_actual=retry_cache.get("word_count_actual", 0),
+                    word_count_compressed=retry_cache.get("word_count_compressed")
                 )
-                if compressed:
-                    compressed_answer = compressed
-                    word_count_compressed = count_words_excluding_visuals(compressed)
-                
-                return MainsAnswerResponse(
-                    question=cached_answer_data["question"],
-                    answer=cached_answer,
-                    compressed_answer=compressed_answer,
-                    sources=cached_answer_data["sources"],
-                    word_count_actual=word_count_actual,
-                    word_count_compressed=word_count_compressed
-                )
+            
+            # If still no cache, we might want to proceed or error. 
+            # For now, let's proceed (race condition worst case = double generation)
+            logger.info("⚠️ [LOCK] Wait over, proceeding with generation")
         
         try:
             # Get Pinecone handler
@@ -463,7 +464,9 @@ async def generate_mains_answer(
                     vector_handler=pinecone_handler,
                     mode="mains",
                     use_content_store=True,
-                    k=6
+                    k=5,            # Keep Top 5 (High Precision)
+                    re_rank=True,   # Enable Cross-Encoder
+                    fetch_k=20      # Fetch 20 Candidates (High Recall)
                 )
                 task_time = (time.perf_counter() - task_start) * 1000
                 return result[0], result[1], task_time  # context, sources, time
