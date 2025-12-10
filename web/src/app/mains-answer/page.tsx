@@ -219,55 +219,57 @@ export default function MainsAnswerPage() {
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="word-count">Word Limit</Label>
-                                        <Input
-                                            id="word-count"
-                                            type="number"
-                                            min="100"
-                                            max="1000"
-                                            step="50"
-                                            value={wordCount}
-                                            onChange={(e) => setWordCount(e.target.value)}
-                                            disabled={loading}
-                                        />
-                                        <p className="text-xs text-muted-foreground">Standard limits: 150, 250 words</p>
-                                    </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="word-count">Word Limit</Label>
+                                    <div className="flex flex-row items-center gap-4">
+                                        <div className="relative w-full md:w-48">
+                                            <Input
+                                                id="word-count"
+                                                type="number"
+                                                min="100"
+                                                max="1000"
+                                                step="50"
+                                                value={wordCount}
+                                                onChange={(e) => setWordCount(e.target.value)}
+                                                disabled={loading}
+                                            />
+                                            <p className="text-xs text-muted-foreground absolute top-full left-0 pt-1 w-max">Standard limits: 150, 250 words</p>
+                                        </div>
 
-                                    <div className="flex gap-2">
-                                        <Button
-                                            type="submit"
-                                            className="w-full border-2 border-primary/20 hover:border-primary/50 transition-all shadow-sm"
-                                            disabled={loading || !question.trim()}
-                                        >
-                                            {loading ? (
-                                                <>
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                    Generating...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <PenTool className="mr-2 h-4 w-4" />
-                                                    Generate Answer
-                                                </>
-                                            )}
-                                        </Button>
-
-                                        {loading && (
+                                        <div className="flex gap-2">
                                             <Button
-                                                type="button"
-                                                variant="destructive"
-                                                onClick={() => {
-                                                    abortController?.abort();
-                                                    setLoading(false);
-                                                    setError("Generation cancelled by user");
-                                                }}
-                                                className="shrink-0"
+                                                type="submit"
+                                                className="w-auto px-6 border-2 border-primary/20 hover:border-primary/50 transition-all shadow-sm"
+                                                disabled={loading || !question.trim()}
                                             >
-                                                Cancel
+                                                {loading ? (
+                                                    <>
+                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        Generating...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <PenTool className="mr-2 h-4 w-4" />
+                                                        Generate Answer
+                                                    </>
+                                                )}
                                             </Button>
-                                        )}
+
+                                            {loading && (
+                                                <Button
+                                                    type="button"
+                                                    variant="destructive"
+                                                    onClick={() => {
+                                                        abortController?.abort();
+                                                        setLoading(false);
+                                                        setError("Generation cancelled by user");
+                                                    }}
+                                                    className="shrink-0"
+                                                >
+                                                    Cancel
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </form>

@@ -610,6 +610,35 @@ class PineconeHandler:
             logger.warning("⚠️ No valid documents to embed after filtering")
             return
         
+        # ------------------------------------------------------------------
+        # NEW: Store full content in local SQLite content store
+        # This ensures we have the content even if Pinecone only creates vectors
+        # ------------------------------------------------------------------
+        try:
+            from .content_store import ContentStore
+            content_store = ContentStore()
+            
+            # Prepare chunks for content store (need to flatten structure)
+            content_chunks_for_sqlite = []
+            for i, (doc, meta) in enumerate(zip(filtered_documents, filtered_metadatas)):
+                # Create a clean copy for SQLite
+                chunk_data = meta.copy()
+                chunk_data['content'] = doc
+                # Ensure chunk_id exists
+                if 'chunk_id' not in chunk_data:
+                    chunk_data['chunk_id'] = f"doc_{i}"
+                
+                content_chunks_for_sqlite.append(chunk_data)
+            
+            # Batch store to SQLite
+            logger.info(f"💾 Storing {len(content_chunks_for_sqlite)} chunks in local SQLite content store...")
+            store_result = content_store.batch_store(content_chunks_for_sqlite)
+            logger.info(f"   ✅ SQLite Storage: {store_result.get('success', 0)} success, {store_result.get('failed', 0)} failed")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to store chunks in SQLite: {e}")
+            # Don't fail the whole process, continue to Pinecone upload
+            
         logger.info(f"💾 Preparing to store {len(filtered_documents)} chunks in Pinecone (batched)")
         logger.info(f"   • Batch size: {batch_size}")
         logger.info(f"   • Total batches: {(len(filtered_documents) + batch_size - 1) // batch_size}")

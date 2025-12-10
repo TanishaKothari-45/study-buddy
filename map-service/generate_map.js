@@ -16,13 +16,13 @@ const __dirname = path.dirname(__filename);
  */
 async function generateMap(config) {
     console.log('🗺️ Map Service v1.3 - World Map Support');
-    
+
     // Extract region first to determine default topoKey
     const regionValue = config.region || 'india';
-    
+
     // Set topoKey based on region if not explicitly provided
     const defaultTopoKey = regionValue === 'world' ? 'world_countries_v1' : 'india_states_v1';
-    
+
     const {
         mapType = 'combined',
         topoKey = defaultTopoKey,
@@ -39,7 +39,7 @@ async function generateMap(config) {
         style = {},
         output = { format: 'svg' }
     } = config;
-    
+
     console.log(`🌍 Region: ${region}, TopoKey: ${topoKey}`);
 
     // Load TopoJSON
@@ -268,6 +268,66 @@ async function generateMap(config) {
                         .attr('fill', '#d73027')
                         .text(arrow.label);
                 }
+            }
+        });
+    }
+
+    // Paths layer (Regions/Lines like Himalayas, Western Ghats)
+    if (config.paths && config.paths.length > 0) {
+        const pathGroup = svg.append('g').attr('id', 'custom-paths');
+
+        config.paths.forEach(pathItem => {
+            try {
+                // Construct GeoJSON feature
+                const feature = {
+                    type: "Feature",
+                    geometry: {
+                        type: "LineString", // Default to LineString
+                        coordinates: pathItem.coordinates
+                    },
+                    properties: {}
+                };
+
+                // Style defaults
+                const strokeColor = pathItem.stroke || '#8B4513'; // Brown for mountains default
+                const strokeWidth = pathItem.strokeWidth || 3;
+
+                // Draw path using standard path generator (handles projection automatically)
+                const d = pathGenerator(feature);
+
+                if (d) {
+                    pathGroup.append('path')
+                        .attr('d', d)
+                        .attr('fill', 'none')
+                        .attr('stroke', strokeColor)
+                        .attr('stroke-width', strokeWidth)
+                        .attr('stroke-linecap', 'round')
+                        .attr('stroke-linejoin', 'round')
+                        .attr('opacity', 0.7);
+
+                    // Add Label at the center/start of path
+                    if (pathItem.label) {
+                        // Project first coordinate for label placement
+                        // A better approach would be to find the centroid or mid-point
+                        const labelCoord = pathItem.coordinates[Math.floor(pathItem.coordinates.length / 2)];
+                        const projected = projection(labelCoord);
+
+                        if (projected) {
+                            pathGroup.append('text')
+                                .attr('x', projected[0])
+                                .attr('y', projected[1] - 5)
+                                .attr('text-anchor', 'middle')
+                                .attr('font-size', 12)
+                                .attr('font-weight', 'bold')
+                                .attr('fill', strokeColor)
+                                .attr('stroke', '#fff') // white halo
+                                .attr('stroke-width', 0.5)
+                                .text(pathItem.label);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error(`Error drawing path ${pathItem.label}:`, err);
             }
         });
     }

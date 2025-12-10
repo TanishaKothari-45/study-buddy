@@ -385,7 +385,79 @@ class CacheManager:
         
         if keys:
             self.redis.delete(*keys)
+        if keys:
+            self.redis.delete(*keys)
             logger.warning(f"🗑️  Invalidated {len(keys)} keys in namespace '{namespace}'")
+
+    # ============================================================
+    # USER HISTORY (Lists)
+    # ============================================================
+    
+    def get_history_key(self, user_id: str) -> str:
+        """Generate key for user history list"""
+        return self._make_key("history", user_id)
+
+    def add_user_history(
+        self,
+        user_id: str,
+        question: str,
+        word_count: int,
+        answer_preview: Optional[str] = None,
+        max_history: int = 20
+    ) -> bool:
+        """
+        Add an item to the user's history list (LIFO).
+        Trims list to max_history.
+        """
+        if not self.enabled:
+            return False
+            
+        key = self.get_history_key(user_id)
+        
+        # Create history item
+        item = {
+            "id": f"{hashlib.sha256(question.encode()).hexdigest()[:8]}-{int(datetime.now().timestamp())}",
+            "question": question,
+            "word_count": word_count,
+            "timestamp": datetime.now().isoformat(),
+            "preview": answer_preview[:100] + "..." if answer_preview else ""
+        }
+        
+        try:
+            # Push to head of list
+            p = self.redis.pipeline()
+            p.lpush(key, json.dumps(item))
+            p.ltrim(key, 0, max_history - 1)  # Keep only top N
+            
+            # Set expiry (e.g. 30 days) to prevent stale data piling up forever
+            p.expire(key, 30 * 24 * 60 * 60)
+            p.execute()
+            
+            logger.info(f"📜 Added to history for user {user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error adding to user history: {e}")
+            return False
+
+    def get_user_history(self, user_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Get user's history list.
+        """
+        if not self.enabled:
+            return []
+            
+        key = self.get_history_key(user_id)
+        
+        try:
+            # Get raw JSON strings
+            raw_items = self.redis.lrange(key, 0, limit - 1)
+            
+            # Parse JSON
+            history = [json.loads(item) for item in raw_items]
+            return history
+        except Exception as e:
+            logger.error(f"Error fetching user history: {e}")
+            return []
 
 
 # Global singleton instance

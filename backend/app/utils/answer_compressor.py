@@ -133,6 +133,8 @@ async def compress_answer(
     text_to_compress, replacements = extract_visuals(original_answer)
     
     # Build compression prompt
+    logger.info(f"🔎 Compressor Input (First 500 chars):\n{text_to_compress[:500]}...\n[Total Length: {len(text_to_compress)} chars]")
+
     prompt = COMPRESSION_PROMPT.format(
         max_words=max_words,
         actual_words=actual_words,

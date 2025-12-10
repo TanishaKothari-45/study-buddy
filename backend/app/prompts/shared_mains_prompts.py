@@ -242,6 +242,14 @@ Insert a map-json code block with the following structure:
   "arrows": [
     {"from": [lon1, lat1], "to": [lon2, lat2], "label": "Direction/Flow"}
   ],
+  "paths": [
+    {
+      "label": "Himalayas",
+      "coordinates": [[73, 35], [78, 31], [88, 28]], 
+      "stroke": "#8B4513",
+      "strokeWidth": 3
+    }
+  ],
   "rivers": true,
   "legendTitle": "Legend description",
   "style": {"colorScheme": "YlGn|YlOrRd|Blues|Greens", "theme": "warm"}
@@ -252,7 +260,13 @@ Insert a map-json code block with the following structure:
 1. **choropleth**: Color-coded regions based on data values (e.g., state-wise crop production, rainfall distribution)
 2. **markers**: Point locations (e.g., mineral deposits, cities, ports, industrial centers)
 3. **rivers**: River networks overlay
-4. **combined**: Multiple layers together (e.g., rivers + markers + choropleth)
+4. **combined**: Multiple layers together - rivers + markers + choropleth + paths (use this for physical features)
+
+**Rule - Physical Features (Mountains/Plateaus)**:
+- Do NOT use single dots (markers) for mountain ranges (Western Ghats, Himalayas) or elongated physical features.
+- Use **"paths"** to draw a line along the feature.
+- Example for Western Ghats line: `[[73, 20], [74, 15], [77, 9]]`
+- "stroke": "#8B4513" (Brown) for mountains.
 
 **Guidelines**:
 - Keep data simple: max 15-20 states/markers
