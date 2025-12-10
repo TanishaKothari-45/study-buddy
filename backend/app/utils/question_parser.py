@@ -100,20 +100,24 @@ Q: "Urbanization affecting groundwater in India; remedial measures."
 
 from .langsmith_tracer import trace_llm
 
+
+from ..gemini_core.gemini_client import GeminiClient
+from ..core.config import settings
+
 @trace_llm("question_parser")
 async def parse_question_for_search(
     question: str,
-    openai_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
 ) -> dict:
     """
     Parse a UPSC question to extract search-friendly keywords for NEWS/CURRENT AFFAIRS retrieval.
-    Uses GPT-4o-mini with Structured Output (Pydantic) and Redis caching.
+    Uses Gemini 2.5 Flash with Structured Output and Redis caching.
     
     NOTE: This is ONLY for news search. Vector database uses the full question directly.
     
     Args:
         question: The full question text
-        openai_api_key: OpenAI API key (optional, will use env var if not provided)
+        gemini_api_key: Gemini API key (optional, will use env var or settings if not provided)
     
     Returns:
         dict with keys:
@@ -143,34 +147,53 @@ async def parse_question_for_search(
         except Exception as e:
             logger.warning(f"⚠️ Cache read failed: {e}")
     
-    user_prompt = f"""Extract search keywords from this UPSC question for NEWS search:
-
-Question: {question}"""
-
+    # Use system key if no user key provided
+    key_to_use = gemini_api_key or settings.GEMINI_API_KEY
+    
     try:
-        logger.info(f"🔍 [CACHE MISS] Parsing question with GPT-4o-mini (Structured Output): {question[:80]}...")
+        logger.info(f"🔍 [CACHE MISS] Parsing question with Gemini Flash (Structured Output): {question[:80]}...")
         
-        # Use GPT-4o-mini with Structured Output
-        client = AsyncOpenAI(api_key=openai_api_key)
+        client = GeminiClient(api_key=key_to_use, model_name=settings.GEMINI_MODEL_FLASH)
         
-        response = await client.beta.chat.completions.parse(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": QUESTION_PARSER_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt}
-            ],
-            response_format=ParsedQuestion,
-            temperature=0.0,  # Deterministic output
+        # We need to construct a JSON schema for Gemini structured output
+        # Pydantic schema is already defined in ParsedQuestion class
+        
+        prompt = f"""Extract search keywords from this UPSC question for NEWS search:
+
+Question: {question}
+
+Return the result purely in JSON format matching this schema:
+{{
+  "main_topic": "string (Core subject + entity, 2-4 words)",
+  "sub_topics": ["string (2-5 meaningful phrases)"],
+  "search_query": "string (combined query)"
+}}
+"""
+
+        response_text = await client.generate_response(
+            user_prompt=prompt,
+            system_prompt=QUESTION_PARSER_SYSTEM_PROMPT,
+            response_schema=ParsedQuestion, # GeminiClient handles Pydantic schema
+            temperature=0.0,
         )
         
-        # Extract parsed object directly (no JSON parsing needed!)
-        parsed_obj = response.choices[0].message.parsed
-        
-        # Convert Pydantic model to dict
+        # The response should already be validated JSON string
+        try:
+            parsed_dict = json.loads(response_text)
+            
+            # Additional safety check
+            if not isinstance(parsed_dict, dict):
+                 raise ValueError("Response is not a dictionary")
+        except json.JSONDecodeError:
+             logger.warning("Gemini returned invalid JSON, attempting cleanup")
+             # Try simple cleanup if markdown blocks exist
+             clean_text = response_text.replace("```json", "").replace("```", "").strip()
+             parsed_dict = json.loads(clean_text)
+
         parsed_result = {
-            "main_topic": parsed_obj.main_topic,
-            "sub_topics": parsed_obj.sub_topics,
-            "search_query": parsed_obj.search_query
+            "main_topic": parsed_dict.get("main_topic", ""),
+            "sub_topics": parsed_dict.get("sub_topics", []),
+            "search_query": parsed_dict.get("search_query", "")
         }
         
         logger.info(f"✅ Parsed question with Structured Output:")

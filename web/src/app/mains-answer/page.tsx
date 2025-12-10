@@ -27,7 +27,7 @@ interface MainsAnswerResponse {
 
 export default function MainsAnswerPage() {
     const { } = useAuth();
-    
+
     // Local state for UI only
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -42,12 +42,19 @@ export default function MainsAnswerPage() {
         word_count_actual: number;
     } | null>(null); // Selected history item for modal
 
+    // Abort controller for cancellation
+    const [abortController, setAbortController] = useState<AbortController | null>(null);
+
     // Persisted state from store (question, wordCount, result, and history)
     const { question, wordCount, result, history, setQuestion, setWordCount, setResult, addToHistory, clear } = useMainsAnswerStore();
 
     const handleGenerate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!question.trim()) return;
+
+        // Create new abort controller
+        const controller = new AbortController();
+        setAbortController(controller);
 
         setLoading(true);
         setError(null);
@@ -58,6 +65,8 @@ export default function MainsAnswerPage() {
             const data = await api.post<MainsAnswerResponse>('/mains-answer/generate', {
                 question: question.trim(),
                 word_count: parseInt(wordCount)
+            }, {
+                signal: controller.signal
             });
 
             // Normalize undefined to null for store compatibility
@@ -70,18 +79,23 @@ export default function MainsAnswerPage() {
             setResult(normalizedData); // Save to store - persists across tab switches
             addToHistory(normalizedData); // Add to history
         } catch (err) {
+            // Ignore abort errors (user cancelled)
+            if (err instanceof Error && err.name === 'AbortError') {
+                return;
+            }
+
             // Error toast is already shown by apiClient
             // Just set local error state for UI feedback
             let message = "Failed to generate answer";
-            
+
             if (err instanceof ApiError) {
                 message = err.message;
             } else if (err instanceof Error) {
                 message = err.message;
             }
-            
+
             setError(message);
-            
+
             // If error is about missing API key, show the banner
             if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("gemini")) {
                 setShowBanner(true);
@@ -124,7 +138,7 @@ export default function MainsAnswerPage() {
             <div className="p-8 max-w-5xl mx-auto space-y-8">
                 {/* API Key Banner */}
                 <ApiKeyBanner showBanner={showBanner} onKeySet={() => { setShowBanner(false); setError(null); }} />
-                
+
                 {/* Header with New Answer and History buttons */}
                 <div className="flex items-start justify-between">
                     <div className="flex flex-col space-y-2">
@@ -201,6 +215,7 @@ export default function MainsAnswerPage() {
                                         className="min-h-[100px]"
                                         value={question}
                                         onChange={(e) => setQuestion(e.target.value)}
+                                        disabled={loading}
                                     />
                                 </div>
 
@@ -215,23 +230,45 @@ export default function MainsAnswerPage() {
                                             step="50"
                                             value={wordCount}
                                             onChange={(e) => setWordCount(e.target.value)}
+                                            disabled={loading}
                                         />
                                         <p className="text-xs text-muted-foreground">Standard limits: 150, 250 words</p>
                                     </div>
 
-                                    <Button type="submit" className="w-full" disabled={loading || !question.trim()}>
-                                        {loading ? (
-                                            <>
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                Generating...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <PenTool className="mr-2 h-4 w-4" />
-                                                Generate Answer
-                                            </>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            type="submit"
+                                            className="w-full border-2 border-primary/20 hover:border-primary/50 transition-all shadow-sm"
+                                            disabled={loading || !question.trim()}
+                                        >
+                                            {loading ? (
+                                                <>
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    Generating...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <PenTool className="mr-2 h-4 w-4" />
+                                                    Generate Answer
+                                                </>
+                                            )}
+                                        </Button>
+
+                                        {loading && (
+                                            <Button
+                                                type="button"
+                                                variant="destructive"
+                                                onClick={() => {
+                                                    abortController?.abort();
+                                                    setLoading(false);
+                                                    setError("Generation cancelled by user");
+                                                }}
+                                                className="shrink-0"
+                                            >
+                                                Cancel
+                                            </Button>
                                         )}
-                                    </Button>
+                                    </div>
                                 </div>
                             </form>
                         </CardContent>

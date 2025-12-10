@@ -416,12 +416,13 @@ async def generate_mains_answer(
                 time_range = "3months"
                 
                 try:
+
                     # Step 1: Parse question for news search
                     parse_start = time.perf_counter()
                     logger.info(f"🔍 [PARSE] Parsing question for news search...")
                     parsed_topics = await parse_question_for_search(
                         question=mains_request.question,
-                        openai_api_key=OPENAI_API_KEY
+                        gemini_api_key=gemini_api_key
                     )
                     parse_time = (time.perf_counter() - parse_start) * 1000
                     logger.info(f"✅ [PARSE] Parsed: {parsed_topics.get('search_query', '')[:50]}... ({parse_time:.1f}ms)")

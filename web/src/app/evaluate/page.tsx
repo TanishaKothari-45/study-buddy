@@ -39,6 +39,9 @@ export default function EvaluatePage() {
     const [error, setError] = useState("");
     const [showBanner, setShowBanner] = useState(false);
 
+    // Abort controller for cancellation
+    const [abortController, setAbortController] = useState<AbortController | null>(null);
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const newFiles = Array.from(e.target.files);
@@ -57,6 +60,10 @@ export default function EvaluatePage() {
             return;
         }
 
+        // Create new abort controller
+        const controller = new AbortController();
+        setAbortController(controller);
+
         setLoading(true);
         setError("");
         setResult(null);
@@ -73,21 +80,27 @@ export default function EvaluatePage() {
                 method: 'POST',
                 body: formData,
                 headers: {}, // Let browser set Content-Type for FormData
+                signal: controller.signal
             });
 
             setResult(data);
         } catch (err) {
+            // Ignore abort errors (user cancelled)
+            if (err instanceof Error && err.name === 'AbortError') {
+                return;
+            }
+
             // Error toast already shown by apiClient
             let message = "Evaluation failed";
-            
+
             if (err instanceof ApiError) {
                 message = err.message;
             } else if (err instanceof Error) {
                 message = err.message;
             }
-            
+
             setError(message);
-            
+
             // If error is about missing API key, show the banner
             if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("gemini")) {
                 setShowBanner(true);
@@ -101,7 +114,7 @@ export default function EvaluatePage() {
         <div className="p-8 max-w-7xl mx-auto space-y-8">
             {/* API Key Banner */}
             <ApiKeyBanner showBanner={showBanner} onKeySet={() => { setShowBanner(false); setError(""); }} />
-            
+
             <div className="flex flex-col space-y-2">
                 <h1 className="text-3xl font-bold tracking-tight text-foreground">
                     Evaluate Answer
@@ -208,16 +221,37 @@ export default function EvaluatePage() {
                                     </div>
                                 )}
 
-                                <Button type="submit" className="w-full" disabled={loading}>
-                                    {loading ? (
-                                        <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            Evaluating...
-                                        </>
-                                    ) : (
-                                        "Evaluate Answer"
+                                <div className="flex gap-2">
+                                    <Button
+                                        type="submit"
+                                        className="w-full border-2 border-primary/20 hover:border-primary/50 transition-all shadow-sm"
+                                        disabled={loading}
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Evaluating...
+                                            </>
+                                        ) : (
+                                            "Evaluate Answer"
+                                        )}
+                                    </Button>
+
+                                    {loading && (
+                                        <Button
+                                            type="button"
+                                            variant="destructive"
+                                            onClick={() => {
+                                                abortController?.abort();
+                                                setLoading(false);
+                                                setError("Evaluation cancelled by user");
+                                            }}
+                                            className="shrink-0"
+                                        >
+                                            Cancel
+                                        </Button>
                                     )}
-                                </Button>
+                                </div>
                             </form>
                         </CardContent>
                     </Card>
