@@ -323,6 +323,7 @@ export default function MainsAnswerPage() {
                             {result.compressed_answer && (
                                 <Card>
                                     <button
+                                        type="button"
                                         onClick={() => setShowCompressed(!showCompressed)}
                                         className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors border-b"
                                     >
@@ -351,6 +352,7 @@ export default function MainsAnswerPage() {
                             {/* Original Answer Accordion */}
                             <Card className={result.compressed_answer ? "border-dashed" : ""}>
                                 <button
+                                    type="button"
                                     onClick={() => setShowOriginal(!showOriginal)}
                                     className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors border-b"
                                 >

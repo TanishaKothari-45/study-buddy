@@ -15,7 +15,7 @@ COMPRESSION_PROMPT = """You are an expert editor. Condense the following answer 
 - All key facts and evidence (reports, data, examples)
 - The original tone and voice (formal/analytical)
 - The IBC structure (intro, body with sub-headings, conclusion)
-- All placeholder markers like <<MERMAID_0>>, <<MAP_0>> EXACTLY as they appear at their original positions
+- All placeholder markers like <<MERMAID_0>>, <<IMAGE_0>>, <<MAP_JSON_0>> EXACTLY as they appear at their original positions
 
 Rules:
 1. Prefer concise rephrasing and combining sentences over deleting content.
