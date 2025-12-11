@@ -26,18 +26,20 @@ function getMapHash(payload) {
  */
 function getCached(hash) {
     const svgPath = path.join(CACHE_DIR, `${hash}.svg`);
+    const pngPath = path.join(CACHE_DIR, `${hash}.png`);
     const metaPath = path.join(CACHE_DIR, `${hash}.meta.json`);
 
     if (fs.existsSync(svgPath)) {
         const svgContent = fs.readFileSync(svgPath, 'utf8');
         const base64 = Buffer.from(svgContent).toString('base64');
+        const png_base64 = fs.existsSync(pngPath) ? fs.readFileSync(pngPath).toString('base64') : null;
 
         let meta = {};
         if (fs.existsSync(metaPath)) {
             meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
         }
 
-        return { base64, meta, svgContent };
+        return { base64, png_base64, meta, svgContent };
     }
 
     return null;
@@ -50,9 +52,13 @@ function getCached(hash) {
  */
 function saveCache(hash, result) {
     const svgPath = path.join(CACHE_DIR, `${hash}.svg`);
+    const pngPath = path.join(CACHE_DIR, `${hash}.png`);
     const metaPath = path.join(CACHE_DIR, `${hash}.meta.json`);
 
     fs.writeFileSync(svgPath, result.svgContent);
+    if (result.pngBase64) {
+        fs.writeFileSync(pngPath, Buffer.from(result.pngBase64, 'base64'));
+    }
     fs.writeFileSync(metaPath, JSON.stringify(result.meta, null, 2));
 }
 

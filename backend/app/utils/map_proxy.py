@@ -72,20 +72,25 @@ async def generate_map_from_json(map_data: Dict[str, Any]) -> str:
             logger.info(f"✅ Map generated successfully")
             logger.debug(f"Map hash: {result.get('hash')}, Service cached: {result.get('cached')}")
             
-            # Get SVG base64 from response
+            # Prefer PNG thumbnail if provided (lighter for clients); fallback to SVG
+            png_base64 = result.get('png_base64')
             svg_base64 = result['svg_base64']
-            logger.debug(f"[MAP] Raw SVG base64 length: {len(svg_base64)}")
-            # Sanitize + normalize labels before embedding
-            try:
-                svg_base64 = sanitize_and_normalize_svg(svg_base64)
-            except Exception as e:
-                logger.warning(f"⚠️  SVG postprocess failed, using raw SVG: {e}")
+            logger.debug(f"[MAP] Raw SVG base64 length: {len(svg_base64)}; PNG available: {bool(png_base64)}")
+            image_base64 = png_base64 or svg_base64
+            mime = "image/png" if png_base64 else "image/svg+xml"
+            if not png_base64:
+                # Sanitize + normalize labels before embedding SVG
+                try:
+                    svg_base64 = sanitize_and_normalize_svg(svg_base64)
+                    image_base64 = svg_base64
+                except Exception as e:
+                    logger.warning(f"⚠️  SVG postprocess failed, using raw SVG: {e}")
             
             # Store in Redis cache
             if cache and cache.enabled:
-                cache.set_cached_map(map_data, svg_base64)
+                cache.set_cached_map(map_data, image_base64)
             
-            return f"![{title}](data:image/svg+xml;base64,{svg_base64})"
+            return f"![{title}](data:{mime};base64,{image_base64})"
             
     except ImportError:
         # Cache manager not available - proceed without caching

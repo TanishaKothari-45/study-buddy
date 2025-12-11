@@ -40,6 +40,7 @@ app.post('/generate-map', async (req, res) => {
             return res.json({
                 svg_url: `/maps/${hash}.svg`,
                 svg_base64: cached.base64,
+                png_base64: cached.png_base64 || null,
                 meta: cached.meta,
                 cached: true,
                 hash
@@ -62,6 +63,7 @@ app.post('/generate-map', async (req, res) => {
         res.json({
             svg_url: `/maps/${hash}.svg`,
             svg_base64: result.base64,
+            png_base64: result.pngBase64 || null,
             meta: {
                 ...result.meta,
                 generationTime

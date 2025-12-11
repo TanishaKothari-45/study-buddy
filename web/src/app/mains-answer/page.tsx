@@ -41,9 +41,63 @@ export default function MainsAnswerPage() {
     const [historyModalError, setHistoryModalError] = useState<string | null>(null);
     const [historyModalAnswer, setHistoryModalAnswer] = useState<MainsAnswerResponse | null>(null);
     const [historyModalItem, setHistoryModalItem] = useState<any | null>(null);
-    const [modalShowCompressed, setModalShowCompressed] = useState(true);
-    const [modalShowOriginal, setModalShowOriginal] = useState(true);
+    const [modalShowCompressed, setModalShowCompressed] = useState(false);
+    const [modalShowOriginal, setModalShowOriginal] = useState(false);
     const historyRef = useRef<HTMLDivElement | null>(null);
+
+    const stripHeavyContent = (text?: string | null, opts: { removeAllMaps?: boolean } = {}) => {
+        if (!text) return "";
+        const { removeAllMaps = false } = opts;
+        // Remove map-json code blocks and inline base64 images to keep previews light
+        let cleaned = text.replace(/```map-json[\s\S]*?```/g, removeAllMaps ? "" : "[map omitted]");
+        cleaned = cleaned.replace(/!\[[^\]]*\]\(data:image[^\)]*\)/g, "[image omitted]");
+        return cleaned;
+    };
+
+    // Extract first data-image (svg/png) uri from text for on-demand rendering (currently unused)
+    const extractMapDataUri = (text?: string | null): string | null => {
+        if (!text) return null;
+        const match = text.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/m);
+        return match ? match[0] : null;
+    };
+
+    // Lighter markdown components for modal: omit heavy images/base64 maps
+    const modalMarkdownComponents = {
+        ...markdownComponents,
+        img: ({ src, alt }: any) => {
+            if (!src) return null;
+            const isDataImg = src.startsWith("data:image/");
+            const isPng = src.includes("image/png");
+            const isSvg = src.includes("image/svg+xml");
+            if (isDataImg && isPng) {
+                return (
+                    <img
+                        src={src}
+                        alt={alt || "Map"}
+                        className="max-h-[400px] w-auto max-w-full"
+                        loading="lazy"
+                    />
+                );
+            }
+            if (isDataImg && isSvg) {
+                return (
+                    <div className="text-xs text-muted-foreground italic">
+                        [SVG map not shown in modal]
+                    </div>
+                );
+            }
+            return (
+                <a
+                    href={src}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary underline text-sm"
+                >
+                    {alt || "Open image"}
+                </a>
+            );
+        },
+    };
 
     // Abort controller for cancellation
     const [abortController, setAbortController] = useState<AbortController | null>(null);
@@ -518,7 +572,16 @@ export default function MainsAnswerPage() {
                 </div>
             </div>
             {/* History Answer Modal */}
-            <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
+            <Dialog
+                open={historyModalOpen}
+                onOpenChange={(open) => {
+                    setHistoryModalOpen(open);
+                    if (!open) {
+                        setModalShowCompressed(false);
+                        setModalShowOriginal(false);
+                    }
+                }}
+            >
                 <DialogContent className="sm:max-w-5xl max-h-[85vh] overflow-y-auto bg-[hsl(var(--card))] text-[hsl(var(--text))] border border-[hsl(var(--border))] shadow-2xl">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-bold text-[hsl(var(--text))]">Previous Answer</DialogTitle>
@@ -567,15 +630,15 @@ export default function MainsAnswerPage() {
                                     </button>
                                     {modalShowCompressed && (
                                         <CardContent className="p-6">
-                                            <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary">
-                                                <ReactMarkdown
-                                                    remarkPlugins={[remarkGfm]}
-                                                    components={markdownComponents}
-                                                    urlTransform={urlTransform}
-                                                >
-                                                    {historyModalAnswer.compressed_answer}
-                                                </ReactMarkdown>
-                                            </div>
+                                        <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary space-y-4">
+                                            <ReactMarkdown
+                                                remarkPlugins={[remarkGfm]}
+                                                components={modalMarkdownComponents}
+                                                urlTransform={urlTransform}
+                                            >
+                                                {stripHeavyContent(historyModalAnswer.compressed_answer, { removeAllMaps: false })}
+                                            </ReactMarkdown>
+                                        </div>
                                         </CardContent>
                                     )}
                                 </Card>
@@ -594,15 +657,15 @@ export default function MainsAnswerPage() {
                                 </button>
                                 {(modalShowOriginal || !historyModalAnswer.compressed_answer) && (
                                     <CardContent className="p-6">
-                                        <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary">
-                                            <ReactMarkdown
-                                                remarkPlugins={[remarkGfm]}
-                                                components={markdownComponents}
-                                                urlTransform={urlTransform}
-                                            >
-                                                {historyModalAnswer.answer}
-                                            </ReactMarkdown>
-                                        </div>
+                                    <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary space-y-4">
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm]}
+                                            components={modalMarkdownComponents}
+                                            urlTransform={urlTransform}
+                                        >
+                                            {stripHeavyContent(historyModalAnswer.answer, { removeAllMaps: false })}
+                                        </ReactMarkdown>
+                                    </div>
                                     </CardContent>
                                 )}
                             </Card>

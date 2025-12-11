@@ -5,6 +5,12 @@ import { JSDOM } from 'jsdom';
 import * as topojson from 'topojson-client';
 import { fileURLToPath } from 'url';
 import { getProjection } from './utils/projections.js';
+let sharp = null;
+try {
+    sharp = (await import('sharp')).default;
+} catch (e) {
+    console.warn('⚠️  sharp not available; PNG thumbnails will be skipped.');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -360,6 +366,17 @@ svg.append('text')
 const svgContent = body.html();
 const base64 = Buffer.from(svgContent).toString('base64');
 
+// Optional PNG thumbnail
+let pngBase64 = null;
+if (sharp) {
+    try {
+        const pngBuffer = await sharp(Buffer.from(svgContent)).png({ quality: 90 }).toBuffer();
+        pngBase64 = pngBuffer.toString('base64');
+    } catch (e) {
+        console.warn('⚠️  Failed to generate PNG thumbnail from SVG:', e.message);
+    }
+}
+
 // Metadata
 const meta = {
     width,
@@ -373,7 +390,7 @@ const meta = {
 };
 
 console.log('✅ Map generation completed successfully');
-return { svgContent, base64, meta };
+return { svgContent, base64, pngBase64, meta };
 }
 
 /**
