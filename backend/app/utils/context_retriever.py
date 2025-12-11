@@ -114,7 +114,11 @@ def retrieve_context_for_question(
                 )
                 
                 # Convert back to LangChain Document objects for compatibility with downstream logic (dedup, etc.)
-                from langchain.schema import Document
+                # Convert back to LangChain Document objects for compatibility with downstream logic (dedup, etc.)
+                try:
+                    from langchain_core.documents import Document
+                except ImportError:
+                    from langchain.schema import Document
                 docs = [
                     Document(page_content=r["content"], metadata=r["metadata"]) 
                     for r in raw_results

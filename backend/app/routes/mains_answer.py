@@ -328,25 +328,11 @@ async def generate_mains_answer(
             cached_answer = cached_answer_data["answer"]
             word_count_actual = cached_answer_data.get("word_count_actual") or count_words_excluding_visuals(cached_answer)
             
-            # Check for compressed version in cache or generate it
+            # Whatever is stored is authoritative; avoid recompressing
             compressed_answer = cached_answer_data.get("compressed_answer")
             word_count_compressed = cached_answer_data.get("word_count_compressed")
-            
-            # If not compressed but needs it, try to compress (optional self-healing)
-            if not compressed_answer and word_count_actual > mains_request.word_count * 1.4:
-                try:
-                     logger.info("🗜️ [CACHE] Compressing cached answer...")
-                     compressed = await compress_answer(
-                        original_answer=cached_answer,
-                        target_word_count=mains_request.word_count,
-                        gemini_client=gemini_client,
-                        threshold_ratio=1.4
-                    )
-                     if compressed:
-                        compressed_answer = compressed
-                        word_count_compressed = count_words_excluding_visuals(compressed)
-                except Exception as e:
-                    logger.warning(f"⚠️ [CACHE] Compression failed: {e}")
+
+            # Do not re-add to history on cache hit (history is managed on writes)
 
             return MainsAnswerResponse(
                 question=cached_answer_data["question"],
@@ -442,7 +428,8 @@ async def generate_mains_answer(
                             current_affairs_bullets = await fetch_current_affairs_for_question(
                                 parsed_keywords=parsed_topics,
                                 max_bullets=5,
-                                time_range=time_range
+                                time_range=time_range,
+                                gemini_api_key=gemini_api_key
                             )
                             news_time = (time.perf_counter() - news_start) * 1000
                             logger.info(f"✅ [NEWS] Retrieved {len(current_affairs_bullets)} bullets ({news_time:.1f}ms)")
@@ -577,14 +564,23 @@ async def generate_mains_answer(
                 logger.warning(f"⚠️ [MAINS] Compression failed: {e}")
             
             # ============================================================
-            # STEP 7: Cache the answer
+            # STEP 7: Cache the answer (store compressed if available; otherwise original)
             # ============================================================
+            answer_to_cache = compressed_answer or answer
+            word_count_cache = count_words_excluding_visuals(answer_to_cache)
+            # Only keep compressed copy in cache if different; otherwise avoid duplication
+            compressed_for_cache = None if not compressed_answer or compressed_answer.strip() == answer_to_cache.strip() else compressed_answer
+            word_count_compressed_cache = word_count_compressed if compressed_for_cache else None
+
             cache.set_cached_answer(
                 question=mains_request.question,
                 word_count=mains_request.word_count,
-                answer=answer,
+                answer=answer_to_cache,
                 sources=sources,
-                model_version=model_version
+                model_version=model_version,
+                compressed_answer=compressed_for_cache,
+                word_count_actual=word_count_cache,
+                word_count_compressed=word_count_compressed_cache
             )
 
             # ============================================================
@@ -626,6 +622,8 @@ async def generate_mains_answer(
 @router.get("/history")
 async def get_mains_answer_history(
     limit: int = 20,
+    offset: int = 0,
+    search: str = "",
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -636,11 +634,66 @@ async def get_mains_answer_history(
         cache = get_cache_manager()
         user_id = str(current_user.id) if current_user.id else current_user.email
         
-        history = cache.get_user_history(user_id, limit=limit)
-        return {"history": history}
+        history, total, has_more = cache.get_user_history(user_id, limit=limit, offset=offset, search=search or None)
+        return {
+            "history": history,
+            "limit": limit,
+            "offset": offset,
+            "search": search or "",
+            "total": total,
+            "has_more": has_more
+        }
     except Exception as e:
         logger.error(f"❌ Failed to fetch history: {e}")
-        return {"history": []}
+        return {
+            "history": [],
+            "limit": limit,
+            "offset": offset,
+            "search": search or "",
+            "total": 0,
+            "has_more": False
+        }
+
+
+@router.get("/history/answer", response_model=MainsAnswerResponse)
+async def get_cached_mains_answer(
+    question: str,
+    word_count: int = 500,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Return a cached mains answer (no regeneration).
+    Shows compressed answer if available to reduce payload size.
+    """
+    try:
+        cache = get_cache_manager()
+        model_version = "gemini-2.5-pro-v1"
+        cached = cache.get_cached_answer(question, word_count, model_version)
+
+        if not cached:
+            raise HTTPException(
+                status_code=404,
+                detail="No cached answer found for this question and word count. Please generate again."
+            )
+
+        answer = cached.get("answer", "")
+        compressed_answer = cached.get("compressed_answer")
+        word_count_actual = cached.get("word_count_actual") or count_words_excluding_visuals(answer)
+        word_count_compressed = cached.get("word_count_compressed")
+
+        return MainsAnswerResponse(
+            question=cached.get("question", question),
+            answer=answer,
+            compressed_answer=compressed_answer,
+            sources=cached.get("sources", []),
+            word_count_actual=word_count_actual,
+            word_count_compressed=word_count_compressed
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch cached answer: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch cached answer")
 
 # Quick test function
 if __name__ == "__main__":

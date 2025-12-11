@@ -7,15 +7,15 @@ Uses batch API call for efficiency.
 import json
 from .prompts import BATCH_SUMMARY_PROMPT, ARTICLE_ONE_LINER_PROMPT
 
-# Lazy-loaded client
-_openai_client = None
-
-def _get_openai_client():
-    global _openai_client
-    if _openai_client is None:
-        from openai import OpenAI
-        _openai_client = OpenAI()
-    return _openai_client
+# Build a Gemini client (optionally with user API key)
+def _get_gemini_client(api_key: str = None):
+    # Import Gemini client and settings from backend app (shares user/system key logic)
+    from app.gemini_core.gemini_client import GeminiClient
+    from app.core.config import settings
+    
+    key_to_use = api_key or settings.GEMINI_API_KEY
+    model_to_use = settings.LLM_MODEL_SMALL or "gemini-1.5-flash"
+    return GeminiClient(api_key=key_to_use, model_name=model_to_use)
 
 
 def _build_articles_prompt(article_leads: list) -> str:
@@ -33,7 +33,7 @@ OUTPUT: Return ONLY a JSON array of summaries (one per article):
 """
 
 
-def summarize_articles_only(article_leads: list) -> list:
+def summarize_articles_only(article_leads: list, api_key: str = None) -> list:
     """
     Synchronous batch summarization for articles only.
     
@@ -46,29 +46,15 @@ def summarize_articles_only(article_leads: list) -> list:
     if not article_leads:
         return []
     
-    client = _get_openai_client()
+    client = _get_gemini_client(api_key)
     prompt = _build_articles_prompt(article_leads)
 
-    # Call OpenAI
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=1000,  # Sufficient for 3-4 articles
-        temperature=0.3   # Lower for more factual output
+    # Call Gemini Flash (deterministic, concise)
+    text = client.generate_response(
+        user_prompt=prompt,
+        system_prompt="You are a concise factual summarizer. Return JSON only. Keep each summary under ~80 words.",
+        temperature=0.1,
     )
-
-    # Parse response
-    text = None
-    try:
-        choice = resp.choices[0]
-        if hasattr(choice, 'message') and hasattr(choice.message, 'content'):
-            text = choice.message.content
-        elif isinstance(choice, dict) and "message" in choice:
-            text = choice["message"]["content"]
-        else:
-            text = str(choice)
-    except Exception as e:
-        raise RuntimeError(f"Unexpected OpenAI response: {e}")
 
     # Extract JSON array from response
     start = text.find("[")

@@ -47,21 +47,39 @@ def within_time_window(published_at: str):
 
 def cheap_keyword_match(article: dict, keywords: list) -> tuple[bool, int]:
     """
-    Fast substring matching in title and description.
+    Fast, loose token-overlap check in title + description.
     
     Returns:
-        (has_match, match_count) - whether any keyword matches and how many
+        (has_match, match_count) - whether it meets the minimum token overlap
+        and how many distinct tokens matched.
     """
     if not keywords:
         return True, 0
     
-    # Combine title and description for matching
     text = (article.get("title", "") + " " + article.get("description", "")).lower()
     
-    match_count = sum(1 for kw in keywords if kw.lower() in text)
-    has_match = match_count > 0
+    # Flatten phrases into distinct tokens (alnum, len>=3)
+    query_tokens = set()
+    for phrase in keywords:
+        for word in phrase.lower().split():
+            clean_word = "".join(c for c in word if c.isalnum())
+            if len(clean_word) >= 3:
+                query_tokens.add(clean_word)
     
-    return has_match, match_count
+    if not query_tokens:
+        return False, 0
+    
+    matches = sum(1 for token in query_tokens if token in text)
+    
+    # Require a small but meaningful overlap:
+    # - at least 2 tokens, unless we only have <=3 tokens (then 1 is enough)
+    # - also allow ~30% coverage for longer keyword sets
+    min_tokens = 1 if len(query_tokens) <= 3 else 2
+    min_by_ratio = max(1, int(len(query_tokens) * 0.3))
+    min_required = max(min_tokens, min_by_ratio)
+    
+    has_match = matches >= min_required
+    return has_match, matches
 
 
 def levenshtein_distance(s1: str, s2: str) -> int:

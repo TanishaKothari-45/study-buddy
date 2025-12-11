@@ -85,7 +85,7 @@ async def call_tool(name: str, arguments: dict):
     raise ValueError(f"Unknown tool: {name}")
 
 
-async def fetch_diversified_current_affairs(topic: str, keywords: list = None) -> dict:
+async def fetch_diversified_current_affairs(topic: str, keywords: list = None, api_key: str = None) -> dict:
     """
     Main function: Fetch diversified current affairs with intelligent summarization.
     OPTIMIZED: No editorials, early filtering, batch embeddings, smart selection.
@@ -187,7 +187,9 @@ async def fetch_diversified_current_affairs(topic: str, keywords: list = None) -
     # Step 7: SMART TOP-8 SELECTION (recency + keywords + content + diversity)
     print("⭐ Selecting top candidates...")
     top_candidates = select_top_candidates(deduped, keywords, max_candidates=MAX_CANDIDATES_FOR_SCORING)
-    print(f"   Selected top {len(top_candidates)} for scraping & embedding")
+    # Keep only top 5 to reduce scraping/summary load; if keyword matches were 0, allow up to 3 fallback items
+    top_candidates = top_candidates[:5]
+    print(f"   Selected top {len(top_candidates)} for scraping")
     
     if not top_candidates:
         print("   ⚠️ No candidates selected. Returning empty result.")
@@ -204,65 +206,48 @@ async def fetch_diversified_current_affairs(topic: str, keywords: list = None) -
     top_candidates = await ensure_content(
         top_candidates, 
         min_length=MIN_CONTENT_LENGTH,
-        max_to_scrape=MAX_CANDIDATES_FOR_SCORING
+        max_to_scrape=5
     )
 
-    # Step 9: BATCH COMPUTE EMBEDDINGS (single API call!)
-    print("🎯 Computing relevance scores (batch)...")
-    top_candidates = await compute_relevance_scores(top_candidates, keywords)
-    
-    # Step 10: Filter by relevance
-    relevant_articles = filter_by_relevance(top_candidates, threshold=RELEVANCE_THRESHOLD)
-    print(f"   Relevant (>={RELEVANCE_THRESHOLD}): {len(relevant_articles)}")
+    # Step 9: Drop articles without usable content (post-scrape)
+    content_ready = []
+    for a in top_candidates:
+        text = get_article_text(a)
+        if text and len(text) >= MIN_CONTENT_LENGTH:
+            content_ready.append(a)
+    print(f"   After content filter: {len(content_ready)}")
 
-    if not relevant_articles:
-        print("   ⚠️ No articles passed relevance threshold. Returning empty result.")
+    if not content_ready:
+        print("   ⚠️ No articles with sufficient content. Returning empty result.")
         return {
             "current_affairs": [],
             "metadata": {
                 "keywords": keywords,
-                "message": f"No articles exceeded relevance threshold of {RELEVANCE_THRESHOLD}"
+                "message": "No articles with sufficient content after scraping"
             }
         }
 
-    # Step 11: Apply time filter with fallback for high relevance
+    # Step 10: Apply time filter (keep recent first, then backfill)
     time_filtered = []
-    old_high_relevance = []
-    
-    for a in relevant_articles:
+    older = []
+    for a in content_ready:
         pub_date = a.get("published_at")
         if pub_date and within_time_window(pub_date):
             time_filtered.append(a)
-        elif a.get("relevance_score", 0) > 0.5:
-            old_high_relevance.append(a)
-            
-    # If we have fewer than 3 recent articles, fill up with old high-relevance ones
-    if len(time_filtered) < 3:
-        needed = 3 - len(time_filtered)
-        if old_high_relevance:
-            print(f"   Only {len(time_filtered)} recent articles. Filling with up to {needed} old high-relevance (>0.5) articles.")
-            old_high_relevance.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
-            time_filtered.extend(old_high_relevance[:needed])
-        
+        else:
+            older.append(a)
+    if len(time_filtered) < 3 and older:
+        need = 3 - len(time_filtered)
+        time_filtered.extend(older[:need])
     print(f"   After time filter (with fallback): {len(time_filtered)}")
 
-    if not time_filtered:
-        print("   ⚠️ No articles within time window. Returning empty result.")
-        return {
-            "current_affairs": [],
-            "metadata": {
-                "keywords": keywords,
-                "message": "No recent articles found within time window"
-            }
-        }
-
-    # Step 12: Classify articles
+    # Step 11: Classify articles
     for a in time_filtered:
         a["type"] = detect_type(a)
         a["topic_score"] = topic_score(a)
     time_filtered = mark_corroboration(time_filtered)
 
-    # Step 13: Select best articles (1 per query with fallback)
+    # Step 12: Select best articles (1 per query with fallback)
     articles_only = [a for a in time_filtered if a["type"] == "article"]
     final_articles = select_articles_with_fallback(articles_only, num_queries=4)
     
@@ -278,17 +263,18 @@ async def fetch_diversified_current_affairs(topic: str, keywords: list = None) -
             }
         }
 
-    # Step 14: Prepare extracts for summarization
+    # Step 13: Prepare extracts for summarization
     article_leads = [get_article_text(a)[:500] for a in final_articles]
 
-    # Step 15: Summarize (batch LLM call - articles only)
+    # Step 14: Summarize (batch LLM call - articles only)
     print("✍️ Generating summaries...")
     article_summaries = await asyncio.to_thread(
         summarize_articles_only,
-        article_leads
+        article_leads,
+        api_key
     )
 
-    # Step 16: Build output JSON (articles only, no editorial)
+    # Step 15: Build output JSON (articles only, no editorial)
     out = {"current_affairs": []}
 
     for a, summary in zip(final_articles, article_summaries):
@@ -309,7 +295,7 @@ async def fetch_diversified_current_affairs(topic: str, keywords: list = None) -
         "keyword_matched": len(keyword_matched),
         "after_dedup": len(deduped),
         "top_selected": len(top_candidates),
-        "relevant_found": len(relevant_articles),
+        "relevant_found": len(content_ready),
         "final_count": len(final_articles)
     }
 

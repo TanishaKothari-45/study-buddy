@@ -837,11 +837,11 @@ class PineconeHandler:
             logger.warning("⚠️ Sentence Transformers not available, skipping re-ranking")
             return docs[:top_k]
             
-        model = CrossEncoderSingleton.get_instance()
-        if not model:
-            return docs[:top_k]
-            
         try:
+            model = CrossEncoderSingleton.get_instance()
+            if not model:
+                return docs[:top_k]
+                
             # Prepare pairs for scoring: (query, doc_content)
             # Limit content length to avoid token limits (first 500 words is usually enough for relevance)
             pairs = [(query, d.get('content', '')[:2000]) for d in docs]
@@ -854,9 +854,6 @@ class PineconeHandler:
             doc_scores.sort(key=lambda x: x[1], reverse=True)
             
             logger.info(f"📊 Re-ranking results (Top 3 scores): {[round(s, 3) for _, s in doc_scores[:3]]}")
-            
-            # Filter low relevance (optional, but good practice. e.g. score < -5 is usually bad for logit output)
-            # For now, we trust the relative ordering and just take top_k
             
             return [d for d, s in doc_scores[:top_k]]
             

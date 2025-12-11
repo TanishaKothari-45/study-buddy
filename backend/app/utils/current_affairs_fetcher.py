@@ -65,7 +65,8 @@ def format_current_affairs_to_bullets(result: Dict[str, Any], max_bullets: int =
 async def fetch_current_affairs_for_question(
     parsed_keywords: Dict[str, Any],
     max_bullets: int = 5,
-    time_range: str = "6months"
+    time_range: str = "6months",
+    gemini_api_key: Optional[str] = None
 ) -> List[str]:
     """
     Fetch current affairs for a question using parsed keywords.
@@ -102,17 +103,25 @@ async def fetch_current_affairs_for_question(
         main_topic = parsed_keywords.get("main_topic", "").strip()
         sub_topics = parsed_keywords.get("sub_topics", [])
         
-        # Build keyword array: [main_topic, sub_topic1, sub_topic2, ...]
+        # Build keyword array: [main_topic, sub_topic1, sub_topic2, ..., search_query]
         keywords_array = [main_topic] if main_topic else []
         keywords_array.extend(sub_topics)
         
-        logger.info(f"🎯 Using pre-parsed keywords (as phrases): {keywords_array}")
+        # Also add the search query itself to ensure we catch articles matching the query specific terms
+        if search_query and search_query != main_topic:
+            keywords_array.append(search_query)
+        
+        logger.info(f"🎯 Using pre-parsed keywords (including query): {keywords_array}")
     
     try:
         logger.info(f"🗞️ Fetching current affairs for: {search_query[:50]}...")
         
         # Call the MCP server's fetch function directly with pre-parsed keywords
-        result = await fetch_diversified_current_affairs(topic=search_query, keywords=keywords_array)
+        result = await fetch_diversified_current_affairs(
+            topic=search_query,
+            keywords=keywords_array,
+            api_key=gemini_api_key
+        )
         
         # Convert to bullet format for LLM
         bullets = format_current_affairs_to_bullets(result, max_bullets)

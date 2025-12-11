@@ -10,6 +10,7 @@ interface HistoryItem {
     preview?: string; // Short preview provided by backend
     word_count?: number;
     timestamp: string;
+    q_hash?: string;
 }
 
 // Persist result AND form inputs for tab switching
@@ -19,10 +20,14 @@ interface MainsAnswerState {
     result: MainsAnswerResponse | null;
     history: HistoryItem[];
     isLoadingHistory: boolean;
+    historyHasMore: boolean;
+    historySearch: string;
+    historyTotal: number;
     setQuestion: (question: string) => void;
     setWordCount: (wordCount: string) => void;
     setResult: (result: MainsAnswerResponse | null) => void;
-    fetchHistory: () => Promise<void>;
+    setHistorySearch: (term: string) => void;
+    fetchHistory: (opts?: { reset?: boolean }) => Promise<void>;
     clear: () => void;
 }
 
@@ -35,14 +40,31 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                 result: null,
                 history: [],
                 isLoadingHistory: false,
+                historyHasMore: false,
+                historySearch: "",
+                historyTotal: 0,
                 setQuestion: (question) => set({ question }),
                 setWordCount: (wordCount) => set({ wordCount }),
                 setResult: (result) => set({ result }),
-                fetchHistory: async () => {
+                setHistorySearch: (term) => set({ historySearch: term }),
+                fetchHistory: async (opts?: { reset?: boolean }) => {
+                    const { reset } = opts || {};
                     set({ isLoadingHistory: true });
                     try {
-                        const data = await api.get<{ history: HistoryItem[] }>('/mains-answer/history');
-                        set({ history: data.history || [] });
+                        const state = get();
+                        const limit = 20;
+                        const offset = reset ? 0 : state.history.length;
+                        const search = state.historySearch || "";
+                        const data = await api.get<{ history: HistoryItem[]; limit: number; offset: number; search: string; total: number; has_more: boolean }>(
+                            `/mains-answer/history?limit=${limit}&offset=${offset}&search=${encodeURIComponent(search)}`
+                        );
+                        const newItems = data.history || [];
+                        const merged = reset ? newItems : [...state.history, ...newItems];
+                        set({
+                            history: merged,
+                            historyHasMore: data.has_more ?? (newItems.length === limit),
+                            historyTotal: data.total ?? merged.length,
+                        });
                     } catch (error) {
                         console.error("Failed to fetch history:", error);
                     } finally {
@@ -56,10 +78,9 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                 storage: createJSONStorage(() => localStorage),
                 version: 5, // Bump version
                 partialize: (state) => ({
-                    // Persist everything EXCEPT history
+                    // Persist only lightweight form fields; avoid persisting answers to keep storage small
                     question: state.question,
-                    wordCount: state.wordCount,
-                    result: state.result
+                    wordCount: state.wordCount
                 }),
             }
         ),

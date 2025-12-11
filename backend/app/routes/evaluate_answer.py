@@ -436,7 +436,8 @@ Return ONLY the question text, nothing else. If you can't find an explicit quest
                     current_affairs_bullets = await fetch_current_affairs_for_question(
                         parsed_keywords=parsed_topics,
                         max_bullets=5,
-                        time_range=time_range
+                        time_range=time_range,
+                        gemini_api_key=None  # use system key fallback
                     )
                     logger.info(f"✅ Retrieved {len(current_affairs_bullets)} current affairs bullets")
                     

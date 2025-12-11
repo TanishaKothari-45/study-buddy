@@ -14,6 +14,7 @@ import json
 import logging
 import base64
 from typing import Optional, Dict, Any
+import xml.etree.ElementTree as ET
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -73,6 +74,12 @@ async def generate_map_from_json(map_data: Dict[str, Any]) -> str:
             
             # Get SVG base64 from response
             svg_base64 = result['svg_base64']
+            logger.debug(f"[MAP] Raw SVG base64 length: {len(svg_base64)}")
+            # Sanitize + normalize labels before embedding
+            try:
+                svg_base64 = sanitize_and_normalize_svg(svg_base64)
+            except Exception as e:
+                logger.warning(f"⚠️  SVG postprocess failed, using raw SVG: {e}")
             
             # Store in Redis cache
             if cache and cache.enabled:
@@ -104,6 +111,101 @@ async def generate_map_from_json(map_data: Dict[str, Any]) -> str:
     except Exception as e:
         logger.error(f"❌ Map generation error: {str(e)}", exc_info=True)
         return f"\n\n**[Map generation failed: {str(e)}]**\n\n"
+
+
+def sanitize_and_normalize_svg(svg_base64: str, max_label_len: int = 12, y_offset: float = 8.0) -> str:
+    """
+    Decode -> sanitize -> truncate labels -> add tooltips -> light de-overlap -> re-encode.
+    Keeps latency low and runs server-side to avoid client DOM sanitization.
+    """
+    svg_text = base64.b64decode(svg_base64).decode("utf-8", errors="ignore")
+    
+    # Parse XML safely and preserve namespaces
+    parser = ET.XMLParser()
+    try:
+        root = ET.fromstring(svg_text, parser=parser)
+    except ET.ParseError as e:
+        snippet = svg_text[:500].replace("\n", " ") if svg_text else ""
+        logger.error(f"❌ SVG parse error: {e}. Snippet: {snippet}")
+        raise
+
+    # Preserve or add default SVG namespace to avoid ns0 prefixes
+    if isinstance(root.tag, str) and root.tag.startswith("{"):
+        svg_ns = root.tag.split("}", 1)[0].strip("{")
+    else:
+        svg_ns = "http://www.w3.org/2000/svg"
+        root.tag = f"{{{svg_ns}}}{root.tag}"
+    ET.register_namespace("", svg_ns)
+    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
+    # Ensure xmlns attributes exist (helps some renderers)
+    if "xmlns" not in root.attrib:
+        root.set("xmlns", svg_ns)
+    if "xmlns:xlink" not in root.attrib:
+        root.set("xmlns:xlink", "http://www.w3.org/1999/xlink")
+    
+    # Namespace handling helper
+    def strip_ns(tag: str) -> str:
+        return tag.split("}", 1)[-1] if "}" in tag else tag
+    
+    # Remove unsafe elements and attributes
+    unsafe_tags = {"script", "foreignObject", "iframe", "object", "embed", "image"}
+
+    def prune_unsafe(parent):
+        for child in list(parent):
+            tag = strip_ns(child.tag)
+            if tag in unsafe_tags:
+                parent.remove(child)
+                continue
+            # Drop on* handlers and external hrefs
+            to_delete = []
+            for attr, val in child.attrib.items():
+                if attr.lower().startswith("on"):
+                    to_delete.append(attr)
+                if attr in ("href", "{http://www.w3.org/1999/xlink}href") and val.startswith("http"):
+                    to_delete.append(attr)
+            for attr in to_delete:
+                child.attrib.pop(attr, None)
+            prune_unsafe(child)
+
+    prune_unsafe(root)
+    
+    # Light label truncation + tooltip + y-offset for overlapping coords
+    seen_coords = {}
+    for elem in root.iter():
+        if strip_ns(elem.tag) != "text":
+            continue
+        original_text = "".join(elem.itertext()).strip()
+        if not original_text:
+            continue
+        
+        # Truncate for display, preserve original in <title>
+        display_text = original_text
+        if len(display_text) > max_label_len:
+            display_text = display_text[: max_label_len - 1] + "..."
+        
+        # Replace text content
+        for child in list(elem):
+            elem.remove(child)
+        elem.text = display_text
+        title_node = ET.SubElement(elem, "title")
+        title_node.text = original_text
+        
+        # Resolve coordinates and nudge if overlapping
+        try:
+            x = float(elem.attrib.get("x", "nan"))
+            y = float(elem.attrib.get("y", "nan"))
+            if not (x != x or y != y):  # check for NaN
+                key = (round(x, 0), round(y, 0))
+                count = seen_coords.get(key, 0)
+                if count > 0:
+                    elem.set("y", str(y + y_offset * count))
+                seen_coords[key] = count + 1
+        except Exception:
+            # Best-effort; skip offsets if coords missing
+            pass
+    
+    sanitized = ET.tostring(root, encoding="utf-8").decode("utf-8")
+    return base64.b64encode(sanitized.encode("utf-8")).decode("utf-8")
 
 
 async def parse_and_generate_maps(content: str) -> str:

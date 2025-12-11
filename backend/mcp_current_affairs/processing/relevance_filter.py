@@ -59,55 +59,36 @@ async def compute_relevance_scores(
         article_text = f"{article.get('title', '')} {article.get('description', '')}".strip()
         article_texts.append(article_text if article_text else "untitled")
     
-    try:
-        # BATCH EMBEDDING CALL: Get all embeddings in one API request
-        print(f"   🔢 Batch embedding: 1 topic + {len(article_texts)} articles...")
-        all_texts = [topic_text] + article_texts
-        
-        all_embeddings = await asyncio.to_thread(
-            embedder.get_embeddings, all_texts
-        )
-        
-        if not all_embeddings or len(all_embeddings) < len(all_texts):
-            print("⚠️ Failed to get batch embeddings, using keyword matching fallback")
-            return _keyword_fallback(articles, topic_keywords)
-        
-        # Extract topic embedding (first one)
-        topic_vec = all_embeddings[0]
-        
-        # Compute similarity for each article
-        for i, article in enumerate(articles):
-            article_vec = all_embeddings[i + 1]  # Offset by 1 (topic was first)
-            
-            if article_vec:
-                similarity = cosine_similarity(topic_vec, article_vec)
-                article["relevance_score"] = round(similarity, 3)
-            else:
-                article["relevance_score"] = 0.0
-        
-        print(f"   ✅ Batch embedding complete!")
-        
-    except Exception as e:
-        print(f"⚠️ Batch embedding error: {e}, using fallback")
-        return _keyword_fallback(articles, topic_keywords)
-    
-    return articles
+    # Skip embeddings for now; use keyword/token scoring only
+    return _keyword_fallback(articles, topic_keywords)
 
 
 def _keyword_fallback(
-    articles: List[Dict[str, Any]], 
+    articles: List[Dict[str, Any]],
     keywords: List[str]
 ) -> List[Dict[str, Any]]:
     """
-    Fallback: Score articles by keyword density if embeddings fail.
+    Fallback: score by token overlap (no embeddings).
     """
+    if not keywords:
+        return articles
+
+    kw_tokens = set()
+    for kw in keywords:
+        for tok in kw.lower().split():
+            tok = "".join(c for c in tok if c.isalnum())
+            if len(tok) >= 3:
+                kw_tokens.add(tok)
+
     for article in articles:
         text = f"{article.get('title', '')} {article.get('description', '')}".lower()
-        score = 0
-        for kw in keywords:
-            score += text.count(kw.lower())
-        # Normalize to 0-1 range (rough approximation)
-        article["relevance_score"] = min(1.0, score / max(len(keywords) * 2, 1))
+        matches = 0
+        for tok in kw_tokens:
+            if tok in text:
+                matches += 1
+        # Simple normalized score
+        article["relevance_score"] = min(1.0, matches / max(len(kw_tokens), 1))
+        article["_token_matches"] = matches
     return articles
 
 

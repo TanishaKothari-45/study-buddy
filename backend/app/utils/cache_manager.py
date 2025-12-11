@@ -126,7 +126,10 @@ class CacheManager:
         word_count: int,
         answer: str,
         sources: List[Dict[str, Any]],
-        model_version: str = "gemini-2.5-pro-v1"
+        model_version: str = "gemini-2.5-pro-v1",
+        compressed_answer: Optional[str] = None,
+        word_count_actual: Optional[int] = None,
+        word_count_compressed: Optional[int] = None
     ) -> bool:
         """
         Store answer in cache
@@ -140,10 +143,14 @@ class CacheManager:
         cache_key = self.get_answer_cache_key(question, word_count, model_version)
         
         cache_value = {
-            "answer": answer,
+            # Store compressed answer as primary to avoid recompressing on read
+            "answer": compressed_answer or answer,
+            "compressed_answer": compressed_answer,
             "sources": sources,
             "question": question,
             "word_count": word_count,
+            "word_count_actual": word_count_actual,
+            "word_count_compressed": word_count_compressed,
             "model_version": model_version,
             "created_at": datetime.now().isoformat(),
             "hit_count": 0
@@ -403,7 +410,7 @@ class CacheManager:
         question: str,
         word_count: int,
         answer_preview: Optional[str] = None,
-        max_history: int = 20
+        max_history: int = 50
     ) -> bool:
         """
         Add an item to the user's history list (LIFO).
@@ -414,22 +421,31 @@ class CacheManager:
             
         key = self.get_history_key(user_id)
         
-        # Create history item
+        # Create history item (unique per normalized question)
+        q_hash = hashlib.sha256(question.strip().lower().encode()).hexdigest()[:12]
         item = {
-            "id": f"{hashlib.sha256(question.encode()).hexdigest()[:8]}-{int(datetime.now().timestamp())}",
+            "id": f"{q_hash}-{int(datetime.now().timestamp())}",
             "question": question,
             "word_count": word_count,
             "timestamp": datetime.now().isoformat(),
-            "preview": answer_preview[:100] + "..." if answer_preview else ""
+            "preview": (answer_preview[:100] + "...") if answer_preview else "",
+            "q_hash": q_hash
         }
         
         try:
-            # Push to head of list
+            # Fetch existing to dedupe by q_hash
+            existing = self.redis.lrange(key, 0, max_history * 2)
+            filtered = [json.loads(x) for x in existing if x]
+            filtered = [h for h in filtered if h.get("q_hash") != q_hash]
+
+            # Rebuild list with newest first
+            new_list = [item] + filtered
+            new_list = new_list[:max_history]
+
             p = self.redis.pipeline()
-            p.lpush(key, json.dumps(item))
-            p.ltrim(key, 0, max_history - 1)  # Keep only top N
-            
-            # Set expiry (e.g. 30 days) to prevent stale data piling up forever
+            p.delete(key)
+            if new_list:
+                p.lpush(key, *[json.dumps(h) for h in new_list])
             p.expire(key, 30 * 24 * 60 * 60)
             p.execute()
             
@@ -439,25 +455,39 @@ class CacheManager:
             logger.error(f"Error adding to user history: {e}")
             return False
 
-    def get_user_history(self, user_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_user_history(
+        self,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+        search: Optional[str] = None
+    ) -> tuple[list[Dict[str, Any]], int, bool]:
         """
-        Get user's history list.
+        Get user's history list with optional search and pagination.
+        Returns (items, total, has_more).
         """
         if not self.enabled:
-            return []
+            return [], 0, False
             
         key = self.get_history_key(user_id)
         
         try:
-            # Get raw JSON strings
-            raw_items = self.redis.lrange(key, 0, limit - 1)
-            
-            # Parse JSON
-            history = [json.loads(item) for item in raw_items]
-            return history
+            # If searching, pull a larger window to cover all matches; otherwise a reasonable window
+            fetch_count = 500 if search else min(limit + offset + 50, 500)
+            raw_items = self.redis.lrange(key, 0, fetch_count - 1)
+            history = [json.loads(item) for item in raw_items if item]
+
+            if search:
+                term = search.lower()
+                history = [h for h in history if term in h.get("question", "").lower()]
+
+            total = len(history)
+            window = history[offset:offset + limit]
+            has_more = offset + limit < total
+            return window, total, has_more
         except Exception as e:
             logger.error(f"Error fetching user history: {e}")
-            return []
+            return [], 0, False
 
 
 # Global singleton instance

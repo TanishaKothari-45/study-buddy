@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, PenTool, BookOpen, FileText, CheckCircle, AlertCircle, ChevronDown, Minimize2, RefreshCw, History } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -35,6 +36,14 @@ export default function MainsAnswerPage() {
     const [showCompressed, setShowCompressed] = useState(true); // Compressed answer accordion
     const [showOriginal, setShowOriginal] = useState(false); // Original answer accordion
     const [historyOpen, setHistoryOpen] = useState(false); // History dropdown
+    const [historyModalOpen, setHistoryModalOpen] = useState(false);
+    const [historyModalLoading, setHistoryModalLoading] = useState(false);
+    const [historyModalError, setHistoryModalError] = useState<string | null>(null);
+    const [historyModalAnswer, setHistoryModalAnswer] = useState<MainsAnswerResponse | null>(null);
+    const [historyModalItem, setHistoryModalItem] = useState<any | null>(null);
+    const [modalShowCompressed, setModalShowCompressed] = useState(true);
+    const [modalShowOriginal, setModalShowOriginal] = useState(true);
+    const historyRef = useRef<HTMLDivElement | null>(null);
 
     // Abort controller for cancellation
     const [abortController, setAbortController] = useState<AbortController | null>(null);
@@ -45,18 +54,33 @@ export default function MainsAnswerPage() {
         wordCount,
         result,
         history,
+        historyHasMore,
+        historySearch,
         isLoadingHistory,
         setQuestion,
         setWordCount,
         setResult,
+        setHistorySearch,
         fetchHistory,
         clear
     } = useMainsAnswerStore();
 
     // Fetch history on mount
     useEffect(() => {
-        fetchHistory();
+        fetchHistory({ reset: true });
     }, [fetchHistory]);
+
+    // Close history dropdown on outside click
+    useEffect(() => {
+        if (!historyOpen) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            if (historyRef.current && !historyRef.current.contains(event.target as Node)) {
+                setHistoryOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [historyOpen]);
 
     const handleGenerate = async (e?: React.FormEvent) => {
         e?.preventDefault(); // Optional event for manual calls
@@ -85,6 +109,15 @@ export default function MainsAnswerPage() {
                 compressed_answer: data.compressed_answer ?? null,
                 word_count_compressed: data.word_count_compressed ?? null,
             };
+            // If cache only stored compressed (same as answer), avoid double-rendering sections
+            if (
+                normalizedData.compressed_answer &&
+                normalizedData.answer &&
+                normalizedData.compressed_answer.trim() === normalizedData.answer.trim()
+            ) {
+                normalizedData.compressed_answer = null;
+                normalizedData.word_count_compressed = null;
+            }
 
             setResult(normalizedData); // Save to store
             fetchHistory(); // Refresh history list after new generation
@@ -115,17 +148,44 @@ export default function MainsAnswerPage() {
         }
     };
 
-    const handleHistoryClick = (item: any) => {
-        // Load history item into form and regenerate (fetches from cache)
-        setQuestion(item.question);
-        setWordCount(item.word_count?.toString() || "250");
+    const handleHistoryClick = async (item: any) => {
         setHistoryOpen(false);
+        setHistoryModalOpen(true);
+        setHistoryModalLoading(true);
+        setHistoryModalError(null);
+        setHistoryModalAnswer(null);
+        setHistoryModalItem(item);
+        setModalShowCompressed(true);
+        setModalShowOriginal(true);
 
-        // Trigger generation (needs timeout to allow state updates to propagate if batched)
-        // Using setTimeout(..., 0) pushes it to end of event loop
-        setTimeout(() => {
-            handleGenerate();
-        }, 0);
+        try {
+            const wc = item.word_count || 250;
+            const data = await api.get<MainsAnswerResponse>(`/mains-answer/history/answer?question=${encodeURIComponent(item.question)}&word_count=${wc}`);
+            const normalizedData = {
+                ...data,
+                compressed_answer: data.compressed_answer ?? null,
+                word_count_compressed: data.word_count_compressed ?? null,
+            };
+            if (
+                normalizedData.compressed_answer &&
+                normalizedData.answer &&
+                normalizedData.compressed_answer.trim() === normalizedData.answer.trim()
+            ) {
+                normalizedData.compressed_answer = null;
+                normalizedData.word_count_compressed = null;
+            }
+            setHistoryModalAnswer(normalizedData);
+        } catch (err) {
+            let message = "Failed to load cached answer";
+            if (err instanceof ApiError) {
+                message = err.message;
+            } else if (err instanceof Error) {
+                message = err.message;
+            }
+            setHistoryModalError(message);
+        } finally {
+            setHistoryModalLoading(false);
+        }
     };
 
     return (
@@ -157,7 +217,7 @@ export default function MainsAnswerPage() {
                             </Button>
                         )}
                         {/* History button - always visible */}
-                        <div className="relative">
+                        <div className="relative" ref={historyRef}>
                             <Button
                                 variant="ghost"
                                 size="sm"
@@ -173,22 +233,51 @@ export default function MainsAnswerPage() {
                                 History {history.length > 0 && `(${history.length})`}
                             </Button>
                             {historyOpen && history.length > 0 && (
-                                <div className="absolute right-0 top-full mt-2 w-96 rounded-lg shadow-2xl z-50 max-h-96 overflow-y-auto border-2 bg-white dark:bg-zinc-900">
+                                <div className="absolute right-0 top-full mt-2 w-96 rounded-lg shadow-2xl z-50 max-h-[420px] overflow-hidden border-2 bg-white dark:bg-zinc-900 flex flex-col">
                                     <div className="p-3 border-b font-semibold text-sm bg-gray-50 dark:bg-zinc-800 rounded-t-lg">
                                         Previous Answers (Redises)
                                     </div>
-                                    {history.map((item) => (
-                                        <button
-                                            key={item.id}
-                                            onClick={() => handleHistoryClick(item)}
-                                            className="w-full text-left p-4 hover:bg-gray-100 dark:hover:bg-zinc-800 border-b last:border-b-0 transition-colors bg-white dark:bg-zinc-900"
+                                    <div className="p-2 border-b bg-white dark:bg-zinc-900">
+                                        <Input
+                                            placeholder="Search previous questions..."
+                                            value={historySearch}
+                                            onChange={(e) => {
+                                                setHistorySearch(e.target.value);
+                                                fetchHistory({ reset: true });
+                                            }}
+                                            className="bg-white dark:bg-zinc-800"
+                                        />
+                                    </div>
+                                    <div className="overflow-y-auto max-h-80">
+                                        {history.map((item) => (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => handleHistoryClick(item)}
+                                                className="w-full text-left p-4 hover:bg-gray-100 dark:hover:bg-zinc-800 border-b last:border-b-0 transition-colors bg-white dark:bg-zinc-900"
+                                            >
+                                                <p className="text-sm font-medium line-clamp-2 text-gray-900 dark:text-gray-100">{item.question}</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                    {item.word_count || "250"} words • {new Date(item.timestamp).toLocaleDateString()}
+                                                </p>
+                                            </button>
+                                        ))}
+                                        {history.length === 0 && !isLoadingHistory && (
+                                            <div className="p-4 text-sm text-muted-foreground">No results</div>
+                                        )}
+                                    </div>
+                                    <div className="p-2 border-t bg-white dark:bg-zinc-900 flex items-center justify-between">
+                                        <span className="text-xs text-muted-foreground">
+                                            Showing {history.length} item{history.length === 1 ? "" : "s"}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={!historyHasMore || isLoadingHistory}
+                                            onClick={() => fetchHistory({ reset: false })}
                                         >
-                                            <p className="text-sm font-medium line-clamp-2 text-gray-900 dark:text-gray-100">{item.question}</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                {item.word_count || "250"} words • {new Date(item.timestamp).toLocaleDateString()}
-                                            </p>
-                                        </button>
-                                    ))}
+                                            {isLoadingHistory ? "Loading..." : historyHasMore ? "Load more" : "All loaded"}
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -325,7 +414,7 @@ export default function MainsAnswerPage() {
                                     <button
                                         type="button"
                                         onClick={() => setShowCompressed(!showCompressed)}
-                                        className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors border-b"
+                                        className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors border-b cursor-pointer"
                                     >
                                         <span className="font-medium text-foreground flex items-center gap-2">
                                             <Minimize2 className="h-4 w-4 text-blue-500" />
@@ -354,7 +443,7 @@ export default function MainsAnswerPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowOriginal(!showOriginal)}
-                                    className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors border-b"
+                                    className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors border-b cursor-pointer"
                                 >
                                     <span className="font-medium text-foreground">
                                         {result.compressed_answer ? "Original Answer" : "Generated Answer"} ({result.word_count_actual} words)
@@ -428,6 +517,99 @@ export default function MainsAnswerPage() {
                     )}
                 </div>
             </div>
+            {/* History Answer Modal */}
+            <Dialog open={historyModalOpen} onOpenChange={setHistoryModalOpen}>
+                <DialogContent className="sm:max-w-5xl max-h-[85vh] overflow-y-auto bg-[hsl(var(--card))] text-[hsl(var(--text))] border border-[hsl(var(--border))] shadow-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl font-bold text-[hsl(var(--text))]">Previous Answer</DialogTitle>
+                        <DialogDescription className="text-[hsl(var(--text-muted))]">
+                            {historyModalItem?.question}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {historyModalLoading && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Loading cached answer...
+                        </div>
+                    )}
+
+                    {historyModalError && (
+                        <Alert variant="destructive" className="border-2 border-red-500 bg-red-50 dark:bg-red-900/20">
+                            <AlertCircle className="h-5 w-5" />
+                            <AlertDescription className="font-semibold text-base">{historyModalError}</AlertDescription>
+                        </Alert>
+                    )}
+
+                    {historyModalAnswer && (
+                        <div className="space-y-4">
+                            <div className="text-sm text-muted-foreground">
+                                <span className="font-semibold text-foreground">{historyModalAnswer.word_count_actual} words</span>
+                                {historyModalAnswer.word_count_compressed && (
+                                    <span className="ml-2 text-foreground">
+                                        • Compressed: {historyModalAnswer.word_count_compressed} words
+                                    </span>
+                                )}
+                            </div>
+
+                            {historyModalAnswer.compressed_answer && (
+                                <Card>
+                                    <button
+                                        type="button"
+                                        onClick={() => setModalShowCompressed(!modalShowCompressed)}
+                                        className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors border-b cursor-pointer"
+                                    >
+                                        <span className="font-medium text-foreground flex items-center gap-2">
+                                            <Minimize2 className="h-4 w-4 text-blue-500" />
+                                            Compressed Answer ({historyModalAnswer.word_count_compressed} words)
+                                        </span>
+                                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${modalShowCompressed ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {modalShowCompressed && (
+                                        <CardContent className="p-6">
+                                            <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary">
+                                                <ReactMarkdown
+                                                    remarkPlugins={[remarkGfm]}
+                                                    components={markdownComponents}
+                                                    urlTransform={urlTransform}
+                                                >
+                                                    {historyModalAnswer.compressed_answer}
+                                                </ReactMarkdown>
+                                            </div>
+                                        </CardContent>
+                                    )}
+                                </Card>
+                            )}
+
+                            <Card className={historyModalAnswer.compressed_answer ? "border-dashed" : ""}>
+                                <button
+                                    type="button"
+                                    onClick={() => setModalShowOriginal(!modalShowOriginal)}
+                                    className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors border-b cursor-pointer"
+                                >
+                                    <span className="font-medium text-foreground">
+                                        {historyModalAnswer.compressed_answer ? "Original Answer" : "Answer"} ({historyModalAnswer.word_count_actual} words)
+                                    </span>
+                                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${(modalShowOriginal || !historyModalAnswer.compressed_answer) ? 'rotate-180' : ''}`} />
+                                </button>
+                                {(modalShowOriginal || !historyModalAnswer.compressed_answer) && (
+                                    <CardContent className="p-6">
+                                        <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary">
+                                            <ReactMarkdown
+                                                remarkPlugins={[remarkGfm]}
+                                                components={markdownComponents}
+                                                urlTransform={urlTransform}
+                                            >
+                                                {historyModalAnswer.answer}
+                                            </ReactMarkdown>
+                                        </div>
+                                    </CardContent>
+                                )}
+                            </Card>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

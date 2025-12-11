@@ -200,7 +200,7 @@ async function generateMap(config) {
 
                 // Marker circle
                 const markerColor = getMarkerColor(marker.type);
-                markerGroup.append('circle')
+                const circle = markerGroup.append('circle')
                     .attr('cx', x)
                     .attr('cy', y)
                     .attr('r', 8) // Increased radius
@@ -208,167 +208,172 @@ async function generateMap(config) {
                     .attr('stroke', '#333')
                     .attr('stroke-width', 1.5);
 
-                // Label
+                // Add tooltip (title)
                 if (marker.label) {
-                    markerGroup.append('text')
-                        .attr('x', x)
-                        .attr('y', y - 12)
-                        .attr('text-anchor', 'middle')
-                        .attr('font-size', 14) // Increased font size
-                        .attr('font-weight', '600')
-                        .attr('fill', '#222')
-                        .text(marker.label);
+                    circle.append('title').text(marker.label);
                 }
+            }
+
+            // Label
+            if (marker.label) {
+                markerGroup.append('text')
+                    .attr('x', coords ? coords[0] : 0) // Use coords[0] if available, else 0
+                    .attr('y', coords ? coords[1] - 12 : 0) // Use coords[1] if available, else 0
+                    .attr('text-anchor', 'middle')
+                    .attr('font-size', 14) // Increased font size
+                    .attr('font-weight', '600')
+                    .attr('fill', '#222')
+                    .text(marker.label);
             }
         });
     }
 
-    // Arrows layer
-    if (arrows && arrows.length > 0 && (mapType === 'arrows' || mapType === 'combined')) {
-        // Define arrowhead marker
-        const defs = svg.append('defs');
-        defs.append('marker')
-            .attr('id', 'arrowhead')
-            .attr('markerWidth', 10)
-            .attr('markerHeight', 10)
-            .attr('refX', 8)
-            .attr('refY', 3)
-            .attr('orient', 'auto')
-            .append('path')
-            .attr('d', 'M0,0 L0,6 L9,3 z')
-            .attr('fill', '#d73027');
+// Arrows layer
+if (arrows && arrows.length > 0 && (mapType === 'arrows' || mapType === 'combined')) {
+    // Define arrowhead marker
+    const defs = svg.append('defs');
+    defs.append('marker')
+        .attr('id', 'arrowhead')
+        .attr('markerWidth', 10)
+        .attr('markerHeight', 10)
+        .attr('refX', 8)
+        .attr('refY', 3)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,0 L0,6 L9,3 z')
+        .attr('fill', '#d73027');
 
-        const arrowGroup = svg.append('g').attr('id', 'arrows');
+    const arrowGroup = svg.append('g').attr('id', 'arrows');
 
-        arrows.forEach(arrow => {
-            const p1 = projection(arrow.from);
-            const p2 = projection(arrow.to);
+    arrows.forEach(arrow => {
+        const p1 = projection(arrow.from);
+        const p2 = projection(arrow.to);
 
-            if (p1 && p2) {
-                const dx = p2[0] - p1[0];
-                const dy = p2[1] - p1[1];
-                const cx = p1[0] + dx * 0.4 - dy * 0.2;
-                const cy = p1[1] + dy * 0.4 + dx * 0.2;
+        if (p1 && p2) {
+            const dx = p2[0] - p1[0];
+            const dy = p2[1] - p1[1];
+            const cx = p1[0] + dx * 0.4 - dy * 0.2;
+            const cy = p1[1] + dy * 0.4 + dx * 0.2;
 
-                arrowGroup.append('path')
-                    .attr('d', `M${p1[0]},${p1[1]} Q${cx},${cy} ${p2[0]},${p2[1]}`)
+            arrowGroup.append('path')
+                .attr('d', `M${p1[0]},${p1[1]} Q${cx},${cy} ${p2[0]},${p2[1]}`)
+                .attr('fill', 'none')
+                .attr('stroke', '#d73027')
+                .attr('stroke-width', 2)
+                .attr('marker-end', 'url(#arrowhead)')
+                .attr('opacity', 0.8);
+
+            // Arrow label
+            if (arrow.label) {
+                arrowGroup.append('text')
+                    .attr('x', cx)
+                    .attr('y', cy - 5)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-size', 10)
+                    .attr('fill', '#d73027')
+                    .text(arrow.label);
+            }
+        }
+    });
+}
+
+// Paths layer (Regions/Lines like Himalayas, Western Ghats)
+if (config.paths && config.paths.length > 0) {
+    const pathGroup = svg.append('g').attr('id', 'custom-paths');
+
+    config.paths.forEach(pathItem => {
+        try {
+            // Construct GeoJSON feature
+            const feature = {
+                type: "Feature",
+                geometry: {
+                    type: "LineString", // Default to LineString
+                    coordinates: pathItem.coordinates
+                },
+                properties: {}
+            };
+
+            // Style defaults
+            const strokeColor = pathItem.stroke || '#8B4513'; // Brown for mountains default
+            const strokeWidth = pathItem.strokeWidth || 3;
+
+            // Draw path using standard path generator (handles projection automatically)
+            const d = pathGenerator(feature);
+
+            if (d) {
+                pathGroup.append('path')
+                    .attr('d', d)
                     .attr('fill', 'none')
-                    .attr('stroke', '#d73027')
-                    .attr('stroke-width', 2)
-                    .attr('marker-end', 'url(#arrowhead)')
-                    .attr('opacity', 0.8);
+                    .attr('stroke', strokeColor)
+                    .attr('stroke-width', strokeWidth)
+                    .attr('stroke-linecap', 'round')
+                    .attr('stroke-linejoin', 'round')
+                    .attr('opacity', 0.7);
 
-                // Arrow label
-                if (arrow.label) {
-                    arrowGroup.append('text')
-                        .attr('x', cx)
-                        .attr('y', cy - 5)
-                        .attr('text-anchor', 'middle')
-                        .attr('font-size', 10)
-                        .attr('fill', '#d73027')
-                        .text(arrow.label);
-                }
-            }
-        });
-    }
+                // Add Label at the center/start of path
+                if (pathItem.label) {
+                    // Project first coordinate for label placement
+                    // A better approach would be to find the centroid or mid-point
+                    const labelCoord = pathItem.coordinates[Math.floor(pathItem.coordinates.length / 2)];
+                    const projected = projection(labelCoord);
 
-    // Paths layer (Regions/Lines like Himalayas, Western Ghats)
-    if (config.paths && config.paths.length > 0) {
-        const pathGroup = svg.append('g').attr('id', 'custom-paths');
-
-        config.paths.forEach(pathItem => {
-            try {
-                // Construct GeoJSON feature
-                const feature = {
-                    type: "Feature",
-                    geometry: {
-                        type: "LineString", // Default to LineString
-                        coordinates: pathItem.coordinates
-                    },
-                    properties: {}
-                };
-
-                // Style defaults
-                const strokeColor = pathItem.stroke || '#8B4513'; // Brown for mountains default
-                const strokeWidth = pathItem.strokeWidth || 3;
-
-                // Draw path using standard path generator (handles projection automatically)
-                const d = pathGenerator(feature);
-
-                if (d) {
-                    pathGroup.append('path')
-                        .attr('d', d)
-                        .attr('fill', 'none')
-                        .attr('stroke', strokeColor)
-                        .attr('stroke-width', strokeWidth)
-                        .attr('stroke-linecap', 'round')
-                        .attr('stroke-linejoin', 'round')
-                        .attr('opacity', 0.7);
-
-                    // Add Label at the center/start of path
-                    if (pathItem.label) {
-                        // Project first coordinate for label placement
-                        // A better approach would be to find the centroid or mid-point
-                        const labelCoord = pathItem.coordinates[Math.floor(pathItem.coordinates.length / 2)];
-                        const projected = projection(labelCoord);
-
-                        if (projected) {
-                            pathGroup.append('text')
-                                .attr('x', projected[0])
-                                .attr('y', projected[1] - 5)
-                                .attr('text-anchor', 'middle')
-                                .attr('font-size', 12)
-                                .attr('font-weight', 'bold')
-                                .attr('fill', strokeColor)
-                                .attr('stroke', '#fff') // white halo
-                                .attr('stroke-width', 0.5)
-                                .text(pathItem.label);
-                        }
+                    if (projected) {
+                        pathGroup.append('text')
+                            .attr('x', projected[0])
+                            .attr('y', projected[1] - 5)
+                            .attr('text-anchor', 'middle')
+                            .attr('font-size', 12)
+                            .attr('font-weight', 'bold')
+                            .attr('fill', strokeColor)
+                            .attr('stroke', '#fff') // white halo
+                            .attr('stroke-width', 0.5)
+                            .text(pathItem.label);
                     }
                 }
-            } catch (err) {
-                console.error(`Error drawing path ${pathItem.label}:`, err);
             }
-        });
-    }
+        } catch (err) {
+            console.error(`Error drawing path ${pathItem.label}:`, err);
+        }
+    });
+}
 
-    // Title
-    if (title) {
-        svg.append('text')
-            .attr('x', 20)
-            .attr('y', 30)
-            .attr('font-size', 18)
-            .attr('font-weight', '600')
-            .attr('fill', '#333')
-            .text(title);
-    }
-
-    // Source attribution
+// Title
+if (title) {
     svg.append('text')
         .attr('x', 20)
-        .attr('y', height - 10)
-        .attr('font-size', 10)
-        .attr('fill', '#666')
-        .text('Source: Natural Earth / Study Buddy');
+        .attr('y', 30)
+        .attr('font-size', 18)
+        .attr('font-weight', '600')
+        .attr('fill', '#333')
+        .text(title);
+}
 
-    // Extract SVG
-    const svgContent = body.html();
-    const base64 = Buffer.from(svgContent).toString('base64');
+// Source attribution
+svg.append('text')
+    .attr('x', 20)
+    .attr('y', height - 10)
+    .attr('font-size', 10)
+    .attr('fill', '#666')
+    .text('Source: Natural Earth / Study Buddy');
 
-    // Metadata
-    const meta = {
-        width,
-        height,
-        region,
-        mapType,
-        markerCount: markers.length,
-        arrowCount: arrows.length,
-        hasRivers: !!riversData,
-        hasChoropleth: !!choropleth
-    };
+// Extract SVG
+const svgContent = body.html();
+const base64 = Buffer.from(svgContent).toString('base64');
 
-    console.log('✅ Map generation completed successfully');
-    return { svgContent, base64, meta };
+// Metadata
+const meta = {
+    width,
+    height,
+    region,
+    mapType,
+    markerCount: markers.length,
+    arrowCount: arrows.length,
+    hasRivers: !!riversData,
+    hasChoropleth: !!choropleth
+};
+
+console.log('✅ Map generation completed successfully');
+return { svgContent, base64, meta };
 }
 
 /**

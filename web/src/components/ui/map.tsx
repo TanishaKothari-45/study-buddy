@@ -52,18 +52,29 @@ export function Map({ src, alt, className = '' }: MapProps) {
     }
 
     // Render immediately, let the browser handle the image loading
-    return (
-        <div className="my-6">
-            <img
-                src={src}
-                alt={alt || 'Generated Map'}
-                className={`w-full h-auto rounded-lg border border-gray-200 shadow-sm ${className}`}
-                style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
-                onError={(e) => {
-                    console.error('❌ Failed to load map image:', e);
-                    setError('Failed to load map image');
-                }}
+    // Render SVG inline to enable interactivity (hover tooltips via <title>)
+    try {
+        const base64Data = src.split(',')[1];
+        const svgContent = atob(base64Data);
+
+        return (
+            <div
+                className={`my-6 w-full h-auto rounded-lg border border-gray-200 shadow-sm overflow-hidden bg-white ${className}`}
+                dangerouslySetInnerHTML={{ __html: svgContent }}
             />
-        </div>
-    );
+        );
+    } catch (e) {
+        console.error('FAILED to render inline SVG:', e);
+        // Fallback to img if decoding fails
+        return (
+            <div className="my-6">
+                <img
+                    src={src}
+                    alt={alt || 'Generated Map'}
+                    className={`w-full h-auto rounded-lg border border-gray-200 shadow-sm ${className}`}
+                    style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
+                />
+            </div>
+        );
+    }
 }
