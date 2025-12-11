@@ -12,9 +12,13 @@ def _get_gemini_client(api_key: str = None):
     # Import Gemini client and settings from backend app (shares user/system key logic)
     from app.gemini_core.gemini_client import GeminiClient
     from app.core.config import settings
+    import logging
     
     key_to_use = api_key or settings.GEMINI_API_KEY
-    model_to_use = settings.LLM_MODEL_SMALL or "gemini-1.5-flash"
+    # Use Gemini Flash for summaries; avoid OpenAI small model
+    model_to_use = settings.GEMINI_MODEL_FLASH or "gemini-1.5-flash"
+    logger = logging.getLogger(__name__)
+    logger.info(f"[SUMMARIZER] Using Gemini model={model_to_use} key={'user-provided' if api_key else 'env/system'}")
     return GeminiClient(api_key=key_to_use, model_name=model_to_use)
 
 
@@ -50,11 +54,13 @@ def summarize_articles_only(article_leads: list, api_key: str = None) -> list:
     prompt = _build_articles_prompt(article_leads)
 
     # Call Gemini Flash (deterministic, concise)
-    text = client.generate_response(
+    # generate_response is async; run in event loop safely
+    import asyncio
+    text = asyncio.run(client.generate_response(
         user_prompt=prompt,
         system_prompt="You are a concise factual summarizer. Return JSON only. Keep each summary under ~80 words.",
         temperature=0.1,
-    )
+    ))
 
     # Extract JSON array from response
     start = text.find("[")

@@ -54,8 +54,11 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
                         ref.current.innerHTML = svg;
                         const svgElement = ref.current.querySelector('svg');
                         if (svgElement) {
-                            svgElement.style.maxWidth = '400px';
+                            // Let it grow to container width
+                            svgElement.style.maxWidth = '100%';
+                            svgElement.style.width = '100%';
                             svgElement.style.height = 'auto';
+                            svgElement.style.fontSize = '18px';
                             svgElement.style.overflow = 'visible';
                             svgElement.setAttribute('width', '100%');
 
@@ -81,9 +84,9 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
                                 const textContent = innerDiv.textContent || '';
 
                                 // Calculate required width based on text length
-                                // Use 12px per character to be safe (10px font needs more space)
-                                const estimatedTextWidth = textContent.length * 12;
-                                const requiredWidth = estimatedTextWidth + 60; // Add more padding
+                                // Use 14px per character to allow larger font
+                                const estimatedTextWidth = textContent.length * 14;
+                                const requiredWidth = estimatedTextWidth + 80; // Add more padding
 
                                 const currentFOWidth = parseFloat(fo.getAttribute('width') || '0');
 

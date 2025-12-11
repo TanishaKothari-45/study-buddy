@@ -45,12 +45,18 @@ export default function MainsAnswerPage() {
     const [modalShowOriginal, setModalShowOriginal] = useState(false);
     const historyRef = useRef<HTMLDivElement | null>(null);
 
-    const stripHeavyContent = (text?: string | null, opts: { removeAllMaps?: boolean } = {}) => {
+    const stripHeavyContent = (
+        text?: string | null,
+        opts: { removeAllMaps?: boolean; stripImages?: boolean } = {}
+    ) => {
         if (!text) return "";
-        const { removeAllMaps = false } = opts;
-        // Remove map-json code blocks and inline base64 images to keep previews light
+        const { removeAllMaps = false, stripImages = false } = opts;
+        // Optionally remove map-json code blocks
         let cleaned = text.replace(/```map-json[\s\S]*?```/g, removeAllMaps ? "" : "[map omitted]");
-        cleaned = cleaned.replace(/!\[[^\]]*\]\(data:image[^\)]*\)/g, "[image omitted]");
+        // Optionally strip inline base64 images
+        if (stripImages) {
+            cleaned = cleaned.replace(/!\[[^\]]*\]\(data:image[^\)]*\)/g, "[image omitted]");
+        }
         return cleaned;
     };
 
@@ -582,7 +588,9 @@ export default function MainsAnswerPage() {
                     }
                 }}
             >
-                <DialogContent className="sm:max-w-5xl max-h-[85vh] overflow-y-auto bg-[hsl(var(--card))] text-[hsl(var(--text))] border border-[hsl(var(--border))] shadow-2xl">
+                <DialogContent
+                    className="sm:max-w-5xl max-h-[85vh] overflow-y-auto bg-[hsl(var(--card))] text-[hsl(var(--text))] border border-[hsl(var(--border))] shadow-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-bold text-[hsl(var(--text))]">Previous Answer</DialogTitle>
                         <DialogDescription className="text-[hsl(var(--text-muted))]">
