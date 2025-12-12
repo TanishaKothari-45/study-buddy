@@ -174,7 +174,8 @@ async def generate_answer(
     static_context: Optional[str] = None,
     dynamic_context: Optional[str] = None,
     word_count: int = 350,
-    gemini_client: Optional[Any] = None
+    gemini_client: Optional[Any] = None,
+    map_service_healthy: bool = True
 ) -> dict:
     """
     Top-level function to generate a mains answer using Gemini 2.5 Pro.
@@ -185,6 +186,7 @@ async def generate_answer(
         dynamic_context: Current affairs context
         word_count: Target word count for the answer
         gemini_client: GeminiClient instance (required)
+        map_service_healthy: Whether map service is available (default: True)
     
     Returns:
         { "answer": str, "sources": list }
@@ -200,7 +202,7 @@ async def generate_answer(
         word_count=word_count
     )
 
-    # 2) Call Gemini 2.5 Pro
+    # 2) Call Gemini 2.5 Pro with timeout protection
     answer_text = ""
     sources = []
 
@@ -211,17 +213,28 @@ async def generate_answer(
 
         logger.info(f"🤖 Calling Gemini 2.5 Pro for answer generation...")
         
-        # Call Gemini (retries transient errors internally, up to 2 retries)
-        response = await gemini_client.generate_response(
-            user_prompt=user_msg,
-            system_prompt=system_msg,
-            temperature=0.15,  # Low temperature for consistency
-            max_retries=2  # Retry only Gemini call, not the whole pipeline
-        )
+        # Call Gemini with timeout protection (60 seconds)
+        import asyncio
+        try:
+            response = await asyncio.wait_for(
+                gemini_client.generate_response(
+                    user_prompt=user_msg,
+                    system_prompt=system_msg,
+                    temperature=0.15,  # Low temperature for consistency
+                    max_retries=2  # Retry only Gemini call, not the whole pipeline
+                ),
+                timeout=60.0  # 60 second timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error("❌ Gemini call timed out after 60 seconds")
+            raise RuntimeError("Answer generation timed out after 60 seconds. The AI service is taking longer than expected. Please try again with a simpler question or try again later.")
         
         answer_text = response.strip()
         logger.info(f"✅ Gemini response received: {len(answer_text)} chars")
         
+    except RuntimeError:
+        # Re-raise RuntimeError (timeout or other runtime issues)
+        raise
     except Exception as e:
         error_msg = str(e)
         logger.error(f"❌ Gemini call failed: {error_msg}")
@@ -234,14 +247,28 @@ async def generate_answer(
     answer_text = enforce_diagrams(answer_text, required=1)
     # answer_text = enforce_word_count(answer_text, target=word_count)
     
-    # 4) Process map-json blocks in parallel (if any)
-    logger.info("🗺️  Checking for map-json blocks in answer...")
-    try:
-        answer_text = await parse_and_generate_maps(answer_text)
-        logger.info("✅ Map processing completed")
-    except Exception as e:
-        logger.error(f"❌ Map processing failed: {str(e)}", exc_info=True)
-        # Continue with answer even if map generation fails
+    # 4) Process map-json blocks (only if map service is healthy)
+    if map_service_healthy:
+        logger.info("🗺️  Checking for map-json blocks in answer...")
+        try:
+            answer_text = await parse_and_generate_maps(answer_text)
+            logger.info("✅ Map processing completed")
+        except Exception as e:
+            logger.error(f"❌ Map processing failed: {str(e)}", exc_info=True)
+            # Continue with answer even if map generation fails
+    else:
+        # Map service unavailable - skip map generation
+        logger.warning("⚠️ Map service unavailable - skipping map generation")
+        # Replace map-json blocks with error message
+        import re
+        map_json_pattern = r'```map-json[\s\S]*?```'
+        if re.search(map_json_pattern, answer_text):
+            answer_text = re.sub(
+                map_json_pattern,
+                '\n\n*[Map generation unavailable - map service is currently down]*\n\n',
+                answer_text
+            )
+            logger.info("📝 Replaced map-json blocks with unavailability message")
 
     # 5) Pack result
     result = {
@@ -453,7 +480,7 @@ async def generate_mains_answer(
                     vector_handler=pinecone_handler,
                     mode="mains",
                     use_content_store=True,
-                    k=5,            # Keep Top 5 (High Precision)
+                    k=6,            # Keep Top 5 (High Precision)
                     re_rank=True,   # Enable Cross-Encoder
                     fetch_k=20      # Fetch 20 Candidates (High Recall)
                 )
@@ -505,14 +532,12 @@ async def generate_mains_answer(
             else:
                 logger.warning("⚠️ [PARALLEL] Map service is unavailable - maps will not be generated")
             
+            # Fallback for empty context - use LLM's general knowledge
             if not context:
-                logger.warning(f"⚠️ [PARALLEL] No context retrieved")
-                return MainsAnswerResponse(
-                    question=mains_request.question,
-                    answer="No relevant information found in the uploaded documents for this question.",
-                    sources=[],
-                    word_count_actual=0
-                )
+                logger.warning(f"⚠️ [PARALLEL] No context retrieved from vector store - using LLM general knowledge as fallback")
+                context = "[No specific context retrieved from study materials - use your general geographical knowledge base to answer this question]"
+                sources = []  # No sources available
+                logger.info("📝 [FALLBACK] Will generate answer using LLM's general knowledge with transparency")
             
             logger.info(f"✅ [PARALLEL] Context: {len(context)} chars, {len(sources)} sources")
             logger.info(f"✅ [PARALLEL] News: {len(current_affairs_bullets)} bullets")
@@ -529,13 +554,14 @@ async def generate_mains_answer(
             # ============================================================
             logger.info(f"🤖 [MAINS] Generating answer with Gemini 2.5 Pro...")
             
-            # Call async generate_answer - let exceptions propagate
+            # Call async generate_answer with map service health status
             result = await generate_answer(
                 question=mains_request.question,
                 static_context=context,
                 dynamic_context=current_affairs_section,
                 word_count=mains_request.word_count,
-                gemini_client=gemini_client
+                gemini_client=gemini_client,
+                map_service_healthy=map_service_healthy
             )
             
             answer = result["answer"]
@@ -554,7 +580,7 @@ async def generate_mains_answer(
                     original_answer=answer,
                     target_word_count=mains_request.word_count,
                     gemini_client=gemini_client,
-                    threshold_ratio=1.3
+                    threshold_ratio=1.5
                 )
                 
                 if compressed:

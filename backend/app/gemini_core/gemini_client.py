@@ -144,7 +144,7 @@ class GeminiClient:
                     # Retry transient errors (timeouts, 500s, network issues)
                     retry_count += 1
                     if retry_count <= max_retries:
-                        wait_time = 2 ** (retry_count - 1)  # Exponential backoff: 1s, 2s
+                        wait_time = retry_count  # Linear backoff: 1s, 2s, 3s
                         print(f"⚠️  Gemini API error: {e}. Retrying ({retry_count}/{max_retries}) after {wait_time}s...")
                         await asyncio.sleep(wait_time)
                     else:
