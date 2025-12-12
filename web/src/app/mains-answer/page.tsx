@@ -293,11 +293,11 @@ export default function MainsAnswerPage() {
                                 History {history.length > 0 && `(${history.length})`}
                             </Button>
                             {historyOpen && history.length > 0 && (
-                                <div className="absolute right-0 top-full mt-2 w-96 rounded-lg shadow-2xl z-50 max-h-[420px] overflow-hidden border-2 bg-white dark:bg-zinc-900 flex flex-col">
-                                    <div className="p-3 border-b font-semibold text-sm bg-gray-50 dark:bg-zinc-800 rounded-t-lg">
+                                <div className="absolute right-0 top-full mt-2 w-96 rounded-md shadow-2xl z-50 max-h-[420px] overflow-hidden border bg-popover backdrop-blur-md text-popover-foreground flex flex-col">
+                                    <div className="p-3 border-b font-semibold text-sm text-popover-foreground bg-popover rounded-t-lg">
                                         Previous Answers (Redises)
                                     </div>
-                                    <div className="p-2 border-b bg-white dark:bg-zinc-900">
+                                    <div className="p-2 border-b bg-popover">
                                         <Input
                                             placeholder="Search previous questions..."
                                             value={historySearch}
@@ -305,27 +305,27 @@ export default function MainsAnswerPage() {
                                                 setHistorySearch(e.target.value);
                                                 fetchHistory({ reset: true });
                                             }}
-                                            className="bg-white dark:bg-zinc-800"
+                                            className="bg-popover! text-popover-foreground"
                                         />
                                     </div>
-                                    <div className="overflow-y-auto max-h-80">
+                                    <div className="overflow-y-auto max-h-80 bg-popover">
                                         {history.map((item) => (
                                             <button
                                                 key={item.id}
                                                 onClick={() => handleHistoryClick(item)}
-                                                className="w-full text-left p-4 hover:bg-gray-100 dark:hover:bg-zinc-800 border-b last:border-b-0 transition-colors bg-white dark:bg-zinc-900"
+                                                className="w-full text-left p-4 hover:bg-accent hover:text-accent-foreground border-b last:border-b-0 transition-colors bg-popover text-popover-foreground"
                                             >
-                                                <p className="text-sm font-medium line-clamp-2 text-gray-900 dark:text-gray-100">{item.question}</p>
-                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                <p className="text-sm font-medium line-clamp-2">{item.question}</p>
+                                                <p className="text-xs text-muted-foreground mt-1">
                                                     {item.word_count || "250"} words • {new Date(item.timestamp).toLocaleDateString()}
                                                 </p>
                                             </button>
                                         ))}
                                         {history.length === 0 && !isLoadingHistory && (
-                                            <div className="p-4 text-sm text-muted-foreground">No results</div>
+                                            <div className="p-4 text-sm text-muted-foreground bg-popover">No results</div>
                                         )}
                                     </div>
-                                    <div className="p-2 border-t bg-white dark:bg-zinc-900 flex items-center justify-between">
+                                    <div className="p-2 border-t bg-popover flex items-center justify-between">
                                         <span className="text-xs text-muted-foreground">
                                             Showing {history.length} item{history.length === 1 ? "" : "s"}
                                         </span>
@@ -638,15 +638,15 @@ export default function MainsAnswerPage() {
                                     </button>
                                     {modalShowCompressed && (
                                         <CardContent className="p-6">
-                                        <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary space-y-4">
-                                            <ReactMarkdown
-                                                remarkPlugins={[remarkGfm]}
-                                                components={modalMarkdownComponents}
-                                                urlTransform={urlTransform}
-                                            >
-                                                {stripHeavyContent(historyModalAnswer.compressed_answer, { removeAllMaps: false })}
-                                            </ReactMarkdown>
-                                        </div>
+                                            <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary space-y-4">
+                                                <ReactMarkdown
+                                                    remarkPlugins={[remarkGfm]}
+                                                    components={modalMarkdownComponents}
+                                                    urlTransform={urlTransform}
+                                                >
+                                                    {stripHeavyContent(historyModalAnswer.compressed_answer, { removeAllMaps: false })}
+                                                </ReactMarkdown>
+                                            </div>
                                         </CardContent>
                                     )}
                                 </Card>
@@ -665,15 +665,15 @@ export default function MainsAnswerPage() {
                                 </button>
                                 {(modalShowOriginal || !historyModalAnswer.compressed_answer) && (
                                     <CardContent className="p-6">
-                                    <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary space-y-4">
-                                        <ReactMarkdown
-                                            remarkPlugins={[remarkGfm]}
-                                            components={modalMarkdownComponents}
-                                            urlTransform={urlTransform}
-                                        >
-                                            {stripHeavyContent(historyModalAnswer.answer, { removeAllMaps: false })}
-                                        </ReactMarkdown>
-                                    </div>
+                                        <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary space-y-4">
+                                            <ReactMarkdown
+                                                remarkPlugins={[remarkGfm]}
+                                                components={modalMarkdownComponents}
+                                                urlTransform={urlTransform}
+                                            >
+                                                {stripHeavyContent(historyModalAnswer.answer, { removeAllMaps: false })}
+                                            </ReactMarkdown>
+                                        </div>
                                     </CardContent>
                                 )}
                             </Card>

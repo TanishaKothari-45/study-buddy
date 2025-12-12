@@ -103,7 +103,7 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
                                 innerDiv.style.overflow = 'visible';
 
                                 // Find the corresponding rectangle and update its width too
-                                let parent = fo.parentElement;
+                                const parent = fo.parentElement;
                                 if (parent) {
                                     const rect = parent.querySelector('rect');
                                     if (rect) {
