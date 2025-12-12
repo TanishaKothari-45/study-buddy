@@ -172,6 +172,7 @@ from ..utils.langsmith_tracer import trace_gemini
 async def generate_answer(
     question: str,
     static_context: Optional[str] = None,
+    dynamic_context: Optional[str] = None,
     word_count: int = 350,
     gemini_client: Optional[Any] = None
 ) -> dict:
@@ -180,7 +181,8 @@ async def generate_answer(
     
     Args:
         question: The mains question to answer
-        static_context: Retrieved context (includes current affairs)
+        static_context: Retrieved context 
+        dynamic_context: Current affairs context
         word_count: Target word count for the answer
         gemini_client: GeminiClient instance (required)
     
@@ -194,7 +196,7 @@ async def generate_answer(
     prompt_pair = assemble_mains_prompt(
         question=question,
         context=static_context,
-        current_bullets="",  # Current affairs already in static_context
+        current_bullets=dynamic_context or "",  # Pass current affairs separately
         word_count=word_count
     )
 
@@ -516,12 +518,11 @@ async def generate_mains_answer(
             logger.info(f"✅ [PARALLEL] News: {len(current_affairs_bullets)} bullets")
             logger.info("🎯 [PARALLEL] All operations completed in parallel!")
             
-            # Append current affairs to context (additive, not replacing)
+            # Format current affairs for separate passage (not appended to static context)
+            current_affairs_section = ""
             if current_affairs_bullets:
                 current_affairs_section = format_bullets_for_context(current_affairs_bullets)
-                logger.info(f"📝 [MAINS] Current affairs section: {current_affairs_section}")
-                context = context + current_affairs_section
-                logger.info(f"📝 [MAINS] Added current affairs to context: {len(current_affairs_section)} chars")
+                logger.info(f"📝 [MAINS] Current affairs section prepared ({len(current_affairs_section)} chars) - will be passed separately as dynamic_context")
 
             # ============================================================
             # STEP 5: Generate answer using Gemini 2.5 Pro
@@ -532,6 +533,7 @@ async def generate_mains_answer(
             result = await generate_answer(
                 question=mains_request.question,
                 static_context=context,
+                dynamic_context=current_affairs_section,
                 word_count=mains_request.word_count,
                 gemini_client=gemini_client
             )
@@ -552,7 +554,7 @@ async def generate_mains_answer(
                     original_answer=answer,
                     target_word_count=mains_request.word_count,
                     gemini_client=gemini_client,
-                    threshold_ratio=1.4
+                    threshold_ratio=1.3
                 )
                 
                 if compressed:

@@ -421,9 +421,28 @@ IBC_FORMAT_RULES = """
   - Each bullet MUST start with - (dash) for proper markdown list rendering
   - Each bullet MUST be on a NEW LINE (do not put multiple bullets on same line)
   - Each bullet: **Main idea** (≤ 12 words) + Evidence (named report/index/data where it adds credibility) + Example (named Indian OR named global). Write as natural English sentences, not forced templates.
-  
-- **CONCLUSION**: 1 para with global best practices or global bodies initiatives + SDG + India's government policies or local community initiatives + related Indian constitution articles.
-INTRO -> blank line -> BODY -> blank line -> CONCLUSION
+- **WAY FORWARD (Conditional Section – Include Only When Applicable)**: 
+  - Include WAY FORWARD only when the question demands solutions, reforms, future actions, or governance/policy thinking.
+  - DO NOT include WAY FORWARD in purely descriptive, scientific, factual, or mechanism-explanation questions.
+  - Examples where WAY FORWARD is not required:
+    - Account for variations in oceanic salinity.
+    - Define mantle plume and explain its role.
+  - Include 2-3 bullets, each starting with -. 
+  - Each bullet must be actionable, future-oriented, and specific.
+  - Every bullet must include at least one of the following(if included and when appropriate):
+    - A global best practice (UNDP, OECD, WHO, FAO, IPCC, UNCITRAL, etc.)
+    - An Indian policy, mission, or institutional reform suggestion
+    - A governance, administrative or community-level solution
+    - A policy or institutional reform suggestion to resolve the issue
+  - Keep bullets concise and concrete.
+  - No philosophical or vague guidance.
+- **CONCLUSION**:
+For descriptive/scientific geography questions:
+  - Provide a 2-line synthesizing insight, summarizing the concept’s significance, spatial relevance, or broader geophysical importance.
+For human geography / governance / impact / development questions:
+  - Must connect the issue to constitutional values or SDG goals. 
+- Tone: concise, closing insight,optimistic, future-oriented, governance-aligned.
+- Should not introduce new arguments; must synthesize the overall answer.
 """
 
 # ============================================================

@@ -106,7 +106,11 @@ Constraints / Format:
   Never write bullets without the dash prefix. Each bullet on its own line.
 - DIAGRAM: Include at least ONE Mermaid diagram. NEVER place diagram between a sub-heading and its bullets. Place it BEFORE the sub-heading or AFTER all bullets of a section.
 - MAP: If the question contains keywords like "distribution", "where", "locate", "belts", "hotspots", "areas", "regional", or explicitly asks about countries/regions, include a map-json block per MAP_GENERATION_RULES (map-json before Body under 'Map/Diagram').
-- CONCLUSION: 1 para with global best practices or global bodies initiatives + SDG + India's government policies or local community initiatives + related Indian constitution articles.
+- WAY FORWARD (Conditional Section – Include Only When Applicable): 
+ - Include 2–3 bullets, each starting with a dash (-).
+ - Each bullet must be actionable, future-oriented, and specific.
+ - Keep bullets concise, concrete, and implementable.
+- CONCLUSION: 1 para connecting to constitutional values or SDG goals or India’s governance ethos (equity, sustainability, decentralisation).
 - WORD COUNT: Target ~{word_count} words. Acceptable range: 80%-140% of target. Only compress bullet language if exceeding 140%.
 - For directive words (Analyse, Evaluate, Critically examine, Discuss), follow the Directive Decoder rules in SYSTEM PROMPT.
 - Tone: concise, exam-style, zero fluff.

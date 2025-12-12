@@ -58,7 +58,7 @@ def summarize_articles_only(article_leads: list, api_key: str = None) -> list:
     import asyncio
     text = asyncio.run(client.generate_response(
         user_prompt=prompt,
-        system_prompt="You are a concise factual summarizer. Return JSON only. Keep each summary under ~80 words.",
+        system_prompt="You are a concise factual summarizer.1-2 sentences describing core of point for an UPSC Mains answer. Return JSON only. Keep each summary under ~60 words.",
         temperature=0.1,
     ))
 

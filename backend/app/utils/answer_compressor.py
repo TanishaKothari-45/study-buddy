@@ -15,8 +15,12 @@ COMPRESSION_PROMPT = """You are an expert editor. Condense the following answer 
 - All key facts and evidence (reports, data, examples)
 - The original tone and voice (formal/analytical)
 - The IBC structure (intro, body with sub-headings, conclusion)
+- Try to Keep intro and conclusion impactful even if concise
 - All placeholder markers like <<MERMAID_0>>, <<IMAGE_0>>, <<MAP_JSON_0>> EXACTLY as they appear at their original positions
 
+Impact Rules for INTRO & CONCLUSION:
+- INTRO must retain its core framing element (definition OR data point/report OR relevant current context OR richness of the definition).Compress it but Do NOT weaken the opening idea.
+- CONCLUSION must remain a meaningful 1–2 line synthesis with an optimistic governance-aligned or significance-oriented tone. Do NOT overcompress it into a dry factual note.
 Rules:
 1. Prefer concise rephrasing and combining sentences over deleting content.
 2. Shorten examples first, then remove least important supporting sentences.
@@ -102,7 +106,7 @@ async def compress_answer(
     original_answer: str,
     target_word_count: int,
     gemini_client: Any,
-    threshold_ratio: float = 1.4
+    threshold_ratio: float = 1.3
 ) -> Optional[str]:
     """
     Compress an answer if it exceeds the threshold ratio of target word count.
