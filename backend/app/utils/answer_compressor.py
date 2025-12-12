@@ -16,7 +16,7 @@ COMPRESSION_PROMPT = """You are an expert editor. Condense the following answer 
 - The original tone and voice (formal/analytical)
 - The IBC structure (intro, body with sub-headings, conclusion)
 - Try to Keep intro and conclusion impactful even if concise
-- All placeholder markers like <<MERMAID_0>>, <<IMAGE_0>>, <<MAP_JSON_0>> EXACTLY as they appear at their original positions
+- All placeholder markers (<<MERMAID_X>>, <<IMAGE_X>>, <<MAP_JSON_X>>, <<CODE_X>>) EXACTLY as they appear at their original positions
 
 Impact Rules for INTRO & CONCLUSION:
 - INTRO must retain its core framing element (definition OR data point/report OR relevant current context OR richness of the definition).Compress it but Do NOT weaken the opening idea.
@@ -38,12 +38,13 @@ Original answer (word count = {actual_words}):
 def extract_visuals(text: str) -> tuple[str, dict[str, str]]:
     """
     Replace visual blocks with placeholders to save tokens.
+    Extracts: Mermaid diagrams, map-json blocks, base64 images (any mime type), and regular code blocks.
     Returns: (cleaned_text, replacements_dict)
     """
     replacements = {}
     counter = 0
     
-    # 1. Mermaid blocks
+    # 1. Mermaid blocks (diagrams are visual, not text)
     def replace_mermaid(match):
         nonlocal counter
         placeholder = f"<<MERMAID_{counter}>>"
@@ -53,7 +54,7 @@ def extract_visuals(text: str) -> tuple[str, dict[str, str]]:
         
     text = re.sub(r'```mermaid[\s\S]*?```', replace_mermaid, text)
     
-    # 2. Map blocks (json)
+    # 2. Map blocks (json spec - not useful for compression)
     def replace_map_json(match):
         nonlocal counter
         placeholder = f"<<MAP_JSON_{counter}>>"
@@ -63,7 +64,8 @@ def extract_visuals(text: str) -> tuple[str, dict[str, str]]:
 
     text = re.sub(r'```map-json[\s\S]*?```', replace_map_json, text)
 
-    # 3. Base64 Images (Maps)
+    # 3. Base64 Images (Maps/Diagrams) - handle ALL image mime types
+    # Matches: ![alt](data:image/png;base64,...), ![alt](data:image/svg+xml;base64,...), etc.
     def replace_image(match):
         nonlocal counter
         placeholder = f"<<IMAGE_{counter}>>"
@@ -71,8 +73,20 @@ def extract_visuals(text: str) -> tuple[str, dict[str, str]]:
         counter += 1
         return f"\n\n{placeholder}\n\n"
 
-    # Match markdown images with data URI
-    text = re.sub(r'!\[[^\]]*\]\(data:image[^\)]+\)', replace_image, text)
+    # Match markdown images with data URI (any image mime type: png, svg+xml, jpeg, webp, etc.)
+    text = re.sub(r'!\[[^\]]*\]\(data:image/[^;]+;base64,[A-Za-z0-9+/=]+\)', replace_image, text)
+    
+    # 4. Regular code blocks (not mermaid/map-json) - also save tokens
+    # Example: ```python, ```javascript, ```json, etc.
+    def replace_code(match):
+        nonlocal counter
+        placeholder = f"<<CODE_{counter}>>"
+        replacements[placeholder] = match.group(0)
+        counter += 1
+        return f"\n\n{placeholder}\n\n"
+    
+    # Match any remaining code blocks that weren't caught above
+    text = re.sub(r'```[\s\S]*?```', replace_code, text)
     
     return text, replacements
 
@@ -136,8 +150,29 @@ async def compress_answer(
     # Extract visuals to save tokens
     text_to_compress, replacements = extract_visuals(original_answer)
     
+    # Calculate and log token savings from visual extraction
+    original_size = len(original_answer)
+    cleaned_size = len(text_to_compress)
+    bytes_saved = original_size - cleaned_size
+    
+    # Count different types of visuals extracted
+    mermaid_count = sum(1 for k in replacements.keys() if k.startswith("<<MERMAID_"))
+    image_count = sum(1 for k in replacements.keys() if k.startswith("<<IMAGE_"))
+    map_json_count = sum(1 for k in replacements.keys() if k.startswith("<<MAP_JSON_"))
+    code_count = sum(1 for k in replacements.keys() if k.startswith("<<CODE_"))
+    
+    logger.info(f"🎨 [VISUAL EXTRACTION] Extracted {len(replacements)} visual elements:")
+    logger.info(f"   • Mermaid diagrams: {mermaid_count}")
+    logger.info(f"   • Map JSON blocks: {map_json_count}")
+    logger.info(f"   • Base64 images: {image_count}")
+    logger.info(f"   • Code blocks: {code_count}")
+    logger.info(f"📊 [TOKEN OPTIMIZATION]:")
+    logger.info(f"   • Original size: {original_size:,} chars (~{original_size//4:,} tokens)")
+    logger.info(f"   • Cleaned size: {cleaned_size:,} chars (~{cleaned_size//4:,} tokens)")
+    logger.info(f"   • ⚡ Saved: {bytes_saved:,} chars (~{bytes_saved//4:,} tokens, {bytes_saved*100//original_size if original_size > 0 else 0}% reduction)")
+    logger.info(f"🔎 [TEXT TO COMPRESS] First 500 chars:\n{text_to_compress[:500]}...")
+    
     # Build compression prompt
-    logger.info(f"🔎 Compressor Input (First 500 chars):\n{text_to_compress[:500]}...\n[Total Length: {len(text_to_compress)} chars]")
 
     prompt = COMPRESSION_PROMPT.format(
         max_words=max_words,

@@ -421,7 +421,7 @@ IBC_FORMAT_RULES = """
   - Each bullet MUST start with - (dash) for proper markdown list rendering
   - Each bullet MUST be on a NEW LINE (do not put multiple bullets on same line)
   - Each bullet: **Main idea** (≤ 12 words) + Evidence (named report/index/data where it adds credibility) + Example (named Indian OR named global). Write as natural English sentences, not forced templates.
-- **WAY FORWARD (Conditional Section – Include Only When Applicable)**: 
+- **WAY FORWARD (Conditional Section – Include Only When Applicable and Relevant)**: 
   - Include WAY FORWARD only when the question demands solutions, reforms, future actions, or governance/policy thinking.
   - DO NOT include WAY FORWARD in purely descriptive, scientific, factual, or mechanism-explanation questions.
   - Examples where WAY FORWARD is not required:
