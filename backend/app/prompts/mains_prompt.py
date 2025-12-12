@@ -112,12 +112,22 @@ def assemble_mains_prompt(
 
 Question: {question}
 
-Reference Context (from materials):
-{context_trim or 'No static context provided.'}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFERENCE KNOWLEDGE BASE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**FOUNDATIONAL CONTEXT** (Core concepts, mechanisms, theory):
+{context_trim or '[No retrieved context - use your geographical knowledge base]'}
+**CURRENT AFFAIRS** (Recent data, examples):
+{current_trim or '[No current affairs - use general contemporary examples if needed]'}
 
-Current Affairs (use if relevant; crisp bullets):
-{current_trim or 'No current affairs bullets provided.'}
-
+⚡ USAGE INSTRUCTIONS:
+- Build your answer using FOUNDATIONAL CONTEXT + your general geographical knowledge
+- Integrate CURRENT AFFAIRS as supporting evidence and contemporary examples
+- Cite specific reports, indices, data points, and case studies from the context
+- Maintain factual accuracy - If context is unclear, insufficient, or low-quality: use general knowledge
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 ANSWER REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Constraints / Format:
 - INTRO: 2–3 lines. Must include either a definition, a data point/report citation, or a recent context or current affair (if applicable).
 - BODY: Use sub-headings and bullets. Each bullet <= 18 words.
