@@ -92,6 +92,23 @@ export const useMockTestStore = create<MockTestState>()(
                     jobId: state.jobId,
                     jobStatus: state.jobStatus,
                 }),
+                // Migrate function to handle version transitions
+                migrate: (persistedState: any, version: number) => {
+                    // For version 1, ensure proper structure
+                    return {
+                        testData: persistedState?.testData || null,
+                        userAnswers: persistedState?.userAnswers || {},
+                        submitted: persistedState?.submitted || false,
+                        score: persistedState?.score || 0,
+                        jobId: persistedState?.jobId || null,
+                        jobStatus: persistedState?.jobStatus || 'idle',
+                    };
+                },
+                onRehydrateStorage: () => (state, error) => {
+                    if (error) {
+                        console.warn('Failed to rehydrate mock test store:', error);
+                    }
+                },
             }
         ),
         { name: 'MockTestStore' }

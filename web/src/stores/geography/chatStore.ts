@@ -67,6 +67,22 @@ export const useChatStore = create<ChatState>()(
                     messages: state.messages.slice(-50), // Keep last 50 messages
                     sessionId: state.sessionId,
                 }),
+                // Migrate function to handle version transitions
+                migrate: (persistedState: any, version: number) => {
+                    // For version 1, ensure messages array exists
+                    if (!persistedState?.messages || !Array.isArray(persistedState.messages)) {
+                        return {
+                            messages: [createWelcomeMessage()],
+                            sessionId: generateSessionId(),
+                        };
+                    }
+                    return persistedState;
+                },
+                onRehydrateStorage: () => (state, error) => {
+                    if (error) {
+                        console.warn('Failed to rehydrate chat store:', error);
+                    }
+                },
             }
         ),
         { name: 'ChatStore' }

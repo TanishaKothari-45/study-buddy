@@ -82,6 +82,24 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                     question: state.question,
                     wordCount: state.wordCount
                 }),
+                // Migrate function to handle version transitions
+                migrate: (persistedState: any, version: number) => {
+                    // If moving from older versions, ensure proper structure
+                    if (version < 5) {
+                        return {
+                            question: persistedState?.question || '',
+                            wordCount: persistedState?.wordCount || '250',
+                            // Don't carry over old result data
+                        };
+                    }
+                    return persistedState;
+                },
+                // Suppress migration warnings in production
+                onRehydrateStorage: () => (state, error) => {
+                    if (error) {
+                        console.warn('Failed to rehydrate mains answer store:', error);
+                    }
+                },
             }
         ),
         { name: 'MainsAnswerStore' }
