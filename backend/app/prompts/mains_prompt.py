@@ -75,16 +75,37 @@ def assemble_mains_prompt(
     Returns dict: {"system": str, "user": str}
     
     Now uses shared prompts with Mermaid diagram support.
+    Uses smart truncation to respect sentence boundaries and token limits.
     """
+    
+    # Import smart truncator
+    try:
+        from ..utils.smart_truncator import truncate_with_token_budget
+        use_smart_truncation = True
+    except ImportError:
+        use_smart_truncation = False
+        print("Warning: Could not import smart_truncator, using legacy truncation")
 
-    # Trim / safety
-    context_trim = (context or "").strip()
-    if len(context_trim) > 4200:
-        context_trim = context_trim[:4200] + "\n\n[TRUNCATED CONTEXT]"
+    # Smart truncation with token budget allocation
+    if use_smart_truncation:
+        context_trim, current_trim = truncate_with_token_budget(
+            static_context=context,
+            current_affairs=current_bullets,
+            question=question,
+            system_prompt_tokens=1500,  # Estimated system prompt size
+            question_buffer_tokens=200,  # Buffer for question + formatting
+            max_total_tokens=32000,     # Conservative limit for fast responses
+            output_tokens=2000          # Reserve for model output
+        )
+    else:
+        # Legacy fallback: simple character truncation
+        context_trim = (context or "").strip()
+        if len(context_trim) > 4200:
+            context_trim = context_trim[:4200] + "\n\n[TRUNCATED CONTEXT]"
 
-    current_trim = (current_bullets or "").strip()
-    if len(current_trim) > 1400:
-        current_trim = current_trim[:1400] + "\n\n[TRUNCATED CURRENT AFFAIRS]"
+        current_trim = (current_bullets or "").strip()
+        if len(current_trim) > 1400:
+            current_trim = current_trim[:1400] + "\n\n[TRUNCATED CURRENT AFFAIRS]"
 
     # User-level guidance that will be fed as user message
     user_msg = f"""You are a Senior UPSC Mains answer-writer (Geography). Follow IBC strictly and include Mermaid diagrams.
