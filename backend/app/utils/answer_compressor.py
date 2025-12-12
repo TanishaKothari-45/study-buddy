@@ -6,6 +6,7 @@ Can be dropped or modified without affecting main answer generation logic.
 
 import re
 import logging
+import asyncio
 from typing import Optional, Any
 
 logger = logging.getLogger("answer_compressor")
