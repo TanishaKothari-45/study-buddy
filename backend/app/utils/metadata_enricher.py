@@ -111,9 +111,18 @@ def detect_source_type(filename: str) -> Dict[str, str]:
     import re
     
     # Check PYQ first
+    # Check PYQ first
     for pattern in pyq_patterns:
         if pattern in filename_lower:
-            return {"source_type": "pyq", "source_subtype": None}
+            # Determine subtype
+            if "mains" in filename_lower:
+                subtype = "mains"
+            elif "prelims" in filename_lower:
+                subtype = "prelims"
+            else:
+                # Default to prelims if generic (or you can use "prelims" as safe default for legacy files)
+                subtype = "prelims"
+            return {"source_type": "pyq", "source_subtype": subtype}
     
     # Check NCERT second (before current affairs to avoid false positives)
     for pattern in ncert_patterns:

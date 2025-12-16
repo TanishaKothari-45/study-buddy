@@ -721,7 +721,7 @@ def hybrid_retrieve_for_mock_test(
             fetch_k=18,  # Fetch more candidates for MMR diversity (6 * 3)
             k=6,  # Fixed for style learning
             lambda_mult=0.6,  # Moderate diversity for PYQ style examples
-            filter_metadata={"source_type": "pyq"}
+            filter_metadata={"source_type": "pyq", "source_subtype": "prelims"}
         )
         # Enrich with full content from content store (query_documents_mmr doesn't support use_content_store)
         if pyq_chunks:
