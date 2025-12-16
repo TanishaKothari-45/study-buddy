@@ -432,32 +432,7 @@ export default function MainsAnswerPage() {
                     {/* Output Section */}
                     {result && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            {/* Status Card */}
-                            <Card className="bg-green-50/50 border-green-200 dark:bg-green-900/10 dark:border-green-900">
-                                <CardContent className="pt-6">
-                                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400 font-medium mb-2">
-                                        <CheckCircle className="h-5 w-5" />
-                                        Generation Complete
-                                        {result.compressed_answer && (
-                                            <span className="ml-2 inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full">
-                                                <Minimize2 className="h-3 w-3" />
-                                                Compressed
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="text-sm text-green-800 dark:text-green-500 space-y-1">
-                                        <p>Original Word Count: {result.word_count_actual}</p>
-                                        {result.word_count_compressed && (
-                                            <p>Compressed Word Count: {result.word_count_compressed}
-                                                <span className="text-green-600 dark:text-green-400 ml-1">
-                                                    ({Math.round((1 - result.word_count_compressed / result.word_count_actual) * 100)}% reduced)
-                                                </span>
-                                            </p>
-                                        )}
-                                        <p>Sources Used: {result.sources.length}</p>
-                                    </div>
-                                </CardContent>
-                            </Card>
+
 
                             {/* Question Title Card */}
                             <Card className="bg-muted/30">
@@ -478,7 +453,7 @@ export default function MainsAnswerPage() {
                                     >
                                         <span className="font-medium text-foreground flex items-center gap-2">
                                             <Minimize2 className="h-4 w-4 text-blue-500" />
-                                            Compressed Answer ({result.word_count_compressed} words)
+                                            Compressed Answer
                                         </span>
                                         <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showCompressed ? 'rotate-180' : ''}`} />
                                     </button>

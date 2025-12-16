@@ -622,6 +622,16 @@ async def generate_mains_answer(
                 answer_preview=answer
             )
             
+            # Log the stats for developer visibility
+            logger.info(
+                f"📊 [MAINS STATS] Question: '{mains_request.question[:50]}...'\n"
+                f"   • Original Word Count: {word_count_actual}\n"
+                f"   • Compressed Word Count: {word_count_compressed or 'N/A'}\n"
+                f"   • Reduction: {round((1 - word_count_compressed / word_count_actual) * 100)}% if compressed else N/A\n"
+                f"   • Sources: {len(sources)}\n"
+                f"   • Map Service: {'Available' if map_service_healthy else 'Unavailable'}"
+            )
+
             return MainsAnswerResponse(
                 question=mains_request.question,
                 answer=answer,

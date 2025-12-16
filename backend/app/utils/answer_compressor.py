@@ -20,8 +20,8 @@ COMPRESSION_PROMPT = """You are an expert editor. Condense the following answer 
 - All placeholder markers (<<MERMAID_X>>, <<IMAGE_X>>, <<MAP_JSON_X>>, <<CODE_X>>) EXACTLY as they appear at their original positions
 
 Impact Rules for INTRO & CONCLUSION:
-- INTRO must retain its core framing element (definition OR data point/report OR relevant current context OR richness of the definition).Compress it but Do NOT weaken the opening idea.
-- CONCLUSION must remain a meaningful 1–2 line synthesis with an optimistic governance-aligned or significance-oriented tone. Do NOT overcompress it into a dry factual note.
+- INTRO must retain its core framing element (definition OR data point/report OR relevant current context OR richness of the definition). Do NOT weaken the opening idea. Do NOT compress it into a dry factual note. Retain the opening idea as it is.
+- CONCLUSION must remain a meaningful 1–2 line synthesis with an optimistic governance-aligned or significance-oriented tone. Do NOT compress it into a dry factual note. Do NOT weaken the closing idea.Retain the closing idea paragraph as it is.
 Rules:
 1. Prefer concise rephrasing and combining sentences over deleting content.
 2. Shorten examples first, then remove least important supporting sentences.
@@ -29,6 +29,26 @@ Rules:
 4. PRESERVE bold formatting (**text**) in bullet point headings - the main idea of each bullet must stay bold.
 5. KEEP all <<PLACEHOLDERS>> exactly where they are. Do not remove or move them.
 6. Return only the final condensed answer, no commentary or explanation.
+7. NEVER DROP QUALIFYING KEYWORDS: The specific qualifiers and domain terms in each bullet are scoring keywords. NEVER remove them to save words.
+   Examples of keywords that MUST be kept exactly:
+   - "skilled and unskilled workers" (NOT just "workers")
+   - "mining and manufacturing" (NOT dropped entirely)
+   - "raw materials" (NOT just "materials")
+   - "labour-intensive processing" (NOT just "processing")
+   
+8. WHAT TO SHORTEN INSTEAD: Only shorten proper nouns and filler words, NOT domain keywords.
+   - Shorten: "Uttar Pradesh" → "UP", "Madhya Pradesh" → "MP", "National Institution for Transforming India" → "NITI Aayog"
+   - Remove filler: "It is important to note that" → remove entirely
+   - Combine: Two sentences with same idea → one sentence
+   
+   GOOD: "Labour-intensive processing of raw materials creates direct jobs for skilled and unskilled workers, like sugar industry in UP."
+   BAD: "Labour-intensive processing creates jobs in the sugar industry in Uttar Pradesh and Maharashtra."
+   → BAD loses: "raw materials", "direct", "skilled and unskilled workers"
+   
+   GOOD: "Industries generate significant employment in mining and manufacturing sectors."
+   BAD: "Industries generate significant employment."
+   → BAD loses: "in mining and manufacturing sectors"
+
 
 Original answer (word count = {actual_words}):
 
