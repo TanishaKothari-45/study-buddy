@@ -152,7 +152,9 @@ def retrieve_context_for_question(
         original_length = sum(len(doc.page_content) for doc in docs)
         
         if deduplicate_chunks:
-            context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
+            # Extract text content from Document objects for deduplication
+            doc_texts = [doc.page_content for doc in docs if doc.page_content]
+            context = deduplicate_chunks(doc_texts, min_overlap_words=20, similarity_threshold=0.6)
         else:
             # Simple fallback: just combine without deduplication
             context = "\n\n---\n\n".join([doc.page_content for doc in docs if doc.page_content])

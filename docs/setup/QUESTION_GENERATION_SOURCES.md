@@ -39,7 +39,7 @@ Your prelims question generator uses **all three sources** for style learning:
   pyq_chunks = pinecone_handler.query_documents(
       query_text=query,
       k=5,
-      filter_metadata={"source_type": "pyq"},
+      filter_metadata={"source_type": "pyq", "source_subtype": "prelims"},
       use_content_store=True
   )
   ```

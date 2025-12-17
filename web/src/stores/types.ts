@@ -44,7 +44,7 @@ export interface MainsAnswerResponse {
     word_count_compressed: number | null;
 }
 
-export type JobStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'failed';
+export type JobStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'failed' | 'queued';
 
 export interface Feedback {
     strengths: string[];

@@ -76,6 +76,11 @@ Expected output:
 ## Next Steps
 1. Start map service: `cd map-service && npm start`
 2. Start backend: `cd backend && uvicorn app.main:app --reload --port 8001`
+
+# Terminal 2: Worker (Port 8002)
+cd backend
+python -m app.worker
+
 3. Start frontend: `cd web && npm run dev`
 4. Generate a geography answer
 5. Verify maps render correctly

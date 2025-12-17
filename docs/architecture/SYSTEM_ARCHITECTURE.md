@@ -784,6 +784,11 @@ npm run dev
 cd map-service
 npm install
 npm start
+
+# Terminal 4: Worker (port 8002)
+cd backend
+source ../venv/bin/activate
+python -m app.worker
 ```
 
 ### Port Reference

@@ -56,6 +56,10 @@ This adds the `encrypted_gemini_api_key` column to the users table.
 ```bash
 cd backend
 uvicorn app.main:app --reload --port 8001 
+
+# Terminal 2: Worker (Port 8002)
+cd backend
+python -m app.worker
 ```
 
 ## 🎨 Frontend Setup

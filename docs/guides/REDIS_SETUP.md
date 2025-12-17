@@ -49,6 +49,10 @@ redis-cli ping
 ```bash
 cd backend
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+
+# Terminal 2: Worker (Port 8002)
+cd backend
+python -m app.worker
 ```
 
 ### Monitor Cache

@@ -96,11 +96,18 @@ export default function EvaluatePage() {
 
             if (activeJobId.current !== id) return;
 
-            if (data.status === 'completed' && data.result) {
-                setResult(data.result);
-                // setJobStatus('completed') implicit in setResult in store
-                setJobId(null);
-                activeJobId.current = null;
+            if (data.status === 'completed') {
+                if (data.result) {
+                    setResult(data.result);
+                    // setJobStatus('completed') implicit in setResult in store
+                    setJobId(null);
+                    activeJobId.current = null;
+                } else {
+                    // Completed but no result - treat as error to avoid stuck UI
+                    setError("Evaluation completed but returned no results.");
+                    setJobId(null);
+                    activeJobId.current = null;
+                }
             } else if (data.status === 'failed') {
                 setError(data.error || "Evaluation failed");
                 setJobId(null);

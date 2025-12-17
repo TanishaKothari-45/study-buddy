@@ -60,6 +60,11 @@ When you make a mains answer request, you'll see logs like this:
 
 ### Option 1: Check Logs During Request
 1. Start backend: `cd backend && uvicorn app.main:app --reload --port 8001`
+
+# Terminal 2: Worker (Port 8002)
+cd backend
+python -m app.worker
+
 2. Make a mains answer request from frontend
 3. Watch terminal for logs containing `[PERFORMANCE METRICS - SQLite Reads]`
 

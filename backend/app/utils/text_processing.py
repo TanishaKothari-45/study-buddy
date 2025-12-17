@@ -6,23 +6,23 @@ Shared utilities for text processing, chunking, and deduplication.
 
 import logging
 import re
-from typing import List
+from typing import List, Any
 from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
 
-def deduplicate_chunks(chunks: List[str], min_overlap_words: int = 20, similarity_threshold: float = 0.6) -> str:
+def deduplicate_chunks(chunks: List[Any], min_overlap_words: int = 20, similarity_threshold: float = 0.6) -> str:
     """
     Combine chunks while removing overlapping text portions using fuzzy matching.
     
     This is a safer, less aggressive approach that:
     - Uses fuzzy matching (SequenceMatcher) to handle slight variations
     - Requires minimum overlap (20 words) and similarity threshold (60%)
-    - Works on any chunks, not just split ones
+    - Works on any chunks, including strings and LangChain Document objects
     - Preserves content while removing redundant overlap
     
     Args:
-        chunks: List of text chunks to combine (strings)
+        chunks: List of text chunks or Document objects to combine
         min_overlap_words: Minimum number of words to consider for overlap (default: 20)
         similarity_threshold: Minimum similarity ratio to consider overlap (default: 0.6)
         
@@ -32,18 +32,22 @@ def deduplicate_chunks(chunks: List[str], min_overlap_words: int = 20, similarit
     if not chunks:
         return ""
     
-    # Ensure all chunks are strings (handle LangChain Documents if passed by mistake)
-    # The caller context_retriever handles abstraction but good to be safe.
-    # Actually type hint says List[str].
+    # Pre-process chunks to ensure they are all strings
+    processed_chunks = []
+    for chunk in chunks:
+        if hasattr(chunk, 'page_content'):
+            processed_chunks.append(chunk.page_content)
+        else:
+            processed_chunks.append(str(chunk))
     
-    if len(chunks) == 1:
-        return chunks[0]
+    if len(processed_chunks) == 1:
+        return processed_chunks[0]
     
-    combined = chunks[0]
+    combined = processed_chunks[0]
     overlap_removed_count = 0
     total_overlap_words = 0
     
-    for i, next_chunk in enumerate(chunks[1:], 1):
+    for i, next_chunk in enumerate(processed_chunks[1:], 1):
         # Find overlap between tail of combined and head of next_chunk
         # Check up to 100 words or half of combined text (whichever is smaller)
         overlap_size = min(100, len(combined.split()) // 2, len(next_chunk.split()))

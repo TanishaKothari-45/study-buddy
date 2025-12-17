@@ -790,6 +790,7 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         
         # Initialize resources
         gemini_client = GeminiClient(api_key=gemini_api_key, model_name="gemini-2.5-pro")
+        flash_client = GeminiClient(api_key=gemini_api_key, model_name=settings.GEMINI_MODEL_FLASH)
         cache = get_cache_manager()
         pinecone_handler = ctx.get("pinecone_handler")
         
@@ -899,7 +900,7 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
              compressed = await compress_answer(
                  original_answer=answer_text,
                  target_word_count=word_count,
-                 gemini_client=gemini_client,
+                 gemini_client=flash_client,
                  threshold_ratio=1.5
              )
              if compressed:

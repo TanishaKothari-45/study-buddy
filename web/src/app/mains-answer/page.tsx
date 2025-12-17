@@ -21,7 +21,7 @@ interface MainsAnswerResponse {
     question: string;
     answer: string;
     compressed_answer?: string | null;
-    sources: Array<{ filename: string; page: number; chunk_id: string }>;
+    sources: Array<{ filename: string; chapter?: string; section?: string; page_number?: number; chunk_id?: string }>;
     word_count_actual: number;
     word_count_compressed?: number | null;
 }
@@ -180,27 +180,33 @@ export default function MainsAnswerPage() {
 
             if (activeJobId.current !== id) return;
 
-            if (data.status === 'completed' && data.result) {
-                // Success
-                const normalizedData = {
-                    ...data.result,
-                    compressed_answer: data.result.compressed_answer ?? null,
-                    word_count_compressed: data.result.word_count_compressed ?? null,
-                };
+            if (data.status === 'completed') {
+                if (data.result) {
+                    // Success
+                    const normalizedData = {
+                        ...data.result,
+                        compressed_answer: data.result.compressed_answer ?? null,
+                        word_count_compressed: data.result.word_count_compressed ?? null,
+                    };
 
-                if (
-                    normalizedData.compressed_answer &&
-                    normalizedData.answer &&
-                    normalizedData.compressed_answer.trim() === normalizedData.answer.trim()
-                ) {
-                    normalizedData.compressed_answer = null;
-                    normalizedData.word_count_compressed = null;
+                    if (
+                        normalizedData.compressed_answer &&
+                        normalizedData.answer &&
+                        normalizedData.compressed_answer.trim() === normalizedData.answer.trim()
+                    ) {
+                        normalizedData.compressed_answer = null;
+                        normalizedData.word_count_compressed = null;
+                    }
+
+                    setResult(normalizedData);
+                    fetchHistory({ reset: true }); // Refresh history
+                    // setJobStatus('completed') handled by setResult
+                    setJobId(null);
+                } else {
+                    // Completed but no result - treat as error to avoid stuck UI
+                    setError("Generation completed but returned no data.");
+                    setJobId(null);
                 }
-
-                setResult(normalizedData);
-                fetchHistory({ reset: true }); // Refresh history
-                // setJobStatus('completed') handled by setResult
-                setJobId(null);
             } else if (data.status === 'failed') {
                 setError(data.error || "Generation failed");
                 setJobId(null);
@@ -249,6 +255,7 @@ export default function MainsAnswerPage() {
             });
 
             if (data.job_id) {
+                activeJobId.current = data.job_id;
                 setJobId(data.job_id);
                 setJobStatus('queued'); // Start as queued
                 pollStatus(data.job_id);
