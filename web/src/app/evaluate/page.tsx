@@ -27,9 +27,12 @@ interface EvaluationResult {
     question: string;
     student_answer: string;
     improved_answer: string;
+    compressed_answer?: string | null;
     feedback: Feedback;
     sources: any[];
     current_affairs_count: number;
+    word_count_actual: number;
+    word_count_compressed?: number | null;
 }
 
 export default function EvaluatePage() {
@@ -48,8 +51,9 @@ export default function EvaluatePage() {
     } = useEvaluateAnswerStore();
 
     const [files, setFiles] = useState<File[]>([]);
-    // Removed local jobId, result, error, question states
     const [showBanner, setShowBanner] = useState(false);
+    const [showCompressed, setShowCompressed] = useState(true);
+    const [showOriginal, setShowOriginal] = useState(false);
 
     // Derived state for UI
     const loading = jobStatus === 'pending' || jobStatus === 'processing' || jobStatus === 'queued';
@@ -73,10 +77,6 @@ export default function EvaluatePage() {
         }
     }, []);
 
-    // ... (rest of file handling logic) ...
-    // Update handleSubmit to use setJobId from store
-    // Update pollStatus to use setResult/setError from store
-
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const newFiles = Array.from(e.target.files);
@@ -86,6 +86,13 @@ export default function EvaluatePage() {
 
     const removeFile = (index: number) => {
         setFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleReset = () => {
+        reset();
+        setFiles([]);
+        setShowCompressed(true);
+        setShowOriginal(false);
     };
 
     const pollStatus = async (id: string) => {
@@ -99,11 +106,9 @@ export default function EvaluatePage() {
             if (data.status === 'completed') {
                 if (data.result) {
                     setResult(data.result);
-                    // setJobStatus('completed') implicit in setResult in store
                     setJobId(null);
                     activeJobId.current = null;
                 } else {
-                    // Completed but no result - treat as error to avoid stuck UI
                     setError("Evaluation completed but returned no results.");
                     setJobId(null);
                     activeJobId.current = null;
@@ -113,7 +118,6 @@ export default function EvaluatePage() {
                 setJobId(null);
                 activeJobId.current = null;
             } else {
-                // Update status message
                 if (data.status === 'processing') {
                     if (jobStatus !== 'processing') setJobStatus('processing');
                     setStatusMessage("Analyzing your answer...");
@@ -122,7 +126,6 @@ export default function EvaluatePage() {
                     setStatusMessage("Waiting in queue...");
                 }
 
-                // Continue polling
                 setTimeout(() => pollStatus(id), 2000);
             }
         } catch (err) {
@@ -135,7 +138,6 @@ export default function EvaluatePage() {
     const handleCancel = async () => {
         if (!jobId) return;
 
-        // Optimistic UI update
         const idToCancel = jobId;
         setJobId(null);
         setJobStatus('idle');
@@ -169,7 +171,6 @@ export default function EvaluatePage() {
         if (question) formData.append("question", question);
 
         try {
-            // Start Job
             const data = await apiClient<{ job_id: string, status: string }>('/evaluate-answer/', {
                 method: 'POST',
                 body: formData,
@@ -181,7 +182,6 @@ export default function EvaluatePage() {
                 setJobStatus('queued');
                 activeJobId.current = data.job_id;
                 setStatusMessage("Queued for evaluation...");
-                // Start polling
                 pollStatus(data.job_id);
             } else {
                 throw new Error("No job ID received");
@@ -204,7 +204,6 @@ export default function EvaluatePage() {
 
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-8">
-            {/* API Key Banner */}
             <ApiKeyBanner showBanner={showBanner} onKeySet={() => { setShowBanner(false); setError(""); }} />
 
             <div className="flex flex-col space-y-2">
@@ -221,8 +220,23 @@ export default function EvaluatePage() {
                 <div className="lg:col-span-1 space-y-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Upload & Configure</CardTitle>
-                            <CardDescription>Provide your answer details</CardDescription>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle>Upload & Configure</CardTitle>
+                                    <CardDescription>Provide your answer details</CardDescription>
+                                </div>
+                                {result && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleReset}
+                                        className="flex items-center gap-2"
+                                    >
+                                        <RefreshCw className="h-4 w-4" />
+                                        New Evaluation
+                                    </Button>
+                                )}
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={handleSubmit} className="space-y-4">
@@ -316,13 +330,23 @@ export default function EvaluatePage() {
                                 <div className="flex gap-2">
                                     <Button
                                         type="submit"
-                                        className="w-full border-2 border-primary/20 hover:border-primary/50 transition-all shadow-sm"
+                                        className={cn(
+                                            "w-full border-2 transition-all shadow-sm",
+                                            result && !loading
+                                                ? "bg-green-600 border-green-700 hover:bg-green-700 text-white"
+                                                : "border-primary/20 hover:border-primary/50"
+                                        )}
                                         disabled={loading}
                                     >
                                         {loading ? (
                                             <>
                                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                                 {statusMessage}
+                                            </>
+                                        ) : result ? (
+                                            <>
+                                                <CheckCircle className="mr-2 h-4 w-4" />
+                                                Evaluated
                                             </>
                                         ) : (
                                             "Evaluate Answer"
@@ -421,29 +445,89 @@ export default function EvaluatePage() {
                                 </CardContent>
                             </Card>
 
-                            {/* Improved Answer */}
-                            <Card className="border-2 border-indigo-100 overflow-hidden">
-                                <CardHeader className="bg-indigo-50/50 border-b border-indigo-100">
-                                    <CardTitle className="flex items-center gap-2 text-indigo-900">
-                                        <FileText className="h-5 w-5" />
-                                        Improved Answer (Model Solution)
-                                    </CardTitle>
-                                    <CardDescription>
-                                        Enhanced version preserving your voice but adding facts, structure, and examples.
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="p-6">
-                                    <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900 prose-a:text-indigo-600">
-                                        <ReactMarkdown
-                                            remarkPlugins={[remarkGfm]}
-                                            components={markdownComponents}
-                                            urlTransform={urlTransform}
+                            {/* Improved Answer Section (with Compression) */}
+                            <div className="space-y-4">
+                                {/* Compressed Version */}
+                                {result.compressed_answer && (
+                                    <Card className="border-2 border-indigo-100 overflow-hidden shadow-sm">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCompressed(!showCompressed)}
+                                            className="w-full flex items-center justify-between p-4 bg-indigo-50/50 hover:bg-indigo-100/50 transition-colors border-b border-indigo-100"
                                         >
-                                            {result.improved_answer}
-                                        </ReactMarkdown>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                                            <div className="flex flex-col items-start gap-1">
+                                                <div className="flex items-center gap-2 text-indigo-900 font-semibold">
+                                                    <Minimize2 className="h-4 w-4" />
+                                                    Compressed Model Solution
+                                                </div>
+                                                <div className="text-xs text-indigo-600/70">
+                                                    {result.word_count_compressed} words • Optimized for quick reading
+                                                </div>
+                                            </div>
+                                            <ChevronDown className={cn("h-4 w-4 text-indigo-400 transition-transform", showCompressed && "rotate-180")} />
+                                        </button>
+                                        {showCompressed && (
+                                            <CardContent className="p-6">
+                                                <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900">
+                                                    <ReactMarkdown
+                                                        remarkPlugins={[remarkGfm]}
+                                                        components={markdownComponents}
+                                                        urlTransform={urlTransform}
+                                                    >
+                                                        {result.compressed_answer}
+                                                    </ReactMarkdown>
+                                                </div>
+                                            </CardContent>
+                                        )}
+                                    </Card>
+                                )}
+
+                                {/* Original Improved Version */}
+                                <Card className={cn(
+                                    "overflow-hidden",
+                                    result.compressed_answer ? "border-dashed border-gray-300" : "border-2 border-indigo-100 shadow-sm"
+                                )}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowOriginal(!showOriginal)}
+                                        className={cn(
+                                            "w-full flex items-center justify-between p-4 transition-colors border-b",
+                                            result.compressed_answer ? "bg-gray-50/50 hover:bg-gray-100/50" : "bg-indigo-50/50 hover:bg-indigo-100/50"
+                                        )}
+                                    >
+                                        <div className="flex flex-col items-start gap-1">
+                                            <div className={cn(
+                                                "flex items-center gap-2 font-semibold",
+                                                result.compressed_answer ? "text-gray-700" : "text-indigo-900"
+                                            )}>
+                                                <FileText className="h-4 w-4" />
+                                                {result.compressed_answer ? "Original Model Solution" : "Model Solution"}
+                                            </div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {result.word_count_actual} words • Comprehensive version
+                                            </div>
+                                        </div>
+                                        <ChevronDown className={cn(
+                                            "h-4 w-4 transition-transform",
+                                            result.compressed_answer ? "text-gray-400" : "text-indigo-400",
+                                            (showOriginal || !result.compressed_answer) && "rotate-180"
+                                        )} />
+                                    </button>
+                                    {(showOriginal || !result.compressed_answer) && (
+                                        <CardContent className="p-6">
+                                            <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900">
+                                                <ReactMarkdown
+                                                    remarkPlugins={[remarkGfm]}
+                                                    components={markdownComponents}
+                                                    urlTransform={urlTransform}
+                                                >
+                                                    {result.improved_answer}
+                                                </ReactMarkdown>
+                                            </div>
+                                        </CardContent>
+                                    )}
+                                </Card>
+                            </div>
                         </div>
                     ) : (
                         <div className="h-full flex flex-col items-center justify-center text-center p-12 border-2 border-dashed rounded-lg bg-gray-50/50">
@@ -461,3 +545,6 @@ export default function EvaluatePage() {
         </div>
     );
 }
+
+// Import additional icons
+import { RefreshCw, Minimize2, ChevronDown } from "lucide-react";

@@ -56,6 +56,15 @@ async def startup(ctx):
     if settings.USE_PINECONE:
         ctx["pinecone_handler"] = PineconeHandler()
         logger.info("✅ Pinecone handler initialized")
+
+    # Cleanup any dangling locks from previous runs
+    try:
+        keys = await ctx["redis"].keys("lock:user:*")
+        if keys:
+            await ctx["redis"].delete(*keys)
+            logger.info(f"🧹 Cleared {len(keys)} dangling user locks")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to cleanup dangling locks: {e}")
     
     logger.info("✅ Worker initialized")
 
@@ -101,6 +110,125 @@ async def set_job_error(redis: Redis, job_id: str, error: str):
     """Set job error in Redis"""
     await redis.set(f"job_error:{job_id}", error, ex=JOB_STATUS_TTL)
     await redis.set(f"job_status:{job_id}", "failed", ex=JOB_STATUS_TTL)
+
+
+# ============================================================
+# SHARED PIPELINE HELPER
+# ============================================================
+
+async def run_enriched_pipeline(
+    ctx: dict,
+    job_id: str,
+    query: str,
+    gemini_api_key: Optional[str] = None,
+    k: int = 6,
+    fetch_k: int = 20,
+    max_total_tokens: int = 32000
+) -> Dict[str, Any]:
+    """
+    Shared retrieval & news pipeline for Mains and Evaluation.
+    Parallel execution: Health + Retrieval (Top 20->6) + News (Parsing+Fetching).
+    Includes smart truncation.
+    """
+    from .utils.context_retriever import retrieve_context_for_question
+    from .utils.question_parser import parse_question_for_search
+    from .utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
+    from .utils.map_proxy import check_map_service_health
+    from .utils.cache_manager import get_cache_manager
+    from .utils.smart_truncator import truncate_with_token_budget
+    
+    redis = ctx["redis"]
+    pinecone_handler = ctx.get("pinecone_handler")
+    cache = get_cache_manager()
+    
+    # 1. Health check
+    async def timed_health_check():
+         try:
+             return await check_map_service_health()
+         except Exception as e:
+             logger.warning(f"Health check failed: {e}")
+             return False
+             
+    # 2. Retrieval (Top 20 -> 6 with re-ranking)
+    async def timed_retrieval():
+        try:
+            return await asyncio.to_thread(
+                retrieve_context_for_question,
+                search_query=query,
+                vector_handler=pinecone_handler,
+                mode="mains",
+                use_content_store=True,
+                k=k,
+                re_rank=True,
+                fetch_k=fetch_k
+            )
+        except Exception as e:
+            logger.warning(f"Retrieval failed: {e}")
+            return "", []
+
+    # 3. News (Parsing + Fetching)
+    async def fetch_news_with_parsing():
+        try:
+            # Step A: Parse question (Fix keyword: use gemini_api_key)
+            parsed = await parse_question_for_search(query, gemini_api_key=gemini_api_key)
+            bullets = []
+            if parsed:
+                # Step B: Check news cache
+                time_range = "3months"
+                cached_news = None
+                if cache:
+                    cached_news = cache.get_cached_news(parsed, time_range)
+                
+                if cached_news:
+                    bullets = cached_news
+                    logger.info(f"🎯 [JOB {job_id}] News cache hit")
+                else:
+                    # Step C: Fetch from MCP
+                    bullets = await fetch_current_affairs_for_question(
+                        parsed, max_bullets=5, time_range=time_range, gemini_api_key=gemini_api_key
+                    )
+                    if cache and bullets:
+                        cache.set_cached_news(parsed, bullets, time_range)
+            return parsed, bullets
+        except Exception as e:
+            logger.warning(f"News pipeline failed: {e}")
+            return {}, []
+
+    # Run in parallel
+    logger.info(f"🚀 [JOB {job_id}] Running shared enriched pipeline in parallel...")
+    results = await asyncio.gather(
+        timed_health_check(),
+        timed_retrieval(),
+        fetch_news_with_parsing()
+    )
+    
+    map_service_healthy = results[0]
+    raw_context, sources = results[1]
+    parsed_topics, current_affairs_bullets = results[2]
+    
+    # Format news bullets
+    current_affairs_text = ""
+    if current_affairs_bullets:
+        current_affairs_text = format_bullets_for_context(current_affairs_bullets)
+        
+    # Apply Smart Truncation
+    logger.info(f"📊 [JOB {job_id}] Applying smart truncation...")
+    context_trim, current_trim = truncate_with_token_budget(
+        static_context=raw_context,
+        current_affairs=current_affairs_text,
+        question=query,
+        system_prompt_tokens=1500,
+        max_total_tokens=max_total_tokens
+    )
+
+    return {
+        "context": context_trim or "[No specific context retrieved - use general knowledge]",
+        "current_affairs": current_trim,
+        "sources": sources,
+        "parsed_topics": parsed_topics,
+        "current_affairs_bullets": current_affairs_bullets,
+        "map_service_healthy": map_service_healthy
+    }
 
 
 # ============================================================
@@ -316,6 +444,7 @@ async def evaluate_answer_task(
         from .utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
         from .utils.map_proxy import parse_and_generate_maps
         from .utils.cache_manager import get_cache_manager
+        from .utils.answer_compressor import compress_answer
         
         # Import shared prompt
         try:
@@ -356,22 +485,23 @@ async def evaluate_answer_task(
                 # However, OCR is a generation call.
                 lock_key = f"lock:user:{user_id}"
                 
-                # Acquiring lock for OCR (short timeout)
-                lock = RedisLock(redis, lock_key, timeout=30)
-                if await lock.acquire(blocking=True, blocking_timeout=10):
+                # Acquiring lock for OCR (60s timeout to handle overlaps)
+                lock = RedisLock(redis, lock_key, timeout=60)
+                if await lock.acquire(blocking=True, blocking_timeout=60):
                     try:
                         if all_is_pdf:
-                            question_response = await client.generate_response(question_prompt, pdf_path=file_paths[0], temperature=0.0)
+                            question_response = await gemini_client.generate_response(question_prompt, pdf_path=file_paths[0], temperature=0.0)
                         else:
-                            question_response = await client.generate_response(question_prompt, image_path=file_paths[0], temperature=0.0)
+                            question_response = await gemini_client.generate_response(question_prompt, image_path=file_paths[0], temperature=0.0)
+                        
+                        identified_question = question_response.strip()
+                        logger.info(f"✅ [JOB {job_id}] Identified question: {identified_question[:100]}...")
                     finally:
                         await lock.release()
                 else:
-                    logger.warning(f"⚠️ [JOB {job_id}] Could not acquire lock for OCR, skipping OCR")
-                    question_response = "Question not identified"
-
-                identified_question = question_response.strip()
-                logger.info(f"✅ [JOB {job_id}] Identified question: {identified_question[:100]}...")
+                    # Non-negotiable step: if we can't get the question, we can't proceed.
+                    # Raise error to allow worker to retry the job.
+                    raise Exception("Could not acquire user lock for OCR after 60s")
             except Exception as e:
                 logger.warning(f"⚠️ [JOB {job_id}] Failed to identify question: {e}")
                 identified_question = "Question not identified"
@@ -381,90 +511,24 @@ async def evaluate_answer_task(
         await check_cancellation(ctx, job_id)
         
         # ============================================================
-        # STEP 2: Retrieve context from Pinecone
+        # PHASE 2: ALIGNED RETRIEVAL & NEWS PIPELINE
         # ============================================================
-        context = ""
-        sources = []
+        # We reuse the shared pipeline for consistency with Mains Answer
+        pipeline_result = await run_enriched_pipeline(
+            ctx=ctx,
+            job_id=job_id,
+            query=identified_question,
+            gemini_api_key=gemini_api_key
+        )
         
-        logger.info(f"📚 [JOB {job_id}] STEP 2: Retrieving context...")
-        try:
-            vector_handler = ctx.get("pinecone_handler")
-            if vector_handler and identified_question != "Question not identified":
-                context, sources = retrieve_context_for_question(
-                    search_query=identified_question,
-                    vector_handler=vector_handler,
-                    mode="mains",
-                    use_content_store=True,
-                    k=6
-                )
-                logger.info(f"✅ [JOB {job_id}] Retrieved context: {len(context)} chars from {len(sources)} sources")
-        except Exception as e:
-            logger.warning(f"⚠️ [JOB {job_id}] Context retrieval failed: {e}")
+        context = pipeline_result["context"]
+        sources = pipeline_result["sources"]
+        map_service_healthy = pipeline_result["map_service_healthy"]
+        current_affairs_bullets = pipeline_result["current_affairs_bullets"]
         
-        await check_cancellation(ctx, job_id)
-        
-        # ============================================================
-        # STEP 3: Parse question for current affairs keywords
-        # ============================================================
-        parsed_topics = {}
-        
-        if identified_question != "Question not identified":
-            logger.info(f"🔍 [JOB {job_id}] STEP 3: Parsing question for current affairs...")
-            try:
-                parsed_topics = await parse_question_for_search(
-                    question=identified_question,
-                    openai_api_key=settings.OPENAI_API_KEY
-                )
-                logger.info(f"✅ [JOB {job_id}] Parsed topics: {parsed_topics.get('search_query', '')[:50]}...")
-            except Exception as e:
-                logger.warning(f"⚠️ [JOB {job_id}] Question parsing failed: {e}")
-        
-        # ============================================================
-        # STEP 4: Fetch current affairs
-        # ============================================================
-        current_affairs_bullets = []
-        time_range = "3months"
-
-        if parsed_topics:
-            # Initialize cache manager
-            from .utils.cache_manager import get_cache_manager
-            cache = get_cache_manager() if get_cache_manager else None
-            cached_news = None
-
-            # Check news cache first
-            if cache:
-                cached_news = cache.get_cached_news(parsed_topics, time_range)
-
-            if cached_news:
-                # News cache HIT
-                logger.info(f"🎯 [JOB {job_id}] STEP 4: [NEWS CACHE HIT] Using cached news ({len(cached_news)} bullets)")
-                current_affairs_bullets = cached_news
-            else:
-                # News cache MISS - fetch from MCP
-                logger.info(f"🗞️ [JOB {job_id}] STEP 4: [NEWS CACHE MISS] Fetching current affairs from MCP...")
-                try:
-                    current_affairs_bullets = await fetch_current_affairs_for_question(
-                        parsed_keywords=parsed_topics,
-                        max_bullets=5,
-                        time_range=time_range,
-                        gemini_api_key=None  # use system key fallback
-                    )
-                    logger.info(f"✅ [JOB {job_id}] Retrieved {len(current_affairs_bullets)} current affairs bullets")
-
-                    # Cache the news bullets
-                    if cache:
-                        cache.set_cached_news(parsed_topics, current_affairs_bullets, time_range)
-                except Exception as e:
-                    logger.warning(f"⚠️ [JOB {job_id}] Current affairs fetch failed: {e}")
-                    current_affairs_bullets = []
-        else:
-            logger.info(f"⚠️ [JOB {job_id}] STEP 4: Skipping current affairs fetch")
-
-        # Append current affairs to context (additive, not replacing)
-        if current_affairs_bullets and format_bullets_for_context:
-            current_affairs_section = format_bullets_for_context(current_affairs_bullets)
-            context = context + current_affairs_section
-            logger.info(f"📝 [JOB {job_id}] Added current affairs to context: {len(current_affairs_section)} chars")
+        # Merge current affairs into context if present (for evaluation prompt)
+        if pipeline_result["current_affairs"]:
+            context = context + "\n\n**RECENT NEWS/CURRENT AFFAIRS**:\n" + pipeline_result["current_affairs"]
         
         await check_cancellation(ctx, job_id)
         
@@ -482,10 +546,11 @@ async def evaluate_answer_task(
                     logger.info(f"✅ [JOB {job_id}] Loaded {len(training_examples)} training examples")
         except Exception as e:
             logger.debug(f"No training examples loaded: {e}")
-        
+
         # ============================================================
         # STEP 6: Build enhanced prompt
         # ============================================================
+        logger.info(f"📝 [JOB {job_id}] STEP 6: Building enhanced prompt...")
         word_count_int = 350
         user_prompt = _build_evaluation_prompt(
             identified_question=identified_question,
@@ -554,27 +619,57 @@ async def evaluate_answer_task(
         # ============================================================
         # STEP 8: Parse response
         # ============================================================
+        logger.info(f"🔍 [JOB {job_id}] STEP 8: Parsing response...")
         improved_answer, feedback = _parse_evaluation_response(response_text)
         
         # ============================================================
         # STEP 9: Process maps (optional)
         # ============================================================
+        logger.info(f"🗺️ [JOB {job_id}] STEP 9: Processing maps...")
         try:
             improved_answer = await parse_and_generate_maps(improved_answer)
         except Exception as e:
             logger.debug(f"Map processing skipped: {e}")
         
         # ============================================================
-        # STEP 10: Save result
+        # STEP 10: Compression & Save Result
         # ============================================================
+        logger.info(f"🗜️ [JOB {job_id}] STEP 10: Applying compression & saving result...")
+        
+        # Calculate word count for original improved answer
+        word_count_actual = count_words_excluding_visuals(improved_answer)
+        
+        # Use Flash for compression
+        flash_client = GeminiClient(api_key=gemini_api_key, model_name=settings.GEMINI_MODEL_FLASH)
+        
+        compressed_answer = None
+        word_count_compressed = None
+        
+        try:
+            compressed = await compress_answer(
+                original_answer=improved_answer,
+                target_word_count=word_count_int,
+                gemini_client=flash_client,
+                threshold_ratio=1.4
+            )
+            if compressed:
+                compressed_answer = compressed
+                word_count_compressed = count_words_excluding_visuals(compressed)
+                logger.info(f"✅ [JOB {job_id}] Compression successful: {word_count_actual} -> {word_count_compressed} words")
+        except Exception as e:
+            logger.warning(f"⚠️ [JOB {job_id}] Compression failed: {e}")
+
         result = {
             "question": identified_question,
             "student_answer": "Answer extracted by Gemini",
             "improved_answer": improved_answer,
+            "compressed_answer": compressed_answer,
             "feedback": feedback,
             "sources": sources,
             "parsed_topics": parsed_topics,
             "current_affairs_count": len(current_affairs_bullets),
+            "word_count_actual": word_count_actual,
+            "word_count_compressed": word_count_compressed,
             "success": True
         }
         
@@ -795,59 +890,21 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         pinecone_handler = ctx.get("pinecone_handler")
         
         # ============================================================
-        # PARALLEL EXECUTION BLOCK
+        # PHASE 2: ALIGNED RETRIEVAL & NEWS PIPELINE
         # ============================================================
-        logger.info(f"🚀 [JOB {job_id}] Starting parallel execution")
-        
-        # 1. Health Check
-        async def timed_health_check():
-             return await check_map_service_health()
-             
-        # 2. Retrieval
-        async def timed_retrieval():
-            return await asyncio.to_thread(
-                retrieve_context_for_question,
-                search_query=query,
-                vector_handler=pinecone_handler,
-                mode="mains",
-                use_content_store=True,
-                k=6,
-                re_rank=True,
-                fetch_k=20
-            )
-
-        # 3. News
-        async def fetch_news_with_parsing():
-            parsed = await parse_question_for_search(query, gemini_api_key=gemini_api_key)
-            bullets = []
-            if parsed:
-                # Check cache checked in route? No, we are in worker.
-                # Use cache manager if wanted.
-                bullets = await fetch_current_affairs_for_question(
-                     parsed, max_bullets=5, time_range="3months", gemini_api_key=gemini_api_key
-                )
-            return parsed, bullets
-            
-        results = await asyncio.gather(
-            timed_health_check(),
-            timed_retrieval(),
-            fetch_news_with_parsing()
+        pipeline_result = await run_enriched_pipeline(
+            ctx=ctx,
+            job_id=job_id,
+            query=query,
+            gemini_api_key=gemini_api_key
         )
         
-        map_service_healthy = results[0]
-        context, sources = results[1]
-        parsed_topics, current_affairs_bullets = results[2]
-        
-        await check_cancellation(ctx, job_id)
-        
-        # Format news
-        current_affairs_section = ""
-        if current_affairs_bullets:
-            current_affairs_section = format_bullets_for_context(current_affairs_bullets)
-            
-        # Fallback context
-        if not context:
-            context = "[No specific context retrieved - use general knowledge]"
+        context = pipeline_result["context"]
+        sources = pipeline_result["sources"]
+        parsed_topics = pipeline_result["parsed_topics"]
+        current_affairs_bullets = pipeline_result["current_affairs_bullets"]
+        current_affairs_section = pipeline_result["current_affairs"]
+        map_service_healthy = pipeline_result["map_service_healthy"]
 
         # ============================================================
         # GENERATE (User Locked)
@@ -979,7 +1036,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     
     try:
-        asyncio.run(run_worker(WorkerSettings))
+        run_worker(WorkerSettings)
     except KeyboardInterrupt:
         sys.exit(0)
     job_timeout = 300  # 5 minutes max per job

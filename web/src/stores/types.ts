@@ -59,7 +59,10 @@ export interface EvaluationResult {
     question: string;
     student_answer: string;
     improved_answer: string;
+    compressed_answer?: string | null;
     feedback: Feedback;
     sources: any[];
     current_affairs_count: number;
+    word_count_actual: number;
+    word_count_compressed?: number | null;
 }
