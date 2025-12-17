@@ -340,6 +340,10 @@ async def generate_mains_answer(
             api_key=gemini_api_key,
             model_name="gemini-2.5-pro"
         )
+        flash_client = GeminiClient(
+            api_key=gemini_api_key,
+            model_name="gemini-2.5-flash"
+        )
         
         # Initialize cache manager
         cache = get_cache_manager()
@@ -579,7 +583,7 @@ async def generate_mains_answer(
                 compressed = await compress_answer(
                     original_answer=answer,
                     target_word_count=mains_request.word_count,
-                    gemini_client=gemini_client,
+                    gemini_client=flash_client,
                     threshold_ratio=1.5
                 )
                 
