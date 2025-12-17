@@ -190,7 +190,18 @@ export default function MockTestPage() {
                     if (pollingInterval.current) clearInterval(pollingInterval.current);
 
                     // Process completed data
-                    const questions = jobData.questions || [];
+                    const result = jobData.result || {};
+                    const questions = result.questions || [];
+
+                    console.log("Mock Test Result:", result);
+
+                    if (questions.length === 0) {
+                        setJobStatus('failed');
+                        setError("Generation completed but no questions were returned. Please try again.");
+                        setLoading(false);
+                        setEstimatedTimeRemaining(null);
+                        return; // Stop processing
+                    }
 
                     // Calculate metadata
                     const minutesPerQuestion = 1.2;

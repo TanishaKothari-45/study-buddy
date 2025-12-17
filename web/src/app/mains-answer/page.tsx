@@ -29,13 +29,46 @@ interface MainsAnswerResponse {
 export default function MainsAnswerPage() {
     const { } = useAuth();
 
-    // Local state for UI only
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    // Persist state from store
+    const {
+        question,
+        wordCount,
+        result,
+        error,
+        jobId,
+        jobStatus,
+        history,
+        historyHasMore,
+        historySearch,
+        isLoadingHistory,
+        setQuestion,
+        setWordCount,
+        setResult,
+        setError,
+        setJobId,
+        setJobStatus,
+        setHistorySearch,
+        fetchHistory,
+        clear
+    } = useMainsAnswerStore();
+
+    // Derived state
+    const loading = jobStatus === 'pending' || jobStatus === 'processing' || jobStatus === 'queued';
+
+    // Status message based on job status
+    const getStatusMessage = () => {
+        if (jobStatus === 'queued') return "Waiting in queue...";
+        if (jobStatus === 'processing') return "Writing your answer...";
+        return "Generating Answer...";
+    };
+
+    // UI-only state
     const [showBanner, setShowBanner] = useState(false);
-    const [showCompressed, setShowCompressed] = useState(true); // Compressed answer accordion
-    const [showOriginal, setShowOriginal] = useState(false); // Original answer accordion
-    const [historyOpen, setHistoryOpen] = useState(false); // History dropdown
+    const [showCompressed, setShowCompressed] = useState(true);
+    const [showOriginal, setShowOriginal] = useState(false);
+
+    // ... history UI state ...
+    const [historyOpen, setHistoryOpen] = useState(false);
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
     const [historyModalLoading, setHistoryModalLoading] = useState(false);
     const [historyModalError, setHistoryModalError] = useState<string | null>(null);
@@ -45,15 +78,30 @@ export default function MainsAnswerPage() {
     const [modalShowOriginal, setModalShowOriginal] = useState(false);
     const historyRef = useRef<HTMLDivElement | null>(null);
 
+    // Polling Ref to avoid closure staleness
+    const activeJobId = useRef<string | null>(null);
+
+    // Sync ref with store
+    useEffect(() => {
+        activeJobId.current = jobId;
+    }, [jobId]);
+
+    // Resume polling on mount if active
+    useEffect(() => {
+        if (jobId && (jobStatus === 'pending' || jobStatus === 'processing' || jobStatus === 'queued')) {
+            pollStatus(jobId);
+        }
+    }, []);
+
+    // ... helper functions ...
+
     const stripHeavyContent = (
         text?: string | null,
         opts: { removeAllMaps?: boolean; stripImages?: boolean } = {}
     ) => {
         if (!text) return "";
         const { removeAllMaps = false, stripImages = false } = opts;
-        // Optionally remove map-json code blocks
         let cleaned = text.replace(/```map-json[\s\S]*?```/g, removeAllMaps ? "" : "[map omitted]");
-        // Optionally strip inline base64 images
         if (stripImages) {
             cleaned = cleaned.replace(/!\[[^\]]*\]\(data:image[^\)]*\)/g, "[image omitted]");
         }
@@ -67,7 +115,7 @@ export default function MainsAnswerPage() {
         return match ? match[0] : null;
     };
 
-    // Lighter markdown components for modal: omit heavy images/base64 maps
+    // Lighter markdown components for modal
     const modalMarkdownComponents = {
         ...markdownComponents,
         img: ({ src, alt }: any) => {
@@ -105,25 +153,7 @@ export default function MainsAnswerPage() {
         },
     };
 
-    // Abort controller for cancellation
-    const [abortController, setAbortController] = useState<AbortController | null>(null);
 
-    // Persist state from store
-    const {
-        question,
-        wordCount,
-        result,
-        history,
-        historyHasMore,
-        historySearch,
-        isLoadingHistory,
-        setQuestion,
-        setWordCount,
-        setResult,
-        setHistorySearch,
-        fetchHistory,
-        clear
-    } = useMainsAnswerStore();
 
     // Fetch history on mount
     useEffect(() => {
@@ -142,69 +172,102 @@ export default function MainsAnswerPage() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [historyOpen]);
 
-    const handleGenerate = async (e?: React.FormEvent) => {
-        e?.preventDefault(); // Optional event for manual calls
-        if (!question.trim()) return;
-
-        // Create new abort controller
-        const controller = new AbortController();
-        setAbortController(controller);
-
-        setLoading(true);
-        setError(null);
-        setResult(null); // Clear previous answer immediately
+    const pollStatus = async (id: string) => {
+        if (activeJobId.current !== id) return;
 
         try {
-            // Use new API client with built-in error handling
-            const data = await api.post<MainsAnswerResponse>('/mains-answer/generate', {
+            const data = await api.get<{ status: string, result?: MainsAnswerResponse, error?: string }>(`/mains-answer/status/${id}`);
+
+            if (activeJobId.current !== id) return;
+
+            if (data.status === 'completed' && data.result) {
+                // Success
+                const normalizedData = {
+                    ...data.result,
+                    compressed_answer: data.result.compressed_answer ?? null,
+                    word_count_compressed: data.result.word_count_compressed ?? null,
+                };
+
+                if (
+                    normalizedData.compressed_answer &&
+                    normalizedData.answer &&
+                    normalizedData.compressed_answer.trim() === normalizedData.answer.trim()
+                ) {
+                    normalizedData.compressed_answer = null;
+                    normalizedData.word_count_compressed = null;
+                }
+
+                setResult(normalizedData);
+                fetchHistory({ reset: true }); // Refresh history
+                // setJobStatus('completed') handled by setResult
+                setJobId(null);
+            } else if (data.status === 'failed') {
+                setError(data.error || "Generation failed");
+                setJobId(null);
+            } else {
+                // Update status if needed (e.g. queued -> processing)
+                if (data.status === 'processing' && jobStatus !== 'processing') setJobStatus('processing');
+
+                // Continue polling
+                setTimeout(() => pollStatus(id), 2000);
+            }
+        } catch (err) {
+            if (activeJobId.current !== id) return;
+            console.error("Polling error:", err);
+            setTimeout(() => pollStatus(id), 3000);
+        }
+    };
+
+    const handleCancel = async () => {
+        if (!jobId) return;
+        const idToCancel = jobId;
+
+        // Optimistic update
+        setJobId(null);
+        setJobStatus('idle');
+        setError("Generation cancelled");
+
+        try {
+            await api.post(`/mains-answer/cancel/${idToCancel}`);
+        } catch (err) {
+            console.error("Cancel failed:", err);
+        }
+    };
+
+    const handleGenerate = async (e?: React.FormEvent) => {
+        e?.preventDefault();
+        if (!question.trim()) return;
+
+        setJobStatus('queued');
+        setError(null);
+        setResult(null);
+
+        try {
+            const data = await api.post<{ job_id: string, status: string, message: string }>('/mains-answer/generate', {
                 question: question.trim(),
                 word_count: parseInt(wordCount)
-            }, {
-                signal: controller.signal
             });
 
-            // Normalize undefined to null for store compatibility
-            const normalizedData = {
-                ...data,
-                compressed_answer: data.compressed_answer ?? null,
-                word_count_compressed: data.word_count_compressed ?? null,
-            };
-            // If cache only stored compressed (same as answer), avoid double-rendering sections
-            if (
-                normalizedData.compressed_answer &&
-                normalizedData.answer &&
-                normalizedData.compressed_answer.trim() === normalizedData.answer.trim()
-            ) {
-                normalizedData.compressed_answer = null;
-                normalizedData.word_count_compressed = null;
+            if (data.job_id) {
+                setJobId(data.job_id);
+                setJobStatus('queued'); // Start as queued
+                pollStatus(data.job_id);
+            } else {
+                throw new Error("No job ID returned");
             }
 
-            setResult(normalizedData); // Save to store
-            fetchHistory(); // Refresh history list after new generation
         } catch (err) {
-            // Ignore abort errors (user cancelled)
-            if (err instanceof Error && err.name === 'AbortError') {
-                return;
-            }
-
-            // Error toast is already shown by apiClient
-            // Just set local error state for UI feedback
-            let message = "Failed to generate answer";
-
+            setJobStatus('failed');
+            let message = "Failed to start generation";
             if (err instanceof ApiError) {
                 message = err.message;
             } else if (err instanceof Error) {
                 message = err.message;
             }
-
             setError(message);
-
-            // If error is about missing API key, show the banner
             if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("gemini")) {
                 setShowBanner(true);
             }
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -390,7 +453,7 @@ export default function MainsAnswerPage() {
                                                 {loading ? (
                                                     <>
                                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                        Generating...
+                                                        {getStatusMessage()}
                                                     </>
                                                 ) : (
                                                     <>
@@ -404,11 +467,7 @@ export default function MainsAnswerPage() {
                                                 <Button
                                                     type="button"
                                                     variant="destructive"
-                                                    onClick={() => {
-                                                        abortController?.abort();
-                                                        setLoading(false);
-                                                        setError("Generation cancelled by user");
-                                                    }}
+                                                    onClick={handleCancel}
                                                     className="shrink-0"
                                                 >
                                                     Cancel
@@ -544,7 +603,7 @@ export default function MainsAnswerPage() {
                     {!result && loading && (
                         <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg bg-muted/30 text-center">
                             <Loader2 className="h-16 w-16 text-primary animate-spin mb-4" />
-                            <h3 className="text-lg font-medium text-foreground">Generating Answer...</h3>
+                            <h3 className="text-lg font-medium text-foreground">{getStatusMessage()}</h3>
                             <p className="text-muted-foreground max-w-sm mt-2">
                                 Please wait while we generate a comprehensive answer with relevant sources.
                             </p>

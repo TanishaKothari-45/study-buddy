@@ -18,7 +18,7 @@ from openai import OpenAI, RateLimitError
 from ..core.config import settings
 from ..utils.upsc_patterns.loader import get_examples, format_fewshot, get_all_patterns
 from ..utils.metadata_enricher import GEOGRAPHY_TOPICS, GEOGRAPHY_DOMAINS
-from ..routes.query import deduplicate_chunks
+from ..utils.context_retriever import deduplicate_chunks
 from ..utils.mm_utils import enforce_source_diversity
 from ..utils.mock_test_prompting import assemble_upsc_prompt
 from ..utils.query_builder import build_query_text, build_current_affairs_query
@@ -1058,7 +1058,9 @@ async def generate_single_batch(
         content_docs = [Document(page_content=chunk['content'], metadata=chunk.get('metadata', {})) 
                        for chunk in chunks]
         
-        content_text = deduplicate_chunks(content_docs, min_overlap_words=20, similarity_threshold=0.6)
+        # Extract text for deduplication (deduplicate_chunks expects List[str])
+        doc_texts = [d.page_content for d in content_docs]
+        content_text = deduplicate_chunks(doc_texts, min_overlap_words=20, similarity_threshold=0.6)
         
         # Assemble prompt
         topic = topics[0] if topics else "Geography"
@@ -1509,45 +1511,48 @@ async def generate_async(
     Start async mock test generation (for large tests)
     Returns job_id immediately, user polls /status/{job_id}
     """
+    import redis.asyncio as redis_async
+    
     try:
         # Validate request
         if test_request.num_questions > 200:
             raise HTTPException(400, "Maximum 200 questions allowed")
         
-        # Create job
+        # Create job ID
         job_id = str(uuid4())
-        job_store = get_job_store()
-        job_store.create_job(
-            job_id=job_id,
-            num_questions=test_request.num_questions,
-            topics=test_request.topics,
-            difficulty=test_request.difficulty
-        )
         
-        # Get dependencies
-        pinecone_handler = request.app.state.vector_handler
-        embedder = pinecone_handler.embedder
+        # Get Arq pool
+        arq_pool = request.app.state.arq_pool
+        if not arq_pool:
+            raise HTTPException(500, "Job queue not initialized")
+            
         api_key = os.getenv("OPENAI_API_KEY")
-        
         if not api_key:
             raise HTTPException(400, "OpenAI API key not configured")
         
-        # Start background task using asyncio with error handling wrapper
-        # Use ensure_future to get a task reference (prevents garbage collection)
-        task = asyncio.ensure_future(
-            _run_pipeline_with_error_handling(
-                job_id=job_id,
-                num_questions=test_request.num_questions,
-                topics=test_request.topics,
-                difficulty=test_request.difficulty,
-                pinecone_handler=pinecone_handler,
-                embedder=embedder,
-                api_key=api_key
-            )
+        # Set initial status in Redis
+        try:
+            client = redis_async.Redis(host="localhost", port=6379, decode_responses=True)
+            await client.set(f"job_status:{job_id}", "queued", ex=3600)
+            await client.set(f"job_num_questions:{job_id}", str(test_request.num_questions), ex=3600)
+            await client.set(f"job_topics:{job_id}", ",".join(test_request.topics), ex=3600)
+            await client.set(f"job_difficulty:{job_id}", test_request.difficulty, ex=3600)
+            await client.close()
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to set initial Redis status: {e}")
+        
+        # Enqueue job via Arq
+        await arq_pool.enqueue_job(
+            "generate_mock_test_task",
+            job_id=job_id,
+            num_questions=test_request.num_questions,
+            topics=test_request.topics,
+            difficulty=test_request.difficulty,
+            api_key=api_key
         )
         
         # Log task creation
-        logger.info(f"🎬 Created background task for job {job_id[:8]}, task_id={id(task)}")
+        logger.info(f"🎬 Enqueued job {job_id[:8]} to Arq worker")
         
         # Estimate time
         estimated_seconds = math.ceil(test_request.num_questions / 40) * 60  # ~60s per 40 questions
@@ -1556,11 +1561,13 @@ async def generate_async(
         
         return {
             "job_id": job_id,
-            "status": "pending",
+            "status": "queued",
             "estimated_time_seconds": estimated_seconds,
             "message": f"Generating {test_request.num_questions} questions. Poll /mock-test/status/{job_id} for progress."
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Failed to start async generation: {e}")
         raise HTTPException(500, str(e))
@@ -1569,15 +1576,74 @@ async def generate_async(
 @router.get("/status/{job_id}")
 async def get_status(job_id: str):
     """
-    Get status of async mock test generation
+    Get status of async mock test generation (Redis-based)
     """
-    job_store = get_job_store()
-    job = job_store.get_job(job_id)
+    import redis.asyncio as redis_async
+    import json
     
-    if not job:
-        raise HTTPException(404, f"Job {job_id} not found")
-    
-    # Cleanup old jobs
-    job_store.cleanup_old_jobs()
-    
-    return job.to_dict()
+    try:
+        client = redis_async.Redis(host="localhost", port=6379, decode_responses=True)
+        
+        status = await client.get(f"job_status:{job_id}")
+        if not status:
+            await client.close()
+            raise HTTPException(404, f"Job {job_id} not found")
+        
+        # Build response
+        response = {
+            "job_id": job_id,
+            "status": status
+        }
+        
+        # Get metadata
+        num_questions = await client.get(f"job_num_questions:{job_id}")
+        
+        # Semantic logging for polling
+        logger.info(f"MOCK_TEST_STATUS - {job_id[:8]}... : {status.upper()}")
+
+        topics = await client.get(f"job_topics:{job_id}")
+        difficulty = await client.get(f"job_difficulty:{job_id}")
+        
+        if num_questions:
+            response["num_questions"] = int(num_questions)
+        if topics:
+            response["topics"] = topics.split(",") if topics else []
+        if difficulty:
+            response["difficulty"] = difficulty
+        
+        # Get result if completed
+        if status == "completed":
+            result_json = await client.get(f"job_result:{job_id}")
+            if result_json:
+                response["result"] = json.loads(result_json)
+        
+        # Get error if failed
+        if status == "failed":
+            error = await client.get(f"job_error:{job_id}")
+            if error:
+                response["error"] = error
+        
+        await client.close()
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Status check failed: {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.post("/cancel/{job_id}")
+async def cancel_mock_test(job_id: str):
+    """
+    Cancel a running mock test generation job.
+    """
+    import redis.asyncio as redis_async
+
+    try:
+        client = redis_async.Redis(host="localhost", port=6379, decode_responses=True)
+        await client.set(f"cancel:{job_id}", "1", ex=3600)
+        await client.close()
+        return {"message": "Cancellation requested"}
+    except Exception as e:
+        raise HTTPException(500, str(e))

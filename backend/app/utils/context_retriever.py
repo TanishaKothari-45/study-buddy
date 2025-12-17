@@ -20,12 +20,7 @@ from typing import List, Dict, Any, Tuple, Optional
 logger = logging.getLogger(__name__)
 
 # Import the original deduplicate_chunks from query.py to use the same logic
-try:
-    from ..routes.query import deduplicate_chunks
-except ImportError:
-    # Fallback if import fails
-    deduplicate_chunks = None
-    logger.warning("Could not import deduplicate_chunks from query.py")
+from .text_processing import deduplicate_chunks
 
 
 def extract_sources_from_docs(docs: List[Any]) -> List[Dict[str, Any]]:

@@ -93,3 +93,5 @@ backend/web_cache.json
 docs/analysis/*.json
 
 web/package-lock.json
+
+backend/map_storage/

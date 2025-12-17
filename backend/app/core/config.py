@@ -92,6 +92,10 @@ class Settings(BaseSettings):
     # RAG Settings
     TOP_K_CHUNKS: int = 8  # Increased to get more context
     
+    # Redis Settings
+    REDIS_URL: str = "redis://localhost:6379"
+    REDIS_PORT: int = 6379
+    
     def setup_directories(self):
         """Create necessary directories"""
         self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

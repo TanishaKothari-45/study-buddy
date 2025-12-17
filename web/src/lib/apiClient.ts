@@ -66,7 +66,7 @@ function cleanErrorMessage(message: string, statusCode: number): string {
     if (message.startsWith('Failed to generate answer:') || message.startsWith('Failed to ')) {
         return message;
     }
-    
+
     // Gemini API quota errors (429)
     if (statusCode === 429) {
         if (message.includes('quota') || message.includes('Quota exceeded')) {
@@ -77,7 +77,7 @@ function cleanErrorMessage(message: string, statusCode: number): string {
         }
         return 'Failed to generate answer: API quota exceeded. Please check your usage and try again later.';
     }
-    
+
     // Gemini API authentication errors (401, 403)
     if (statusCode === 401 || statusCode === 403) {
         if (message.includes('API key')) {
@@ -85,19 +85,19 @@ function cleanErrorMessage(message: string, statusCode: number): string {
         }
         return 'Authentication failed. Please log in again or check your API key in Settings.';
     }
-    
+
     // Server errors (500+)
     if (statusCode >= 500) {
         // Service unavailable
         if (statusCode === 503) {
             return 'Failed to generate answer: Service is temporarily unavailable. Please try again in a few minutes.';
         }
-        
+
         // Gateway errors
         if (statusCode === 502 || statusCode === 504) {
             return 'Failed to generate answer: Gateway error occurred. Please try again in a moment.';
         }
-        
+
         // Extract first sentence before technical details
         const firstSentence = message.split(/[.\n]/)[0];
         if (firstSentence && firstSentence.length < 120) {
@@ -105,7 +105,7 @@ function cleanErrorMessage(message: string, statusCode: number): string {
         }
         return 'Failed to generate answer: Server error occurred. Please try again or contact support if the issue persists.';
     }
-    
+
     // For other errors, extract first meaningful sentence
     // Remove technical stack traces, URLs, and excessive details
     const cleanedMessage = message
@@ -114,13 +114,13 @@ function cleanErrorMessage(message: string, statusCode: number): string {
         .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs  
         .replace(/\*\s*/g, '') // Remove bullet points
         .trim();
-    
+
     // Limit length to first 150 characters
     if (cleanedMessage.length > 150) {
         const truncated = cleanedMessage.substring(0, 147);
         return truncated.substring(0, truncated.lastIndexOf(' ')) + '...';
     }
-    
+
     return cleanedMessage || 'An error occurred. Please try again or contact support if the issue persists.';
 }
 
@@ -130,12 +130,12 @@ function cleanErrorMessage(message: string, statusCode: number): string {
 async function extractErrorMessage(response: Response): Promise<string> {
     const contentType = response.headers.get('content-type');
     let rawMessage = '';
-    
+
     // Try JSON first (FastAPI standard)
     if (contentType && contentType.includes('application/json')) {
         try {
             const data = await response.json();
-            
+
             // FastAPI standard error format: {"detail": "message"}
             if (data.detail) {
                 // Handle both string and object detail
@@ -158,7 +158,7 @@ async function extractErrorMessage(response: Response): Promise<string> {
             // JSON parsing failed, fall through to text
         }
     }
-    
+
     // Try plain text if no JSON message
     if (!rawMessage) {
         try {
@@ -170,12 +170,12 @@ async function extractErrorMessage(response: Response): Promise<string> {
             // Text parsing failed
         }
     }
-    
+
     // Fallback to HTTP status text
     if (!rawMessage) {
         rawMessage = `Request failed: ${response.status} ${response.statusText}`;
     }
-    
+
     // Clean up the message for user display
     return cleanErrorMessage(rawMessage, response.status);
 }
@@ -185,25 +185,25 @@ async function extractErrorMessage(response: Response): Promise<string> {
  */
 function handle401Error() {
     if (isRedirecting) return;
-    
+
     isRedirecting = true;
-    
+
     // Store current path for redirect after login
     const currentPath = window.location.pathname + window.location.search;
     const excludedPaths = ['/login', '/signup', '/register', '/auth', '/forgot-password'];
-    
+
     if (!excludedPaths.some(path => currentPath.startsWith(path))) {
         storeReturnUrl(currentPath);
     }
-    
+
     // Show toast notification
     if (globalToastHandler) {
         globalToastHandler('Your session has expired. Redirecting to login...', 'warning');
     }
-    
+
     // Clear token
     localStorage.removeItem('token');
-    
+
     // Redirect after 3 seconds
     setTimeout(() => {
         window.location.href = '/login';
@@ -269,21 +269,24 @@ export async function apiClient<T = unknown>(
 
     // Build full URL
     const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
-    
+
     // Merge retry config
     const retry = { ...DEFAULT_RETRY_CONFIG, ...retryConfig };
-    
+
     // Build headers
-    const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-    };
-    
+    const headers: Record<string, string> = {};
+
+    // Default to JSON unless body is FormData (let browser set content-type for FormData)
+    if (!(fetchOptions.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+    }
+
     // Merge custom headers
     if (fetchOptions.headers) {
         const customHeaders = fetchOptions.headers as Record<string, string>;
         Object.assign(headers, customHeaders);
     }
-    
+
     // Add authentication token
     if (!skipAuth) {
         const token = getAuthToken();
@@ -291,61 +294,61 @@ export async function apiClient<T = unknown>(
             headers['Authorization'] = `Bearer ${token}`;
         }
     }
-    
+
     // Attempt request with retry logic
     let lastError: Error | null = null;
     const maxAttempts = skipRetry ? 1 : retry.maxRetries + 1;
-    
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
             // Add delay before retry (except first attempt)
             if (attempt > 0) {
                 await sleep(retry.retryDelay * attempt); // Exponential backoff
             }
-            
+
             // Make request
             const response = await fetch(url, {
                 ...fetchOptions,
                 headers,
             });
-            
+
             // Handle 401 Unauthorized
             if (response.status === 401) {
                 handle401Error();
                 throw new AuthenticationError('Session expired. Please log in again.');
             }
-            
+
             // Handle success (2xx)
             if (response.ok) {
                 // Handle empty responses (204 No Content)
                 if (response.status === 204) {
                     return null as T;
                 }
-                
+
                 // Parse JSON response
                 const contentType = response.headers.get('content-type');
                 if (contentType && contentType.includes('application/json')) {
                     return await response.json();
                 }
-                
+
                 // Return text for non-JSON responses
                 return (await response.text()) as T;
             }
-            
+
             // Check if we should retry this status code
             const shouldRetry = retry.retryableStatuses.includes(response.status) && attempt < maxAttempts - 1;
-            
+
             if (shouldRetry) {
                 console.warn(`Request failed with status ${response.status}, retrying... (attempt ${attempt + 1}/${maxAttempts})`);
                 continue; // Retry
             }
-            
+
             // Extract error message
             const errorMessage = await extractErrorMessage(response);
-            
+
             // Create appropriate error type
             let error: ApiError;
-            
+
             if (response.status === 422) {
                 // Validation error
                 try {
@@ -357,21 +360,21 @@ export async function apiClient<T = unknown>(
             } else {
                 error = new ApiError(errorMessage, response.status, response);
             }
-            
+
             // Show error toast if not skipped
             if (!skipErrorToast && globalToastHandler) {
                 // Choose toast type based on status code
                 const toastType = response.status >= 500 ? 'error' : 'warning';
                 globalToastHandler(errorMessage, toastType);
             }
-            
+
             throw error;
-            
+
         } catch (error) {
             // Network errors (no response received)
             if (error instanceof TypeError && error.message.includes('fetch')) {
                 lastError = new NetworkError('Network error. Please check your internet connection.');
-                
+
                 // Retry network errors
                 if (attempt < maxAttempts - 1) {
                     console.warn(`Network error, retrying... (attempt ${attempt + 1}/${maxAttempts})`);
@@ -383,7 +386,7 @@ export async function apiClient<T = unknown>(
             }
         }
     }
-    
+
     // All retries exhausted
     if (lastError) {
         if (!skipErrorToast && globalToastHandler) {
@@ -391,7 +394,7 @@ export async function apiClient<T = unknown>(
         }
         throw lastError;
     }
-    
+
     // Should never reach here
     throw new Error('Unexpected error in API client');
 }
@@ -400,31 +403,31 @@ export async function apiClient<T = unknown>(
  * Convenience methods for common HTTP verbs
  */
 export const api = {
-    get: <T = unknown>(endpoint: string, options?: ApiClientOptions) => 
+    get: <T = unknown>(endpoint: string, options?: ApiClientOptions) =>
         apiClient<T>(endpoint, { ...options, method: 'GET' }),
-    
-    post: <T = unknown>(endpoint: string, data?: unknown, options?: ApiClientOptions) => 
-        apiClient<T>(endpoint, { 
-            ...options, 
+
+    post: <T = unknown>(endpoint: string, data?: unknown, options?: ApiClientOptions) =>
+        apiClient<T>(endpoint, {
+            ...options,
             method: 'POST',
             body: data ? JSON.stringify(data) : undefined,
         }),
-    
-    put: <T = unknown>(endpoint: string, data?: unknown, options?: ApiClientOptions) => 
-        apiClient<T>(endpoint, { 
-            ...options, 
+
+    put: <T = unknown>(endpoint: string, data?: unknown, options?: ApiClientOptions) =>
+        apiClient<T>(endpoint, {
+            ...options,
             method: 'PUT',
             body: data ? JSON.stringify(data) : undefined,
         }),
-    
-    patch: <T = unknown>(endpoint: string, data?: unknown, options?: ApiClientOptions) => 
-        apiClient<T>(endpoint, { 
-            ...options, 
+
+    patch: <T = unknown>(endpoint: string, data?: unknown, options?: ApiClientOptions) =>
+        apiClient<T>(endpoint, {
+            ...options,
             method: 'PATCH',
             body: data ? JSON.stringify(data) : undefined,
         }),
-    
-    delete: <T = unknown>(endpoint: string, options?: ApiClientOptions) => 
+
+    delete: <T = unknown>(endpoint: string, options?: ApiClientOptions) =>
         apiClient<T>(endpoint, { ...options, method: 'DELETE' }),
 };
 

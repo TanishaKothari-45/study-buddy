@@ -54,8 +54,24 @@ async def lifespan(app: FastAPI):
     # Keep backward compatibility
     app.state.chroma_handler = app.state.vector_handler
     
+    # Initialize Arq Redis pool
+    from arq import create_pool
+    from arq.connections import RedisSettings
+    
+    try:
+        app.state.arq_pool = await create_pool(
+            RedisSettings(host="localhost", port=6379)
+        )
+        logger.info("✅ Arq Redis pool initialized")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to initialize Arq pool: {e}")
+        app.state.arq_pool = None
+    
     yield
     # Clean up on shutdown
+    if hasattr(app.state, "arq_pool") and app.state.arq_pool:
+        await app.state.arq_pool.close()
+    
     app.state.vector_handler = None
     app.state.chroma_handler = None
 

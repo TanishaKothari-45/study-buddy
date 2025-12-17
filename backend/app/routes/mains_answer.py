@@ -16,6 +16,9 @@ import os
 import sys
 import logging
 import re
+import json
+import redis.asyncio as redis
+from uuid import uuid4
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException, Depends
@@ -306,356 +309,152 @@ async def check_connection(request: Request):
         )
 
 @router.post("/generate")
-@limiter.limit("20/hour")  # Rate limit: 20 requests per hour per IP
+@limiter.limit("20/hour")
 async def generate_mains_answer(
     request: Request,
     mains_request: MainsAnswerRequest,
     current_user: User = Depends(get_current_user)
 ):
     """
-    Generate a comprehensive UPSC Mains style answer for Geography questions.
-    Now with Redis caching for answers and news fetches.
-    Uses user's personal Gemini API key if set, otherwise system default.
+    Enqueue Mains Answer generation.
+    Returns job_id for polling.
     """
     try:
-        logger.info(f"🚀 [MAINS] Received request: '{mains_request.question[:100]}...' (word_count={mains_request.word_count})")
+        user_id = str(current_user.id) if current_user.id else current_user.email
         
-        # Get Gemini API key (user's personal key or system default)
-        try:
-            gemini_api_key = get_gemini_api_key_for_request(current_user)
-        except ValueError as e:
-            raise HTTPException(
-                status_code=400,
-                detail="No Gemini API key configured. Please set your personal API key in settings to use this feature."
-            )
+        # 1. Check if we already have a specialized cached answer (fast return)
+        # However, for polling consistency, we might just let the worker handle cache too,
+        # OR we check cache here and return immediately if found?
+        # If we return immediate result, the frontend needs to handle {job_id: ...} OR {result: ...}
+        # To keep it simple, let's enqueue everything OR check cache and if hit, return a synthetic "completed" job?
+        # Let's check cache here for speed.
         
-        if not gemini_api_key:
-            raise HTTPException(
-                status_code=400,
-                detail="No Gemini API key available. Please set your personal API key in settings to use this feature."
-            )
-        
-        # Initialize Gemini client with user's API key
-        gemini_client = GeminiClient(
-            api_key=gemini_api_key,
-            model_name="gemini-2.5-pro"
-        )
-        
-        # Initialize cache manager
         cache = get_cache_manager()
         model_version = "gemini-2.5-pro-v1"
-        
-        # ============================================================
-        # STEP 1: Check answer cache (exact match)
-        # ============================================================
-        
         cached_answer_data = cache.get_cached_answer(mains_request.question, mains_request.word_count, model_version)
         
         if cached_answer_data:
-            # Cache HIT
-            logger.info("⚡ [CACHE HIT] Returning cached answer")
-            cached_answer = cached_answer_data["answer"]
-            word_count_actual = cached_answer_data.get("word_count_actual") or count_words_excluding_visuals(cached_answer)
-            
-            # Whatever is stored is authoritative; avoid recompressing
-            compressed_answer = cached_answer_data.get("compressed_answer")
-            word_count_compressed = cached_answer_data.get("word_count_compressed")
+             logger.info(f"⚡ [CACHE HIT] Immediate return for '{mains_request.question[:20]}...'")
+             # We need to return a structure that the frontend polling logic can digest.
+             # Or we return a "completed" status immediately?
+             # Let's say we return { "job_id": "cached", "status": "completed", "result": ... }
+             # But standard pattern is POST returns job_id, then GET status returns result.
+             # Let's simulate a job. 
+             job_id = f"cached-{uuid4()}"
+             
+             # We can write the result to Redis as if the job finished
+             # We can write the result to Redis as if the job finished
+             client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+             
+             # Reconstruct result object
+             result_obj = {
+                "question": cached_answer_data["question"],
+                "answer": cached_answer_data["answer"],
+                "compressed_answer": cached_answer_data.get("compressed_answer"),
+                "sources": cached_answer_data.get("sources", []),
+                "word_count_actual": cached_answer_data.get("word_count_actual", 0),
+                "word_count_compressed": cached_answer_data.get("word_count_compressed")
+             }
+             
+             await client.set(f"job_status:{job_id}", "completed", ex=3600)
+             await client.set(f"job_result:{job_id}", json.dumps(result_obj), ex=3600)
+             await client.close()
+             
+             return {
+                 "job_id": job_id,
+                 "status": "completed",
+                 "message": "Answer found in cache."
+             }
 
-            # Do not re-add to history on cache hit (history is managed on writes)
-
-            return MainsAnswerResponse(
-                question=cached_answer_data["question"],
-                answer=cached_answer,
-                compressed_answer=compressed_answer,
-                sources=cached_answer_data["sources"],
-                word_count_actual=word_count_actual,
-                word_count_compressed=word_count_compressed
-            )
-        
-        # Cache MISS - proceed with generation
-        logger.info("⚡ [CACHE MISS] Generating new answer")
-        
-        # Dogpile protection: try to acquire lock
-        cache_key = cache.get_answer_cache_key(mains_request.question, mains_request.word_count, model_version)
-        lock_acquired = cache.acquire_lock(cache_key)
-        
-        if not lock_acquired:
-            # Another request is generating this answer - wait briefly and retry cache
-            logger.info("⏳ [LOCK] Another request is generating this answer, waiting...")
-            import asyncio
-            for _ in range(5): # Wait up to 5 seconds
-                if await request.is_disconnected():
-                     logger.warning("⚠️ [CANCEL] Client disconnected while waiting for lock")
-                     return # Just return, don't raise
-                await asyncio.sleep(1)
-                
-            # After waiting, try cache again
-            retry_cache = cache.get_cached_answer(mains_request.question, mains_request.word_count, model_version)
-            if retry_cache:
-                 logger.info("⚡ [LOCK] Retrieved answer after wait")
-                 return MainsAnswerResponse(
-                    question=retry_cache["question"],
-                    answer=retry_cache["answer"],
-                    compressed_answer=retry_cache.get("compressed_answer"),
-                    sources=retry_cache["sources"],
-                    word_count_actual=retry_cache.get("word_count_actual", 0),
-                    word_count_compressed=retry_cache.get("word_count_compressed")
-                )
-            
-            # If still no cache, we might want to proceed or error. 
-            # For now, let's proceed (race condition worst case = double generation)
-            logger.info("⚠️ [LOCK] Wait over, proceeding with generation")
-        
+        # 2. Get API Key
         try:
-            # Get Pinecone handler
-            pinecone_handler = request.app.state.vector_handler
-            
-            # ============================================================
-            # PARALLEL EXECUTION BLOCK 1: Independent operations
-            # Health Check + Context Retrieval + (Question Parsing + News Fetch)
-            # ============================================================
-            logger.info("🚀 [MAINS] Starting parallel execution: health + retrieval + parsing + news")
-            
-            # Import timing utilities
-            import asyncio
-            import time
-            
-            # Start overall timing
-            parallel_start = time.perf_counter()
-            
-            # Helper function to combine parsing + news fetch (they depend on each other)
-            async def fetch_news_with_parsing():
-                """Parse question and fetch news in sequence, but run parallel to retrieval"""
-                task_start = time.perf_counter()
-                parsed_topics = {}
-                current_affairs_bullets = []
-                time_range = "3months"
-                
-                try:
-
-                    # Step 1: Parse question for news search
-                    parse_start = time.perf_counter()
-                    logger.info(f"🔍 [PARSE] Parsing question for news search...")
-                    parsed_topics = await parse_question_for_search(
-                        question=mains_request.question,
-                        gemini_api_key=gemini_api_key
-                    )
-                    parse_time = (time.perf_counter() - parse_start) * 1000
-                    logger.info(f"✅ [PARSE] Parsed: {parsed_topics.get('search_query', '')[:50]}... ({parse_time:.1f}ms)")
-                    
-                    # Step 2: Fetch news using parsed keywords (check cache first)
-                    if parsed_topics:
-                        news_start = time.perf_counter()
-                        cached_news = cache.get_cached_news(parsed_topics, time_range)
-                        
-                        if cached_news:
-                            news_time = (time.perf_counter() - news_start) * 1000
-                            logger.info(f"🎯 [NEWS CACHE HIT] Using cached news ({len(cached_news)} bullets, {news_time:.1f}ms)")
-                            current_affairs_bullets = cached_news
-                        else:
-                            logger.info(f"🗞️ [NEWS CACHE MISS] Fetching from MCP...")
-                            current_affairs_bullets = await fetch_current_affairs_for_question(
-                                parsed_keywords=parsed_topics,
-                                max_bullets=5,
-                                time_range=time_range,
-                                gemini_api_key=gemini_api_key
-                            )
-                            news_time = (time.perf_counter() - news_start) * 1000
-                            logger.info(f"✅ [NEWS] Retrieved {len(current_affairs_bullets)} bullets ({news_time:.1f}ms)")
-                            cache.set_cached_news(parsed_topics, current_affairs_bullets, time_range)
-                
-                except Exception as e:
-                    logger.warning(f"⚠️ [PARSE/NEWS] Failed: {e}")
-                
-                task_time = (time.perf_counter() - task_start) * 1000
-                return parsed_topics, current_affairs_bullets, task_time
-            
-            # Helper to time retrieval
-            async def timed_retrieval():
-                """Time the context retrieval operation"""
-                task_start = time.perf_counter()
-                result = await asyncio.to_thread(
-                    retrieve_context_for_question,
-                    search_query=mains_request.question,
-                    vector_handler=pinecone_handler,
-                    mode="mains",
-                    use_content_store=True,
-                    k=6,            # Keep Top 5 (High Precision)
-                    re_rank=True,   # Enable Cross-Encoder
-                    fetch_k=20      # Fetch 20 Candidates (High Recall)
-                )
-                task_time = (time.perf_counter() - task_start) * 1000
-                return result[0], result[1], task_time  # context, sources, time
-            
-            # Helper to time health check
-            async def timed_health_check():
-                """Time the map service health check"""
-                task_start = time.perf_counter()
-                result = await check_map_service_health()
-                task_time = (time.perf_counter() - task_start) * 1000
-                return result, task_time
-            
-            # Launch all operations in parallel
-            results = await asyncio.gather(
-                # 1. Map service health check (50-100ms)
-                timed_health_check(),
-                
-                # 2. Context retrieval from Pinecone + SQLite (300-600ms)
-                timed_retrieval(),
-                
-                # 3. Question parsing + news fetch bundled (800-2000ms)
-                fetch_news_with_parsing()
-            )
-            
-            # Unpack results with timing
-            (map_service_healthy, health_time) = results[0]
-            (context, sources, retrieval_time) = results[1]
-            (parsed_topics, current_affairs_bullets, parse_news_time) = results[2]
-            
-            # Calculate total parallel time and metrics
-            parallel_total_time = (time.perf_counter() - parallel_start) * 1000
-            sequential_estimate = health_time + retrieval_time + parse_news_time
-            time_saved = sequential_estimate - parallel_total_time
-            
-            # Log performance metrics
-            logger.info("⏱️  [PERFORMANCE METRICS - Parallel Execution]:")
-            logger.info(f"   • Health check: {health_time:.1f}ms")
-            logger.info(f"   • Context retrieval (Pinecone + SQLite): {retrieval_time:.1f}ms")
-            logger.info(f"   • Question parsing + news fetch: {parse_news_time:.1f}ms")
-            logger.info(f"   • Total parallel time: {parallel_total_time:.1f}ms")
-            logger.info(f"   • Sequential would take: {sequential_estimate:.1f}ms")
-            logger.info(f"   • ⚡ TIME SAVED: {time_saved:.1f}ms ({(time_saved/sequential_estimate*100) if sequential_estimate > 0 else 0:.0f}% faster)")
-            
-            # Log results
-            if map_service_healthy:
-                logger.info("✅ [PARALLEL] Map service is available")
-            else:
-                logger.warning("⚠️ [PARALLEL] Map service is unavailable - maps will not be generated")
-            
-            # Fallback for empty context - use LLM's general knowledge
-            if not context:
-                logger.warning(f"⚠️ [PARALLEL] No context retrieved from vector store - using LLM general knowledge as fallback")
-                context = "[No specific context retrieved from study materials - use your general geographical knowledge base to answer this question]"
-                sources = []  # No sources available
-                logger.info("📝 [FALLBACK] Will generate answer using LLM's general knowledge with transparency")
-            
-            logger.info(f"✅ [PARALLEL] Context: {len(context)} chars, {len(sources)} sources")
-            logger.info(f"✅ [PARALLEL] News: {len(current_affairs_bullets)} bullets")
-            logger.info("🎯 [PARALLEL] All operations completed in parallel!")
-            
-            # Format current affairs for separate passage (not appended to static context)
-            current_affairs_section = ""
-            if current_affairs_bullets:
-                current_affairs_section = format_bullets_for_context(current_affairs_bullets)
-                logger.info(f"📝 [MAINS] Current affairs section prepared ({len(current_affairs_section)} chars) - will be passed separately as dynamic_context")
-
-            # ============================================================
-            # STEP 5: Generate answer using Gemini 2.5 Pro
-            # ============================================================
-            logger.info(f"🤖 [MAINS] Generating answer with Gemini 2.5 Pro...")
-            
-            # Call async generate_answer with map service health status
-            result = await generate_answer(
-                question=mains_request.question,
-                static_context=context,
-                dynamic_context=current_affairs_section,
-                word_count=mains_request.word_count,
-                gemini_client=gemini_client,
-                map_service_healthy=map_service_healthy
-            )
-            
-            answer = result["answer"]
-            word_count_actual = count_words_excluding_visuals(answer)
-            
-            logger.info(f"✅ [MAINS] Answer generated: {len(answer)} characters, {word_count_actual} words")
-            
-            # ============================================================
-            # STEP 6: Compress if exceeds 140% of target word count
-            # ============================================================
-            compressed_answer = None
-            word_count_compressed = None
-            
-            try:
-                compressed = await compress_answer(
-                    original_answer=answer,
-                    target_word_count=mains_request.word_count,
-                    gemini_client=gemini_client,
-                    threshold_ratio=1.5
-                )
-                
-                if compressed:
-                    compressed_answer = compressed
-                    word_count_compressed = count_words_excluding_visuals(compressed)
-                    logger.info(f"🗜️ [MAINS] Compressed: {word_count_actual} -> {word_count_compressed} words")
-            except Exception as e:
-                # Compression failure is not critical - just log and continue with uncompressed answer
-                logger.warning(f"⚠️ [MAINS] Compression failed: {e}")
-            
-            # ============================================================
-            # STEP 7: Cache the answer (store compressed if available; otherwise original)
-            # ============================================================
-            answer_to_cache = compressed_answer or answer
-            word_count_cache = count_words_excluding_visuals(answer_to_cache)
-            # Only keep compressed copy in cache if different; otherwise avoid duplication
-            compressed_for_cache = None if not compressed_answer or compressed_answer.strip() == answer_to_cache.strip() else compressed_answer
-            word_count_compressed_cache = word_count_compressed if compressed_for_cache else None
-
-            cache.set_cached_answer(
-                question=mains_request.question,
-                word_count=mains_request.word_count,
-                answer=answer_to_cache,
-                sources=sources,
-                model_version=model_version,
-                compressed_answer=compressed_for_cache,
-                word_count_actual=word_count_cache,
-                word_count_compressed=word_count_compressed_cache
-            )
-
-            # ============================================================
-            # STEP 8: Add to User History (Redis List)
-            # ============================================================
-            user_id = str(current_user.id) if current_user.id else current_user.email
-            cache.add_user_history(
-                user_id=user_id,
-                question=mains_request.question,
-                word_count=mains_request.word_count,
-                answer_preview=answer
-            )
-            
-            # Log the stats for developer visibility
-            logger.info(
-                f"📊 [MAINS STATS] Question: '{mains_request.question[:50]}...'\n"
-                f"   • Original Word Count: {word_count_actual}\n"
-                f"   • Compressed Word Count: {word_count_compressed or 'N/A'}\n"
-                f"   • Reduction: {round((1 - word_count_compressed / word_count_actual) * 100)}% if compressed else N/A\n"
-                f"   • Sources: {len(sources)}\n"
-                f"   • Map Service: {'Available' if map_service_healthy else 'Unavailable'}"
-            )
-
-            return MainsAnswerResponse(
-                question=mains_request.question,
-                answer=answer,
-                compressed_answer=compressed_answer,
-                sources=sources,
-                word_count_actual=word_count_actual,
-                word_count_compressed=word_count_compressed
-            )
+            gemini_api_key = get_gemini_api_key_for_request(current_user)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
         
-        finally:
-            # Release lock
-            if lock_acquired:
-                cache.release_lock(cache_key)
-
+        if not gemini_api_key:
+             raise HTTPException(400, "No Gemini API key available.")
+             
+        # 3. Enqueue Job
+        job_id = str(uuid4())
+        arq_pool = request.app.state.arq_pool
+        if not arq_pool:
+            raise HTTPException(500, "Job queue not initialized")
+            
+        await arq_pool.enqueue_job(
+            "generate_mains_answer_task",
+            job_id=job_id,
+            query=mains_request.question,
+            user_id=user_id,
+            word_count=mains_request.word_count,
+            gemini_api_key=gemini_api_key
+        )
+        
+        # 4. Set initial status
+        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        await client.set(f"job_status:{job_id}", "queued", ex=3600)
+        await client.close()
+        
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "message": "Answer generation started."
+        }
+        
     except HTTPException:
-        # Re-raise HTTPException as-is (already has proper status code and detail)
         raise
     except Exception as e:
-        # Catch unexpected errors
-        error_msg = str(e)
-        logger.error(f"❌ Mains answer generation failed: {error_msg}")
-        # Clean error message for user display
-        clean_msg = clean_gemini_error(error_msg)
-        raise HTTPException(status_code=500, detail=clean_msg)
+        logger.error(f"❌ Failed to enqueue mains answer: {e}")
+        raise HTTPException(500, str(e))
+
+@router.get("/status/{job_id}")
+async def get_generation_status(job_id: str):
+    """
+    Poll status of answer generation.
+    """
+    try:
+        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        
+        status = await client.get(f"job_status:{job_id}")
+        if not status:
+             status = "unknown"
+        
+        result = None
+        if status == "completed":
+            result_json = await client.get(f"job_result:{job_id}")
+            if result_json:
+                result = json.loads(result_json)
+        
+        error = None
+        if status == "failed":
+            error = await client.get(f"job_error:{job_id}")
+            
+        # Semantic logging for polling
+        logger.info(f"MAINS_GENERATION - {job_id[:8]}... : {status.upper()}")
+            
+        await client.close()
+        
+        return {
+            "job_id": job_id,
+            "status": status,
+            "result": result,
+            "error": error
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.post("/cancel/{job_id}")
+async def cancel_generation(job_id: str):
+    """
+    Cancel running generation.
+    """
+    try:
+        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        await client.set(f"cancel:{job_id}", "1", ex=3600)
+        await client.close()
+        return {"message": "Cancellation requested"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 @router.get("/history")
 async def get_mains_answer_history(

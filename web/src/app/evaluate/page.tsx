@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { cn } from "@/lib/utils";
 import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
 import { apiClient, ApiError } from "@/lib/apiClient";
+import { useEvaluateAnswerStore } from "@/stores";
 
 interface Feedback {
     strengths: string[];
@@ -32,15 +33,49 @@ interface EvaluationResult {
 }
 
 export default function EvaluatePage() {
+    const {
+        question,
+        jobId,
+        jobStatus,
+        result,
+        error,
+        setQuestion,
+        setJobId,
+        setJobStatus,
+        setResult,
+        setError,
+        reset
+    } = useEvaluateAnswerStore();
+
     const [files, setFiles] = useState<File[]>([]);
-    const [question, setQuestion] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [result, setResult] = useState<EvaluationResult | null>(null);
-    const [error, setError] = useState("");
+    // Removed local jobId, result, error, question states
     const [showBanner, setShowBanner] = useState(false);
 
-    // Abort controller for cancellation
-    const [abortController, setAbortController] = useState<AbortController | null>(null);
+    // Derived state for UI
+    const loading = jobStatus === 'pending' || jobStatus === 'processing' || jobStatus === 'queued';
+    const polling = jobStatus === 'pending' || jobStatus === 'processing' || jobStatus === 'queued';
+
+    const [statusMessage, setStatusMessage] = useState("Evaluating...");
+
+    // Ref to track active job for cancellation effect
+    const activeJobId = useRef<string | null>(null);
+
+    // Sync ref with store
+    useEffect(() => {
+        activeJobId.current = jobId;
+    }, [jobId]);
+
+    // Resume polling on mount if active
+    useEffect(() => {
+        if (jobId && (jobStatus === 'pending' || jobStatus === 'processing' || jobStatus === 'queued')) {
+            setStatusMessage("Resuming evaluation...");
+            pollStatus(jobId);
+        }
+    }, []);
+
+    // ... (rest of file handling logic) ...
+    // Update handleSubmit to use setJobId from store
+    // Update pollStatus to use setResult/setError from store
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -53,6 +88,60 @@ export default function EvaluatePage() {
         setFiles(prev => prev.filter((_, i) => i !== index));
     };
 
+    const pollStatus = async (id: string) => {
+        if (activeJobId.current !== id) return;
+
+        try {
+            const data = await apiClient<{ status: string, result?: EvaluationResult, error?: string }>(`/evaluate-answer/status/${id}`);
+
+            if (activeJobId.current !== id) return;
+
+            if (data.status === 'completed' && data.result) {
+                setResult(data.result);
+                // setJobStatus('completed') implicit in setResult in store
+                setJobId(null);
+                activeJobId.current = null;
+            } else if (data.status === 'failed') {
+                setError(data.error || "Evaluation failed");
+                setJobId(null);
+                activeJobId.current = null;
+            } else {
+                // Update status message
+                if (data.status === 'processing') {
+                    if (jobStatus !== 'processing') setJobStatus('processing');
+                    setStatusMessage("Analyzing your answer...");
+                } else if (data.status === 'queued') {
+                    if (jobStatus !== 'queued') setJobStatus('queued');
+                    setStatusMessage("Waiting in queue...");
+                }
+
+                // Continue polling
+                setTimeout(() => pollStatus(id), 2000);
+            }
+        } catch (err) {
+            if (activeJobId.current !== id) return;
+            console.error("Polling error:", err);
+            setTimeout(() => pollStatus(id), 3000);
+        }
+    };
+
+    const handleCancel = async () => {
+        if (!jobId) return;
+
+        // Optimistic UI update
+        const idToCancel = jobId;
+        setJobId(null);
+        setJobStatus('idle');
+        setError("Evaluation cancelled");
+        activeJobId.current = null;
+
+        try {
+            await apiClient(`/evaluate-answer/cancel/${idToCancel}`, { method: 'POST' });
+        } catch (err) {
+            console.error("Failed to send cancel request:", err);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (files.length === 0) {
@@ -60,13 +149,11 @@ export default function EvaluatePage() {
             return;
         }
 
-        // Create new abort controller
-        const controller = new AbortController();
-        setAbortController(controller);
-
-        setLoading(true);
-        setError("");
+        setError(null);
         setResult(null);
+        setJobId(null);
+        setJobStatus('queued');
+        setStatusMessage("Uploading and starting...");
 
         const formData = new FormData();
         files.forEach((file) => {
@@ -75,38 +162,36 @@ export default function EvaluatePage() {
         if (question) formData.append("question", question);
 
         try {
-            // Use apiClient for FormData (no JSON serialization)
-            const data = await apiClient<EvaluationResult>('/evaluate-answer/', {
+            // Start Job
+            const data = await apiClient<{ job_id: string, status: string }>('/evaluate-answer/', {
                 method: 'POST',
                 body: formData,
-                headers: {}, // Let browser set Content-Type for FormData
-                signal: controller.signal
+                headers: {},
             });
 
-            setResult(data);
-        } catch (err) {
-            // Ignore abort errors (user cancelled)
-            if (err instanceof Error && err.name === 'AbortError') {
-                return;
+            if (data.job_id) {
+                setJobId(data.job_id);
+                setJobStatus('queued');
+                activeJobId.current = data.job_id;
+                setStatusMessage("Queued for evaluation...");
+                // Start polling
+                pollStatus(data.job_id);
+            } else {
+                throw new Error("No job ID received");
             }
 
-            // Error toast already shown by apiClient
+        } catch (err) {
+            setJobStatus('failed');
             let message = "Evaluation failed";
-
             if (err instanceof ApiError) {
                 message = err.message;
             } else if (err instanceof Error) {
                 message = err.message;
             }
-
             setError(message);
-
-            // If error is about missing API key, show the banner
             if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("gemini")) {
                 setShowBanner(true);
             }
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -230,7 +315,7 @@ export default function EvaluatePage() {
                                         {loading ? (
                                             <>
                                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                Evaluating...
+                                                {statusMessage}
                                             </>
                                         ) : (
                                             "Evaluate Answer"
@@ -241,11 +326,7 @@ export default function EvaluatePage() {
                                         <Button
                                             type="button"
                                             variant="destructive"
-                                            onClick={() => {
-                                                abortController?.abort();
-                                                setLoading(false);
-                                                setError("Evaluation cancelled by user");
-                                            }}
+                                            onClick={handleCancel}
                                             className="shrink-0"
                                         >
                                             Cancel

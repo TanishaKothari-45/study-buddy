@@ -45,3 +45,21 @@ export interface MainsAnswerResponse {
 }
 
 export type JobStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface Feedback {
+    strengths: string[];
+    missing_elements: string[];
+    improvements_needed: string[];
+    structure_feedback: string;
+    evidence_feedback: string;
+    overall_assessment: string;
+}
+
+export interface EvaluationResult {
+    question: string;
+    student_answer: string;
+    improved_answer: string;
+    feedback: Feedback;
+    sources: any[];
+    current_affairs_count: number;
+}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
-import { MainsAnswerResponse } from '../types';
+import { MainsAnswerResponse, JobStatus } from '../types';
 import api from '../../lib/apiClient';
 
 // History item for previous Q&As
@@ -17,15 +17,29 @@ interface HistoryItem {
 interface MainsAnswerState {
     question: string;
     wordCount: string;
+
+    // Async Job handling
+    jobId: string | null;
+    jobStatus: JobStatus;
+
     result: MainsAnswerResponse | null;
+    error: string | null;
+
     history: HistoryItem[];
     isLoadingHistory: boolean;
     historyHasMore: boolean;
     historySearch: string;
     historyTotal: number;
+
     setQuestion: (question: string) => void;
     setWordCount: (wordCount: string) => void;
+
+    setJobId: (id: string | null) => void;
+    setJobStatus: (status: JobStatus) => void;
+
     setResult: (result: MainsAnswerResponse | null) => void;
+    setError: (error: string | null) => void;
+
     setHistorySearch: (term: string) => void;
     fetchHistory: (opts?: { reset?: boolean }) => Promise<void>;
     clear: () => void;
@@ -37,15 +51,28 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
             (set, get) => ({
                 question: '',
                 wordCount: '250',
+
+                jobId: null,
+                jobStatus: 'idle',
+
                 result: null,
+                error: null,
+
                 history: [],
                 isLoadingHistory: false,
                 historyHasMore: false,
                 historySearch: "",
                 historyTotal: 0,
+
                 setQuestion: (question) => set({ question }),
                 setWordCount: (wordCount) => set({ wordCount }),
-                setResult: (result) => set({ result }),
+
+                setJobId: (jobId) => set({ jobId }),
+                setJobStatus: (jobStatus) => set({ jobStatus }),
+
+                setResult: (result) => set({ result, jobStatus: 'completed' }),
+                setError: (error) => set({ error, jobStatus: 'failed' }),
+
                 setHistorySearch: (term) => set({ historySearch: term }),
                 fetchHistory: async (opts?: { reset?: boolean }) => {
                     const { reset } = opts || {};
@@ -71,34 +98,39 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                         set({ isLoadingHistory: false });
                     }
                 },
-                clear: () => set({ question: '', wordCount: '250', result: null }),
+                clear: () => set({
+                    question: '',
+                    wordCount: '250',
+                    result: null,
+                    jobId: null,
+                    jobStatus: 'idle',
+                    error: null
+                }),
             }),
             {
                 name: 'geography-mains-answer-storage',
                 storage: createJSONStorage(() => localStorage),
-                version: 5, // Bump version
+                version: 6, // Bump version
                 partialize: (state) => ({
-                    // Persist only lightweight form fields; avoid persisting answers to keep storage small
+                    // Persist form + job state + result for seamless tab switching
                     question: state.question,
-                    wordCount: state.wordCount
+                    wordCount: state.wordCount,
+                    jobId: state.jobId,
+                    jobStatus: state.jobStatus,
+                    result: state.result
                 }),
                 // Migrate function to handle version transitions
                 migrate: (persistedState: any, version: number) => {
-                    // If moving from older versions, ensure proper structure
-                    if (version < 5) {
+                    if (version < 6) {
                         return {
                             question: persistedState?.question || '',
                             wordCount: persistedState?.wordCount || '250',
-                            // Don't carry over old result data
+                            jobId: null,
+                            jobStatus: 'idle',
+                            result: null
                         };
                     }
                     return persistedState;
-                },
-                // Suppress migration warnings in production
-                onRehydrateStorage: () => (state, error) => {
-                    if (error) {
-                        console.warn('Failed to rehydrate mains answer store:', error);
-                    }
                 },
             }
         ),
