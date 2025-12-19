@@ -29,7 +29,7 @@ export function setGlobalToastHandler(handler: typeof globalToastHandler) {
 export function storeReturnUrl(currentPath: string) {
   // Don't store auth pages as return URLs
   const isAuthPage = AUTH_PAGES.some(page => currentPath.startsWith(page));
-  
+
   if (isAuthPage) {
     return;
   }
@@ -47,7 +47,7 @@ export function getReturnUrl(): string {
   const timestamp = sessionStorage.getItem(RETURN_URL_TIMESTAMP_KEY);
 
   if (!returnUrl || !timestamp) {
-    return "/dashboard";
+    return "/";
   }
 
   // Check if URL has expired (30 minutes)
@@ -73,18 +73,56 @@ export function clearReturnUrl() {
  * Shows toast notification and redirects to login after 3 seconds
  * Only triggers once to prevent multiple toast notifications
  */
-export function handle401Error(currentPath?: string) {
+/**
+ * Handle 401 Unauthorized responses
+ * Shows toast notification and redirects to login after 3 seconds
+ * Only triggers once to prevent multiple toast notifications
+ */
+export async function handle401Error(url: string, response?: Response) {
   // Prevent multiple redirects/notifications
   if (isRedirecting) {
     return;
   }
-  
-  isRedirecting = true;
-  
-  // Store current path for return after login
-  if (currentPath) {
-    storeReturnUrl(currentPath);
+
+  let errorMessage = "Session expired";
+  let isExternalError = false;
+
+  if (response) {
+    try {
+      // Clone response to read it safely
+      const data = await response.clone().json();
+      errorMessage = data.detail || data.message || JSON.stringify(data);
+
+      // Heuristic for Gemini API errors
+      if (errorMessage.toLowerCase().includes("api key") ||
+        errorMessage.toLowerCase().includes("gemini") ||
+        errorMessage.toLowerCase().includes("quota")) {
+        isExternalError = true;
+      }
+    } catch (e) {
+      console.error("Failed to parse 401 response body:", e);
+    }
   }
+
+  console.error(`🚨 [AUTH_HANDLER] 401 Unauthorized at: ${url}`);
+  console.error(`🚨 [AUTH_HANDLER] Message: ${errorMessage}`);
+  console.error(`🚨 [AUTH_HANDLER] External Error: ${isExternalError}`);
+
+  // If it's an external error (e.g. invalid Gemini key), don't logout!
+  if (isExternalError) {
+    console.warn("⚠️ [AUTH_HANDLER] 401 identified as external error, skipping logout.");
+    // Show error toast if available
+    if (globalToastHandler) {
+      globalToastHandler(errorMessage, "error");
+    }
+    return;
+  }
+
+  isRedirecting = true;
+
+  // Store current path for return after login
+  const currentPath = window.location.pathname + window.location.search;
+  storeReturnUrl(currentPath);
 
   // Show toast notification if available, otherwise fallback to console
   if (globalToastHandler) {
@@ -92,10 +130,14 @@ export function handle401Error(currentPath?: string) {
   } else {
     console.warn("Session expired, redirecting to login...");
   }
-  
+
+  // Clear token
+  localStorage.removeItem("token");
+
   // Redirect after 3 seconds
   setTimeout(() => {
     window.location.href = "/login";
+    setTimeout(() => { isRedirecting = false; }, 1000);
   }, 3000);
 }
 
@@ -113,9 +155,9 @@ export async function authFetch(
     // Check for 401 Unauthorized
     if (response.status === 401) {
       // Get current path from window location
-      const currentPath = window.location.pathname;
-      handle401Error(currentPath);
-      
+      const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : 'Request object');
+      await handle401Error(url, response);
+
       // Return the response for caller to handle if needed
       return response;
     }
