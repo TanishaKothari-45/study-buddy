@@ -42,6 +42,11 @@ For answers with word count ≤ 150: Diagrams are **good to have but only if nec
    - Use: Climate cycles, Poverty traps, Water cycles, Reinforcing feedback systems
    - Syntax: `graph TD` or `graph LR` with arrows forming a loop (A->B->C->D->A)
 
+6. **Layered / Block Diagram** (graph TB)
+   - Use: Vertical structures and stratification
+   - Examples: Earth’s interior, ocean layers, atmosphere stratification
+   - Syntax: `graph TB` with vertical layout
+
 **Quality Guidelines**:
 - **Text Safety**: ALWAYS enclose node labels in double quotes (e.g., A["Label (Text)"]). Keep labels SHORT (max 3-4 words). Use `<br/>` for line breaks.
 - **Contrast**: Do not use dark backgrounds for nodes.
@@ -137,6 +142,16 @@ graph TD
     D --> A
 ```
 
+Example 6 - Layered Diagram (Earth’s Interior):
+```mermaid
+graph TB
+    A["Crust"] --> B["Mantle"]
+    B --> C["Core"]
+    C --> D["Inner Core"]
+    D --> E["Outer Core"]
+    E --> F["Surface"]
+```
+
 **CRITICAL FORMATTING**:
 - Wrap diagram in markdown code block: ```mermaid
 - Close with ```
@@ -170,29 +185,55 @@ graph TD
 """
 
 # ============================================================
-# GEO-VISUAL INTELLIGENCE (Auto-infer maps/diagrams)
+# GEO-VISUAL INTELLIGENCE (Auto-infer maps/diagrams/tables)
 # ============================================================
 GEO_VISUAL_INTELLIGENCE_RULES = """
 **GEO-VISUAL INTELLIGENCE (priority & scope)**:
-- MERMAID vs MAP: Treat Mermaid diagrams and Maps as distinct visual assets.
-  - The system MAY include **exactly ONE** Mermaid diagram per answer (Mermaid_count = 0 or 1).
-  - **Maps (India or World text/ASCII/labelled JSON)** are NOT counted against the Mermaid limit and MAY be included in addition when spatial clarity requires it.
-- Decision flow to decide visuals:
-  - For distribution-type questions, generating a Map is mandatory because spatial clarity is integral to score maximization.
-  - If question = distribution / location / resource belt / regional hotspots → include a small Map.
-  - If question asks for process/explanation/causal chain → include Mermaid (max 1).
-  - If both spatial context + causal explanation are important → include Map + **one** Mermaid.
-  - If visuals would be redundant or exceed succinctness, prefer a single visual (choose the one with highest explanatory value).
+- Treat **Tables, Mermaid diagrams, and Maps** as distinct but competing clarity-enhancing formats.
+- The system may include **at most TWO** of the following in a single answer:
+  - Table (comparative / impact / matrix format)
+  - Mermaid diagram (process / causal / structural)
+  - Map (India or World text/ASCII/labelled JSON)
+
+- Format-specific limits:
+  - At most **ONE** Mermaid diagram per answer.
+  - At most **ONE** Table per answer.
+  - Maps do not count as Mermaid but DO count toward the overall visual limit.
+
+- Decision flow to select formats:
+  - If the question is about **distribution, location, belts, regions, hotspots** → include a **Map** (mandatory).
+  - If the question explains a **process, mechanism, or causal chain** → include **Mermaid** (if visual clarity improves).
+  - If the question requires **comparison, positive vs negative impacts, advantages vs limitations, or two-axis evaluation** → include a **Table**.
+  - If multiple formats appear relevant:
+    - Select **only those with distinct explanatory roles**.
+    - Do NOT include more than two formats in total.
+
+- Priority order when all seem useful:
+  1. Map (spatial clarity is highest priority)
+  2. Table (analytical/comparative clarity)
+  3. Mermaid (process clarity)
+
+- Avoid redundancy:
+  - Do NOT include a Table if its content is already adequately conveyed via bullets.
+  - Do NOT include Mermaid if the process is trivial or easily described in text.
+  - Do NOT include all three (Map + Table + Mermaid) under any circumstance.
+
 - Presentation rules:
   - Put Map under a "Map/Diagram" heading immediately after INTRO (or right before Body if more appropriate).
-  - Put Mermaid under "Diagram" or inside the Body where the process/discussion begins.
-  - All visuals must be concise, exam-friendly, and accessible (follow with a labelled list of items/regions).
+  - Put Mermaid under a "Diagram" heading or at the start/end of the relevant Body section.
+  - Tables must appear directly under the relevant Body sub-heading and replace bullets for that sub-heading.
+  - All formats must be concise, exam-friendly, and non-redundant.
+
 """
 
 # Tie-breaker when both visuals seem useful:
 VISUAL_TIEBREAKER = """
-If both a Map and a Mermaid appear useful, include both only when each adds distinct explanatory value (Map = spatial context; Mermaid = process/causal flow). 
-If including both would exceed succinctness, prefer the Map for distribution questions and the Mermaid for process/causal questions.
+If multiple formats appear useful, include only those that add distinct value and keep the total count ≤ 2.
+Prefer:
+- Map over all others for distribution/location questions.
+- Table over Mermaid for impact/comparison-heavy questions.
+- Mermaid over Table only when process understanding is central.
+Never include Table + Mermaid + Map together.
 """
 
 # ============================================================
@@ -414,13 +455,45 @@ Major Indian cities (lon, lat):
 IBC_FORMAT_RULES = """
 **RULE - IBC FORMAT**:
 - **INTRO**: 2-3 lines. Must include either a definition, a data point/report citation, or a recent context or recent incident or current affair (if applicable).
+
 - **BODY**: 3-5 sub-headings (physical / economic / social / environmental / policy / Governance / Vulnerability / Human angle). 
   - Each sub-heading MUST use ### markdown heading format (e.g., ### Economic and Livelihood Impact)
   - Add blank line before each new sub-heading for spacing
-  - Each sub-heading has 2-4 bullets
-  - Each bullet MUST start with - (dash) for proper markdown list rendering
-  - Each bullet MUST be on a NEW LINE (do not put multiple bullets on same line)
-  - Each bullet: **Main idea** (≤ 12 words) + Evidence (named report/index/data where it adds credibility) + Example (named Indian OR named global). Write as natural English sentences, not forced templates.
+
+  - BODY content under each sub-heading may be presented EITHER as:
+    - **Bullets** (default), OR
+    - **Table format** (when comparison, impacts, or two-axis evaluation is required)
+
+  - **Bullet Rules (when bullets are used)**:
+    - Each sub-heading has 2-4 bullets
+    - Each bullet MUST start with - (dash) for proper markdown list rendering
+    - Each bullet MUST be on a NEW LINE (do not put multiple bullets on same line)
+    - Each bullet: **Main idea** (≤ 12 words) + Evidence (named report/index/data where it adds credibility) + Example (named Indian OR named global). Write as natural English sentences, not forced templates.
+
+  - **Table Rules (when table is used)**:
+    - Use TABLE format ONLY when the sub-heading involves:
+      - Positive vs negative impacts
+      - Advantages vs limitations
+      - Comparative geography (A vs B)
+      - Category-wise or sector-wise impacts
+      - Two-axis evaluation (e.g., dimension × time / region × impact)
+    - If a TABLE is used for a sub-heading:
+      - DO NOT write bullets for that sub-heading
+      - The table fully replaces bullets for that section
+    - Table must be concise (maximum 4 rows × 3 columns)
+    - Do NOT repeat table content again in bullet form elsewhere
+    - Table cell content must be concise and point-based.
+- Do NOT write long sentences or paragraph-style explanations inside table cells.
+- Each table cell should contain:
+  - A short phrase, OR
+  - A compact bullet-style point (not a full sentence).
+
+
+  - **Matrix Table (Two-Axis Evaluation)**:
+    - Matrix tables are a subtype of table format
+    - Use when evaluation requires two dimensions (e.g., Economic × Social, Short-term × Long-term)
+    - Matrix tables follow the same rules as tables and replace bullets entirely for that sub-heading
+
 - **WAY FORWARD (Conditional Section – Include Only When Applicable and Relevant)**: 
   - Include WAY FORWARD only when the question demands solutions, reforms, future actions, or governance/policy thinking.
   - DO NOT include WAY FORWARD in purely descriptive, scientific, factual, or mechanism-explanation questions.
@@ -436,6 +509,7 @@ IBC_FORMAT_RULES = """
     - A policy or institutional reform suggestion to resolve the issue
   - Keep bullets concise and concrete.
   - No philosophical or vague guidance.
+
 - **CONCLUSION**:
 For descriptive/scientific geography questions:
   - Provide a 2-line synthesizing insight, summarizing the concept’s significance, spatial relevance, or broader geophysical importance.
