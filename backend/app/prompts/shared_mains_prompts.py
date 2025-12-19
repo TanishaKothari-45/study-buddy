@@ -514,8 +514,11 @@ IBC_FORMAT_RULES = """
   - Narrative or paragraph-style sentences are NOT allowed inside table cells.
   - Table cells must be written as compact descriptive phrases or listed points, not explanatory prose.
   - Avoid commas and full stops inside table cells
-  - Do NOT use HTML tags (e.g., <br>) inside tables.
-  - If multiple points are needed, use separators or additional rows instead of line breaks within a cell.
+  - HTML line breaks (e.g., <br>, <br/>) are STRICTLY forbidden.
+- If multiple points are needed inside a table cell:
+  - Use semicolons (;) or dashes (–) within the same cell, OR
+  - Split into additional table rows instead of line breaks.
+- Never use bullet symbols (-, •) inside table cells.
 
 - Preferred separators inside table cells:
   - Semicolon (;), slash (/), or dash (–)
