@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Import the original deduplicate_chunks from query.py to use the same logic
 from .text_processing import deduplicate_chunks
+from .langsmith_tracer import trace_retriever
 
 
 def extract_sources_from_docs(docs: List[Any]) -> List[Dict[str, Any]]:
@@ -58,6 +59,7 @@ def extract_sources_from_docs(docs: List[Any]) -> List[Dict[str, Any]]:
     return sources
 
 
+@trace_retriever("vector_store_retrieval")
 def retrieve_context_for_question(
     search_query: str,
     vector_handler,

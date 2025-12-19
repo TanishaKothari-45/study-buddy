@@ -25,6 +25,7 @@ import os
 import time
 import functools
 import logging
+import asyncio
 from typing import Optional, Callable, Any, Dict
 from contextlib import contextmanager
 
@@ -32,215 +33,89 @@ logger = logging.getLogger(__name__)
 
 # Check if LangSmith is available
 try:
-    from langsmith import traceable
-    from langsmith.run_helpers import get_current_run_tree, traceable as traceable_sync
+    from langsmith import traceable as langsmith_traceable
+    # Try to import Client to verify full installation
+    from langsmith import Client 
     LANGSMITH_AVAILABLE = True
-except ImportError:
+    logger.info("✅ LangSmith package found")
+except ImportError as e:
     LANGSMITH_AVAILABLE = False
-    traceable = None
-    logger.info("ℹ️ langsmith not installed, tracing disabled")
-
+    langsmith_traceable = None
+    logger.warning(f"ℹ️ langsmith package not fully installed or import failed: {e}")
 
 def is_tracing_enabled() -> bool:
-    """Check if LangSmith tracing is enabled."""
+    """Check if LangSmith tracing is enabled by environment variable."""
     if not LANGSMITH_AVAILABLE:
         return False
-    return os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true"
+    enabled = os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true"
+    # Also check for LANGCHAIN_API_KEY
+    has_api_key = bool(os.getenv("LANGCHAIN_API_KEY"))
+    return enabled and has_api_key
 
 
 def trace_llm(name: str, run_type: str = "llm", metadata: Optional[Dict] = None):
-    """
-    Decorator to trace OpenAI/LangChain LLM calls.
-    
-    Args:
-        name: Name for this trace (e.g., "mock_test_generation")
-        run_type: Type of run ("llm", "chain", "tool", "retriever")
-        metadata: Optional metadata to attach to the trace
-    
-    Example:
-        @trace_llm("question_generation", metadata={"difficulty": "medium"})
-        def generate_questions(num: int):
-            ...
-    """
+    """Decorator to trace OpenAI/LangChain LLM calls."""
     def decorator(func: Callable) -> Callable:
-        if not is_tracing_enabled():
+        if not LANGSMITH_AVAILABLE:
             return func
         
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            # Use LangSmith's traceable decorator
-            traced_func = traceable(
-                name=name,
-                run_type=run_type,
-                metadata=metadata or {}
-            )(func)
-            return traced_func(*args, **kwargs)
-        
-        @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            traced_func = traceable(
-                name=name,
-                run_type=run_type,
-                metadata=metadata or {}
-            )(func)
-            return await traced_func(*args, **kwargs)
-        
-        if asyncio_iscoroutinefunction(func):
-            return async_wrapper
-        return wrapper
+        logger.debug(f"🔗 Wrapping {func.__name__} with LLM trace: {name}")
+        return langsmith_traceable(
+            name=name,
+            run_type=run_type,
+            metadata=metadata or {}
+        )(func)
     
     return decorator
 
 
 def trace_gemini(name: str, metadata: Optional[Dict] = None):
-    """
-    Decorator to trace Gemini API calls.
-    
-    Since Gemini doesn't have native LangSmith integration,
-    this creates manual spans with input/output capture.
-    
-    Args:
-        name: Name for this trace (e.g., "mains_answer_generation")
-        metadata: Optional metadata to attach
-    
-    Example:
-        @trace_gemini("answer_generation")
-        async def generate_answer(question: str):
-            ...
-    """
+    """Decorator to trace Gemini API calls (manual spans)."""
     def decorator(func: Callable) -> Callable:
-        if not is_tracing_enabled():
+        if not LANGSMITH_AVAILABLE:
             return func
         
-        @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            start_time = time.time()
-            
-            # Create traceable wrapper
-            traced_func = traceable(
-                name=name,
-                run_type="llm",
-                metadata={
-                    "provider": "google-gemini",
-                    **(metadata or {})
-                }
-            )(func)
-            
-            try:
-                result = await traced_func(*args, **kwargs)
-                return result
-            except Exception as e:
-                logger.error(f"❌ Gemini call failed in {name}: {e}")
-                raise
-        
-        @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            start_time = time.time()
-            
-            traced_func = traceable(
-                name=name,
-                run_type="llm",
-                metadata={
-                    "provider": "google-gemini",
-                    **(metadata or {})
-                }
-            )(func)
-            
-            try:
-                result = traced_func(*args, **kwargs)
-                return result
-            except Exception as e:
-                logger.error(f"❌ Gemini call failed in {name}: {e}")
-                raise
-        
-        if asyncio_iscoroutinefunction(func):
-            return async_wrapper
-        return sync_wrapper
+        logger.debug(f"🔗 Wrapping {func.__name__} with Gemini trace: {name}")
+        return langsmith_traceable(
+            name=name,
+            run_type="llm",
+            metadata={
+                "provider": "google-gemini",
+                **(metadata or {})
+            }
+        )(func)
     
     return decorator
 
 
 def trace_chain(name: str, metadata: Optional[Dict] = None):
-    """
-    Decorator to trace a chain of operations (parent span).
-    
-    Use this for endpoint handlers that orchestrate multiple LLM calls.
-    
-    Args:
-        name: Name for this trace (e.g., "mains_answer_endpoint")
-        metadata: Optional metadata to attach
-    
-    Example:
-        @trace_chain("evaluate_answer_endpoint")
-        async def evaluate_answer(request):
-            # This creates a parent span that groups:
-            # - OCR extraction
-            # - Context retrieval
-            # - Answer evaluation
-            ...
-    """
+    """Decorator to trace a chain of operations (parent span)."""
     def decorator(func: Callable) -> Callable:
-        if not is_tracing_enabled():
+        if not LANGSMITH_AVAILABLE:
             return func
         
-        @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            traced_func = traceable(
-                name=name,
-                run_type="chain",
-                metadata=metadata or {}
-            )(func)
-            return await traced_func(*args, **kwargs)
-        
-        @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            traced_func = traceable(
-                name=name,
-                run_type="chain",
-                metadata=metadata or {}
-            )(func)
-            return traced_func(*args, **kwargs)
-        
-        if asyncio_iscoroutinefunction(func):
-            return async_wrapper
-        return sync_wrapper
+        logger.debug(f"🔗 Wrapping {func.__name__} with Chain trace: {name}")
+        return langsmith_traceable(
+            name=name,
+            run_type="chain",
+            metadata=metadata or {}
+        )(func)
     
     return decorator
 
 
 def trace_retriever(name: str, metadata: Optional[Dict] = None):
-    """
-    Decorator to trace retrieval operations (Pinecone queries, etc.).
-    
-    Args:
-        name: Name for this trace (e.g., "pinecone_search")
-        metadata: Optional metadata
-    """
+    """Decorator to trace retrieval operations."""
     def decorator(func: Callable) -> Callable:
-        if not is_tracing_enabled():
+        if not LANGSMITH_AVAILABLE:
             return func
         
-        @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            traced_func = traceable(
-                name=name,
-                run_type="retriever",
-                metadata=metadata or {}
-            )(func)
-            return await traced_func(*args, **kwargs)
-        
-        @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            traced_func = traceable(
-                name=name,
-                run_type="retriever",
-                metadata=metadata or {}
-            )(func)
-            return traced_func(*args, **kwargs)
-        
-        if asyncio_iscoroutinefunction(func):
-            return async_wrapper
-        return sync_wrapper
+        logger.debug(f"🔗 Wrapping {func.__name__} with Retriever trace: {name}")
+        return langsmith_traceable(
+            name=name,
+            run_type="retriever",
+            metadata=metadata or {}
+        )(func)
     
     return decorator
 

@@ -9,6 +9,8 @@ import logging
 import asyncio
 from typing import Optional, Any
 from .text_processing import count_words_excluding_visuals
+from .langsmith_tracer import trace_gemini
+
 
 logger = logging.getLogger("answer_compressor")
 
@@ -128,6 +130,7 @@ def restore_visuals(text: str, replacements: dict[str, str]) -> str:
 
 
 
+@trace_gemini("answer_compression")
 async def compress_answer(
     original_answer: str,
     target_word_count: int,

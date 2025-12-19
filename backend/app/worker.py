@@ -31,6 +31,11 @@ from .core.config import settings
 from .utils.pinecone_handler import PineconeHandler
 from .gemini_core.gemini_client import GeminiClient
 from .utils.cache_manager import get_cache_manager
+from .utils.langsmith_tracer import trace_chain
+from .core.langsmith_config import configure_langsmith
+
+# Initialize LangSmith
+configure_langsmith()
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +121,7 @@ async def set_job_error(redis: Redis, job_id: str, error: str):
 # SHARED PIPELINE HELPER
 # ============================================================
 
+@trace_chain("shared_enriched_pipeline")
 async def run_enriched_pipeline(
     ctx: dict,
     job_id: str,
@@ -235,6 +241,7 @@ async def run_enriched_pipeline(
 # TASK 1: MOCK TEST GENERATION
 # ============================================================
 
+@trace_chain("mock_test_pipeline")
 async def generate_mock_test_task(
     ctx,
     job_id: str,
@@ -412,6 +419,7 @@ async def generate_mock_test_task(
 # TASK 2: ANSWER EVALUATION (Full Implementation)
 # ============================================================
 
+@trace_chain("evaluation_pipeline")
 async def evaluate_answer_task(
     ctx, 
     job_id: str, 
@@ -856,6 +864,7 @@ def count_words_excluding_visuals(text: str) -> int:
 # TASK 3: MAINS ANSWER GENERATION
 # ============================================================
 
+@trace_chain("mains_answer_pipeline")
 async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str, word_count: int = 350, gemini_api_key: str = None):
     """
     Generate Mains Answer using Gemini 2.5 Pro (Full Pipeline).

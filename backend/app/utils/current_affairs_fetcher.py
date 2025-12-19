@@ -34,6 +34,8 @@ except ImportError as e:
     MCP_AVAILABLE = False
     logger.warning(f"Could not import MCP server: {e}")
 
+from .langsmith_tracer import trace_chain
+
 
 def format_current_affairs_to_bullets(result: Dict[str, Any], max_bullets: int = 5) -> List[str]:
     """
@@ -62,6 +64,7 @@ def format_current_affairs_to_bullets(result: Dict[str, Any], max_bullets: int =
     return bullets[:max_bullets]
 
 
+@trace_chain("fetch_current_affairs")
 async def fetch_current_affairs_for_question(
     parsed_keywords: Dict[str, Any],
     max_bullets: int = 5,
