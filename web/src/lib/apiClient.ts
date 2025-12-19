@@ -183,8 +183,44 @@ async function extractErrorMessage(response: Response): Promise<string> {
 /**
  * Handle 401 Unauthorized errors
  */
-function handle401Error() {
+/**
+ * Handle 401 Unauthorized errors
+ * Smart handling: only logs out on genuine session expiration,
+ * not on external API key errors surfaced as 401 (which shouldn't happen but we log to verify).
+ */
+async function handle401Error(url: string, response?: Response) {
     if (isRedirecting) return;
+
+    let errorMessage = "Session expired";
+    let isExternalError = false;
+
+    if (response) {
+        try {
+            // Clone response to read it safely
+            const data = await response.clone().json();
+            errorMessage = data.detail || data.message || JSON.stringify(data);
+
+            // Heuristic for Gemini API errors
+            if (errorMessage.toLowerCase().includes("api key") ||
+                errorMessage.toLowerCase().includes("gemini") ||
+                errorMessage.toLowerCase().includes("quota")) {
+                isExternalError = true;
+            }
+        } catch (e) {
+            console.error("Failed to parse 401 response body:", e);
+        }
+    }
+
+    console.error(`🚨 [AUTH] 401 Unauthorized at: ${url}`);
+    console.error(`🚨 [AUTH] Message: ${errorMessage}`);
+    console.error(`🚨 [AUTH] External Error: ${isExternalError}`);
+
+    // If it's an external error (e.g. invalid Gemini key), don't logout!
+    // The main apiClient loop will show the error toast anyway.
+    if (isExternalError) {
+        console.warn("⚠️ [AUTH] 401 identified as external error, skipping logout.");
+        return;
+    }
 
     isRedirecting = true;
 
@@ -314,7 +350,7 @@ export async function apiClient<T = unknown>(
 
             // Handle 401 Unauthorized
             if (response.status === 401) {
-                handle401Error();
+                await handle401Error(url, response);
                 throw new AuthenticationError('Session expired. Please log in again.');
             }
 

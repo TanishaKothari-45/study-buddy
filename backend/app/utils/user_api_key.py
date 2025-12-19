@@ -55,10 +55,5 @@ def get_gemini_api_key_for_request(user: Optional[User]) -> str:
         logger.info(f"Using user {user.email}'s personal Gemini API key")
         return user_api_key
     
-    # Fallback to system default
-    if settings_gemini_key.GEMINI_API_KEY:
-        logger.info("Using system default Gemini API key")
-        return settings_gemini_key.GEMINI_API_KEY
-    
-    # No API key available
-    raise ValueError("No Gemini API key available. Please set your API key in settings.")
+    # No personal API key available
+    raise ValueError("Missing Gemini API key. Please add your personal API key in Settings to use this feature.")

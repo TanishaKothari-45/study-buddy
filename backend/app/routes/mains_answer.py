@@ -40,7 +40,8 @@ def clean_gemini_error(error_msg: str) -> str:
         return "Failed to generate answer: Too many requests to Gemini API. Please wait a few minutes and try again."
     
     # For auth errors
-    if ('401' in error_msg or '403' in error_msg) and 'API key' in error_msg:
+    lower_msg = error_msg.lower()
+    if 'api_key_invalid' in error_msg or 'api key not valid' in lower_msg or 'invalid api key' in lower_msg:
         return "Failed to generate answer: Invalid Gemini API key. Please update your API key in Settings. You can get a new key from https://aistudio.google.com/app/apikey"
     
     # For timeout errors
@@ -365,6 +366,7 @@ async def generate_mains_answer(
             
         await arq_pool.enqueue_job(
             "generate_mains_answer_task",
+            _job_id=job_id,
             job_id=job_id,
             query=mains_request.question,
             user_id=user_id,

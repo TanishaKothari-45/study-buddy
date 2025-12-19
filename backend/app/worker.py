@@ -197,7 +197,12 @@ async def run_enriched_pipeline(
                         cache.set_cached_news(parsed, bullets, time_range)
             return parsed, bullets
         except Exception as e:
-            logger.warning(f"News pipeline failed: {e}")
+            error_msg = str(e).lower()
+            if '401' in error_msg or '403' in error_msg or 'api key' in error_msg or 'invalid' in error_msg:
+                logger.error(f"❌ Critical API Key error in news pipeline: {e}")
+                # Re-raise for fail-fast
+                raise
+            logger.warning(f"News pipeline failed (fallback allowed): {e}")
             return {}, []
 
     # Run in parallel
@@ -410,7 +415,7 @@ async def generate_mock_test_task(
         await set_job_error(redis, job_id, "Cancelled by user")
     except Exception as e:
         logger.error(f"❌ [JOB {job_id}] Failed: {e}", exc_info=True)
-        await set_job_error(redis, job_id, str(e))
+        await set_job_error(redis, job_id, clean_gemini_error(str(e)))
     finally:
         await redis.delete(f"cancel:{job_id}")
 
@@ -572,16 +577,9 @@ async def evaluate_answer_task(
         # ============================================================
         logger.info(f"🤖 [JOB {job_id}] STEP 7: Calling Gemini with user lock...")
         
-        lock_key = f"lock:user:{user_id}"
-        lock = RedisLock(redis, lock_key, timeout=120)  # 2 min timeout for evaluation
-        acquired = await lock.acquire(blocking=True, blocking_timeout=70)
-        
-        if not acquired:
-            raise Exception(f"Could not acquire lock for user {user_id} - another job may be running")
-        
-        try:
-            await check_cancellation(ctx, job_id)
+        async with redis.lock(f"lock:user:{user_id}", timeout=120, blocking_timeout=70):
             logger.info(f"🔐 [JOB {job_id}] Lock acquired, calling Gemini...")
+            await check_cancellation(ctx, job_id)
             
             # Call Gemini with files
             if all_is_pdf:
@@ -620,9 +618,7 @@ async def evaluate_answer_task(
                     )
             
             logger.info(f"✅ [JOB {job_id}] Received response: {len(response_text)} chars")
-        finally:
-            await lock.release()
-            logger.info(f"🔓 [JOB {job_id}] Lock released")
+            logger.info(f"✅ [JOB {job_id}] Received response: {len(response_text)} chars")
         
         # ============================================================
         # STEP 8: Parse response
@@ -688,7 +684,7 @@ async def evaluate_answer_task(
         await set_job_error(redis, job_id, "Cancelled by user")
     except Exception as e:
         logger.error(f"❌ [JOB {job_id}] Failed: {e}", exc_info=True)
-        await set_job_error(redis, job_id, str(e))
+        await set_job_error(redis, job_id, clean_gemini_error(str(e)))
     finally:
         # Cleanup files
         for path in file_paths:
@@ -841,10 +837,17 @@ CRITICAL: Return ONLY valid JSON."""
 # ============================================================
 
 def clean_gemini_error(error_msg: str) -> str:
-    """Clean Gemini API error messages"""
-    if '429' in error_msg:
-        return "Quota exceeded. Please try again later."
-    return f"AI Error: {error_msg[:100]}..."
+    """Clean Gemini API error messages for user-friendly display"""
+    # For quota errors (429)
+    if '429' in error_msg or 'ResourceExhausted' in error_msg:
+        return "You exceeded your current quota. Check usage at https://ai.dev/usage?tab=rate-limit."
+    
+    # For auth errors
+    lower_msg = error_msg.lower()
+    if 'api_key_invalid' in error_msg or 'api key not valid' in lower_msg or 'invalid api key' in lower_msg:
+        return "Invalid Gemini API key. Please update your API key in Settings."
+        
+    return f"AI Error: {error_msg[:150]}..."
 
 def enforce_diagrams(answer: str, required: int = 1) -> str:
     """Ensure at least `required` Mermaid diagrams exist"""
@@ -930,16 +933,61 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         lock_key = f"lock:user:{user_id}"
         logger.info(f"🔐 [JOB {job_id}] Acquiring lock {lock_key}...")
         
-        async with redis.lock(lock_key, timeout=120, blocking_timeout=70):
-             await check_cancellation(ctx, job_id)
-             logger.info(f"🤖 [JOB {job_id}] Calling Gemini (Locked)...")
-             
-             response_text = await gemini_client.generate_response(
-                 user_prompt=prompt_pair["user"],
-                 system_prompt=prompt_pair["system"],
-                 temperature=0.15,
-                 max_retries=2
-             )
+        try:
+            async with redis.lock(lock_key, timeout=120, blocking_timeout=70):
+                 await check_cancellation(ctx, job_id)
+                 logger.info(f"🤖 [JOB {job_id}] Calling Gemini (Locked)...")
+                 
+                 # Create API call task
+                 gemini_task = asyncio.create_task(gemini_client.generate_response(
+                     user_prompt=prompt_pair["user"],
+                     system_prompt=prompt_pair["system"],
+                     temperature=0.15,
+                     max_retries=2
+                 ))
+                 
+                 # Create cancellation watcher task
+                 async def watch_for_cancel():
+                     while True:
+                         await check_cancellation(ctx, job_id)  # Raises CancelledError if flag set
+                         await asyncio.sleep(1)
+                         
+                 cancel_task = asyncio.create_task(watch_for_cancel())
+                 
+                 try:
+                     done, pending = await asyncio.wait(
+                         [gemini_task, cancel_task],
+                         return_when=asyncio.FIRST_COMPLETED
+                     )
+                     
+                     # Cancel pending tasks
+                     for task in pending:
+                         task.cancel()
+                         
+                     if gemini_task in done:
+                         # API call finished naturally (success or error)
+                         response_text = gemini_task.result()
+                     else:
+                         # Cancellation task finished (meaning flag was found -> error raised)
+                         await cancel_task # Re-raise the cancellation error
+                         
+                 except Exception:
+                     # Ensure we don't leave zombie API tasks
+                     if not gemini_task.done():
+                         gemini_task.cancel()
+                     raise
+        except Exception as e:
+            error_msg = clean_gemini_error(str(e))
+            logger.error(f"❌ [JOB {job_id}] Generation failed: {error_msg}")
+            
+            # Update Redis status so frontend polling sees the error
+            await set_job_error(redis, job_id, error_msg)
+            
+            return {
+                "status": "failed",
+                "error": error_msg,
+                "job_id": job_id
+            }
              
         answer_text = response_text.strip()
         word_count_actual = count_words_excluding_visuals(answer_text)
@@ -1036,6 +1084,8 @@ class WorkerSettings:
     on_startup = startup
     on_shutdown = shutdown
     max_jobs = 5
+    job_timeout = 300  # 5 minutes max per job
+    max_tries = 1      # Do not retry jobs on failure/cancellation
 
 if __name__ == "__main__":
     import sys
@@ -1048,4 +1098,3 @@ if __name__ == "__main__":
         run_worker(WorkerSettings)
     except KeyboardInterrupt:
         sys.exit(0)
-    job_timeout = 300  # 5 minutes max per job

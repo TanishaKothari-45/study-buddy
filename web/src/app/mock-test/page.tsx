@@ -15,6 +15,8 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useMockTestStore } from "@/stores";
 import { authFetch, showToast } from "@/lib/authHandler";
+import { useAuth } from "@/context/AuthContext";
+import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
 
 // UPSC Geography Taxonomy (Mirrors backend/app/utils/metadata_enricher.py)
 const GEOGRAPHY_DOMAINS: Record<string, string[]> = {
@@ -58,6 +60,8 @@ type JobStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'failed';
 import { API_URL } from "@/lib/api";
 
 export default function MockTestPage() {
+    const { user, isApiKeyValid, setIsApiKeyValid, verifyApiKey } = useAuth();
+    const [showBanner, setShowBanner] = useState(false);
     // Persisted state from store
     const store = useMockTestStore();
     const {
@@ -107,7 +111,57 @@ export default function MockTestPage() {
         };
     }, []);
 
+    // Proactively show banner if key is missing or invalid
+    useEffect(() => {
+        if (user && (user.has_gemini_api_key === false || isApiKeyValid === 'invalid')) {
+            setShowBanner(true);
+        }
+    }, [user, isApiKeyValid]);
+
+    const handleCancel = async () => {
+        if (!jobId) return;
+        const idToCancel = jobId;
+
+        setJobId(null);
+        setJobStatus('idle');
+        setLoading(false);
+        setError("Test generation cancelled.");
+        setEstimatedTimeRemaining(null);
+
+        try {
+            await authFetch(`${API_URL}/jobs/${idToCancel}/cancel`, { method: "POST" });
+            showToast("Test generation cancelled.", "info");
+        } catch (err) {
+            console.error("Cancel failed:", err);
+            showToast("Failed to signal cancellation to backend.", "error");
+        }
+    };
+
     const generateTest = async () => {
+        // Strict guard: check if user has Gemini API key
+        if (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid') {
+            const msg = isApiKeyValid === 'invalid'
+                ? "Your Gemini API key is invalid. Please update it in Settings."
+                : "Please set your Gemini API key in Settings before generating a test.";
+            setError(msg);
+            setShowBanner(true);
+            setLoading(false);
+            return;
+        }
+
+        // On-demand validation if status is unknown
+        if (isApiKeyValid === 'unknown') {
+            setStatusMessage("Verifying API Key...");
+            setError(null);
+            const isValid = await verifyApiKey();
+            if (!isValid) {
+                setError("Your Gemini API key is invalid. Please update it in Settings.");
+                setShowBanner(true);
+                setLoading(false);
+                return;
+            }
+        }
+
         setLoading(true);
         resetTest(); // Clear store state
         setProgress(0);
@@ -236,10 +290,17 @@ export default function MockTestPage() {
 
                 } else if (jobData.status === 'failed') {
                     if (pollingInterval.current) clearInterval(pollingInterval.current);
+                    const cleanedError = jobData.error || "Generation failed";
+                    setError(cleanedError);
                     setJobStatus('failed');
-                    setError(jobData.error || "Generation failed");
                     setLoading(false);
                     setEstimatedTimeRemaining(null);
+
+                    // Show banner if it's an API key error
+                    if (cleanedError.toLowerCase().includes("api key") || cleanedError.includes("API_KEY_INVALID")) {
+                        setIsApiKeyValid('invalid');
+                        setShowBanner(true);
+                    }
                 } else {
                     // Still processing
                     setJobStatus('processing');
@@ -273,6 +334,7 @@ export default function MockTestPage() {
 
     return (
         <div className="p-8 max-w-5xl mx-auto space-y-8">
+            <ApiKeyBanner showBanner={showBanner} onKeySet={() => setShowBanner(false)} />
             <div className="flex items-center justify-between">
                 <div className="flex flex-col space-y-2">
                     <h1 className="text-3xl font-bold tracking-tight text-foreground">
@@ -400,11 +462,16 @@ export default function MockTestPage() {
                         {/* Progress Indicator */}
                         {loading && (
                             <div className="space-y-4 pt-4 border-t animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <div className="flex justify-between text-sm">
+                                <div className="flex justify-between items-center text-sm">
                                     <span className="font-medium">{statusMessage}</span>
                                     <span className="text-muted-foreground">{progress}%</span>
                                 </div>
                                 <Progress value={progress} className="h-2" />
+                                <div className="flex justify-center pt-2">
+                                    <Button variant="destructive" size="sm" onClick={handleCancel}>
+                                        Cancel Generation
+                                    </Button>
+                                </div>
                             </div>
                         )}
 

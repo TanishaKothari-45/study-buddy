@@ -15,6 +15,8 @@ from ..core.deps import get_current_user, get_current_user_optional
 from ..core.encryption import get_api_key_encryptor
 from ..models.user import User
 
+from ..gemini_core.gemini_client import GeminiClient
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -42,6 +44,14 @@ class ApiKeyDeleteResponse(BaseModel):
     """Response after deleting API key"""
     success: bool
     message: str
+
+# ============================================================
+# Helpers
+# ============================================================
+
+def validate_gemini_key(api_key: str) -> bool:
+    """Validate API key via GeminiClient"""
+    return GeminiClient.validate_api_key(api_key)
 
 # ============================================================
 # Routes
@@ -103,6 +113,13 @@ def set_api_key(
                 detail="Invalid API key format. Gemini API keys typically start with 'AI'"
             )
         
+        # LIVE VALIDATION
+        if not validate_gemini_key(api_key):
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The API key is invalid or unauthorized. Please check your key at https://aistudio.google.com/app/apikey"
+            )
+        
         # Encrypt the API key
         encryptor = get_api_key_encryptor()
         encrypted_key = encryptor.encrypt_api_key(api_key)
@@ -122,6 +139,8 @@ def set_api_key(
             "masked_key": masked_key
         }
     
+    except HTTPException:
+        raise
     except ValueError as e:
         logger.error(f"Encryption error for user {current_user.email}: {e}")
         raise HTTPException(
@@ -170,4 +189,66 @@ def delete_api_key(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete API key: {str(e)}"
+        )
+
+@router.post("/validate", response_model=ApiKeySetResponse)
+def validate_key_only(
+    request: ApiKeySetRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Validate a Gemini API key without saving it.
+    """
+    api_key = request.api_key.strip()
+    if not api_key.startswith("AI"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid API key format."
+        )
+    
+    if validate_gemini_key(api_key):
+        return {
+            "success": True,
+            "message": "API key is valid",
+            "masked_key": "********"
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid API key."
+        )
+
+@router.get("/verify", response_model=ApiKeySetResponse)
+def verify_current_key(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Verify the user's currently stored Gemini API key.
+    """
+    if not current_user.encrypted_gemini_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No API key configured."
+        )
+    
+    # Decrypt the key
+    encryptor = get_api_key_encryptor()
+    decrypted_key = encryptor.decrypt_api_key(current_user.encrypted_gemini_api_key)
+    
+    if not decrypted_key:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to decrypt stored API key."
+        )
+
+    if validate_gemini_key(decrypted_key):
+        return {
+            "success": True,
+            "message": "API key is valid",
+            "masked_key": encryptor.mask_api_key(decrypted_key, visible_chars=4)
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stored API key is invalid or authorized."
         )

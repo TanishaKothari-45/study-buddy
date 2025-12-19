@@ -13,7 +13,7 @@ interface ApiKeyBannerProps {
 }
 
 export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBannerProps) {
-    const { token } = useAuth();
+    const { token, isApiKeyValid, setIsApiKeyValid } = useAuth();
     const { theme, resolvedTheme } = useTheme();
     const [hasApiKey, setHasApiKey] = useState<boolean>(false);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -52,7 +52,7 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
     // Load API key status - memoize to prevent unnecessary re-fetches
     useEffect(() => {
         let isMounted = true;
-        
+
         const loadStatus = async () => {
             try {
                 const response = await authFetch(`${API_URL}/api-key/status`, {
@@ -65,7 +65,7 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
                     setHasApiKey(data.has_api_key);
                     setIsAuthenticated(data.is_authenticated);
                     prevHasApiKeyRef.current = data.has_api_key;
-                    
+
                     // If API key was just added, notify parent
                     if (!hadKey && data.has_api_key && onKeySet) {
                         onKeySet();
@@ -83,7 +83,7 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
         };
 
         loadStatus();
-        
+
         // Cleanup function to prevent state updates on unmounted component
         return () => {
             isMounted = false;
@@ -137,6 +137,7 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
                 setApiKey("");
                 setShowKey(false);
                 setShowSuccessBanner(true);
+                setIsApiKeyValid('valid');
                 if (onKeySet) onKeySet();
             } else {
                 const errorData = await response.json();
@@ -150,16 +151,25 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
     };
 
     if (isLoading) return null;
-    
+
     // Don't show if showBanner prop is false (for mains/evaluate pages initially)
     if (!showBanner) return null;
-    
+
     // Don't show if user is not authenticated (login redirect will handle it)
     if (!isAuthenticated) return null;
-    
-    // Don't show if API key exists
-    if (hasApiKey) return null;
-    
+
+    // Don't show if API key exists and is valid
+    if (hasApiKey && isApiKeyValid === 'valid') return null;
+
+    // Show warning if key exists but is invalid
+    const isInvalidKey = hasApiKey && isApiKeyValid === 'invalid';
+
+    // Proactive display: 
+    // - Always show if key is invalid (error state)
+    // - Only show if key is missing on dashboard (/) to reduce friction
+    const isDashboard = typeof window !== 'undefined' && window.location.pathname === '/';
+    if (!showBanner && !isInvalidKey && !isDashboard) return null;
+
     // Don't show if user dismissed it (session-based, resets on refresh/logout)
     if (bannerDismissed && !showInput) return null;
 
@@ -167,9 +177,8 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
     if (showSuccessBanner) {
         return (
             <div
-                className={`bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-l-4 border-green-500 p-3 mb-4 rounded-md shadow-sm transition-opacity duration-500 ${
-                    fadeOutSuccess ? 'opacity-0' : 'opacity-100'
-                }`}
+                className={`bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-l-4 border-green-500 p-3 mb-4 rounded-md shadow-sm transition-opacity duration-500 ${fadeOutSuccess ? 'opacity-0' : 'opacity-100'
+                    }`}
             >
                 <div className="flex items-start gap-3">
                     <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
@@ -177,8 +186,8 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-0.5">
                             Its Okay!! You can configure it anytime from your profile.
                         </h3>
-                        <p className="text-xs text-gray-700 dark:text-gray-300">
-                            Your Gemini API key is set and all AI features are now enabled.
+                        <p className="text-sm text-green-600 dark:text-green-500 mt-2">
+                            {isApiKeyValid === 'valid' ? "All AI features are enabled and working." : "Please update your key to enable AI features."}
                         </p>
                     </div>
                 </div>
@@ -228,10 +237,12 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
                         <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: 15, fontWeight: 700, color: theme === 'dark' ? titleColorDark : titleColorLight, lineHeight: '1.05' }}>
-                                Set up your Gemini API key
+                                {isInvalidKey ? "Your Gemini API key is invalid" : "Set up your Gemini API key"}
                             </div>
                             <div style={{ fontSize: 13, color: theme === 'dark' ? bodyColorDark : 'rgb(100, 67, 155)', marginTop: 6, opacity: 0.95 }}>
-                                Connect your free Gemini API key to unlock AI features — answers, generation, and mock tests.
+                                {isInvalidKey
+                                    ? "The key you configured is no longer working. Please update it to continue."
+                                    : "Connect your free Gemini API key to unlock AI features — answers, generation, and mock tests."}
                             </div>
                         </div>
 
@@ -361,7 +372,7 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
                                 cursor: isSaving || !apiKey.trim() ? 'not-allowed' : 'pointer'
                             }}
                         >
-                            {isSaving ? "Saving..." : "Save"}
+                            {isSaving ? "Validating & Saving..." : "Save"}
                         </button>
 
                         <button

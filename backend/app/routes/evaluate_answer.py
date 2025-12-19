@@ -87,6 +87,7 @@ async def evaluate_answer_endpoint(
             
         await arq_pool.enqueue_job(
             "evaluate_answer_task",
+            _job_id=job_id,
             job_id=job_id,
             file_paths=saved_file_paths,
             question=question or "",

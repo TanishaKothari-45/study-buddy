@@ -255,3 +255,24 @@ class GeminiClient:
             'webp': 'image/webp'
         }
         return mime_types.get(extension, 'image/jpeg')
+    @staticmethod
+    def validate_api_key(api_key: str) -> bool:
+        """
+        Validate a Gemini API key using list_models().
+        This is a lightweight call that doesn't consume generation quota.
+        
+        Args:
+            api_key: The API key to validate
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        try:
+            genai.configure(api_key=api_key)
+            # list_models() is a lightweight metadata call
+            for _ in genai.list_models():
+                break
+            return True
+        except Exception as e:
+            print(f"❌ API Key Validation failed: {e}")
+            return False

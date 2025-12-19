@@ -23,7 +23,9 @@ from ...routes import (
     training_data,
     feedback,
     auth,
+    auth,
     api_key,
+    jobs,
 )
 
 router = APIRouter()
@@ -89,4 +91,10 @@ router.include_router(
     api_key.router,
     prefix="/api-key",
     tags=["API Key Management"]
+)
+
+router.include_router(
+    jobs.router,
+    prefix="/jobs",
+    tags=["Jobs"]
 )

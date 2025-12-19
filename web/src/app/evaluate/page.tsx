@@ -11,8 +11,9 @@ import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { cn } from "@/lib/utils";
 import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
-import { apiClient, ApiError } from "@/lib/apiClient";
+import { apiClient, ApiError, api, showToast } from "@/lib/apiClient";
 import { useEvaluateAnswerStore } from "@/stores";
+import { useAuth } from "@/context/AuthContext";
 
 interface Feedback {
     strengths: string[];
@@ -36,6 +37,8 @@ interface EvaluationResult {
 }
 
 export default function EvaluatePage() {
+    const { user, refreshUser, isApiKeyValid, setIsApiKeyValid, verifyApiKey } = useAuth();
+    const [showBanner, setShowBanner] = useState(false);
     const {
         question,
         jobId,
@@ -51,7 +54,6 @@ export default function EvaluatePage() {
     } = useEvaluateAnswerStore();
 
     const [files, setFiles] = useState<File[]>([]);
-    const [showBanner, setShowBanner] = useState(false);
     const [showCompressed, setShowCompressed] = useState(true);
     const [showOriginal, setShowOriginal] = useState(false);
 
@@ -76,6 +78,8 @@ export default function EvaluatePage() {
             pollStatus(jobId);
         }
     }, []);
+
+    // Proactively show banner removed - on-demand only
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -114,7 +118,15 @@ export default function EvaluatePage() {
                     activeJobId.current = null;
                 }
             } else if (data.status === 'failed') {
-                setError(data.error || "Evaluation failed");
+                const cleanedError = data.error || "Evaluation failed";
+                setError(cleanedError);
+                setJobStatus('failed');
+
+                // Show banner if it's an API key error
+                if (cleanedError.toLowerCase().includes("api key") || cleanedError.includes("API_KEY_INVALID")) {
+                    setIsApiKeyValid('invalid');
+                    setShowBanner(true);
+                }
                 setJobId(null);
                 activeJobId.current = null;
             } else {
@@ -145,14 +157,42 @@ export default function EvaluatePage() {
         activeJobId.current = null;
 
         try {
-            await apiClient(`/evaluate-answer/cancel/${idToCancel}`, { method: 'POST' });
+            await api.post(`/jobs/${idToCancel}/cancel`);
+            showToast("Evaluation cancelled successfully.", 'success');
         } catch (err) {
             console.error("Failed to send cancel request:", err);
+            showToast("Local cancellation successful, but backend signal failed.", 'warning');
         }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Strict guard for API key
+        if (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid') {
+            // Prioritize "missing key" message over "invalid" just in case state is mixed
+            const msg = (user && user.has_gemini_api_key === false)
+                ? "Please set your Gemini API key in Settings before evaluating."
+                : "Your Gemini API key is invalid. Please update it in Settings.";
+
+            setError(msg);
+            setShowBanner(true);
+            return;
+        }
+
+        // On-demand validation if status is unknown
+        if (isApiKeyValid === 'unknown') {
+            setJobStatus('queued');
+            setError(null);
+            const isValid = await verifyApiKey();
+            if (!isValid) {
+                setError("Your Gemini API key is invalid. Please update it in Settings.");
+                setShowBanner(true);
+                setJobStatus('idle');
+                return;
+            }
+        }
+
         if (files.length === 0) {
             setError("Please select at least one file to upload.");
             return;
@@ -196,7 +236,7 @@ export default function EvaluatePage() {
                 message = err.message;
             }
             setError(message);
-            if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("gemini")) {
+            if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("invalid") || message.toLowerCase().includes("gemini")) {
                 setShowBanner(true);
             }
         }
@@ -204,7 +244,14 @@ export default function EvaluatePage() {
 
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-8">
-            <ApiKeyBanner showBanner={showBanner} onKeySet={() => { setShowBanner(false); setError(""); }} />
+            <ApiKeyBanner
+                showBanner={showBanner}
+                onKeySet={() => {
+                    setShowBanner(false);
+                    setError("");
+                    refreshUser();
+                }}
+            />
 
             <div className="flex flex-col space-y-2">
                 <h1 className="text-3xl font-bold tracking-tight text-foreground">
@@ -330,13 +377,8 @@ export default function EvaluatePage() {
                                 <div className="flex gap-2">
                                     <Button
                                         type="submit"
-                                        className={cn(
-                                            "w-full border-2 transition-all shadow-sm",
-                                            result && !loading
-                                                ? "bg-green-600 border-green-700 hover:bg-green-700 text-white"
-                                                : "border-primary/20 hover:border-primary/50"
-                                        )}
-                                        disabled={loading || !!result}
+                                        className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300"
+                                        disabled={loading || files.length === 0}
                                     >
                                         {loading ? (
                                             <>
@@ -542,7 +584,7 @@ export default function EvaluatePage() {
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
 

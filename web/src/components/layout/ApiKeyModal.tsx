@@ -19,7 +19,8 @@ interface ApiKeyModalProps {
 }
 
 export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProps) {
-    const { token } = useAuth();
+    const { token, isApiKeyValid, setIsApiKeyValid, verifyApiKey } = useAuth();
+    const [isUpdating, setIsUpdating] = useState(false);
     const [hasApiKey, setHasApiKey] = useState(false);
     const [apiKey, setApiKey] = useState("");
     const [showKey, setShowKey] = useState(false);
@@ -76,10 +77,13 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
 
             if (response.ok) {
                 setHasApiKey(true);
+                setIsApiKeyValid('valid');
                 setApiKey("");
                 setShowKey(false);
+                setIsUpdating(false);
                 if (onApiKeyChange) onApiKeyChange();
-                onClose();
+                // Only close if it was a fresh key setup, otherwise keep open to show success
+                if (!hasApiKey) onClose();
             } else {
                 const errorData = await response.json();
                 setError(errorData.detail || "Failed to save API key");
@@ -107,8 +111,11 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
 
             if (response.ok) {
                 setHasApiKey(false);
+                setIsApiKeyValid('unknown');
                 if (onApiKeyChange) onApiKeyChange();
-                onClose();
+                // Don't close, just show the set view
+                setIsUpdating(false);
+                setApiKey("");
             } else {
                 const errorData = await response.json();
                 setError(errorData.detail || "Failed to delete API key");
@@ -142,42 +149,100 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
                         <>
                             <div className="p-4 rounded-lg border border-green-200 dark:border-green-900/30">
                                 <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                                    <CheckCircle2 className="h-5 w-5 shrink-0" />
-                                    <span className="text-sm font-semibold">API Key is configured</span>
+                                    {isApiKeyValid === 'valid' ? (
+                                        <>
+                                            <CheckCircle2 className="h-5 w-5 shrink-0" />
+                                            <span className="text-sm font-semibold">API Key is configured</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
+                                            <span className="text-sm font-semibold text-red-500">API Key is invalid</span>
+                                        </>
+                                    )}
                                 </div>
                                 <p className="text-sm text-green-600 dark:text-green-500 mt-2">
-                                    All AI features are enabled and working.
+                                    {isApiKeyValid === 'valid' ? "All AI features are enabled and working." : "Please update your API key to enable AI features."}
                                 </p>
                             </div>
 
-                            <div className="p-4 rounded-lg border border-red-200 dark:border-red-900/30">
-                                <div className="flex items-start gap-2">
-                                    <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-                                    <div className="text-sm">
-                                        <p className="font-semibold mb-2 text-red-400">⚠️ Warning: Deleting API Key</p>
-                                        <p className="text-red-400 mb-2">
-                                            You will lose access to the following features:
-                                        </p>
-                                        <ul className="list-disc list-inside text-red-400 space-y-1 mb-2">
-                                            <li>Mains Answer Generation</li>
-                                            <li>Answer Evaluation & Feedback</li>
-                                            <li>Prelims Mock Tests</li>
-                                            <li>Chat/Q&A with your materials</li>
-                                        </ul>
-                                        <p className="text-red-400">
-                                            Don&apos;t worry! You can set up your API key again anytime from your profile.
-                                        </p>
+                            {isUpdating ? (
+                                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-semibold">
+                                            New Gemini API Key
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type={showKey ? "text" : "password"}
+                                                value={apiKey}
+                                                onChange={(e) => {
+                                                    setApiKey(e.target.value);
+                                                    setError(null);
+                                                }}
+                                                placeholder="AIza..."
+                                                className="w-full px-4 py-2.5 pr-12 border border-input bg-background rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm"
+                                            />
+                                            <button
+                                                onClick={() => setShowKey(!showKey)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-600 dark:text-purple-400"
+                                            >
+                                                {showKey ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={handleSaveApiKey}
+                                            disabled={isSaving || !apiKey.trim()}
+                                            className="flex-1 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white text-sm font-semibold rounded-xl transition-colors"
+                                        >
+                                            {isSaving ? "Validating..." : "Save New Key"}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setIsUpdating(false);
+                                                setApiKey("");
+                                                setError(null);
+                                            }}
+                                            className="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 text-sm font-semibold rounded-xl"
+                                        >
+                                            Cancel
+                                        </button>
                                     </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setIsUpdating(true)}
+                                        className="flex-1 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                                    >
+                                        Update Key
+                                    </button>
+                                    <button
+                                        onClick={handleDeleteApiKey}
+                                        disabled={isDeleting}
+                                        className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white text-sm font-semibold rounded-xl transition-colors"
+                                    >
+                                        {isDeleting ? "Deleting..." : "Delete Key"}
+                                    </button>
+                                </div>
+                            )}
 
-                            <button
-                                onClick={handleDeleteApiKey}
-                                disabled={isDeleting}
-                                className="w-full px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-red-300 dark:disabled:bg-red-900 text-white text-sm font-semibold rounded-xl transition-colors"
-                            >
-                                {isDeleting ? "Deleting..." : "Delete API Key"}
-                            </button>
+                            {!isUpdating && isApiKeyValid !== 'valid' && (
+                                <div className="p-4 rounded-lg border border-red-200 dark:border-red-900/30">
+                                    <div className="flex items-start gap-2">
+                                        <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                                        <div className="text-sm">
+                                            <p className="font-semibold text-red-400">Your key is invalid</p>
+                                            <p className="text-red-400 mt-1">
+                                                Please update your key to continue using AI features. You can get a new one from Google AI Studio.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </>
                     ) : (
                         <>

@@ -43,6 +43,7 @@ interface MainsAnswerState {
     setHistorySearch: (term: string) => void;
     fetchHistory: (opts?: { reset?: boolean }) => Promise<void>;
     clear: () => void;
+    clearHistory: () => void;
 }
 
 export const useMainsAnswerStore = create<MainsAnswerState>()(
@@ -105,6 +106,13 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                     jobId: null,
                     jobStatus: 'idle',
                     error: null
+                }),
+                clearHistory: () => set({
+                    history: [],
+                    historyHasMore: false,
+                    historySearch: "",
+                    historyTotal: 0,
+                    isLoadingHistory: false
                 }),
             }),
             {

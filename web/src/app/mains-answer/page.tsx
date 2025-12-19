@@ -28,7 +28,8 @@ interface MainsAnswerResponse {
 }
 
 export default function MainsAnswerPage() {
-    const { } = useAuth();
+    const { user, refreshUser, isApiKeyValid, setIsApiKeyValid, verifyApiKey } = useAuth();
+    const [showBanner, setShowBanner] = useState(false);
 
     // Persist state from store
     const {
@@ -64,7 +65,6 @@ export default function MainsAnswerPage() {
     };
 
     // UI-only state
-    const [showBanner, setShowBanner] = useState(false);
     const [showCompressed, setShowCompressed] = useState(true);
     const [showOriginal, setShowOriginal] = useState(false);
 
@@ -93,6 +93,8 @@ export default function MainsAnswerPage() {
             pollStatus(jobId);
         }
     }, []);
+
+    // Proactively show banner removed - on-demand only
 
     // ... helper functions ...
 
@@ -213,8 +215,16 @@ export default function MainsAnswerPage() {
                     setJobId(null);
                 }
             } else if (data.status === 'failed') {
-                setError(data.error || "Generation failed");
-                setJobId(null);
+                const cleanedError = data.error || "Generation failed";
+                setError(cleanedError);
+                setJobStatus('failed');
+
+                // Show banner if it's an API key error
+                if (cleanedError.toLowerCase().includes("api key") || cleanedError.includes("API_KEY_INVALID")) {
+                    setIsApiKeyValid('invalid');
+                    setShowBanner(true);
+                }
+                return;
             } else {
                 // Update status if needed (e.g. queued -> processing)
                 if (data.status === 'processing' && jobStatus !== 'processing') setJobStatus('processing');
@@ -239,7 +249,7 @@ export default function MainsAnswerPage() {
         setError("Generation cancelled");
 
         try {
-            await api.post(`/mains-answer/cancel/${idToCancel}`);
+            await api.post(`/jobs/${idToCancel}/cancel`);
         } catch (err) {
             console.error("Cancel failed:", err);
         }
@@ -248,6 +258,31 @@ export default function MainsAnswerPage() {
     const handleGenerate = async (e?: React.FormEvent) => {
         e?.preventDefault();
         if (!question.trim()) return;
+
+        // Strict guard: check if user has Gemini API key
+        if (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid') {
+            // Prioritize "missing key" message over "invalid" just in case state is mixed
+            const msg = (user && user.has_gemini_api_key === false)
+                ? "Please set your Gemini API key in Settings before generating an answer."
+                : "Your Gemini API key is invalid. Please update it in Settings.";
+
+            setError(msg);
+            setShowBanner(true);
+            return;
+        }
+
+        // On-demand validation if status is unknown
+        if (isApiKeyValid === 'unknown') {
+            setJobStatus('queued');
+            setError(null);
+            const isValid = await verifyApiKey();
+            if (!isValid) {
+                setError("Your Gemini API key is invalid. Please update it in Settings.");
+                setShowBanner(true);
+                setJobStatus('idle');
+                return;
+            }
+        }
 
         setJobStatus('queued');
         setError(null);
@@ -277,7 +312,7 @@ export default function MainsAnswerPage() {
                 message = err.message;
             }
             setError(message);
-            if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("gemini")) {
+            if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("invalid") || message.toLowerCase().includes("gemini")) {
                 setShowBanner(true);
             }
         }
@@ -327,7 +362,14 @@ export default function MainsAnswerPage() {
         <>
             <div className="p-8 max-w-5xl mx-auto space-y-8">
                 {/* API Key Banner */}
-                <ApiKeyBanner showBanner={showBanner} onKeySet={() => { setShowBanner(false); setError(null); }} />
+                <ApiKeyBanner
+                    showBanner={showBanner}
+                    onKeySet={() => {
+                        setShowBanner(false);
+                        setError(null);
+                        refreshUser();
+                    }}
+                />
 
                 {/* Header with New Answer and History buttons */}
                 <div className="flex items-start justify-between">
