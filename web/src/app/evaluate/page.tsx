@@ -336,7 +336,7 @@ export default function EvaluatePage() {
                                                 ? "bg-green-600 border-green-700 hover:bg-green-700 text-white"
                                                 : "border-primary/20 hover:border-primary/50"
                                         )}
-                                        disabled={loading}
+                                        disabled={loading || !!result}
                                     >
                                         {loading ? (
                                             <>

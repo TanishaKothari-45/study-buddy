@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/context/AuthContext";
 import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
 import api, { ApiError } from "@/lib/apiClient";
+import { cn } from "@/lib/utils";
 
 interface MainsAnswerResponse {
     question: string;
@@ -155,10 +156,14 @@ export default function MainsAnswerPage() {
 
 
 
-    // Fetch history on mount
+    // Fetch history on mount and with debounce for search
     useEffect(() => {
-        fetchHistory({ reset: true });
-    }, [fetchHistory]);
+        const timer = setTimeout(() => {
+            fetchHistory({ reset: true });
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [historySearch, fetchHistory]);
 
     // Close history dropdown on outside click
     useEffect(() => {
@@ -373,7 +378,6 @@ export default function MainsAnswerPage() {
                                             value={historySearch}
                                             onChange={(e) => {
                                                 setHistorySearch(e.target.value);
-                                                fetchHistory({ reset: true });
                                             }}
                                             className="bg-popover! text-popover-foreground"
                                         />
@@ -454,13 +458,28 @@ export default function MainsAnswerPage() {
                                         <div className="flex gap-2">
                                             <Button
                                                 type="submit"
-                                                className="w-auto px-6 border-2 border-primary/20 hover:border-primary/50 transition-all shadow-sm"
-                                                disabled={loading || !question.trim()}
+                                                className={cn(
+                                                    "w-auto px-6 border-2 transition-all shadow-sm",
+                                                    jobStatus === 'completed' && result
+                                                        ? "bg-green-600 border-green-700 hover:bg-green-700 text-white"
+                                                        : "border-primary/20 hover:border-primary/50"
+                                                )}
+                                                disabled={loading || !question.trim() || (jobStatus === 'completed' && !!result)}
                                             >
                                                 {loading ? (
                                                     <>
                                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                                         {getStatusMessage()}
+                                                    </>
+                                                ) : jobStatus === 'completed' && result ? (
+                                                    <>
+                                                        <CheckCircle className="mr-2 h-4 w-4" />
+                                                        Generated Answer
+                                                    </>
+                                                ) : jobStatus === 'failed' ? (
+                                                    <>
+                                                        <RefreshCw className="mr-2 h-4 w-4" />
+                                                        Regenerate Answer
                                                     </>
                                                 ) : (
                                                     <>
@@ -469,6 +488,18 @@ export default function MainsAnswerPage() {
                                                     </>
                                                 )}
                                             </Button>
+
+                                            {(result || error || jobStatus === 'failed') && !loading && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => clear()}
+                                                    className="shrink-0"
+                                                >
+                                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                                    New Answer
+                                                </Button>
+                                            )}
 
                                             {loading && (
                                                 <Button
