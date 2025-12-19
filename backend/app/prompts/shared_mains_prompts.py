@@ -228,13 +228,14 @@ GEO_VISUAL_INTELLIGENCE_RULES = """
 
 # Tie-breaker when both visuals seem useful:
 VISUAL_TIEBREAKER = """
-If multiple formats appear useful, include only those that add distinct value and keep the total count ≤ 2.
+If multiple formats appear useful, include only those that add distinct explanatory value and keep the total count ≤ 2.
 Prefer:
-- Map over all others for distribution/location questions.
-- Table over Mermaid for impact/comparison-heavy questions.
-- Mermaid over Table only when process understanding is central.
+- Map for distribution/location-based questions.
+- Table for impact, comparison, or evaluation-heavy questions.
+- Mermaid for process or mechanism-heavy questions.
 Never include Table + Mermaid + Map together.
 """
+
 
 # ============================================================
 # MAP DIAGRAM INSTRUCTIONS
@@ -463,6 +464,7 @@ IBC_FORMAT_RULES = """
   - BODY content under each sub-heading may be presented EITHER as:
     - **Bullets** (default), OR
     - **Table format** (when comparison, impacts, or two-axis evaluation is required)
+    - For impact, comparison, advantage–disadvantage, or multi-dimensional evaluation questions, prefer TABLE format over bullets.
 
   - **Bullet Rules (when bullets are used)**:
     - Each sub-heading has 2-4 bullets
@@ -471,25 +473,55 @@ IBC_FORMAT_RULES = """
     - Each bullet: **Main idea** (≤ 12 words) + Evidence (named report/index/data where it adds credibility) + Example (named Indian OR named global). Write as natural English sentences, not forced templates.
 
   - **Table Rules (when table is used)**:
-    - Use TABLE format ONLY when the sub-heading involves:
-      - Positive vs negative impacts
-      - Advantages vs limitations
-      - Comparative geography (A vs B)
-      - Category-wise or sector-wise impacts
-      - Two-axis evaluation (e.g., dimension × time / region × impact)
+
+  - STRONGLY PREFER TABLE format when the sub-heading involves:
+    - Positive vs negative impacts
+    - Advantages vs limitations
+    - Comparative geography (A vs B)
+    - Category-wise or sector-wise impacts
+    - Two-axis evaluation (e.g., dimension × time / region × impact)
+
+  - TABLE format MAY ALSO be used when:
+    - The content is primarily classificatory or contrastive, AND
+    - A table improves clarity or reduces repetition compared to bullets
+
+  - AVOID TABLE format when:
+    - The answer requires causal explanation, reasoning, or assessment
+    - Evidence and examples need narrative development
+    - A process/mechanism diagram (Mermaid) provides better clarity
+
     - If a TABLE is used for a sub-heading:
       - DO NOT write bullets for that sub-heading
       - The table fully replaces bullets for that section
-    - Table must be concise (maximum 4 rows × 3 columns)
-    - Do NOT repeat table content again in bullet form elsewhere
-    - Table cell content must be concise and point-based.
-- Do NOT write long sentences or paragraph-style explanations inside table cells.
-- Each table cell should contain:
-  - A short phrase, OR
-  - A compact bullet-style point (not a full sentence).
+    - Table must be concise (preferably ≤ 4 rows × 3 columns)
+- Do NOT repeat table content again in bullet form elsewhere
+- Table cell content must be concise, point-based, and exam-readable.
+
+- Table cell rules depend on table type:
+
+  - **Comparison Tables (A vs B)**:
+    - Each table cell should contain ONE compact descriptive point (preferably one liner).
+    - Use short phrases; avoid explanations or multiple ideas.
+    - Examples may be included only as a single keyword (e.g., Anai Mudi, NE monsoon).
+
+  - **Impact / Analytical Tables**:
+    - Each table cell may include 2–3 compact points.
+    - Points must be listed as phrases, not sentences.
+    - Examples are allowed as keywords, not explanations.
 
 
-  - **Matrix Table (Two-Axis Evaluation)**:
+- HARD CONSTRAINT (MANDATORY):
+  - Narrative or paragraph-style sentences are NOT allowed inside table cells.
+  - Table cells must be written as compact descriptive phrases or listed points, not explanatory prose.
+  - Avoid commas and full stops inside table cells
+  - Do NOT use HTML tags (e.g., <br>) inside tables.
+  - If multiple points are needed, use separators or additional rows instead of line breaks within a cell.
+
+- Preferred separators inside table cells:
+  - Semicolon (;), slash (/), or dash (–)
+  - Use separators only to split compact phrases, not full sentences.
+
+- **Matrix Table (Two-Axis Evaluation)**:
     - Matrix tables are a subtype of table format
     - Use when evaluation requires two dimensions (e.g., Economic × Social, Short-term × Long-term)
     - Matrix tables follow the same rules as tables and replace bullets entirely for that sub-heading

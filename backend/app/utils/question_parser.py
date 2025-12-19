@@ -149,7 +149,7 @@ async def parse_question_for_search(
     key_to_use = gemini_api_key or settings.GEMINI_API_KEY
     
     try:
-        logger.info(f"🔍 [CACHE MISS] Parsing question with Gemini Flash (Structured Output): {question[:80]}...")
+        logger.info(f" ❌[CACHE MISS] Parsing question with Gemini Flash (Structured Output): {question[:80]}...")
         
         client = GeminiClient(api_key=key_to_use, model_name=settings.GEMINI_MODEL_FLASH)
         

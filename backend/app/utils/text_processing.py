@@ -84,3 +84,37 @@ def deduplicate_chunks(chunks: List[Any], min_overlap_words: int = 20, similarit
     
     # Final cleanup of whitespace
     return re.sub(r'\s+', ' ', combined).strip()
+
+def count_words_excluding_visuals(text: str) -> int:
+    """
+    Count words in text, EXCLUDING all visual content:
+    - Mermaid diagram blocks (```mermaid ... ```)
+    - Map JSON blocks (```map-json ... ```)
+    - Any code blocks (``` ... ```)
+    - Base64 images (![...](data:image/...))
+    - Inline base64 data strings
+    
+    This gives accurate word count for the actual prose content only.
+    """
+    if not text:
+        return 0
+        
+    cleaned_text = text
+    
+    # Remove ```mermaid ... ``` blocks
+    cleaned_text = re.sub(r'```mermaid[\s\S]*?```', '', cleaned_text)
+    
+    # Remove ```map-json ... ``` blocks
+    cleaned_text = re.sub(r'```map-json[\s\S]*?```', '', cleaned_text)
+    
+    # Remove any other code blocks
+    cleaned_text = re.sub(r'```[\s\S]*?```', '', cleaned_text)
+    
+    # Remove base64 images: ![alt](data:image/...) 
+    cleaned_text = re.sub(r'!\[[^\]]*\]\(data:image[^\)]+\)', '', cleaned_text)
+    
+    # Remove any remaining base64 data strings
+    cleaned_text = re.sub(r'data:image/[^;\s]+;base64,[A-Za-z0-9+/=]+', '', cleaned_text)
+    
+    # Count words in remaining prose
+    return len(cleaned_text.split())

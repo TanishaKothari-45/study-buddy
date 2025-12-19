@@ -12,7 +12,7 @@ interface MermaidProps {
 
 export function Mermaid({ chart, className = '' }: MermaidProps) {
     const ref = useRef<HTMLDivElement>(null);
-    const [zoom, setZoom] = useState(1.2); // Start at 120% for better readability
+    const [zoom, setZoom] = useState(1.4); // Start at 120% for better readability
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState({ x: 0, y: 0 });
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -20,7 +20,7 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
     const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.25, 3));
     const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.25, 0.5));
     const handleReset = () => {
-        setZoom(1.2); // Reset to default 120%
+        setZoom(1.4); // Reset to default 120%
         setPanOffset({ x: 0, y: 0 });
     };
 

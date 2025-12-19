@@ -149,8 +149,9 @@ Constraints / Format:
     - Avoid long sentences; no paragraph-style explanations inside cells.
     - Prefer compact phrases or bullet-style points per cell.
 
-- DIAGRAM: Include at least ONE Mermaid diagram. NEVER place diagram between a sub-heading and its bullets. Place it BEFORE the sub-heading or AFTER all bullets of a section.
+- DIAGRAM: Prefer including ONE Mermaid diagram when the question involves a clear process, mechanism, or causal chain. NEVER place diagram between a sub-heading and its bullets. Place it BEFORE the sub-heading or AFTER all bullets of a section.
 - MAP: If the question contains keywords like "distribution", "where", "locate", "belts", "hotspots", "areas", "regional", or explicitly asks about countries/regions, include a map-json block per MAP_GENERATION_RULES (map-json before Body under 'Map/Diagram').
+- **TOTAL VISUAL LIMIT**: You can include **at most TWO** visuals in total (spanning Tables, Mermaid diagrams, and Maps). Never include all three.
 - WAY FORWARD (Conditional Section – Include Only When Applicable and Relevant): 
  - Include 2–3 bullets, each starting with a dash (-).
  - Each bullet must be actionable, future-oriented, and specific.

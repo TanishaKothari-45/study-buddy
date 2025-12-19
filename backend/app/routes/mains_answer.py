@@ -152,23 +152,6 @@ def count_words_excluding_visuals(text: str) -> int:
     # Count words in remaining prose
     return len(cleaned_text.split())
 
-
-def enforce_word_count(answer: str, target: int) -> str:
-    words = len(answer.split())
-    if words > target * 1.2:
-        # trim last paragraph(s)
-        paras = [p for p in answer.split("\n\n") if p.strip()]
-        if len(paras) > 1:
-            # drop last paragraph(s) until under limit
-            while len(" ".join(" ".join(paras).split()).split()) > target * 1.2 and len(paras) > 1:
-                paras = paras[:-1]
-            return "\n\n".join(paras).strip()
-        return " ".join(answer.split()[: int(target * 1.2 * 1.0)])
-    elif words < target * 0.8:
-        # add a short synthesis sentence
-        return answer + f"\n\n(Addendum: In short, the above points suggest that a balanced policy mix is required.)"
-    return answer
-
 from ..utils.langsmith_tracer import trace_gemini
 
 @trace_gemini("mains_answer_generation")
@@ -248,7 +231,6 @@ async def generate_answer(
 
     # 3) Post-processing: ensure diagrams and word-count
     answer_text = enforce_diagrams(answer_text, required=1)
-    # answer_text = enforce_word_count(answer_text, target=word_count)
     
     # 4) Process map-json blocks (only if map service is healthy)
     if map_service_healthy:

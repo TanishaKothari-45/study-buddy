@@ -8,6 +8,7 @@ import re
 import logging
 import asyncio
 from typing import Optional, Any
+from .text_processing import count_words_excluding_visuals
 
 logger = logging.getLogger("answer_compressor")
 
@@ -28,8 +29,9 @@ Rules:
 3. Keep all sub-headings (### format) and maintain bullet format with dash (-).
 4. PRESERVE bold formatting (**text**) in bullet point headings - the main idea of each bullet must stay bold.
 5. KEEP all <<PLACEHOLDERS>> exactly where they are. Do not remove or move them.
-6. Return only the final condensed answer, no commentary or explanation.
-7. NEVER DROP QUALIFYING KEYWORDS: The specific qualifiers and domain terms in each bullet are scoring keywords. NEVER remove them to save words.
+6. Keep table structure as it is.
+7. Return only the final condensed answer, no commentary or explanation.
+8. NEVER DROP QUALIFYING KEYWORDS: The specific qualifiers and domain terms in each bullet are scoring keywords. NEVER remove them to save words.
    Examples of keywords that MUST be kept exactly:
    - "skilled and unskilled workers" (NOT just "workers")
    - "mining and manufacturing" (NOT dropped entirely)
@@ -108,7 +110,7 @@ def extract_visuals(text: str) -> tuple[str, dict[str, str]]:
     
     # Match any remaining code blocks that weren't caught above
     text = re.sub(r'```[\s\S]*?```', replace_code, text)
-    
+
     return text, replacements
 
 
@@ -124,17 +126,6 @@ def restore_visuals(text: str, replacements: dict[str, str]) -> str:
     return text
 
 
-def count_words_excluding_visuals(text: str) -> int:
-    """
-    Count words excluding Mermaid diagrams, code blocks, and images.
-    """
-    cleaned_text = text
-    cleaned_text = re.sub(r'```mermaid[\s\S]*?```', '', cleaned_text)
-    cleaned_text = re.sub(r'```map-json[\s\S]*?```', '', cleaned_text)
-    cleaned_text = re.sub(r'```[\s\S]*?```', '', cleaned_text)
-    cleaned_text = re.sub(r'!\[[^\]]*\]\(data:image[^\)]+\)', '', cleaned_text)
-    cleaned_text = re.sub(r'data:image/[^;\s]+;base64,[A-Za-z0-9+/=]+', '', cleaned_text)
-    return len(cleaned_text.split())
 
 
 async def compress_answer(
@@ -187,11 +178,13 @@ async def compress_answer(
     map_json_count = sum(1 for k in replacements.keys() if k.startswith("<<MAP_JSON_"))
     code_count = sum(1 for k in replacements.keys() if k.startswith("<<CODE_"))
     
-    logger.info(f"🎨 [VISUAL EXTRACTION] Extracted {len(replacements)} visual elements:")
-    logger.info(f"   • Mermaid diagrams: {mermaid_count}")
-    logger.info(f"   • Map JSON blocks: {map_json_count}")
-    logger.info(f"   • Base64 images: {image_count}")
-    logger.info(f"   • Code blocks: {code_count}")
+    logger.info(
+        f"🎨 [VISUAL EXTRACTION] Extracted {len(replacements)} visual elements:\n"
+        f"   • Mermaid diagrams: {mermaid_count}\n"
+        f"   • Map JSON blocks: {map_json_count}\n"
+        f"   • Base64 images: {image_count}\n"
+        f"   • Code blocks: {code_count}\n"
+    )
     logger.info(f"📊 [TOKEN OPTIMIZATION]:")
     logger.info(f"   • Original size: {original_size:,} chars (~{original_size//4:,} tokens)")
     logger.info(f"   • Cleaned size: {cleaned_size:,} chars (~{cleaned_size//4:,} tokens)")
