@@ -1083,7 +1083,7 @@ class WorkerSettings:
     redis_settings = REDIS_SETTINGS
     on_startup = startup
     on_shutdown = shutdown
-    max_jobs = 5
+    max_jobs = 20      # Handling I/O bound tasks (Gemini API), manageable for single worker
     job_timeout = 300  # 5 minutes max per job
     max_tries = 1      # Do not retry jobs on failure/cancellation
 
