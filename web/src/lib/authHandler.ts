@@ -143,14 +143,26 @@ export async function handle401Error(url: string, response?: Response) {
 
 /**
  * Custom fetch wrapper that automatically handles 401 responses
- * Use this instead of regular fetch for authenticated API calls
+ * and automatically injects the Authorization header if a token exists.
+ * Use this instead of regular fetch for authenticated API calls.
  */
 export async function authFetch(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
+  const token = localStorage.getItem("token");
+  const authenticatedInit = { ...init };
+
+  if (token) {
+    const headers = new Headers(init?.headers);
+    if (!headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${token}`);
+      authenticatedInit.headers = headers;
+    }
+  }
+
   try {
-    const response = await fetch(input, init);
+    const response = await fetch(input, authenticatedInit);
 
     // Check for 401 Unauthorized
     if (response.status === 401) {
