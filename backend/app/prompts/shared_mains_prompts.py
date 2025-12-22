@@ -48,7 +48,8 @@ For answers with word count ≤ 150: Diagrams are **good to have but only if nec
    - Syntax: `graph TB` with vertical layout
 
 **Quality Guidelines**:
-- **Text Safety**: ALWAYS enclose node labels in double quotes (e.g., A["Label (Text)"]). Keep labels SHORT (max 3-4 words). Use `<br/>` for line breaks.
+- **Text Safety**: ALWAYS enclose node labels in double quotes (e.g., `A["Label"]`). Keep labels SHORT (max 3-4 words). Use `<br/>` for line breaks.
+- **Subgraph Labels**: ALWAYS quote subgraph labels containing parentheses or special chars (e.g., `subgraph "Push Factors (North)"`). Better: avoid parentheses entirely in labels.
 - **Contrast**: Do not use dark backgrounds for nodes.
 - **Simplicity**: Maximum 8 nodes, 10 connections.
 - **Diagram token budget**: keep diagram compact (labels ≤ 40 tokens total).
@@ -158,12 +159,34 @@ graph TB
 - Add blank line before and after diagram
 - Do not include other markdown inside the diagram.
 - Include diagram title as markdown heading or bold text
--If unsure which diagram to choose, use this minimal, safe flowchart:
+- If unsure which diagram to choose, use this minimal, safe flowchart:
 
 ```mermaid
 graph TD
-    A[Causes] --> B[Impacts]
-    B --> C[Mitigation]
+    A["Causes"] --> B["Impacts"]
+    B --> C["Mitigation"]
+```
+
+**Subgraph Syntax (CRITICAL)**:
+- When using subgraphs, ALWAYS quote labels containing parentheses or special characters.
+- ❌ WRONG: `subgraph Push Factors (North)` — parentheses break parser
+- ✅ CORRECT: `subgraph "Push Factors (North)"` — quoted label
+- ✅ SAFER: `subgraph Push Factors - North` — avoid parentheses entirely
+
+Example with subgraphs:
+```mermaid
+graph TD
+    subgraph "Push Factors"
+        A["Low wages"]
+        B["Lack of jobs"]
+    end
+    subgraph "Pull Factors"
+        C["Better opportunities"]
+        D["Infrastructure"]
+    end
+    A --> C
+    B --> D
+```
 
 **Example Integration in Answer**:
 
