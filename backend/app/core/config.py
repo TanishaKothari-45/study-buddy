@@ -43,13 +43,13 @@ class Settings(BaseSettings):
     NEWS_API_KEY: Optional[str] = None
     THENEWSAPI_KEY: Optional[str] = None
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
-    
     # Directory Settings
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
+
+    class Config:
+        env_file = str(Path(__file__).resolve().parent.parent.parent / ".env")
+        env_file_encoding = "utf-8"
+        case_sensitive = True
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
     DB_DIR: Path = BASE_DIR / "data" / "databases"
     

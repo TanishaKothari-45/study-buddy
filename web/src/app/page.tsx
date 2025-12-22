@@ -82,7 +82,7 @@ export default function Home() {
               <MessageSquare className="w-8 h-8 text-primary mb-2 group-hover:scale-110 transition-transform" />
               <CardTitle>Chat / Q&A</CardTitle>
               <CardDescription>
-                Ask questions and clear doubts from your materials.
+                Ask questions and clear doubts about Geography Topics.
               </CardDescription>
             </CardHeader>
           </Card>
