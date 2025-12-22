@@ -65,7 +65,7 @@ def retrieve_context_for_question(
     vector_handler,
     mode: str = "mains",
     use_content_store: bool = True,
-    k: int = 6,
+    k: int = 8,
     re_rank: bool = False,
     fetch_k: int = 20
 ) -> Tuple[str, List[Dict[str, Any]]]:
