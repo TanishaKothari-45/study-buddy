@@ -377,7 +377,7 @@ export default function EvaluatePage() {
                                 <div className="flex gap-2">
                                     <Button
                                         type="submit"
-                                        className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300"
+                                        className="w-full h-12 text-lg font-semibold border-2 border-primary/20 hover:border-primary/50 transition-all duration-300"
                                         disabled={loading || files.length === 0}
                                     >
                                         {loading ? (
