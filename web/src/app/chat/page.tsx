@@ -85,7 +85,7 @@ export default function ChatPage() {
                 body: JSON.stringify({
                     question: userMessage.content,
                     session_id: sessionId,
-                    k: 5,
+                    k: 10,
                 }),
             });
 
