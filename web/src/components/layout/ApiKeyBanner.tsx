@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Key, ExternalLink, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { X, Key, ExternalLink, AlertCircle, CheckCircle2, Eye, EyeOff, FileText } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "next-themes";
@@ -270,12 +270,26 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
                             rel="noopener noreferrer"
                             style={{ fontSize: 13, color: theme === 'dark' ? bodyColorDark : bodyColorLight, textDecoration: 'none', fontWeight: 600 }}
                         >
-                            Get free API key <ExternalLink className="inline-block ml-1" />
+                            Get free API key <ExternalLink className="inline-block ml-1 h-3 w-3" />
                         </a>
 
-                        <div style={{ fontSize: 13, color: theme === 'dark' ? 'rgba(255,255,255,0.65)' : 'rgba(59,43,85,0.8)', fontWeight: 600 }}>
-                            💡 Free forever — no credit card required
-                        </div>
+                        <a
+                            href="/gemini-setup-guide.pdf"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download="Gemini_API_Setup_Guide.pdf"
+                            style={{
+                                fontSize: 13,
+                                color: theme === 'dark' ? bodyColorDark : bodyColorLight,
+                                textDecoration: 'none',
+                                fontWeight: 600,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4
+                            }}
+                        >
+                            API Key Setup Guide <div className="h-4 w-4 flex items-center justify-center rounded-sm bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-[9px] font-bold border border-red-200 dark:border-red-800">PDF</div>
+                        </a>
                     </div>
                 </div>
             </div>
