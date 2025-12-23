@@ -13,7 +13,8 @@ interface HistoryItem {
     q_hash?: string;
 }
 
-// Persist result AND form inputs for tab switching
+// Persist form inputs, job tracking, and current result (only one at a time - cleared on "New Answer")
+// History is NOT persisted - fetched from Redis/backend via /mains-answer/history
 interface MainsAnswerState {
     question: string;
     wordCount: string;
@@ -118,27 +119,48 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
             {
                 name: 'geography-mains-answer-storage',
                 storage: createJSONStorage(() => localStorage),
-                version: 6, // Bump version
+                version: 6, // Persist form inputs, job tracking, and current result (only one at a time due to clear())
                 partialize: (state) => ({
-                    // Persist form + job state + result for seamless tab switching
+                    // CRITICAL: Only persist form inputs, job tracking, and current result
+                    // History (history array) is EXPLICITLY NOT persisted to prevent localStorage quota issues
+                    // History is fetched from Redis/backend via /mains-answer/history endpoint
+                    // Only ONE result is stored at a time (cleared on "New Answer" button and on regenerate)
+                    // 
+                    // NOTE: localStorage has 5-10MB capacity, so a single 20-50KB result is safe.
+                    // Quota errors are more likely from:
+                    // 1. chatStore persisting 50 messages (each can be large with markdown)
+                    // 2. Accumulation of old data before clear() was properly implemented
+                    // 3. Other stores (mockTestStore, evaluateAnswerStore) accumulating data
                     question: state.question,
                     wordCount: state.wordCount,
                     jobId: state.jobId,
                     jobStatus: state.jobStatus,
-                    result: state.result
+                    result: state.result // Current answer (cleared before each new generation via clear() in handleGenerate)
+                    // NOTE: history, historyHasMore, historySearch, historyTotal are NOT persisted
+                    // They are in-memory only and fetched from backend when needed
                 }),
                 // Migrate function to handle version transitions
                 migrate: (persistedState: any, version: number) => {
                     if (version < 6) {
+                        // Clean migration: explicitly exclude history and other non-persisted fields
                         return {
                             question: persistedState?.question || '',
                             wordCount: persistedState?.wordCount || '250',
-                            jobId: null,
-                            jobStatus: 'idle',
-                            result: null
+                            jobId: persistedState?.jobId || null,
+                            jobStatus: persistedState?.jobStatus || 'idle',
+                            result: persistedState?.result || null
+                            // Explicitly exclude: history, historyHasMore, historySearch, historyTotal
+                            // These should never be persisted and will be reset to defaults on load
                         };
                     }
-                    return persistedState;
+                    // For version 6+, ensure history is not accidentally persisted
+                    const cleaned = { ...persistedState };
+                    delete cleaned.history;
+                    delete cleaned.historyHasMore;
+                    delete cleaned.historySearch;
+                    delete cleaned.historyTotal;
+                    delete cleaned.isLoadingHistory;
+                    return cleaned;
                 },
             }
         ),

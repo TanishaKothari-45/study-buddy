@@ -259,6 +259,10 @@ export default function MainsAnswerPage() {
         e?.preventDefault();
         if (!question.trim()) return;
 
+        // Clear previous state to prevent localStorage quota issues
+        // This ensures old result is removed before generating new one
+        clear();
+
         // Strict guard: check if user has Gemini API key
         if (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid') {
             // Prioritize "missing key" message over "invalid" just in case state is mixed
