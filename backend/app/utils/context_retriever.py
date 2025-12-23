@@ -183,7 +183,7 @@ async def retrieve_context_async(
     vector_handler,
     mode: str = "mains",
     use_content_store: bool = True,
-    k: int = 6
+    k: int = 12
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """
     Async wrapper for retrieve_context_for_question.

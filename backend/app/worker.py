@@ -127,8 +127,8 @@ async def run_enriched_pipeline(
     job_id: str,
     query: str,
     gemini_api_key: Optional[str] = None,
-    k: int = 6,
-    fetch_k: int = 20,
+    k: int = 12,
+    fetch_k: int = 30,
     max_total_tokens: int = 32000
 ) -> Dict[str, Any]:
     """
