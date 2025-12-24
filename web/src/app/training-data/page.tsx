@@ -109,8 +109,26 @@ export default function TrainingDataPage() {
             });
 
             if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                const errorMessage = errData.detail || "Extraction failed";
+                // Try to extract error message from response
+                let errorMessage = "Extraction failed";
+                try {
+                    const errData = await res.json();
+                    // Backend returns error in 'detail' field for FastAPI HTTPException
+                    errorMessage = errData.detail || errData.message || errData.error || errorMessage;
+                } catch (parseError) {
+                    // If JSON parsing fails, try to get text response
+                    try {
+                        const textResponse = await res.text();
+                        errorMessage = textResponse || errorMessage;
+                    } catch (textError) {
+                        // Fallback to status text
+                        errorMessage = res.statusText || errorMessage;
+                    }
+                }
+                
+                // Log the full error for debugging
+                console.error("Extraction error:", errorMessage);
+                
                 throw new Error(errorMessage);
             }
 
@@ -123,14 +141,23 @@ export default function TrainingDataPage() {
             // Check if request was aborted
             if (err.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
                 setError("Training cancelled");
+                showToast("Training cancelled", "info");
                 return;
             }
             
-            // Extract error message
-            let errorMessage = err.message || "Extraction failed";
+            // Extract error message - prioritize the error message itself
+            let errorMessage = err.message || err.toString() || "Extraction failed";
+            
+            // Log full error for debugging
+            console.error("Full error object:", err);
+            console.error("Error message:", errorMessage);
             
             // If error message already starts with "Failed to extract text:", use it as-is (already cleaned by backend)
-            if (!errorMessage.startsWith("Failed to extract text:")) {
+            if (errorMessage.startsWith("Failed to extract text:")) {
+                // Backend already cleaned it, use as-is
+                setError(errorMessage);
+                showToast(errorMessage, "error");
+            } else {
                 // Clean up technical error messages for user-friendly display
                 if (errorMessage.includes("429") || errorMessage.toLowerCase().includes("quota")) {
                     errorMessage = "Failed to extract text: You have exceeded your Gemini API quota. Please check your usage at https://aistudio.google.com/app/apikey and upgrade your plan if needed, or try again after some time.";
@@ -143,10 +170,10 @@ export default function TrainingDataPage() {
                 } else {
                     errorMessage = `Failed to extract text: ${errorMessage}`;
                 }
+                
+                setError(errorMessage);
+                showToast(errorMessage, "error");
             }
-            
-            setError(errorMessage);
-            showToast(errorMessage, "error");
         } finally {
             setExtracting(false);
             abortControllerRef.current = null;
@@ -354,9 +381,9 @@ export default function TrainingDataPage() {
                             </Card>
 
                             {error && (
-                                <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md flex items-center gap-2">
-                                    <AlertCircle className="h-4 w-4" />
-                                    {error}
+                                <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md flex items-start gap-2">
+                                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                                    <div className="flex-1 wrap-break-word whitespace-pre-wrap">{error}</div>
                                 </div>
                             )}
                         </div>
