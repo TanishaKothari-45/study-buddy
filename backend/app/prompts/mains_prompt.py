@@ -33,20 +33,29 @@ Follow directive interpretation rules (below) and the cognitive & structural che
 """
 
 DIRECTIVE_DECODER = """
-Directive -> structure (mandatory):
-- Comment = take a stance & justify (if 'critically' → both sides)
-- Examine = causes / implications / way forward
-- Critically examine = strengths + weaknesses separately, then implications
-- Discuss = broad overview → positives / negatives / causes / consequences
-- Discuss critically = same as discuss but more rigorous reasoning
-- Evaluate = assess worthiness → positives / negatives → give verdict
-- Critically evaluate = evaluate + explicit judgement and trade-offs
-- Analyse = break the topic into sub-parts and examine each dimension
-- Explain = clarify how/why something is
-- Elucidate = make clear using examples/data
-- Elaborate = expand the core idea by adding layers of reasoning
-- Substantiate = assert then support with evidence/reports/data
-- To what extent = give a balanced graded judgement (fully/partly/marginally)
+Directive → expected examiner approach (mandatory alignment):
+
+- Analyse = break the issue into components; examine each dimension logically; show interconnections.
+- Examine = investigate causes, implications, and significance; avoid mere description.
+- Critically examine = analyse strengths and weaknesses separately; assess implications.
+- Discuss = present a balanced treatment covering multiple dimensions.
+- Discuss critically = discuss + deeper reasoning, counter-arguments, and evaluation.
+- Evaluate = assess positives and negatives; weigh evidence; arrive at a reasoned judgement.
+- Critically evaluate = evaluate + explicit judgement, trade-offs, and limitations.
+- Assess = judge validity or impact by weighing evidence; similar to evaluate but judgement-focused.
+- To what extent = provide a graded, balanced judgement (fully / partly / marginally) with justification.
+- Explain = clarify how or why something occurs.
+- Describe = give a factual, detailed account without analysis.
+- Elucidate = clarify with examples, data, or illustrations.
+- Elaborate = expand the core idea by adding layers of reasoning.
+- Substantiate = assert a claim and support it with evidence, reports, or data.
+- Contrast / Compare = highlight key differences (and similarities if asked) between phenomena.
+- Outline = present key points and structure concisely without detailed explanation.
+- Show how = explain stages, processes, or causal progression logically.
+- Give an account of = provide a descriptive narrative of what happens (not why).
+- Identify = list key features or elements and indicate their relevance briefly.
+- State = specify key facts or points concisely without elaboration.
+- Summarise = present a brief, concise synthesis of main points only.
 """
 
 COGNITIVE_FRAMEWORK = """
@@ -100,12 +109,12 @@ def assemble_mains_prompt(
     else:
         # Legacy fallback: simple character truncation
         context_trim = (context or "").strip()
-        if len(context_trim) > 4200:
-            context_trim = context_trim[:4200] + "\n\n[TRUNCATED CONTEXT]"
+        if len(context_trim) > 7200:
+            context_trim = context_trim[:7200] + "\n\n[TRUNCATED CONTEXT]"
 
         current_trim = (current_bullets or "").strip()
-        if len(current_trim) > 1400:
-            current_trim = current_trim[:1400] + "\n\n[TRUNCATED CURRENT AFFAIRS]"
+        if len(current_trim) > 2400:
+            current_trim = current_trim[:2400] + "\n\n[TRUNCATED CURRENT AFFAIRS]"
 
     # User-level guidance that will be fed as user message
     user_msg = f"""You are a Senior UPSC Mains answer-writer (Geography). Follow IBC strictly and include Mermaid diagrams.
@@ -156,7 +165,7 @@ Constraints / Format:
  - Include 2–3 bullets, each starting with a dash (-).
  - Each bullet must be actionable, future-oriented, and specific.
  - Keep bullets concise, concrete, and implementable.
-- CONCLUSION: 1 para connecting to constitutional values or SDG goals or India’s governance ethos (equity, sustainability, decentralisation).
+- CONCLUSION: 1 para connecting to constitutional artciles, values or SDG goals or India’s governance ethos (equity, sustainability, decentralisation) or policy frameworks.
 - WORD COUNT: Target ~{word_count} words. Acceptable range: 80%-140% of target. Only compress bullet language if exceeding 140%.
 - For directive words (Analyse, Evaluate, Critically examine, Discuss), follow the Directive Decoder rules in SYSTEM PROMPT.
 - Tone: concise, exam-style, zero fluff.

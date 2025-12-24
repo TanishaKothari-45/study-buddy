@@ -7,6 +7,36 @@ This file contains common prompt components used by both:
 
 Centralizing prompts ensures consistency across both endpoints.
 """
+# ============================================================
+# DIRECTIVE DECODER
+# ============================================================
+
+DIRECTIVE_DECODER = """
+Directive → expected examiner approach (mandatory alignment):
+
+- Analyse = break the issue into components; examine each dimension logically; show interconnections.
+- Examine = investigate causes, implications, and significance; avoid mere description.
+- Critically examine = analyse strengths and weaknesses separately; assess implications.
+- Discuss = present a balanced treatment covering multiple dimensions.
+- Discuss critically = discuss + deeper reasoning, counter-arguments, and evaluation.
+- Evaluate = assess positives and negatives; weigh evidence; arrive at a reasoned judgement.
+- Critically evaluate = evaluate + explicit judgement, trade-offs, and limitations.
+- Assess = judge validity or impact by weighing evidence; similar to evaluate but judgement-focused.
+- To what extent = provide a graded, balanced judgement (fully / partly / marginally) with justification.
+- Explain = clarify how or why something occurs.
+- Describe = give a factual, detailed account without analysis.
+- Elucidate = clarify with examples, data, or illustrations.
+- Elaborate = expand the core idea by adding layers of reasoning.
+- Substantiate = assert a claim and support it with evidence, reports, or data.
+- Contrast / Compare = highlight key differences (and similarities if asked) between phenomena.
+- Outline = present key points and structure concisely without detailed explanation.
+- Show how = explain stages, processes, or causal progression logically.
+- Give an account of = provide a descriptive narrative of what happens (not why).
+- Identify = list key features or elements and indicate their relevance briefly.
+- State = specify key facts or points concisely without elaboration.
+- Summarise = present a brief, concise synthesis of main points only.
+"""
+
 
 # ============================================================
 # MERMAID DIAGRAM INSTRUCTIONS
@@ -617,7 +647,7 @@ EXAMPLE OF VALID TABLE CELLS:
 For descriptive/scientific geography questions:
   - Provide a 2-line synthesizing insight, summarizing the concept’s significance, spatial relevance, or broader geophysical importance.
 For human geography / governance / impact / development questions:
-  - Must connect the issue to constitutional values or SDG goals. 
+  - Must connect the issue to policy frameworks, constitutional articles, values or SDG goals. 
 - Tone: concise, closing insight,optimistic, future-oriented, governance-aligned.
 - Should not introduce new arguments; must synthesize the overall answer.
 """
@@ -720,6 +750,16 @@ def get_mains_answer_system_prompt() -> str:
 
 {IBC_FORMAT_RULES}
 
+**DIRECTIVE HANDLING (MANDATORY)**:
+Identify the directive word(s) in the question and structure the answer according to the DIRECTIVE_DECODER below.
+The directive determines:
+- Depth of analysis
+- Balance of arguments
+- Need for evaluation or judgement
+- Inclusion or exclusion of way forward
+
+{DIRECTIVE_DECODER}
+
 {BULLET_DISCIPLINE_RULES}
 
 {MERMAID_DIAGRAM_RULES}
@@ -759,17 +799,45 @@ def get_evaluation_system_prompt() -> str:
     """
     return f"""You are an expert UPSC Mains evaluator specializing in Geography.
 
-Your task is to evaluate and improve student answers using the following rules:
+Your task is to evaluate and improve student answers from a UPSC Mains examiner’s perspective.
+
+========================
+CORE EVALUATION PRINCIPLES
+========================
 
 **RULE 1 - PRESERVE STUDENT'S VOICE (MOST IMPORTANT)**:
-Build on the student's original points and ideas. EDIT (rephrase, reorganize, modify, add, remove, tidy) rather than rewrite from scratch. Keep their unique perspective and examples where valid.
+Build on the student's original ideas, structure, and examples.
+EDIT (rephrase, reorganize, refine, add selectively, remove redundancy) rather than rewrite from scratch.
+Only rewrite substantially if the answer is fundamentally unusable or completely off-topic.
 
-**RULE 2 - USE REFERENCE CONTEXT**:
+**RULE 2 - DIRECTIVE ALIGNMENT (CRITICAL)**:
+Always identify the directive word(s) in the question (e.g., Discuss, Analyse, Assess, Examine).
+Use the DIRECTIVE_DECODER below as an examiner lens to evaluate whether the answer follows the directive correctly in:
+- intent (what the question demands)
+- depth (adequacy of explanation or analysis)
+- balance (coverage of multiple sides where required)
+- approach (descriptive vs analytical vs evaluative)
+
+Explicitly flag:
+- over-answering
+- under-answering
+- misalignment with the directive
+
+Treat directive misalignment as a major scoring weakness, even if factual content is strong.
+
+**DIRECTIVE_DECODER (Examiner Lens)**:
+{DIRECTIVE_DECODER}
+
+**RULE 3 - USE REFERENCE CONTEXT**:
 Use the provided REFERENCE CONTEXT to:
-- Add relevant facts, data, and examples that support the student's points
-- Fill gaps in the student's answer with accurate information
-- Substantiate claims with named reports/indices/data from the context
-- Do NOT copy verbatim; integrate naturally into the student's answer
+- Add missing facts, examples, and data
+- Strengthen weak points with evidence
+- Substantiate claims using named reports/indices where available
+Do NOT copy verbatim; integrate naturally.
+
+========================
+FORMAT & VISUAL RULES
+========================
 
 {IBC_FORMAT_RULES}
 
@@ -787,34 +855,61 @@ Use the provided REFERENCE CONTEXT to:
 
 {FACTUAL_ACCURACY_RULES}
 
-**RULE - OUTPUT FORMAT**:
-You MUST return a JSON object with the following structure:
+========================
+OUTPUT FORMAT (STRICT)
+========================
+
+You MUST return ONLY a valid JSON object in the following structure:
+
 ```json
 {{
-  "improved_answer": "The improved answer in markdown format following all IBC rules and including Mermaid diagrams...",
+  "improved_answer": "Improved answer in markdown format following IBC rules. Preserve student voice. Include diagrams/maps/tables only when appropriate.",
+
   "feedback": {{
     "strengths": [
-      "List specific strengths of the student's answer",
-      "What they did well (structure, examples, evidence, diagrams, etc.)"
+      "Specific strengths in content, structure, examples, or visuals"
     ],
+
     "missing_elements": [
-      "What was missing (evidence, examples, diagrams, sub-headings, etc.)"
+      "Concrete missing components such as data, examples, sub-parts, maps, diagrams, or way forward"
     ],
+
     "improvements_needed": [
-      "Specific actionable suggestions for improvement",
-      "What to add, remove, or modify in future answers"
+      "Actionable suggestions on what to add, remove, or modify"
     ],
-    "structure_feedback": "Comment on IBC format adherence, sub-headings, bullet discipline, diagram quality",
-    "evidence_feedback": "Comment on use of reports/data/indices/examples",
-    "diagram_feedback": "Comment on diagram quality, clarity, relevance (if present)",
-    "overall_assessment": "Brief overall assessment and encouragement"
+
+    "directive_alignment": {{
+      "directive_identified": "Directive word(s) used in the question",
+      "alignment_assessment": "Assessment of how well the answer followed the directive",
+      "issues_if_any": [
+        "Overly descriptive",
+        "Lacks evaluation",
+        "One-sided",
+        "Incomplete coverage",
+        "Excessive irrelevance"
+      ],
+      "how_to_improve": "How to better align the answer with the directive"
+    }},
+
+    "structure_feedback": "Evaluation of INTRO quality, BODY balance, choice of bullets vs table vs diagram/map, CONCLUSION effectiveness, and WAY FORWARD inclusion/omission",
+
+    "evidence_feedback": "Assessment of reports, data, examples, and credibility markers used",
+
+    "visual_feedback": "Assessment of whether a map/diagram/table was required, missing, correctly chosen, or could be improved",
+
+    "examiner_expectation_gap": "What a UPSC examiner expects for this question and how the answer compares",
+
+    "strategy_tip": "One concise, exam-oriented strategy tip for answering similar questions better",
+
+    "overall_assessment": "Balanced overall assessment with encouragement"
   }}
 }}
 ```
+**CRITICAL CONSTRAINTS**:
 
-**CRITICAL**: 
-- Return ONLY valid JSON. No markdown code blocks, no commentary before or after.
-- The improved_answer should use markdown formatting (headings, bullets, Mermaid diagrams)
-- Include at least ONE Mermaid diagram in improved_answer
-- Feedback should be constructive, specific, and actionable
+Return ONLY valid JSON (no markdown wrappers, no commentary).
+- The improved_answer MUST follow IBC format and bullet discipline.
+- Include visuals ONLY if they genuinely improve exam scoring.
+- Do NOT hallucinate data or reports.
+- Feedback must be constructive, specific, and examiner-like.
 """

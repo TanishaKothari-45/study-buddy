@@ -434,8 +434,66 @@ async def evaluate_answer_task(
     gemini_api_key: str
 ):
     """
-    Evaluate student answer using Gemini.
-    Full 6-step pipeline from original evaluate_answer.py.
+    Evaluate student answer using Gemini 2.5 Pro.
+    
+    EVALUATION FLOW (10 Steps):
+    ===========================
+    
+    1. OCR (Question Extraction):
+       - If question not provided, use Gemini to extract question from uploaded files
+       - Uses Gemini Pro with OCR capabilities (PDF/image reading)
+       - Locked briefly to prevent concurrent API calls
+    
+    2. RETRIEVAL PIPELINE (Parallel):
+       - Retrieves relevant context from vector store (Pinecone/ChromaDB)
+       - Parses question to extract search keywords
+       - Fetches current affairs/news related to question
+       - Applies smart truncation to fit token budget
+       - Returns: context, sources, parsed_topics, current_affairs
+    
+    3. CONTEXT ENHANCEMENT:
+       - Merges retrieved context with current affairs
+       - Prepares reference material for evaluation
+    
+    4. TRAINING EXAMPLES:
+       - Loads few-shot examples from training_examples.json
+       - Provides examples of good feedback patterns
+    
+    5. PROMPT BUILDING:
+       - Builds evaluation prompt with:
+         * Question
+         * Reference context (retrieved + current affairs)
+         * Training examples (few-shot learning)
+         * Instructions for improved answer + feedback
+    
+    6. GEMINI EVALUATION (Locked):
+       - Sends prompt + student's handwritten answer (PDF/image) to Gemini 2.5 Pro
+       - Gemini performs OCR on handwritten answer
+       - Gemini evaluates against reference context
+       - Returns JSON with improved_answer + detailed feedback
+    
+    7. RESPONSE PARSING:
+       - Parses JSON response
+       - Extracts improved_answer and feedback structure
+       - Handles parsing errors gracefully
+    
+    8. MAP PROCESSING:
+       - Processes any map-json blocks in improved answer
+       - Generates SVG maps via map service
+    
+    9. COMPRESSION:
+       - Optionally compresses improved answer to target word count
+       - Uses Gemini Flash for faster compression
+    
+    10. RESULT SAVING:
+        - Saves complete result to Redis
+        - Includes: improved_answer, compressed_answer, feedback, sources, etc.
+    
+    KEY FEATURES:
+    - User lock prevents concurrent evaluations per user
+    - Cancellation support via Redis flags
+    - File cleanup after processing
+    - Error handling with user-friendly messages
     """
     logger.info(f"📝 [JOB {job_id}] Starting evaluation for user {user_id}")
     redis = ctx["redis"]
@@ -448,15 +506,8 @@ async def evaluate_answer_task(
         # Initialize Gemini Client
         gemini_client = GeminiClient(api_key=gemini_api_key, model_name=settings.GEMINI_MODEL_PRO)
         
-        # Import models
-        from .models.evaluation import EvaluationResponse
-
-        # Import utilities directly
-        from .utils.context_retriever import retrieve_context_for_question
-        from .utils.question_parser import parse_question_for_search
-        from .utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
+        # Import utilities - same as mains answer pipeline
         from .utils.map_proxy import parse_and_generate_maps
-        from .utils.cache_manager import get_cache_manager
         from .utils.answer_compressor import compress_answer
         
         # Import shared prompt
@@ -526,7 +577,8 @@ async def evaluate_answer_task(
         # ============================================================
         # PHASE 2: ALIGNED RETRIEVAL & NEWS PIPELINE
         # ============================================================
-        # We reuse the shared pipeline for consistency with Mains Answer
+        # Uses the SAME shared pipeline as mains answer generation for consistency
+        # This ensures identical retrieval, current affairs fetching, and processing logic
         pipeline_result = await run_enriched_pipeline(
             ctx=ctx,
             job_id=job_id,
@@ -538,6 +590,7 @@ async def evaluate_answer_task(
         sources = pipeline_result["sources"]
         map_service_healthy = pipeline_result["map_service_healthy"]
         current_affairs_bullets = pipeline_result["current_affairs_bullets"]
+        parsed_topics = pipeline_result.get("parsed_topics", {})  # Extract parsed_topics from pipeline
         
         # Merge current affairs into context if present (for evaluation prompt)
         if pipeline_result["current_affairs"]:
@@ -627,34 +680,37 @@ async def evaluate_answer_task(
         improved_answer, feedback = _parse_evaluation_response(response_text)
         
         # ============================================================
-        # STEP 9: Process maps (optional)
+        # STEP 9: Process maps (optional) - Same as mains answer pipeline
         # ============================================================
         logger.info(f"🗺️ [JOB {job_id}] STEP 9: Processing maps...")
-        try:
-            improved_answer = await parse_and_generate_maps(improved_answer)
-        except Exception as e:
-            logger.debug(f"Map processing skipped: {e}")
+        if map_service_healthy:
+            try:
+                improved_answer = await parse_and_generate_maps(improved_answer)
+                logger.info("✅ Map processing completed")
+            except Exception as e:
+                logger.warning(f"Map generation failed: {e}")
+        else:
+            logger.warning("⚠️ Map service unavailable - skipping map generation")
         
         # ============================================================
-        # STEP 10: Compression & Save Result
+        # STEP 10: Compression & Save Result - Same as mains answer pipeline
         # ============================================================
         logger.info(f"🗜️ [JOB {job_id}] STEP 10: Applying compression & saving result...")
         
         # Calculate word count for original improved answer
         word_count_actual = count_words_excluding_visuals(improved_answer)
         
-        # Use Flash for compression
-        flash_client = GeminiClient(api_key=gemini_api_key, model_name=settings.GEMINI_MODEL_FLASH)
-        
+        # Compression - Use same client and threshold as mains answer pipeline
         compressed_answer = None
         word_count_compressed = None
-        
         try:
+            # Use same compression logic as mains answer: gemini_client (Pro) with threshold_ratio=1.5
             compressed = await compress_answer(
                 original_answer=improved_answer,
                 target_word_count=word_count_int,
-                gemini_client=flash_client,
-                threshold_ratio=1.4
+                gemini_client=gemini_client,  # Use Pro client, same as mains answer
+                threshold_ratio=1.4,
+                compression_target_ratio=1.2
             )
             if compressed:
                 compressed_answer = compressed
@@ -784,8 +840,12 @@ def _parse_evaluation_response(response_text: str) -> tuple:
             "strengths": feedback_data.get("strengths", []),
             "missing_elements": feedback_data.get("missing_elements", []),
             "improvements_needed": feedback_data.get("improvements_needed", []),
+            "directive_alignment": feedback_data.get("directive_alignment"),  # New field
             "structure_feedback": feedback_data.get("structure_feedback", ""),
             "evidence_feedback": feedback_data.get("evidence_feedback", ""),
+            "visual_feedback": feedback_data.get("visual_feedback"),  # New field
+            "examiner_expectation_gap": feedback_data.get("examiner_expectation_gap"),  # New field
+            "strategy_tip": feedback_data.get("strategy_tip"),  # New field
             "overall_assessment": feedback_data.get("overall_assessment", "")
         }
         
@@ -797,8 +857,12 @@ def _parse_evaluation_response(response_text: str) -> tuple:
             "strengths": [],
             "missing_elements": [],
             "improvements_needed": [],
+            "directive_alignment": None,
             "structure_feedback": "Unable to parse structured feedback",
             "evidence_feedback": "",
+            "visual_feedback": None,
+            "examiner_expectation_gap": None,
+            "strategy_tip": None,
             "overall_assessment": "Please review the improved answer above."
         }
 

@@ -46,12 +46,23 @@ export interface MainsAnswerResponse {
 
 export type JobStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'failed' | 'queued';
 
+export interface DirectiveAlignment {
+    directive_identified: string;
+    alignment_assessment: string;
+    issues_if_any: string[];
+    how_to_improve: string;
+}
+
 export interface Feedback {
     strengths: string[];
     missing_elements: string[];
     improvements_needed: string[];
+    directive_alignment?: DirectiveAlignment;
     structure_feedback: string;
     evidence_feedback: string;
+    visual_feedback?: string;
+    examiner_expectation_gap?: string;
+    strategy_tip?: string;
     overall_assessment: string;
 }
 

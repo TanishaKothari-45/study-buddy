@@ -13,6 +13,15 @@ interface HistoryItem {
     q_hash?: string;
 }
 
+// Persisted state type (what gets saved to localStorage)
+interface PersistedMainsAnswerState {
+    question: string;
+    wordCount: string;
+    jobId: string | null;
+    jobStatus: JobStatus;
+    result: MainsAnswerResponse | null;
+}
+
 // Persist form inputs, job tracking, and current result (only one at a time - cleared on "New Answer")
 // History is NOT persisted - fetched from Redis/backend via /mains-answer/history
 interface MainsAnswerState {
@@ -140,27 +149,47 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                     // They are in-memory only and fetched from backend when needed
                 }),
                 // Migrate function to handle version transitions
-                migrate: (persistedState: any, version: number) => {
+                migrate: (persistedState: unknown, version: number): PersistedMainsAnswerState => {
+                    // Type guard to ensure we have an object
+                    if (!persistedState || typeof persistedState !== 'object') {
+                        return {
+                            question: '',
+                            wordCount: '250',
+                            jobId: null,
+                            jobStatus: 'idle',
+                            result: null
+                        };
+                    }
+
+                    const state = persistedState as Partial<PersistedMainsAnswerState & {
+                        history?: unknown;
+                        historyHasMore?: unknown;
+                        historySearch?: unknown;
+                        historyTotal?: unknown;
+                        isLoadingHistory?: unknown;
+                    }>;
+
                     if (version < 6) {
                         // Clean migration: explicitly exclude history and other non-persisted fields
                         return {
-                            question: persistedState?.question || '',
-                            wordCount: persistedState?.wordCount || '250',
-                            jobId: persistedState?.jobId || null,
-                            jobStatus: persistedState?.jobStatus || 'idle',
-                            result: persistedState?.result || null
+                            question: state.question || '',
+                            wordCount: state.wordCount || '250',
+                            jobId: state.jobId || null,
+                            jobStatus: state.jobStatus || 'idle',
+                            result: state.result || null
                             // Explicitly exclude: history, historyHasMore, historySearch, historyTotal
                             // These should never be persisted and will be reset to defaults on load
                         };
                     }
+
                     // For version 6+, ensure history is not accidentally persisted
-                    const cleaned = { ...persistedState };
-                    delete cleaned.history;
-                    delete cleaned.historyHasMore;
-                    delete cleaned.historySearch;
-                    delete cleaned.historyTotal;
-                    delete cleaned.isLoadingHistory;
-                    return cleaned;
+                    return {
+                        question: state.question || '',
+                        wordCount: state.wordCount || '250',
+                        jobId: state.jobId || null,
+                        jobStatus: state.jobStatus || 'idle',
+                        result: state.result || null
+                    };
                 },
             }
         ),

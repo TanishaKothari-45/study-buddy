@@ -14,27 +14,7 @@ import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
 import { apiClient, ApiError, api, showToast } from "@/lib/apiClient";
 import { useEvaluateAnswerStore } from "@/stores";
 import { useAuth } from "@/context/AuthContext";
-
-interface Feedback {
-    strengths: string[];
-    missing_elements: string[];
-    improvements_needed: string[];
-    structure_feedback: string;
-    evidence_feedback: string;
-    overall_assessment: string;
-}
-
-interface EvaluationResult {
-    question: string;
-    student_answer: string;
-    improved_answer: string;
-    compressed_answer?: string | null;
-    feedback: Feedback;
-    sources: any[];
-    current_affairs_count: number;
-    word_count_actual: number;
-    word_count_compressed?: number | null;
-}
+import { EvaluationResult } from "@/stores/types";
 
 export default function EvaluatePage() {
     const { user, refreshUser, isApiKeyValid, setIsApiKeyValid, verifyApiKey } = useAuth();
@@ -262,9 +242,9 @@ export default function EvaluatePage() {
                 </p>
             </div>
 
-            <div className="grid gap-8 lg:grid-cols-3">
+            <div className="grid gap-8">
                 {/* Input Section */}
-                <div className="lg:col-span-1 space-y-6">
+                <div className="lg:col-span-2 space-y-6">
                     <Card>
                         <CardHeader>
                             <div className="flex items-center justify-between">
@@ -438,17 +418,38 @@ export default function EvaluatePage() {
                             </Card>
 
                             {/* Feedback Grid */}
-                            <div className="grid gap-4 md:grid-cols-2">
+                            <div className="grid gap-4 md:grid-cols-3">
                                 <Card className="border-l-4 border-l-green-500">
                                     <CardHeader className="pb-2">
                                         <CardTitle className="text-base text-green-700">Strengths</CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700">
-                                            {result.feedback.strengths.map((item, i) => (
-                                                <li key={i}>{item}</li>
-                                            ))}
-                                        </ul>
+                                        {result.feedback.strengths && result.feedback.strengths.length > 0 ? (
+                                            <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700">
+                                                {result.feedback.strengths.map((item, i) => (
+                                                    <li key={i}>{item}</li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-sm text-gray-500 italic">No specific strengths identified</p>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                                <Card className="border-l-4 border-l-orange-500">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-base text-orange-700">Missing Elements</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {result.feedback.missing_elements && result.feedback.missing_elements.length > 0 ? (
+                                            <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700">
+                                                {result.feedback.missing_elements.map((item, i) => (
+                                                    <li key={i}>{item}</li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-sm text-gray-500 italic">All key elements present</p>
+                                        )}
                                     </CardContent>
                                 </Card>
 
@@ -457,14 +458,54 @@ export default function EvaluatePage() {
                                         <CardTitle className="text-base text-amber-700">Improvements Needed</CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700">
-                                            {result.feedback.improvements_needed.map((item, i) => (
-                                                <li key={i}>{item}</li>
-                                            ))}
-                                        </ul>
+                                        {result.feedback.improvements_needed && result.feedback.improvements_needed.length > 0 ? (
+                                            <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700">
+                                                {result.feedback.improvements_needed.map((item, i) => (
+                                                    <li key={i}>{item}</li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-sm text-gray-500 italic">No major improvements needed</p>
+                                        )}
                                     </CardContent>
                                 </Card>
                             </div>
+
+                            {/* Directive Alignment (NEW) */}
+                            {result.feedback.directive_alignment && (
+                                <Card className="border-l-4 border-l-purple-500">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-base text-purple-700">Directive Alignment</CardTitle>
+                                        <CardDescription className="text-xs">
+                                            How well your answer matches the question's directive
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-3 text-sm">
+                                        <div>
+                                            <span className="font-semibold text-gray-900">Directive Identified: </span>
+                                            <span className="text-purple-700 font-medium">{result.feedback.directive_alignment.directive_identified}</span>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-semibold text-gray-900 mb-1">Alignment Assessment</h4>
+                                            <p className="text-gray-700">{result.feedback.directive_alignment.alignment_assessment}</p>
+                                        </div>
+                                        {result.feedback.directive_alignment.issues_if_any && result.feedback.directive_alignment.issues_if_any.length > 0 && (
+                                            <div>
+                                                <h4 className="font-semibold text-amber-700 mb-1">Issues Identified</h4>
+                                                <ul className="list-disc pl-4 space-y-1 text-gray-700">
+                                                    {result.feedback.directive_alignment.issues_if_any.map((issue, i) => (
+                                                        <li key={i}>{issue}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        <div className="bg-purple-50 p-3 rounded-md border border-purple-100">
+                                            <h4 className="font-semibold text-purple-900 mb-1">How to Improve</h4>
+                                            <p className="text-purple-800">{result.feedback.directive_alignment.how_to_improve}</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
 
                             {/* Detailed Feedback */}
                             <Card>
@@ -480,6 +521,27 @@ export default function EvaluatePage() {
                                         <h4 className="font-semibold text-gray-900 mb-1">Evidence & Examples</h4>
                                         <p className="text-gray-600">{result.feedback.evidence_feedback}</p>
                                     </div>
+                                    {result.feedback.visual_feedback && (
+                                        <div>
+                                            <h4 className="font-semibold text-gray-900 mb-1">Visuals (Maps/Diagrams/Tables)</h4>
+                                            <p className="text-gray-600">{result.feedback.visual_feedback}</p>
+                                        </div>
+                                    )}
+                                    {result.feedback.examiner_expectation_gap && (
+                                        <div className="bg-blue-50 p-3 rounded-md border border-blue-100">
+                                            <h4 className="font-semibold text-blue-900 mb-1">Examiner's Perspective</h4>
+                                            <p className="text-blue-800">{result.feedback.examiner_expectation_gap}</p>
+                                        </div>
+                                    )}
+                                    {result.feedback.strategy_tip && (
+                                        <div className="bg-green-50 p-3 rounded-md border border-green-100">
+                                            <h4 className="font-semibold text-green-900 mb-1 flex items-center gap-2">
+                                                <BookOpen className="h-4 w-4" />
+                                                Exam Strategy Tip
+                                            </h4>
+                                            <p className="text-green-800">{result.feedback.strategy_tip}</p>
+                                        </div>
+                                    )}
                                     <div className="bg-gray-50 p-3 rounded-md">
                                         <h4 className="font-semibold text-gray-900 mb-1">Overall Verdict</h4>
                                         <p className="text-gray-600 italic">{result.feedback.overall_assessment}</p>
