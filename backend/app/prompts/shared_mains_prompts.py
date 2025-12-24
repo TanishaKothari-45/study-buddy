@@ -231,6 +231,17 @@ GEO_VISUAL_INTELLIGENCE_RULES = """
     - Select **only those with distinct explanatory roles**.
     - Do NOT include more than two formats in total.
 
+- HARD OVERRIDE (Map Priority):
+  - If MAP_TRIGGER_RULES are satisfied, a Map MUST be included.
+  - The Map cannot be dropped to accommodate a Table or Mermaid.
+  - If visual limits are exceeded, drop Table or Mermaid first, never the Map.
+
+- STRUCTURAL OVERRIDE (Mermaid Preference):
+  - Prefer a Mermaid diagram when understanding depends on relationships, structure, flow, or interaction between factors.
+  - This includes causal chains, feedback loops, multi-factor interactions, or layered systems.
+  - Do NOT force a table when relationships between elements matter more than listing them.
+
+
 - Priority order when all seem useful:
   1. Map (spatial clarity is highest priority)
   2. Table (analytical/comparative clarity)
@@ -250,14 +261,22 @@ GEO_VISUAL_INTELLIGENCE_RULES = """
 """
 
 # Tie-breaker when both visuals seem useful:
+# Tie-breaker when multiple visuals seem useful:
 VISUAL_TIEBREAKER = """
 If multiple formats appear useful, include only those that add distinct explanatory value and keep the total count ≤ 2.
-Prefer:
-- Map for distribution/location-based questions.
-- Table for impact, comparison, or evaluation-heavy questions.
-- Mermaid for process or mechanism-heavy questions.
+
+IMPORTANT:
+- If MAP_TRIGGER_RULES are satisfied, the Map is MANDATORY and cannot be dropped.
+- In such cases, choose between Table and Mermaid based on which adds greater value.
+
+Preference order:
+- Map (when spatial distribution/location is involved)
+- Table (impact, comparison, evaluation-heavy content)
+- Mermaid (process or mechanism-heavy content)
+
 Never include Table + Mermaid + Map together.
 """
+
 
 
 # ============================================================
@@ -487,17 +506,27 @@ IBC_FORMAT_RULES = """
   - BODY content under each sub-heading may be presented EITHER as:
     - **Bullets** (default), OR
     - **Table format** (when comparison, impacts, or two-axis evaluation is required)
-    - For impact, comparison, advantage–disadvantage, or multi-dimensional evaluation questions, prefer TABLE format over bullets.
+  For impact, comparison, advantage–disadvantage, or multi-dimensional evaluation questions:
+    - Use TABLE format ONLY when it clearly improves clarity or reduces repetition compared to bullets.
+    - Do NOT introduce a table if bullets can convey the same information clearly.
+
 
   - **Bullet Rules (when bullets are used)**:
     - Each sub-heading has 2-4 bullets
     - Each bullet MUST start with - (dash) for proper markdown list rendering
     - Each bullet MUST be on a NEW LINE (do not put multiple bullets on same line)
     - Each bullet: **Main idea** (≤ 12 words) + Evidence (named report/index/data where it adds credibility) + Example (named Indian OR named global). Write as natural English sentences, not forced templates.
+    
+  - **Table Usage (Secondary, Not Default)**:
+  - Tables are an optional structuring aid, not a thinking or explanation tool.
+  - Prefer bullets for explanation, assessment, and evaluative answers.
+  - Never use a table when:
+    - Spatial clarity is required (use Map)
+    - Relationships, structure, or causality are central (use Mermaid)
 
   - **Table Rules (when table is used)**:
 
-  - STRONGLY PREFER TABLE format when the sub-heading involves:
+  - CONSIDER TABLE format when the sub-heading involves:
     - Positive vs negative impacts
     - Advantages vs limitations
     - Comparative geography (A vs B)
@@ -512,6 +541,8 @@ IBC_FORMAT_RULES = """
     - The answer requires causal explanation, reasoning, or assessment
     - Evidence and examples need narrative development
     - A process/mechanism diagram (Mermaid) provides better clarity
+    - If bullets can convey the idea clearly without repetition, do NOT introduce a table.
+
 
     - If a TABLE is used for a sub-heading:
       - DO NOT write bullets for that sub-heading
@@ -532,12 +563,26 @@ IBC_FORMAT_RULES = """
     - Points must be listed as phrases, not sentences.
     - Examples are allowed as keywords, not explanations.
 
+EXAMPLE OF INVALID TABLE CELLS:
+- Do NOT generate:
+  - "High vulnerability to shocks (e.g., COVID-19).<br>- Inflation and cost rise."
+  - "Overuse of fertilisers causes soil problems, reducing fertility, and harming microbes."
+  - Any cell containing HTML tags (<br>, <div>, etc.)
+
+EXAMPLE OF VALID TABLE CELLS:
+- High shock vulnerability (COVID-19)
+- Rising cost of living
+- Soil nutrient loss; chemical overuse
+- Pollutant trapping; respiratory risk
+
 
 - HARD CONSTRAINT (MANDATORY):
   - Narrative or paragraph-style sentences are NOT allowed inside table cells.
   - Table cells must be written as compact descriptive phrases or listed points, not explanatory prose.
   - Avoid commas and full stops inside table cells
   - HTML line breaks (e.g., <br>, <br/>) are STRICTLY forbidden.
+  - HTML tags of any form (<...>) are STRICTLY forbidden.
+  HTML tags (anything matching /<.*?>/) are forbidden in cells.
 - If multiple points are needed inside a table cell:
   - Use semicolons (;) or dashes (–) within the same cell, OR
   - Split into additional table rows instead of line breaks.

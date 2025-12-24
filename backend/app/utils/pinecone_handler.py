@@ -865,7 +865,7 @@ class PineconeHandler:
                        filter_metadata: Optional[Dict[str, Any]] = None,
                        use_content_store: bool = True,
                        re_rank: bool = False,
-                       fetch_k: int = 20) -> List[Dict[str, Any]]:
+                       fetch_k: int = 30) -> List[Dict[str, Any]]:
         """
         Query for most relevant documents
         
@@ -877,6 +877,7 @@ class PineconeHandler:
             re_rank: If True, fetch 'fetch_k' docs and re-rank to 'k'
             fetch_k: Candidates to fetch if re_ranking (default 20)
         """
+        logger.info(f"[ENTRY] query_documents called with: k={k}, fetch_k={fetch_k}, re_rank={re_rank}, query_text='{query_text[:60]}', use_content_store={use_content_store}, filter_metadata={filter_metadata}")
         try:
             vectorstore = self._get_vectorstore()
             
