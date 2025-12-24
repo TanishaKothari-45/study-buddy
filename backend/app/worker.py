@@ -434,62 +434,43 @@ async def evaluate_answer_task(
     gemini_api_key: str
 ):
     """
-    Evaluate student answer using Gemini 2.5 Pro.
+    Evaluate student answer using Gemini 2.5 Pro (FEEDBACK ONLY - No Retrieval).
     
-    EVALUATION FLOW (10 Steps):
-    ===========================
+    EVALUATION FLOW (Simplified):
+    =============================
     
-    1. OCR (Question Extraction):
+    1. OCR (Question Extraction + Word Count Detection):
        - If question not provided, use Gemini to extract question from uploaded files
+       - Extract word count from question (10 marks -> 150 words, 15 marks -> 250 words)
        - Uses Gemini Pro with OCR capabilities (PDF/image reading)
        - Locked briefly to prevent concurrent API calls
     
-    2. RETRIEVAL PIPELINE (Parallel):
-       - Retrieves relevant context from vector store (Pinecone/ChromaDB)
-       - Parses question to extract search keywords
-       - Fetches current affairs/news related to question
-       - Applies smart truncation to fit token budget
-       - Returns: context, sources, parsed_topics, current_affairs
-    
-    3. CONTEXT ENHANCEMENT:
-       - Merges retrieved context with current affairs
-       - Prepares reference material for evaluation
-    
-    4. TRAINING EXAMPLES:
+    2. TRAINING EXAMPLES:
        - Loads few-shot examples from training_examples.json
        - Provides examples of good feedback patterns
     
-    5. PROMPT BUILDING:
+    3. PROMPT BUILDING:
        - Builds evaluation prompt with:
          * Question
-         * Reference context (retrieved + current affairs)
          * Training examples (few-shot learning)
-         * Instructions for improved answer + feedback
+         * Instructions for feedback ONLY (no improved answer)
     
-    6. GEMINI EVALUATION (Locked):
+    4. GEMINI EVALUATION (Locked):
        - Sends prompt + student's handwritten answer (PDF/image) to Gemini 2.5 Pro
        - Gemini performs OCR on handwritten answer
-       - Gemini evaluates against reference context
-       - Returns JSON with improved_answer + detailed feedback
+       - Gemini evaluates and returns JSON with detailed feedback ONLY
     
-    7. RESPONSE PARSING:
+    5. RESPONSE PARSING:
        - Parses JSON response
-       - Extracts improved_answer and feedback structure
+       - Extracts feedback structure only
        - Handles parsing errors gracefully
     
-    8. MAP PROCESSING:
-       - Processes any map-json blocks in improved answer
-       - Generates SVG maps via map service
-    
-    9. COMPRESSION:
-       - Optionally compresses improved answer to target word count
-       - Uses Gemini Flash for faster compression
-    
-    10. RESULT SAVING:
-        - Saves complete result to Redis
-        - Includes: improved_answer, compressed_answer, feedback, sources, etc.
+    6. RESULT SAVING:
+       - Saves feedback result to Redis
+       - Includes: question, student_answer, feedback, word_count
     
     KEY FEATURES:
+    - Pure prompt-based evaluation (no retrieval to save tokens)
     - User lock prevents concurrent evaluations per user
     - Cancellation support via Redis flags
     - File cleanup after processing
@@ -506,50 +487,37 @@ async def evaluate_answer_task(
         # Initialize Gemini Client
         gemini_client = GeminiClient(api_key=gemini_api_key, model_name=settings.GEMINI_MODEL_PRO)
         
-        # Import utilities - same as mains answer pipeline
-        from .utils.map_proxy import parse_and_generate_maps
-        from .utils.answer_compressor import compress_answer
-        
         # Import shared prompt
         try:
              from .prompts.shared_mains_prompts import get_evaluation_system_prompt
              system_prompt = get_evaluation_system_prompt()
         except ImportError:
              logger.warning("⚠️ Using fallback generic system prompt")
-             system_prompt = "You are an expert evaluator. Improve the answer using the context provided."
+             system_prompt = "You are an expert evaluator. Provide detailed feedback on the student's answer."
 
         # File type check
         all_is_pdf = all(f.lower().endswith('.pdf') for f in file_paths)
         all_is_image = all(f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')) for f in file_paths)
 
         # ============================================================
-        # STEP 1: Extract question from files if not provided (OCR)
+        # STEP 1: Extract question from files if not provided (OCR + Word Count)
         # ============================================================
-        # Retrieve logic - running Phase 1 (No User Lock needed for this Gemini call? 
-        # Actually this Gemini call uses user key, so technically it SHOULD be locked if strict.
-        # But retrieval is heavy. Let's do OCR first. OCR is Gemini Flash usually or can use Pro.
-        # For safety/simplicity, we can lock. BUT if we lock here, we block retrieval.
-        # Decision: OCR using Gemini Flash or Pro fast. Let's run it without lock OR assume partial concurrency allowed.
-        # User requested PRE-LOCK retrieval. So OCR must happen before retrieval.
-        # If we use user key, we face rate limit. 
-        # To strictly follow "retrieve before lock", we need identifying query first.
-        # Compromise: We lock for OCR briefly, then unlock for retrieval, then lock for generation.
-        # OR: We just run OCR. Rate limits will handle it (Arq retries).
-        
         identified_question = question
+        word_count_int = 250  # Default
         
         if not identified_question:
             logger.info(f"📝 [JOB {job_id}] STEP 1: Extracting question from files...")
             try:
-                question_prompt = "Read the handwritten answer and identify the QUESTION. Return ONLY the question text."
+                question_prompt = """Read the handwritten answer and identify:
+1. The QUESTION text
+2. The marks/word count (e.g., "10 marks" or "15 marks" or "150 words" or "250 words")
+
+Return in format:
+QUESTION: [question text]
+MARKS: [10 or 15 or detected word count]
+If marks are 10, word count is 150. If marks are 15, word count is 250."""
                 
-                # ACQUIRE LOCK (Briefly for OCR)
-                # We reuse the client but need to ensure we don't block heavily.
-                # Since we already initialized client, we can use it.
-                # However, OCR is a generation call.
                 lock_key = f"lock:user:{user_id}"
-                
-                # Acquiring lock for OCR (60s timeout to handle overlaps)
                 lock = RedisLock(redis, lock_key, timeout=60)
                 if await lock.acquire(blocking=True, blocking_timeout=60):
                     try:
@@ -558,43 +526,53 @@ async def evaluate_answer_task(
                         else:
                             question_response = await gemini_client.generate_response(question_prompt, image_path=file_paths[0], temperature=0.0)
                         
-                        identified_question = question_response.strip()
+                        # Parse response to extract question and word count
+                        response_text = question_response.strip()
+                        lines = response_text.split('\n')
+                        for line in lines:
+                            if line.startswith('QUESTION:'):
+                                identified_question = line.replace('QUESTION:', '').strip()
+                            elif line.startswith('MARKS:'):
+                                marks_text = line.replace('MARKS:', '').strip()
+                                # Extract number
+                                import re
+                                marks_match = re.search(r'\d+', marks_text)
+                                if marks_match:
+                                    marks = int(marks_match.group())
+                                    if marks == 10:
+                                        word_count_int = 150
+                                    elif marks == 15:
+                                        word_count_int = 250
+                                    else:
+                                        # Check if it's already a word count
+                                        if '150' in marks_text or marks == 150:
+                                            word_count_int = 150
+                                        elif '250' in marks_text or marks == 250:
+                                            word_count_int = 250
+                        
+                        if not identified_question:
+                            identified_question = response_text.split('\n')[0].replace('QUESTION:', '').strip()
+                        
                         logger.info(f"✅ [JOB {job_id}] Identified question: {identified_question[:100]}...")
+                        logger.info(f"✅ [JOB {job_id}] Detected word count: {word_count_int}")
                     finally:
                         await lock.release()
                 else:
-                    # Non-negotiable step: if we can't get the question, we can't proceed.
-                    # Raise error to allow worker to retry the job.
                     raise Exception("Could not acquire user lock for OCR after 60s")
             except Exception as e:
                 logger.warning(f"⚠️ [JOB {job_id}] Failed to identify question: {e}")
-                identified_question = "Question not identified"
+                identified_question = question or "Question not identified"
         else:
             logger.info(f"📝 [JOB {job_id}] STEP 1: Using provided question")
-        
-        await check_cancellation(ctx, job_id)
-        
-        # ============================================================
-        # PHASE 2: ALIGNED RETRIEVAL & NEWS PIPELINE
-        # ============================================================
-        # Uses the SAME shared pipeline as mains answer generation for consistency
-        # This ensures identical retrieval, current affairs fetching, and processing logic
-        pipeline_result = await run_enriched_pipeline(
-            ctx=ctx,
-            job_id=job_id,
-            query=identified_question,
-            gemini_api_key=gemini_api_key
-        )
-        
-        context = pipeline_result["context"]
-        sources = pipeline_result["sources"]
-        map_service_healthy = pipeline_result["map_service_healthy"]
-        current_affairs_bullets = pipeline_result["current_affairs_bullets"]
-        parsed_topics = pipeline_result.get("parsed_topics", {})  # Extract parsed_topics from pipeline
-        
-        # Merge current affairs into context if present (for evaluation prompt)
-        if pipeline_result["current_affairs"]:
-            context = context + "\n\n**RECENT NEWS/CURRENT AFFAIRS**:\n" + pipeline_result["current_affairs"]
+            # Try to extract word count from question text
+            import re
+            marks_match = re.search(r'(\d+)\s*marks?', identified_question, re.IGNORECASE)
+            if marks_match:
+                marks = int(marks_match.group(1))
+                if marks == 10:
+                    word_count_int = 150
+                elif marks == 15:
+                    word_count_int = 250
         
         await check_cancellation(ctx, job_id)
         
@@ -614,21 +592,19 @@ async def evaluate_answer_task(
             logger.debug(f"No training examples loaded: {e}")
 
         # ============================================================
-        # STEP 6: Build enhanced prompt
+        # STEP 2: Build evaluation prompt (feedback only, no context)
         # ============================================================
-        logger.info(f"📝 [JOB {job_id}] STEP 6: Building enhanced prompt...")
-        word_count_int = 350
+        logger.info(f"📝 [JOB {job_id}] STEP 2: Building evaluation prompt...")
         user_prompt = _build_evaluation_prompt(
             identified_question=identified_question,
-            context=context,
             training_examples=training_examples,
             word_count=word_count_int
         )
         
         # ============================================================
-        # STEP 7: Call Gemini WITH USER LOCK
+        # STEP 3: Call Gemini WITH USER LOCK
         # ============================================================
-        logger.info(f"🤖 [JOB {job_id}] STEP 7: Calling Gemini with user lock...")
+        logger.info(f"🤖 [JOB {job_id}] STEP 3: Calling Gemini with user lock...")
         
         async with redis.lock(f"lock:user:{user_id}", timeout=120, blocking_timeout=70):
             logger.info(f"🔐 [JOB {job_id}] Lock acquired, calling Gemini...")
@@ -671,65 +647,23 @@ async def evaluate_answer_task(
                     )
             
             logger.info(f"✅ [JOB {job_id}] Received response: {len(response_text)} chars")
-            logger.info(f"✅ [JOB {job_id}] Received response: {len(response_text)} chars")
         
         # ============================================================
-        # STEP 8: Parse response
+        # STEP 4: Parse response (feedback only)
         # ============================================================
-        logger.info(f"🔍 [JOB {job_id}] STEP 8: Parsing response...")
-        improved_answer, feedback = _parse_evaluation_response(response_text)
+        logger.info(f"🔍 [JOB {job_id}] STEP 4: Parsing response...")
+        feedback = _parse_evaluation_response(response_text)
         
         # ============================================================
-        # STEP 9: Process maps (optional) - Same as mains answer pipeline
+        # STEP 5: Save Result (feedback only)
         # ============================================================
-        logger.info(f"🗺️ [JOB {job_id}] STEP 9: Processing maps...")
-        if map_service_healthy:
-            try:
-                improved_answer = await parse_and_generate_maps(improved_answer)
-                logger.info("✅ Map processing completed")
-            except Exception as e:
-                logger.warning(f"Map generation failed: {e}")
-        else:
-            logger.warning("⚠️ Map service unavailable - skipping map generation")
+        logger.info(f"💾 [JOB {job_id}] STEP 5: Saving result...")
         
-        # ============================================================
-        # STEP 10: Compression & Save Result - Same as mains answer pipeline
-        # ============================================================
-        logger.info(f"🗜️ [JOB {job_id}] STEP 10: Applying compression & saving result...")
-        
-        # Calculate word count for original improved answer
-        word_count_actual = count_words_excluding_visuals(improved_answer)
-        
-        # Compression - Use same client and threshold as mains answer pipeline
-        compressed_answer = None
-        word_count_compressed = None
-        try:
-            # Use same compression logic as mains answer: gemini_client (Pro) with threshold_ratio=1.5
-            compressed = await compress_answer(
-                original_answer=improved_answer,
-                target_word_count=word_count_int,
-                gemini_client=gemini_client,  # Use Pro client, same as mains answer
-                threshold_ratio=1.4,
-                compression_target_ratio=1.2
-            )
-            if compressed:
-                compressed_answer = compressed
-                word_count_compressed = count_words_excluding_visuals(compressed)
-                logger.info(f"✅ [JOB {job_id}] Compression successful: {word_count_actual} -> {word_count_compressed} words")
-        except Exception as e:
-            logger.warning(f"⚠️ [JOB {job_id}] Compression failed: {e}")
-
         result = {
             "question": identified_question,
             "student_answer": "Answer extracted by Gemini",
-            "improved_answer": improved_answer,
-            "compressed_answer": compressed_answer,
             "feedback": feedback,
-            "sources": sources,
-            "parsed_topics": parsed_topics,
-            "current_affairs_count": len(current_affairs_bullets),
-            "word_count_actual": word_count_actual,
-            "word_count_compressed": word_count_compressed,
+            "word_count": word_count_int,
             "success": True
         }
         
@@ -761,25 +695,12 @@ async def evaluate_answer_task(
 
 def _build_evaluation_prompt(
     identified_question: str,
-    context: str,
     training_examples: List[dict],
     word_count: int
 ) -> str:
-    """Build the evaluation user prompt"""
+    """Build the evaluation user prompt (feedback only, no context)"""
     parts = [f"**QUESTION**: {identified_question}\n\n"]
-    
-    if context:
-        # Truncate context if too long
-        max_context_chars = 8000
-        if len(context) > max_context_chars:
-            context = context[:max_context_chars] + "\n\n[CONTEXT TRUNCATED]"
-        
-        parts.append(f"""**REFERENCE CONTEXT** (use to substantiate points):
----
-{context}
----
-
-""")
+    parts.append(f"**EXPECTED WORD COUNT**: {word_count} words (based on question marks/requirements)\n\n")
     
     # Add few-shot examples
     if training_examples:
@@ -792,33 +713,27 @@ def _build_evaluation_prompt(
             parts.append(f"Ideal Feedback Given:\n{example.get('ideal_feedback', 'N/A')}\n")
             parts.append("\n---\n")
     
-    parts.append(f"""\n**TASK**: Read the student's handwritten answer from the uploaded file and provide:
-1. An improved version in strict IBC format
-2. Detailed feedback comparing the student's answer to the ideal answer
-
-**Requirements for Improved Answer**:
-1. Preserve the student's voice and original points
-2. Use the REFERENCE CONTEXT above to add facts, data, and examples
-3. Follow strict IBC format (Introduction-Body-Conclusion)
-4. Target word count: approximately {word_count} words
-5. Include at least one inline diagram suggestion
-6. Every bullet must have: evidence (report/data) + example (India/World)
+    parts.append(f"""\n**TASK**: Read the student's handwritten answer from the uploaded file and provide detailed feedback.
 
 **Requirements for Feedback**:
 1. Identify specific strengths in the student's answer
-2. Point out missing elements (facts, examples, structure)
+2. Point out missing elements (facts, examples, structure, visuals)
 3. Provide actionable improvement suggestions
 4. Comment on IBC format adherence and evidence usage
-5. Give an overall encouraging assessment
-{f'6. Learn from the {len(training_examples)} few-shot examples above to provide similar quality feedback' if training_examples else ''}
+5. Assess directive alignment (if directive word is present in question)
+6. Comment on whether visuals (maps/diagrams/tables) were needed but missing
+7. Give an overall encouraging assessment
+{f'8. Learn from the {len(training_examples)} few-shot examples above to provide similar quality feedback' if training_examples else ''}
+
+**Note**: This is FEEDBACK ONLY. Do NOT generate an improved answer. Focus solely on evaluating the student's work.
 
 Return ONLY a valid JSON object as specified in the system prompt. No markdown code blocks, no commentary.""")
     
     return "".join(parts)
 
 
-def _parse_evaluation_response(response_text: str) -> tuple:
-    """Parse Gemini's evaluation response"""
+def _parse_evaluation_response(response_text: str) -> dict:
+    """Parse Gemini's evaluation response (feedback only)"""
     try:
         # Clean response
         cleaned = response_text.strip()
@@ -833,62 +748,380 @@ def _parse_evaluation_response(response_text: str) -> tuple:
         # Parse JSON
         response_data = json.loads(cleaned)
         
-        improved_answer = response_data.get("improved_answer", response_text)
-        feedback_data = response_data.get("feedback", {})
+        # Extract feedback (may be nested under "feedback" key or at root)
+        feedback_data = response_data.get("feedback", response_data)
         
         feedback = {
+            "examiner_expectation_blueprint": feedback_data.get("examiner_expectation_blueprint", {
+                "key_demands_of_the_question": [],
+                "ideal_logical_structure": {
+                    "introduction": "",
+                    "body": "",
+                    "conclusion": ""
+                },
+                "non_negotiables": []
+            }),
             "strengths": feedback_data.get("strengths", []),
             "missing_elements": feedback_data.get("missing_elements", []),
             "improvements_needed": feedback_data.get("improvements_needed", []),
-            "directive_alignment": feedback_data.get("directive_alignment"),  # New field
-            "structure_feedback": feedback_data.get("structure_feedback", ""),
+            "section_wise_assessment": feedback_data.get("section_wise_assessment", {
+                "introduction": "",
+                "body": "",
+                "conclusion": ""
+            }),
+            "directive_alignment": feedback_data.get("directive_alignment"),
             "evidence_feedback": feedback_data.get("evidence_feedback", ""),
-            "visual_feedback": feedback_data.get("visual_feedback"),  # New field
-            "examiner_expectation_gap": feedback_data.get("examiner_expectation_gap"),  # New field
-            "strategy_tip": feedback_data.get("strategy_tip"),  # New field
+            "visual_feedback": feedback_data.get("visual_feedback"),
+            "examiner_expectation_gap": feedback_data.get("examiner_expectation_gap"),
+            "strategy_tip": feedback_data.get("strategy_tip"),
             "overall_assessment": feedback_data.get("overall_assessment", "")
         }
         
-        return improved_answer, feedback
+        return feedback
         
-    except json.JSONDecodeError:
-        # Fallback: treat entire response as improved answer
-        return response_text, {
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse evaluation response as JSON: {e}")
+        # Fallback: return minimal feedback structure
+        return {
+            "examiner_expectation_blueprint": {
+                "key_demands_of_the_question": [],
+                "ideal_logical_structure": {
+                    "introduction": "",
+                    "body": "",
+                    "conclusion": ""
+                },
+                "non_negotiables": []
+            },
             "strengths": [],
             "missing_elements": [],
             "improvements_needed": [],
+            "section_wise_assessment": {
+                "introduction": "",
+                "body": "",
+                "conclusion": ""
+            },
             "directive_alignment": None,
-            "structure_feedback": "Unable to parse structured feedback",
-            "evidence_feedback": "",
+            "evidence_feedback": "Unable to parse structured feedback from response",
             "visual_feedback": None,
             "examiner_expectation_gap": None,
             "strategy_tip": None,
-            "overall_assessment": "Please review the improved answer above."
+            "overall_assessment": "Evaluation completed but response format was unexpected."
         }
 
 
-def _get_fallback_evaluation_prompt() -> str:
-    """Fallback evaluation system prompt"""
-    return """You are an expert UPSC Geography evaluator.
+# ============================================================
+# TASK 2B: GENERATE IMPROVED ANSWER (Separate from Evaluation)
+# ============================================================
 
-Your task is to read a student's handwritten answer and provide:
-1. An improved version using the provided reference context
-2. Detailed feedback comparing the student's answer to the ideal
+@trace_chain("improved_answer_generation_pipeline")
+async def generate_improved_answer_task(
+    ctx,
+    job_id: str,
+    question: str,
+    student_answer: Optional[str],  # Text or None if using file_paths
+    file_paths: Optional[List[str]],  # File paths if student answer is in files
+    feedback: dict,  # Feedback JSON from evaluation
+    user_id: str,
+    gemini_api_key: str,
+    word_count: int = 250
+):
+    """
+    Generate improved answer based on evaluation feedback.
+    
+    FLOW:
+    1. Run retrieval pipeline (context + current affairs)
+    2. Build prompt with question, student answer, feedback, context
+    3. Call Gemini with get_improved_answer_system_prompt()
+    4. Process maps if present
+    5. Optional compression
+    6. Return improved answer in markdown
+    """
+    logger.info(f"✍️ [JOB {job_id}] Starting improved answer generation for user {user_id}")
+    redis = ctx["redis"]
+    status_key = f"job_status:{job_id}"
+    await redis.set(status_key, "processing")
+    
+    try:
+        await check_cancellation(ctx, job_id)
+        
+        # Initialize Gemini Client
+        gemini_client = GeminiClient(api_key=gemini_api_key, model_name=settings.GEMINI_MODEL_PRO)
+        
+        # Import utilities
+        from .utils.map_proxy import parse_and_generate_maps, check_map_service_health
+        from .utils.answer_compressor import compress_answer
+        
+        # Import shared prompt
+        try:
+            from .prompts.shared_mains_prompts import get_improved_answer_system_prompt
+            system_prompt = get_improved_answer_system_prompt()
+        except ImportError:
+            logger.warning("⚠️ Using fallback generic system prompt")
+            system_prompt = "You are an expert UPSC answer writer. Generate an improved answer based on the feedback provided."
+        
+        # File type check
+        all_is_pdf = False
+        all_is_image = False
+        if file_paths:
+            all_is_pdf = all(f.lower().endswith('.pdf') for f in file_paths)
+            all_is_image = all(f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')) for f in file_paths)
+        
+        # Extract student answer text if using files
+        student_answer_text = student_answer
+        if not student_answer_text and file_paths:
+            logger.info(f"📝 [JOB {job_id}] Extracting student answer from files...")
+            try:
+                extract_prompt = "Read the handwritten answer and extract the complete answer text. Return ONLY the answer text."
+                lock_key = f"lock:user:{user_id}"
+                lock = RedisLock(redis, lock_key, timeout=60)
+                if await lock.acquire(blocking=True, blocking_timeout=60):
+                    try:
+                        if all_is_pdf:
+                            student_answer_text = await gemini_client.generate_response(extract_prompt, pdf_path=file_paths[0], temperature=0.0)
+                        elif all_is_image:
+                            student_answer_text = await gemini_client.generate_response(extract_prompt, image_path=file_paths[0], temperature=0.0)
+                        else:
+                            student_answer_text = "Answer extracted from file"
+                        logger.info(f"✅ [JOB {job_id}] Extracted student answer: {len(student_answer_text)} chars")
+                    finally:
+                        await lock.release()
+            except Exception as e:
+                logger.warning(f"⚠️ [JOB {job_id}] Failed to extract student answer: {e}")
+                student_answer_text = "Student answer from uploaded file"
+        
+        await check_cancellation(ctx, job_id)
+        
+        # ============================================================
+        # STEP 1: Run retrieval pipeline
+        # ============================================================
+        logger.info(f"📚 [JOB {job_id}] STEP 1: Running retrieval pipeline...")
+        pipeline_result = await run_enriched_pipeline(
+            ctx=ctx,
+            job_id=job_id,
+            query=question,
+            gemini_api_key=gemini_api_key
+        )
+        
+        context = pipeline_result["context"]
+        sources = pipeline_result["sources"]
+        map_service_healthy = pipeline_result["map_service_healthy"]
+        current_affairs_section = pipeline_result["current_affairs"]
+        
+        # Merge current affairs into context
+        if current_affairs_section:
+            context = context + "\n\n**RECENT NEWS/CURRENT AFFAIRS**:\n" + current_affairs_section
+        
+        await check_cancellation(ctx, job_id)
+        
+        # ============================================================
+        # STEP 2: Build prompt for improved answer
+        # ============================================================
+        logger.info(f"📝 [JOB {job_id}] STEP 2: Building improved answer prompt...")
+        user_prompt = _build_improved_answer_prompt(
+            question=question,
+            student_answer=student_answer_text or "Student answer from uploaded file",
+            feedback=feedback,
+            context=context,
+            word_count=word_count
+        )
+        
+        # ============================================================
+        # STEP 3: Call Gemini WITH USER LOCK
+        # ============================================================
+        logger.info(f"🤖 [JOB {job_id}] STEP 3: Calling Gemini with user lock...")
+        
+        async with redis.lock(f"lock:user:{user_id}", timeout=120, blocking_timeout=70):
+            logger.info(f"🔐 [JOB {job_id}] Lock acquired, calling Gemini...")
+            await check_cancellation(ctx, job_id)
+            
+            # Call Gemini (with files if provided, otherwise text-only)
+            if file_paths and (all_is_pdf or all_is_image):
+                if all_is_pdf:
+                    response_text = await gemini_client.generate_response(
+                        user_prompt=user_prompt,
+                        system_prompt=system_prompt,
+                        pdf_path=file_paths,
+                        temperature=0.15,
+                        max_retries=3
+                    )
+                else:
+                    response_text = await gemini_client.generate_response(
+                        user_prompt=user_prompt,
+                        system_prompt=system_prompt,
+                        image_path=file_paths,
+                        temperature=0.15,
+                        max_retries=3
+                    )
+            else:
+                # Text-only generation
+                response_text = await gemini_client.generate_response(
+                    user_prompt=user_prompt,
+                    system_prompt=system_prompt,
+                    temperature=0.15,
+                    max_retries=3
+                )
+            
+            logger.info(f"✅ [JOB {job_id}] Received response: {len(response_text)} chars")
+        
+        improved_answer = response_text.strip()
+        word_count_actual = count_words_excluding_visuals(improved_answer)
+        
+        # ============================================================
+        # STEP 4: Process maps
+        # ============================================================
+        logger.info(f"🗺️ [JOB {job_id}] STEP 4: Processing maps...")
+        if map_service_healthy:
+            try:
+                improved_answer = await parse_and_generate_maps(improved_answer)
+                logger.info("✅ Map processing completed")
+            except Exception as e:
+                logger.warning(f"Map generation failed: {e}")
+        else:
+            logger.warning("⚠️ Map service unavailable - skipping map generation")
+        
+        # ============================================================
+        # STEP 5: Compression
+        # ============================================================
+        logger.info(f"🗜️ [JOB {job_id}] STEP 5: Applying compression...")
+        compressed_answer = None
+        word_count_compressed = None
+        try:
+            compressed = await compress_answer(
+                original_answer=improved_answer,
+                target_word_count=word_count,
+                gemini_client=gemini_client,
+                threshold_ratio=1.4,
+                compression_target_ratio=1.2
+            )
+            if compressed:
+                compressed_answer = compressed
+                word_count_compressed = count_words_excluding_visuals(compressed)
+                logger.info(f"✅ [JOB {job_id}] Compression successful: {word_count_actual} -> {word_count_compressed} words")
+        except Exception as e:
+            logger.warning(f"⚠️ [JOB {job_id}] Compression failed: {e}")
+        
+        # ============================================================
+        # STEP 6: Save Result
+        # ============================================================
+        logger.info(f"💾 [JOB {job_id}] STEP 6: Saving result...")
+        
+        result = {
+            "improved_answer": improved_answer,
+            "compressed_answer": compressed_answer,
+            "sources": sources,
+            "word_count_actual": word_count_actual,
+            "word_count_compressed": word_count_compressed,
+            "success": True
+        }
+        
+        await set_job_result(redis, job_id, result)
+        logger.info(f"✅ [JOB {job_id}] Improved answer generation complete")
+        
+    except asyncio.CancelledError:
+        await set_job_error(redis, job_id, "Cancelled by user")
+    except Exception as e:
+        logger.error(f"❌ [JOB {job_id}] Failed: {e}", exc_info=True)
+        await set_job_error(redis, job_id, clean_gemini_error(str(e)))
+    finally:
+        # Cleanup files if provided
+        if file_paths:
+            for path in file_paths:
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except:
+                    pass
+            # Cleanup directory
+            try:
+                os.rmdir(Path(file_paths[0]).parent)
+            except:
+                pass
+        
+        await redis.delete(f"cancel:{job_id}")
 
-Return a JSON object with:
-{
-  "improved_answer": "The improved answer in markdown format...",
-  "feedback": {
-    "strengths": ["List specific strengths"],
-    "missing_elements": ["Key points missing"],
-    "improvements_needed": ["Actionable suggestions"],
-    "structure_feedback": "Comment on structure",
-    "evidence_feedback": "Comment on evidence usage",
-    "overall_assessment": "Brief overall assessment"
-  }
-}
 
-CRITICAL: Return ONLY valid JSON."""
+def _build_improved_answer_prompt(
+    question: str,
+    student_answer: str,
+    feedback: dict,
+    context: str,
+    word_count: int
+) -> str:
+    """Build the improved answer generation prompt"""
+    parts = [f"**QUESTION**: {question}\n\n"]
+    
+    parts.append(f"**STUDENT'S ORIGINAL ANSWER**:\n{student_answer}\n\n")
+    
+    # Format feedback - Only include: Examiner Expectation Blueprint, Missing Elements, Improvements Needed
+    feedback_parts = []
+    
+    # 1. Examiner Expectation Blueprint
+    if feedback.get("examiner_expectation_blueprint"):
+        blueprint = feedback["examiner_expectation_blueprint"]
+        blueprint_sections = []
+        
+        if blueprint.get("key_demands_of_the_question") and len(blueprint["key_demands_of_the_question"]) > 0:
+            blueprint_sections.append(f"**Key Demands**: {', '.join(blueprint['key_demands_of_the_question'])}")
+        
+        if blueprint.get("ideal_logical_structure"):
+            ideal = blueprint["ideal_logical_structure"]
+            structure_parts = []
+            if ideal.get("introduction"):
+                structure_parts.append(f"Intro: {ideal['introduction']}")
+            if ideal.get("body"):
+                structure_parts.append(f"Body: {ideal['body']}")
+            if ideal.get("conclusion"):
+                structure_parts.append(f"Conclusion: {ideal['conclusion']}")
+            if structure_parts:
+                blueprint_sections.append(f"**Ideal Logical Structure**: {' | '.join(structure_parts)}")
+        
+        if blueprint.get("non_negotiables") and len(blueprint["non_negotiables"]) > 0:
+            blueprint_sections.append(f"**Non-Negotiables**: {', '.join(blueprint['non_negotiables'])}")
+        
+        if blueprint_sections:
+            feedback_parts.append("**EXAMINER EXPECTATION BLUEPRINT**:\n" + "\n".join(blueprint_sections))
+    
+    # 2. Missing Elements
+    if feedback.get("missing_elements") and len(feedback["missing_elements"]) > 0:
+        feedback_parts.append(f"\n**MISSING ELEMENTS**:\n" + "\n".join([f"- {item}" for item in feedback["missing_elements"]]))
+    
+    # 3. Improvements Needed
+    if feedback.get("improvements_needed") and len(feedback["improvements_needed"]) > 0:
+        feedback_parts.append(f"\n**IMPROVEMENTS NEEDED**:\n" + "\n".join([f"- {item}" for item in feedback["improvements_needed"]]))
+    
+    if feedback_parts:
+        parts.append("**EVALUATION FEEDBACK**:\n")
+        parts.append("\n".join(feedback_parts))
+        parts.append("\n\n")
+    
+    # Add context
+    if context:
+        max_context_chars = 8000
+        if len(context) > max_context_chars:
+            context = context[:max_context_chars] + "\n\n[CONTEXT TRUNCATED]"
+        
+        parts.append(f"""**REFERENCE CONTEXT** (use to add facts, data, examples):
+---
+{context}
+---
+
+""")
+    
+    parts.append(f"""**TASK**: Generate an improved version of the student's answer based on the feedback above.
+
+**Requirements**:
+1. Preserve the student's voice and original points where possible
+2. Address ALL feedback points (missing elements, improvements needed, structure issues)
+3. Use REFERENCE CONTEXT to add facts, data, reports, and examples
+4. Follow strict IBC format (Introduction-Body-Conclusion)
+5. Target word count: approximately {word_count} words
+6. Include visuals (maps/diagrams/tables) if feedback indicated they were missing
+7. Every bullet must have: evidence (report/data) + example (India/World)
+8. Ensure directive alignment if directive word was identified in feedback
+
+Return ONLY the improved answer in markdown format. No JSON, no explanation, just the answer.""")
+    
+    return "".join(parts)
 
 
 # ============================================================
@@ -1143,7 +1376,7 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
 
 class WorkerSettings:
     """ARQ Worker configuration"""
-    functions = [generate_mock_test_task, evaluate_answer_task, generate_mains_answer_task]
+    functions = [generate_mock_test_task, evaluate_answer_task, generate_improved_answer_task, generate_mains_answer_task]
     redis_settings = REDIS_SETTINGS
     on_startup = startup
     on_shutdown = shutdown

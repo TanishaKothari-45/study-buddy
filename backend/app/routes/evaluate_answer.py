@@ -176,3 +176,99 @@ async def cancel_evaluation(job_id: str):
         return {"message": "Cancellation requested"}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+@router.post("/generate-improved")
+async def generate_improved_answer_endpoint(
+    request: Request,
+    question: str = Form(...),
+    feedback: str = Form(...),  # JSON string
+    student_answer: Optional[str] = Form(default=None),
+    word_count: Optional[int] = Form(default=250),
+    files: Optional[List[UploadFile]] = File(default=None),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Enqueue improved answer generation task.
+    Takes question, feedback (from evaluation), and optionally student answer files/text.
+    """
+    try:
+        # 1. Get Gemini Key
+        try:
+            gemini_api_key = get_gemini_api_key_for_request(current_user)
+            if not gemini_api_key:
+                gemini_api_key = GEMINI_API_KEY_SYSTEM
+        except Exception:
+            gemini_api_key = GEMINI_API_KEY_SYSTEM
+
+        if not gemini_api_key:
+             raise HTTPException(400, "No Gemini API key available.")
+        
+        # 2. Parse feedback JSON
+        try:
+            feedback_dict = json.loads(feedback)
+        except json.JSONDecodeError:
+            raise HTTPException(400, "Invalid feedback JSON format")
+        
+        # 3. Preparation
+        job_id = str(uuid4())
+        saved_file_paths = None
+        
+        # 4. Save Files if provided
+        if files and len(files) > 0:
+            job_dir = settings.BASE_DIR / "data" / "temp" / job_id
+            job_dir.mkdir(parents=True, exist_ok=True)
+            saved_file_paths = []
+            
+            for file in files:
+                file_ext = Path(file.filename).suffix.lower() if file.filename else '.pdf'
+                safe_filename = f"{uuid4()}{file_ext}"
+                file_path = job_dir / safe_filename
+                
+                content = await file.read()
+                with open(file_path, "wb") as f:
+                    f.write(content)
+                
+                saved_file_paths.append(str(file_path))
+        
+        # 5. Enqueue Job
+        arq_pool = request.app.state.arq_pool
+        if not arq_pool:
+            # Cleanup if queue fails
+            if saved_file_paths:
+                import shutil
+                shutil.rmtree(Path(saved_file_paths[0]).parent)
+            raise HTTPException(500, "Job queue not initialized")
+        
+        await arq_pool.enqueue_job(
+            "generate_improved_answer_task",
+            _job_id=job_id,
+            job_id=job_id,
+            question=question,
+            student_answer=student_answer,
+            file_paths=saved_file_paths,
+            feedback=feedback_dict,
+            user_id=str(current_user.id) if current_user else "anonymous",
+            gemini_api_key=gemini_api_key,
+            word_count=word_count
+        )
+        
+        # 6. Set initial status in Redis
+        try:
+            client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+            await client.set(f"job_status:{job_id}", "queued", ex=3600)
+            await client.close()
+        except:
+            pass  # Non-critical
+        
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "message": "Improved answer generation started. Poll /evaluate-answer/status/{job_id}"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to enqueue improved answer generation: {e}", exc_info=True)
+        raise HTTPException(500, str(e))

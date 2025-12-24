@@ -30,7 +30,18 @@ export default function EvaluatePage() {
         setJobStatus,
         setResult,
         setError,
-        reset
+        reset,
+        // Improved Answer State
+        improvedAnswerJobId,
+        improvedAnswerStatus,
+        improvedAnswerResult,
+        improvedAnswerError,
+        setImprovedAnswerJobId,
+        setImprovedAnswerStatus,
+        setImprovedAnswerResult,
+        setImprovedAnswerError,
+        generateImprovedAnswer,
+        resetImprovedAnswer
     } = useEvaluateAnswerStore();
 
     const [files, setFiles] = useState<File[]>([]);
@@ -45,17 +56,29 @@ export default function EvaluatePage() {
 
     // Ref to track active job for cancellation effect
     const activeJobId = useRef<string | null>(null);
+    const activeImprovedAnswerJobId = useRef<string | null>(null);
 
     // Sync ref with store
     useEffect(() => {
         activeJobId.current = jobId;
     }, [jobId]);
 
+    useEffect(() => {
+        activeImprovedAnswerJobId.current = improvedAnswerJobId;
+    }, [improvedAnswerJobId]);
+
     // Resume polling on mount if active
     useEffect(() => {
         if (jobId && (jobStatus === 'pending' || jobStatus === 'processing' || jobStatus === 'queued')) {
             setStatusMessage("Resuming evaluation...");
             pollStatus(jobId);
+        }
+    }, []);
+
+    // Resume polling for improved answer if active
+    useEffect(() => {
+        if (improvedAnswerJobId && (improvedAnswerStatus === 'pending' || improvedAnswerStatus === 'processing' || improvedAnswerStatus === 'queued')) {
+            pollImprovedAnswerStatus(improvedAnswerJobId);
         }
     }, []);
 
@@ -74,9 +97,75 @@ export default function EvaluatePage() {
 
     const handleReset = () => {
         reset();
+        resetImprovedAnswer();
         setFiles([]);
         setShowCompressed(true);
         setShowOriginal(false);
+    };
+
+    const handleGenerateImprovedAnswer = async () => {
+        if (!result || !result.feedback) {
+            showToast("No evaluation feedback available", "error");
+            return;
+        }
+
+        try {
+            await generateImprovedAnswer(
+                result.question,
+                result.student_answer || null,
+                result.feedback,
+                result.word_count || 250,
+                files.length > 0 ? files : undefined
+            );
+
+            // Start polling - get the job ID from store after state update
+            setTimeout(() => {
+                const store = useEvaluateAnswerStore.getState();
+                if (store.improvedAnswerJobId) {
+                    pollImprovedAnswerStatus(store.improvedAnswerJobId);
+                }
+            }, 100);
+        } catch (error: any) {
+            console.error("Failed to generate improved answer:", error);
+            showToast(error.message || "Failed to generate improved answer", "error");
+        }
+    };
+
+    const pollImprovedAnswerStatus = async (id: string) => {
+        if (activeImprovedAnswerJobId.current !== id) return;
+
+        try {
+            const data = await apiClient<{ status: string, result?: any, error?: string }>(`/evaluate-answer/status/${id}`);
+
+            if (activeImprovedAnswerJobId.current !== id) return;
+
+            if (data.status === 'completed') {
+                if (data.result) {
+                    setImprovedAnswerResult(data.result);
+                    setImprovedAnswerJobId(null);
+                    activeImprovedAnswerJobId.current = null;
+                } else {
+                    setImprovedAnswerError("Improved answer generation completed but returned no results.");
+                    setImprovedAnswerJobId(null);
+                    activeImprovedAnswerJobId.current = null;
+                }
+            } else if (data.status === 'failed') {
+                setImprovedAnswerError(data.error || "Improved answer generation failed");
+                setImprovedAnswerJobId(null);
+                activeImprovedAnswerJobId.current = null;
+            } else {
+                // Still processing, poll again
+                setImprovedAnswerStatus(data.status as any);
+                setTimeout(() => pollImprovedAnswerStatus(id), 2000);
+            }
+        } catch (error: any) {
+            console.error("Failed to poll improved answer status:", error);
+            if (activeImprovedAnswerJobId.current === id) {
+                setImprovedAnswerError(error.message || "Failed to check status");
+                setImprovedAnswerJobId(null);
+                activeImprovedAnswerJobId.current = null;
+            }
+        }
     };
 
     const pollStatus = async (id: string) => {
@@ -402,18 +491,6 @@ export default function EvaluatePage() {
                                 </CardHeader>
                                 <CardContent>
                                     <p className="text-blue-800 font-medium">{result.question}</p>
-                                    <div className="mt-4 flex gap-4 text-sm text-blue-600">
-                                        <div className="flex items-center gap-1">
-                                            <BookOpen className="h-4 w-4" />
-                                            {result.sources.length} Sources Used
-                                        </div>
-                                        {result.current_affairs_count > 0 && (
-                                            <div className="flex items-center gap-1">
-                                                <span className="font-bold">NEWS</span>
-                                                {result.current_affairs_count} Current Affairs
-                                            </div>
-                                        )}
-                                    </div>
                                 </CardContent>
                             </Card>
 
@@ -507,16 +584,100 @@ export default function EvaluatePage() {
                                 </Card>
                             )}
 
+                            {/* Examiner Expectation Blueprint */}
+                            {result.feedback.examiner_expectation_blueprint && (
+                                <Card className="border-l-4 border-l-blue-500">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-base text-blue-700">Examiner's Expectation Blueprint</CardTitle>
+                                        <CardDescription className="text-xs">
+                                            What the examiner expects for this question
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4 text-sm">
+                                        {result.feedback.examiner_expectation_blueprint.key_demands_of_the_question && result.feedback.examiner_expectation_blueprint.key_demands_of_the_question.length > 0 && (
+                                            <div>
+                                                <h4 className="font-semibold text-gray-900 mb-2">Key Demands of the Question</h4>
+                                                <ul className="list-disc pl-4 space-y-1 text-gray-700">
+                                                    {result.feedback.examiner_expectation_blueprint.key_demands_of_the_question.map((demand: string, i: number) => (
+                                                        <li key={i}>{demand}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {result.feedback.examiner_expectation_blueprint.ideal_logical_structure && (
+                                            <div>
+                                                <h4 className="font-semibold text-gray-900 mb-2">Ideal Logical Structure</h4>
+                                                <div className="space-y-2 pl-4 border-l-2 border-blue-200">
+                                                    <div>
+                                                        <span className="font-medium text-blue-700">Introduction: </span>
+                                                        <span className="text-gray-700">{result.feedback.examiner_expectation_blueprint.ideal_logical_structure.introduction}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-medium text-blue-700">Body: </span>
+                                                        <span className="text-gray-700">{result.feedback.examiner_expectation_blueprint.ideal_logical_structure.body}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-medium text-blue-700">Conclusion: </span>
+                                                        <span className="text-gray-700">{result.feedback.examiner_expectation_blueprint.ideal_logical_structure.conclusion}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {result.feedback.examiner_expectation_blueprint.non_negotiables && result.feedback.examiner_expectation_blueprint.non_negotiables.length > 0 && (
+                                            <div>
+                                                <h4 className="font-semibold text-gray-900 mb-2">Non-Negotiable Elements</h4>
+                                                <ul className="list-disc pl-4 space-y-1 text-gray-700">
+                                                    {result.feedback.examiner_expectation_blueprint.non_negotiables.map((item: string, i: number) => (
+                                                        <li key={i}>{item}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Section-wise Assessment */}
+                            {result.feedback.section_wise_assessment && (
+                                <Card className="border-l-4 border-l-teal-500">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-base text-teal-700">Section-wise Assessment</CardTitle>
+                                        <CardDescription className="text-xs">
+                                            Detailed evaluation of each section
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-3 text-sm">
+                                        <div>
+                                            <h4 className="font-semibold text-gray-900 mb-1">Introduction</h4>
+                                            <p className="text-gray-700">{result.feedback.section_wise_assessment.introduction}</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-semibold text-gray-900 mb-1">Body</h4>
+                                            <p className="text-gray-700">{result.feedback.section_wise_assessment.body}</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-semibold text-gray-900 mb-1">Conclusion</h4>
+                                            <p className="text-gray-700">{result.feedback.section_wise_assessment.conclusion}</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+
                             {/* Detailed Feedback */}
                             <Card>
                                 <CardHeader>
                                     <CardTitle>Detailed Assessment</CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4 text-sm">
-                                    <div>
-                                        <h4 className="font-semibold text-gray-900 mb-1">Structure & Format</h4>
-                                        <p className="text-gray-600">{result.feedback.structure_feedback}</p>
-                                    </div>
+                                    {result.feedback.section_wise_assessment ? (
+                                        // If section_wise_assessment exists, don't show structure_feedback separately
+                                        null
+                                    ) : result.feedback.structure_feedback ? (
+                                        <div>
+                                            <h4 className="font-semibold text-gray-900 mb-1">Structure & Format</h4>
+                                            <p className="text-gray-600">{result.feedback.structure_feedback}</p>
+                                        </div>
+                                    ) : null}
                                     <div>
                                         <h4 className="font-semibold text-gray-900 mb-1">Evidence & Examples</h4>
                                         <p className="text-gray-600">{result.feedback.evidence_feedback}</p>
@@ -549,28 +710,74 @@ export default function EvaluatePage() {
                                 </CardContent>
                             </Card>
 
-                            {/* Improved Answer Section (with Compression) */}
-                            <div className="space-y-4">
-                                {/* Compressed Version */}
-                                {result.compressed_answer && (
-                                    <Card className="border-2 border-indigo-100 overflow-hidden shadow-sm">
+                            {/* Generate Improved Answer Button or Display Improved Answer */}
+                            {result.improved_answer ? (
+                                // Legacy format: Show improved answer directly (backward compatibility)
+                                <div className="space-y-4">
+                                    {result.compressed_answer && (
+                                        <Card className="border-2 border-indigo-100 overflow-hidden shadow-sm">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCompressed(!showCompressed)}
+                                                className="w-full flex items-center justify-between p-4 bg-indigo-50/50 hover:bg-indigo-100/50 transition-colors border-b border-indigo-100"
+                                            >
+                                                <div className="flex flex-col items-start gap-1">
+                                                    <div className="flex items-center gap-2 text-indigo-900 font-semibold">
+                                                        <Minimize2 className="h-4 w-4" />
+                                                        Compressed Model Solution
+                                                    </div>
+                                                    <div className="text-xs text-indigo-600/70">
+                                                        {result.word_count_compressed} words • Optimized for quick reading
+                                                    </div>
+                                                </div>
+                                                <ChevronDown className={cn("h-4 w-4 text-indigo-400 transition-transform", showCompressed && "rotate-180")} />
+                                            </button>
+                                            {showCompressed && (
+                                                <CardContent className="p-6">
+                                                    <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900">
+                                                        <ReactMarkdown
+                                                            remarkPlugins={[remarkGfm]}
+                                                            components={markdownComponents}
+                                                            urlTransform={urlTransform}
+                                                        >
+                                                            {result.compressed_answer}
+                                                        </ReactMarkdown>
+                                                    </div>
+                                                </CardContent>
+                                            )}
+                                        </Card>
+                                    )}
+                                    <Card className={cn(
+                                        "overflow-hidden",
+                                        result.compressed_answer ? "border-dashed border-gray-300" : "border-2 border-indigo-100 shadow-sm"
+                                    )}>
                                         <button
                                             type="button"
-                                            onClick={() => setShowCompressed(!showCompressed)}
-                                            className="w-full flex items-center justify-between p-4 bg-indigo-50/50 hover:bg-indigo-100/50 transition-colors border-b border-indigo-100"
+                                            onClick={() => setShowOriginal(!showOriginal)}
+                                            className={cn(
+                                                "w-full flex items-center justify-between p-4 transition-colors border-b",
+                                                result.compressed_answer ? "bg-gray-50/50 hover:bg-gray-100/50" : "bg-indigo-50/50 hover:bg-indigo-100/50"
+                                            )}
                                         >
                                             <div className="flex flex-col items-start gap-1">
-                                                <div className="flex items-center gap-2 text-indigo-900 font-semibold">
-                                                    <Minimize2 className="h-4 w-4" />
-                                                    Compressed Model Solution
+                                                <div className={cn(
+                                                    "flex items-center gap-2 font-semibold",
+                                                    result.compressed_answer ? "text-gray-700" : "text-indigo-900"
+                                                )}>
+                                                    <FileText className="h-4 w-4" />
+                                                    {result.compressed_answer ? "Original Model Solution" : "Model Solution"}
                                                 </div>
-                                                <div className="text-xs text-indigo-600/70">
-                                                    {result.word_count_compressed} words • Optimized for quick reading
+                                                <div className="text-xs text-muted-foreground">
+                                                    {result.word_count_actual} words • Comprehensive version
                                                 </div>
                                             </div>
-                                            <ChevronDown className={cn("h-4 w-4 text-indigo-400 transition-transform", showCompressed && "rotate-180")} />
+                                            <ChevronDown className={cn(
+                                                "h-4 w-4 transition-transform",
+                                                result.compressed_answer ? "text-gray-400" : "text-indigo-400",
+                                                (showOriginal || !result.compressed_answer) && "rotate-180"
+                                            )} />
                                         </button>
-                                        {showCompressed && (
+                                        {(showOriginal || !result.compressed_answer) && (
                                             <CardContent className="p-6">
                                                 <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900">
                                                     <ReactMarkdown
@@ -578,60 +785,159 @@ export default function EvaluatePage() {
                                                         components={markdownComponents}
                                                         urlTransform={urlTransform}
                                                     >
-                                                        {result.compressed_answer}
+                                                        {result.improved_answer}
                                                     </ReactMarkdown>
                                                 </div>
                                             </CardContent>
                                         )}
                                     </Card>
-                                )}
-
-                                {/* Original Improved Version */}
-                                <Card className={cn(
-                                    "overflow-hidden",
-                                    result.compressed_answer ? "border-dashed border-gray-300" : "border-2 border-indigo-100 shadow-sm"
-                                )}>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowOriginal(!showOriginal)}
-                                        className={cn(
-                                            "w-full flex items-center justify-between p-4 transition-colors border-b",
-                                            result.compressed_answer ? "bg-gray-50/50 hover:bg-gray-100/50" : "bg-indigo-50/50 hover:bg-indigo-100/50"
-                                        )}
-                                    >
-                                        <div className="flex flex-col items-start gap-1">
-                                            <div className={cn(
-                                                "flex items-center gap-2 font-semibold",
-                                                result.compressed_answer ? "text-gray-700" : "text-indigo-900"
-                                            )}>
-                                                <FileText className="h-4 w-4" />
-                                                {result.compressed_answer ? "Original Model Solution" : "Model Solution"}
-                                            </div>
-                                            <div className="text-xs text-muted-foreground">
-                                                {result.word_count_actual} words • Comprehensive version
-                                            </div>
+                                </div>
+                            ) : (
+                                // New format: Show button to generate improved answer
+                                <Card className="border-2 border-dashed border-indigo-200 bg-indigo-50/30">
+                                    <CardContent className="p-6 flex flex-col items-center justify-center text-center space-y-4">
+                                        <div className="bg-indigo-100 p-3 rounded-full">
+                                            <FileText className="h-6 w-6 text-indigo-600" />
                                         </div>
-                                        <ChevronDown className={cn(
-                                            "h-4 w-4 transition-transform",
-                                            result.compressed_answer ? "text-gray-400" : "text-indigo-400",
-                                            (showOriginal || !result.compressed_answer) && "rotate-180"
-                                        )} />
-                                    </button>
-                                    {(showOriginal || !result.compressed_answer) && (
-                                        <CardContent className="p-6">
-                                            <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900">
-                                                <ReactMarkdown
-                                                    remarkPlugins={[remarkGfm]}
-                                                    components={markdownComponents}
-                                                    urlTransform={urlTransform}
-                                                >
-                                                    {result.improved_answer}
-                                                </ReactMarkdown>
+                                        <div>
+                                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Generate Improved Answer</h3>
+                                            <p className="text-sm text-gray-600 max-w-md">
+                                                Based on the feedback above, generate an improved model answer with retrieval, current affairs, and enhanced content.
+                                            </p>
+                                        </div>
+                                        <Button
+                                            onClick={handleGenerateImprovedAnswer}
+                                            disabled={improvedAnswerStatus === 'pending' || improvedAnswerStatus === 'processing' || improvedAnswerStatus === 'queued'}
+                                            className="bg-indigo-300 hover:bg-indigo-400"
+                                        >
+                                            {improvedAnswerStatus === 'pending' || improvedAnswerStatus === 'processing' || improvedAnswerStatus === 'queued' ? (
+                                                <>
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    Generating...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                                    Generate Improved Answer
+                                                </>
+                                            )}
+                                        </Button>
+                                        {improvedAnswerError && (
+                                            <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                                                {improvedAnswerError}
                                             </div>
-                                        </CardContent>
-                                    )}
+                                        )}
+                                    </CardContent>
                                 </Card>
-                            </div>
+                            )}
+
+                            {/* Improved Answer Result (from separate generation) */}
+                            {improvedAnswerResult && (
+                                <div className="space-y-4 mt-4">
+                                    {/* Sources Info Card */}
+                                    {improvedAnswerResult.sources && improvedAnswerResult.sources.length > 0 && (
+                                        <Card className="border-l-4 border-l-blue-500 bg-blue-50/30">
+                                            <CardHeader className="pb-2">
+                                                <CardTitle className="text-sm text-blue-900 flex items-center gap-2">
+                                                    <BookOpen className="h-4 w-4" />
+                                                    Sources Used ({improvedAnswerResult.sources.length})
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <div className="flex flex-wrap gap-2 text-xs">
+                                                    {improvedAnswerResult.sources.slice(0, 5).map((source: any, idx: number) => (
+                                                        <span key={idx} className="px-2 py-1 bg-white rounded border border-blue-200 text-blue-700">
+                                                            {source.filename || source.content_source || `Source ${idx + 1}`}
+                                                        </span>
+                                                    ))}
+                                                    {improvedAnswerResult.sources.length > 5 && (
+                                                        <span className="px-2 py-1 bg-white rounded border border-blue-200 text-blue-700">
+                                                            +{improvedAnswerResult.sources.length - 5} more
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+                                    {improvedAnswerResult.compressed_answer && (
+                                        <Card className="border-2 border-indigo-100 overflow-hidden shadow-sm">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCompressed(!showCompressed)}
+                                                className="w-full flex items-center justify-between p-4 bg-indigo-50/50 hover:bg-indigo-100/50 transition-colors border-b border-indigo-100"
+                                            >
+                                                <div className="flex flex-col items-start gap-1">
+                                                    <div className="flex items-center gap-2 text-indigo-900 font-semibold">
+                                                        <Minimize2 className="h-4 w-4" />
+                                                        Compressed Model Solution
+                                                    </div>
+                                                    <div className="text-xs text-indigo-600/70">
+                                                        {improvedAnswerResult.word_count_compressed} words • Optimized for quick reading
+                                                    </div>
+                                                </div>
+                                                <ChevronDown className={cn("h-4 w-4 text-indigo-400 transition-transform", showCompressed && "rotate-180")} />
+                                            </button>
+                                            {showCompressed && (
+                                                <CardContent className="p-6">
+                                                    <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900">
+                                                        <ReactMarkdown
+                                                            remarkPlugins={[remarkGfm]}
+                                                            components={markdownComponents}
+                                                            urlTransform={urlTransform}
+                                                        >
+                                                            {improvedAnswerResult.compressed_answer}
+                                                        </ReactMarkdown>
+                                                    </div>
+                                                </CardContent>
+                                            )}
+                                        </Card>
+                                    )}
+                                    <Card className={cn(
+                                        "overflow-hidden",
+                                        improvedAnswerResult.compressed_answer ? "border-dashed border-gray-300" : "border-2 border-indigo-100 shadow-sm"
+                                    )}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowOriginal(!showOriginal)}
+                                            className={cn(
+                                                "w-full flex items-center justify-between p-4 transition-colors border-b",
+                                                improvedAnswerResult.compressed_answer ? "bg-gray-50/50 hover:bg-gray-100/50" : "bg-indigo-50/50 hover:bg-indigo-100/50"
+                                            )}
+                                        >
+                                            <div className="flex flex-col items-start gap-1">
+                                                <div className={cn(
+                                                    "flex items-center gap-2 font-semibold",
+                                                    improvedAnswerResult.compressed_answer ? "text-gray-700" : "text-indigo-900"
+                                                )}>
+                                                    <FileText className="h-4 w-4" />
+                                                    {improvedAnswerResult.compressed_answer ? "Original Model Solution" : "Model Solution"}
+                                                </div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {improvedAnswerResult.word_count_actual} words • Comprehensive version
+                                                </div>
+                                            </div>
+                                            <ChevronDown className={cn(
+                                                "h-4 w-4 transition-transform",
+                                                improvedAnswerResult.compressed_answer ? "text-gray-400" : "text-indigo-400",
+                                                (showOriginal || !improvedAnswerResult.compressed_answer) && "rotate-180"
+                                            )} />
+                                        </button>
+                                        {(showOriginal || !improvedAnswerResult.compressed_answer) && (
+                                            <CardContent className="p-6">
+                                                <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900">
+                                                    <ReactMarkdown
+                                                        remarkPlugins={[remarkGfm]}
+                                                        components={markdownComponents}
+                                                        urlTransform={urlTransform}
+                                                    >
+                                                        {improvedAnswerResult.improved_answer}
+                                                    </ReactMarkdown>
+                                                </div>
+                                            </CardContent>
+                                        )}
+                                    </Card>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="h-full flex flex-col items-center justify-center text-center p-12 border-2 border-dashed rounded-lg bg-gray-50/50">
