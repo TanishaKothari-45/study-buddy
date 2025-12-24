@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Plus, Save, Database } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Plus, Save, Database, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_URL } from "@/lib/api";
 import { authFetch, showToast } from "@/lib/authHandler";
@@ -34,9 +34,19 @@ export default function TrainingDataPage() {
     const [answerText, setAnswerText] = useState("");
     const [idealFeedback, setIdealFeedback] = useState("");
     const [extractionSuccess, setExtractionSuccess] = useState(false);
+    
+    // AbortController for cancellation
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
         fetchExamples();
+        
+        // Cleanup: abort any ongoing requests on unmount
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        };
     }, []);
 
     const fetchExamples = async () => {
@@ -61,6 +71,16 @@ export default function TrainingDataPage() {
         }
     };
 
+    const handleCancel = () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
+        setExtracting(false);
+        setError("Training cancelled");
+        showToast("Training cancelled", "info");
+    };
+
     const handleExtract = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!files || files.length === 0) {
@@ -70,6 +90,10 @@ export default function TrainingDataPage() {
 
         setExtracting(true);
         setError("");
+        setExtractionSuccess(false);
+
+        // Create new AbortController for this request
+        abortControllerRef.current = new AbortController();
 
         const formData = new FormData();
         for (let i = 0; i < files.length; i++) {
@@ -81,21 +105,51 @@ export default function TrainingDataPage() {
             const res = await authFetch(`${API_URL}/training-data/extract-answer`, {
                 method: "POST",
                 body: formData,
+                signal: abortControllerRef.current.signal,
             });
 
             if (!res.ok) {
                 const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.detail || "Extraction failed");
+                const errorMessage = errData.detail || "Extraction failed";
+                throw new Error(errorMessage);
             }
 
             const data = await res.json();
             setQuestion(data.question || question);
             setAnswerText(data.answer_text);
             setExtractionSuccess(true);
+            setError("");
         } catch (err: any) {
-            setError(err.message);
+            // Check if request was aborted
+            if (err.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
+                setError("Training cancelled");
+                return;
+            }
+            
+            // Extract error message
+            let errorMessage = err.message || "Extraction failed";
+            
+            // If error message already starts with "Failed to extract text:", use it as-is (already cleaned by backend)
+            if (!errorMessage.startsWith("Failed to extract text:")) {
+                // Clean up technical error messages for user-friendly display
+                if (errorMessage.includes("429") || errorMessage.toLowerCase().includes("quota")) {
+                    errorMessage = "Failed to extract text: You have exceeded your Gemini API quota. Please check your usage at https://aistudio.google.com/app/apikey and upgrade your plan if needed, or try again after some time.";
+                } else if (errorMessage.includes("401") || errorMessage.includes("403") || errorMessage.toLowerCase().includes("api key")) {
+                    errorMessage = "Failed to extract text: Invalid Gemini API key. Please check your API key configuration.";
+                } else if (errorMessage.toLowerCase().includes("timeout")) {
+                    errorMessage = "Failed to extract text: Request timed out. Please try again with a smaller file.";
+                } else if (errorMessage.toLowerCase().includes("network") || errorMessage.toLowerCase().includes("connection")) {
+                    errorMessage = "Failed to extract text: Network connection error. Please check your internet connection and try again.";
+                } else {
+                    errorMessage = `Failed to extract text: ${errorMessage}`;
+                }
+            }
+            
+            setError(errorMessage);
+            showToast(errorMessage, "error");
         } finally {
             setExtracting(false);
+            abortControllerRef.current = null;
         }
     };
 
@@ -266,19 +320,35 @@ export default function TrainingDataPage() {
                                             />
                                         </div>
 
-                                        <Button type="submit" className="w-full" disabled={extracting || !files}>
-                                            {extracting ? (
-                                                <>
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                    Extracting Text...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <FileText className="mr-2 h-4 w-4" />
-                                                    Extract Text
-                                                </>
+                                        <div className="flex gap-2">
+                                            <Button 
+                                                type="submit" 
+                                                className="flex-1" 
+                                                disabled={extracting || !files}
+                                            >
+                                                {extracting ? (
+                                                    <>
+                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        Extracting Text...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <FileText className="mr-2 h-4 w-4" />
+                                                        Extract Text
+                                                    </>
+                                                )}
+                                            </Button>
+                                            {extracting && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={handleCancel}
+                                                    className="px-4"
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
                                             )}
-                                        </Button>
+                                        </div>
                                     </form>
                                 </CardContent>
                             </Card>

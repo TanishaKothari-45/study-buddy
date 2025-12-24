@@ -33,6 +33,57 @@ logging.basicConfig(level=logging.INFO)
 
 router = APIRouter()
 
+def clean_gemini_error(error_msg: str) -> str:
+    """
+    Clean Gemini API error messages for user-friendly display.
+    Provides actionable guidance to help users resolve the issue.
+    """
+    # For quota errors (429)
+    if '429' in error_msg and 'quota' in error_msg.lower():
+        return "Failed to extract text: You have exceeded your Gemini API quota. Please check your usage at https://aistudio.google.com/app/apikey and upgrade your plan if needed, or try again after some time."
+    
+    if '429' in error_msg and 'rate limit' in error_msg.lower():
+        return "Failed to extract text: Too many requests to Gemini API. Please wait a few minutes and try again."
+    
+    # For auth errors
+    lower_msg = error_msg.lower()
+    if 'api_key_invalid' in error_msg or 'api key not valid' in lower_msg or 'invalid api key' in lower_msg:
+        return "Failed to extract text: Invalid Gemini API key. Please check your API key configuration. You can get a new key from https://aistudio.google.com/app/apikey"
+    
+    # For timeout errors
+    if 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower():
+        return "Failed to extract text: Request timed out. The AI service is taking longer than expected. Please try again, or try with a smaller file."
+    
+    # For network/connection errors
+    if 'connection' in error_msg.lower() or 'network' in error_msg.lower():
+        return "Failed to extract text: Network connection error. Please check your internet connection and try again."
+    
+    # For empty response
+    if 'empty response' in error_msg.lower():
+        return "Failed to extract text: Received empty response from AI service. This is usually temporary - please try again in a moment."
+    
+    # For service unavailable
+    if 'service unavailable' in error_msg.lower() or '503' in error_msg:
+        return "Failed to extract text: AI service is temporarily unavailable. Please try again in a few minutes."
+    
+    # For server errors
+    if '500' in error_msg or 'internal server error' in error_msg.lower():
+        return "Failed to extract text: Server error occurred. We're working to fix this. Please try again or contact support if the issue persists."
+    
+    # Generic fallback with first sentence
+    first_line = error_msg.split('\n')[0]
+    first_sentence = first_line.split('.')[0]
+    
+    # Limit to reasonable length
+    if len(first_sentence) > 120:
+        first_sentence = first_sentence[:117] + '...'
+    
+    # Always prefix with "Failed to extract text:"
+    if first_sentence and not first_sentence.startswith('Failed to extract text'):
+        return f"Failed to extract text: {first_sentence}. Please try again or contact support if the issue persists."
+    
+    return "Failed to extract text: An unexpected error occurred. Please try again or contact support if the issue persists."
+
 # Import Gemini client
 try:
     from ..gemini_core.gemini_client import GeminiClient
@@ -133,65 +184,153 @@ async def extract_answer_endpoint(
                     detail=f"Unsupported file type: {file_ext}. Please upload PDF or image file."
                 )
             
-            # Extract question from first file if not provided
-            if not identified_question and idx == 1:
-                logger.info("📝 Extracting question from first file...")
+            # Extract text from file - combine question and answer extraction in single API call
+            if idx == 1 and not identified_question:
+                # First file and no question provided - extract both question and answer in one call
+                logger.info("📝 Extracting question and answer from first file (single API call)...")
                 try:
-                    question_prompt = """Read the handwritten answer and identify the QUESTION it is answering.
+                    combined_prompt = f"""Read the handwritten document and extract:
 
-Look for:
-- Question written at the top of the page
-- Topic/subject being discussed
-- Any numbered question (Q1, Q2, etc.)
+1. QUESTION: Identify the question being answered. Look for:
+   - Question written at the top of the page
+   - Topic/subject being discussed
+   - Any numbered question (Q1, Q2, etc.)
+   If you can't find an explicit question, infer it from the answer content.
 
-Return ONLY the question text, nothing else. If you can't find an explicit question, infer it from the answer content."""
+2. ANSWER: Extract the complete answer text exactly as written, preserving structure and content.
+
+Return your response in this exact format:
+QUESTION: [the question text here]
+ANSWER: [the answer text here]
+
+This is page {idx} of {len(files)}."""
                     
                     if is_pdf:
-                        question_response = await gemini_client.generate_response(
-                            user_prompt=question_prompt,
+                        combined_response = await gemini_client.generate_response(
+                            user_prompt=combined_prompt,
                             pdf_path=temp_file_path,
                             temperature=0.0,
                             max_retries=2
                         )
                     else:
-                        question_response = await gemini_client.generate_response(
-                            user_prompt=question_prompt,
+                        combined_response = await gemini_client.generate_response(
+                            user_prompt=combined_prompt,
                             image_path=temp_file_path,
                             temperature=0.0,
                             max_retries=2
                         )
-                    identified_question = question_response.strip()
-                    logger.info(f"✅ Identified question: {identified_question[:100]}...")
+                    
+                    # Parse the response to extract question and answer
+                    response_text = combined_response.strip()
+                    question_match = None
+                    answer_match = None
+                    
+                    # Try to extract QUESTION and ANSWER sections
+                    if "QUESTION:" in response_text and "ANSWER:" in response_text:
+                        parts = response_text.split("ANSWER:", 1)
+                        if len(parts) == 2:
+                            question_part = parts[0].replace("QUESTION:", "").strip()
+                            answer_part = parts[1].strip()
+                            identified_question = question_part
+                            answer_match = answer_part
+                    elif "QUESTION:" in response_text:
+                        # Only question found, extract it
+                        question_part = response_text.split("QUESTION:", 1)[1].split("ANSWER:", 1)[0].strip()
+                        identified_question = question_part
+                        # Try to get answer from remaining text
+                        if "ANSWER:" in response_text:
+                            answer_match = response_text.split("ANSWER:", 1)[1].strip()
+                    else:
+                        # Fallback: treat entire response as answer, question not found
+                        answer_match = response_text
+                        identified_question = "Question not identified"
+                    
+                    if answer_match:
+                        all_answer_texts.append(answer_match)
+                        logger.info(f"✅ Extracted question: {identified_question[:100] if identified_question != 'Question not identified' else 'Not found'}...")
+                        logger.info(f"✅ Extracted {len(answer_match)} chars from file {idx}")
+                    else:
+                        raise ValueError("Failed to extract answer from response")
+                        
                 except Exception as e:
-                    logger.warning(f"⚠️ Failed to identify question: {e}")
-                    identified_question = "Question not identified"
-            
-            # Extract answer text using OCR
-            logger.info(f"📝 Extracting answer text from file {idx}...")
-            
-            answer_prompt = f"""Read the handwritten answer and extract the complete text.
+                    error_msg = str(e)
+                    logger.error(f"❌ Combined extraction failed for file {idx}: {error_msg}")
+                    # Clean error message for user display
+                    clean_msg = clean_gemini_error(error_msg)
+                    # Re-raise with cleaned message
+                    raise HTTPException(status_code=500, detail=clean_msg)
+                    
+            elif idx == 1 and identified_question:
+                # Question provided - only extract answer from first file
+                logger.info(f"✅ Question already provided: {identified_question[:100]}...")
+                logger.info(f"📝 Extracting answer text from file {idx}...")
+                
+                answer_prompt = f"""Read the handwritten answer and extract the complete text.
 
 This is page {idx} of {len(files)} in the answer.
 
 Return ONLY the answer text exactly as written, preserving the structure and content. Do not add any commentary or improvements."""
-            
-            if is_pdf:
-                answer_text = await gemini_client.generate_response(
-                    user_prompt=answer_prompt,
-                    pdf_path=temp_file_path,
-                    temperature=0.0,
-                    max_retries=2
-                )
+                
+                try:
+                    if is_pdf:
+                        answer_text = await gemini_client.generate_response(
+                            user_prompt=answer_prompt,
+                            pdf_path=temp_file_path,
+                            temperature=0.0,
+                            max_retries=2
+                        )
+                    else:
+                        answer_text = await gemini_client.generate_response(
+                            user_prompt=answer_prompt,
+                            image_path=temp_file_path,
+                            temperature=0.0,
+                            max_retries=2
+                        )
+                    
+                    all_answer_texts.append(answer_text)
+                    logger.info(f"✅ Extracted {len(answer_text)} chars from file {idx}")
+                except Exception as e:
+                    error_msg = str(e)
+                    logger.error(f"❌ Extraction failed for file {idx}: {error_msg}")
+                    # Clean error message for user display
+                    clean_msg = clean_gemini_error(error_msg)
+                    # Re-raise with cleaned message
+                    raise HTTPException(status_code=500, detail=clean_msg)
             else:
-                answer_text = await gemini_client.generate_response(
-                    user_prompt=answer_prompt,
-                    image_path=temp_file_path,
-                    temperature=0.0,
-                    max_retries=2
-                )
-            
-            all_answer_texts.append(answer_text)
-            logger.info(f"✅ Extracted {len(answer_text)} chars from file {idx}")
+                # Subsequent files - only extract answer
+                logger.info(f"📝 Extracting answer text from file {idx}...")
+                
+                answer_prompt = f"""Read the handwritten answer and extract the complete text.
+
+This is page {idx} of {len(files)} in the answer.
+
+Return ONLY the answer text exactly as written, preserving the structure and content. Do not add any commentary or improvements."""
+                
+                try:
+                    if is_pdf:
+                        answer_text = await gemini_client.generate_response(
+                            user_prompt=answer_prompt,
+                            pdf_path=temp_file_path,
+                            temperature=0.0,
+                            max_retries=2
+                        )
+                    else:
+                        answer_text = await gemini_client.generate_response(
+                            user_prompt=answer_prompt,
+                            image_path=temp_file_path,
+                            temperature=0.0,
+                            max_retries=2
+                        )
+                    
+                    all_answer_texts.append(answer_text)
+                    logger.info(f"✅ Extracted {len(answer_text)} chars from file {idx}")
+                except Exception as e:
+                    error_msg = str(e)
+                    logger.error(f"❌ Extraction failed for file {idx}: {error_msg}")
+                    # Clean error message for user display
+                    clean_msg = clean_gemini_error(error_msg)
+                    # Re-raise with cleaned message
+                    raise HTTPException(status_code=500, detail=clean_msg)
         
         # Combine all answer texts
         combined_answer = "\n\n".join(all_answer_texts)
@@ -211,8 +350,11 @@ Return ONLY the answer text exactly as written, preserving the structure and con
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Extraction failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
+        error_msg = str(e)
+        logger.error(f"❌ Extraction failed: {error_msg}", exc_info=True)
+        # Clean error message for user display
+        clean_msg = clean_gemini_error(error_msg)
+        raise HTTPException(status_code=500, detail=clean_msg)
     
     finally:
         # Clean up temp files
