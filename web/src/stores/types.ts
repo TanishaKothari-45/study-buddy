@@ -69,6 +69,14 @@ export interface DirectiveAlignment {
     how_to_improve: string;
 }
 
+export interface MarginComment {
+    anchor_text: string;
+    comment: string;
+    comment_type: "strength" | "weakness" | "omission" | "directive_misalignment" | "evidence_gap" | "structure_issue" | "visual_gap";
+    severity: "low" | "medium" | "high";
+    suggested_fix?: string;
+}
+
 export interface Feedback {
     examiner_expectation_blueprint?: ExaminerExpectationBlueprint;
     strengths: string[];
@@ -81,6 +89,7 @@ export interface Feedback {
     examiner_expectation_gap?: string;
     strategy_tip?: string;
     overall_assessment: string;
+    margin_comments?: MarginComment[];
     // Legacy fields for backward compatibility
     structure_feedback?: string;
 }

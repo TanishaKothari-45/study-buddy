@@ -891,6 +891,105 @@ Assess whether:
 - The chosen visual was sub-optimal
 - A simpler or better visual could improve marks
 
+**RULE 5 - MARGIN COMMENTS (MANDATORY, SPARSE)**:
+In addition to global feedback, provide brief margin-style comments anchored to specific phrases in the student’s answer.
+
+**MARGIN COMMENT TRIGGER RULES (CRITICAL)**:
+
+Generate a margin comment ONLY when one of the following conditions is met:
+
+  1. A KEY DEMAND from the Examiner Expectation Blueprint is:
+   - correctly addressed → brief positive acknowledgement
+   - partially addressed → corrective comment
+   - missing or misdirected → critical comment
+
+  2. A NON-NEGOTIABLE element identified in the blueprint is:
+   - absent where required (e.g., missing map, missing judgement)
+   - mentioned without explanation or linkage
+   - incorrectly applied
+
+  3. A statement in the answer has clear mark impact because it is:
+   - vague or generic where specificity is expected
+   - an assertion without example or evidence
+   - conceptually incorrect or misleading
+   - irrelevant to the question’s scope
+
+**DO NOT generate margin comments for:
+- stylistic issues
+- language quality
+- minor repetition
+- points that do not affect marks
+
+**MARGIN COMMENT DISCIPLINE**:
+- Add comments only at mark-relevant points
+- Use short, examiner-style phrases (5–12 words)
+- Do NOT explain or teach
+- Do NOT comment on handwriting, language fluency, or style
+- Do NOT annotate every paragraph
+- Severity must reflect mark impact (low / medium / high)
+-Do NOT repeat the same point already fully covered in strengths or missing_elements.
+-Prefer fewer, sharper margin comments (3–8 per answer).
+
+**MARGIN COMMENT EXAMPLES**:
+
+Example 1 - Strength (Low Severity):
+```json
+{
+  "anchor_text": "The answer correctly identifies three key factors affecting monsoon variability",
+  "comment": "Good identification of core factors",
+  "comment_type": "strength",
+  "severity": "low"
+}
+```
+
+Example 2 - Missing Evidence (Medium Severity):
+```json
+{
+  "anchor_text": "Climate change impacts agriculture significantly",
+  "comment": "Needs specific data or example",
+  "comment_type": "evidence_gap",
+  "severity": "medium",
+  "suggested_fix": "Add IMD 2023 data or state-specific example"
+}
+```
+
+Example 3 - Directive Misalignment (High Severity):
+```json
+{
+  "anchor_text": "The question asks to evaluate but answer only describes",
+  "comment": "Missing evaluation - directive not followed",
+  "comment_type": "directive_misalignment",
+  "severity": "high",
+  "suggested_fix": "Add pros/cons analysis and judgement"
+}
+```
+
+Example 4 - Missing Non-Negotiable Element (High Severity):
+```json
+{
+  "anchor_text": "Answer discusses distribution but no map provided",
+  "comment": "Map mandatory for distribution questions",
+  "comment_type": "visual_gap",
+  "severity": "high",
+  "suggested_fix": "Include map-json block showing spatial pattern"
+}
+```
+
+Example 5 - Weakness (Medium Severity):
+```json
+{
+  "anchor_text": "Vague statement without concrete mechanism",
+  "comment": "Too generic - needs specific mechanism",
+  "comment_type": "weakness",
+  "severity": "medium",
+  "suggested_fix": "Explain the causal chain step-by-step or provide a specific example"
+}
+```
+
+**IMPORTANT**: 
+- Do not duplicate margin comments verbatim in strengths, missing elements, or improvements needed.
+- Keep comments examiner-style: brief, direct, mark-focused.
+
 ========================
 FORMAT & VISUAL RULES
 ========================
@@ -947,7 +1046,6 @@ You MUST return ONLY a valid JSON object in the following structure:
       "conclusion": "Assessment of synthesis, judgement, way forward and closure"
     }},
 
-
     "directive_alignment": {{
       "directive_identified": "Directive word(s) used in the question",
       "alignment_assessment": "Assessment of how well the answer followed the directive",
@@ -969,7 +1067,18 @@ You MUST return ONLY a valid JSON object in the following structure:
 
     "strategy_tip": "One concise, exam-oriented strategy tip for answering similar questions better",
 
-    "overall_assessment": "Balanced, honest UPSC examiner-style verdict with encouragement"
+    "overall_assessment": "Balanced, honest UPSC examiner-style verdict with encouragement",
+
+    "margin_comments": [
+  {
+    "anchor_text": "Exact phrase or short excerpt from the student's answer",
+    "comment": "Examiner-style remark explaining the issue or merit",
+    "comment_type": "strength | weakness | omission | directive_misalignment | evidence_gap | structure_issue | visual_gap",
+    "severity": "low | medium | high",
+    "suggested_fix": "Optional: very brief guidance on how this could be improved or corrected"
+  }
+]
+
   }}
 }}
 ```

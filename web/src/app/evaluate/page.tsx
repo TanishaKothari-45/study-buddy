@@ -486,7 +486,7 @@ export default function EvaluatePage() {
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 {/* Evaluation Mode Selection - At the top */}
                                 <Label className="text-sm font-medium mb-2">Evaluation Mode</Label>
-                                <div className="space-y-3 p-4 border rounded-lg bg-gray-50 dark:bg-gray-900">
+                                <div className="space-y-3 p-4 border rounded-lg bg-card">
                                     
                                     <RadioGroup
                                         value={evaluationMode}
@@ -504,13 +504,13 @@ export default function EvaluatePage() {
                                     >
                                         <div className="flex items-center space-x-2">
                                             <RadioGroupItem value="single" id="single" />
-                                            <Label htmlFor="single" className="cursor-pointer">
+                                            <Label htmlFor="single" className="cursor-pointer text-foreground">
                                                 Single Answer
                                             </Label>
                                         </div>
                                         <div className="flex items-center space-x-2">
                                             <RadioGroupItem value="batch" id="batch" />
-                                            <Label htmlFor="batch" className="cursor-pointer">
+                                            <Label htmlFor="batch" className="cursor-pointer text-foreground">
                                                 Multiple Answers
                                             </Label>
                                         </div>
@@ -537,7 +537,7 @@ export default function EvaluatePage() {
 
                                 {/* Batch Mode: Question Input Options */}
                                 {evaluationMode === "batch" && (
-                                    <div className="space-y-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                                    <div className="space-y-4 p-4 border rounded-lg bg-secondary/50">
                                         <Label className="text-sm font-medium">Question Reference (Optional but Recommended)</Label>
                                         <p className="text-xs text-muted-foreground mb-3">
                                             Provide questions to improve answer detection accuracy. Choose one option:
@@ -670,7 +670,7 @@ export default function EvaluatePage() {
                                         )}
                                     </label>
                                     {evaluationMode === "batch" && (
-                                        <p className="text-xs text-red-600 dark:text-red-400">
+                                        <p className="text-xs text-red-600">
                                             ⚠️ It supports PDF format only. Please convert to PDF before uploading.
                                         </p>
                                     )}
@@ -762,7 +762,7 @@ export default function EvaluatePage() {
 
 
                                 {error && (
-                                    <div className="p-4 text-base font-semibold text-red-700 bg-red-50 dark:bg-red-900/20 rounded-lg border-2 border-red-500 flex items-center gap-3">
+                                    <div className="p-4 text-base font-semibold text-red-700 bg-red-50 rounded-lg border-2 border-red-500 flex items-center gap-3">
                                         <AlertCircle className="h-5 w-5 flex-shrink-0" />
                                         <span>{error}</span>
                                     </div>
@@ -818,6 +818,73 @@ export default function EvaluatePage() {
                                     <p className="text-blue-800 font-medium">{result.question}</p>
                                 </CardContent>
                             </Card>
+
+                            {/* Margin Comments - Displayed First */}
+                            {result.feedback.margin_comments && result.feedback.margin_comments.length > 0 && (
+                                <Card className="border-l-4 border-l-indigo-500">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-base text-indigo-700 flex items-center gap-2">
+                                            <BookOpen className="h-5 w-5" />
+                                            Margin Comments
+                                        </CardTitle>
+                                        <CardDescription className="text-xs">
+                                            Examiner-style annotations on specific parts of your answer
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-3">
+                                            {result.feedback.margin_comments.map((comment, idx) => {
+                                                const severityColors = {
+                                                    low: "bg-blue-50 border-blue-200 text-blue-800",
+                                                    medium: "bg-amber-50 border-amber-200 text-amber-800",
+                                                    high: "bg-red-50 border-red-200 text-red-800"
+                                                };
+                                                const typeColors = {
+                                                    strength: "text-green-700",
+                                                    weakness: "text-red-700",
+                                                    omission: "text-orange-700",
+                                                    directive_misalignment: "text-purple-700",
+                                                    evidence_gap: "text-yellow-700",
+                                                    structure_issue: "text-pink-700",
+                                                    visual_gap: "text-cyan-700"
+                                                };
+                                                
+                                                return (
+                                                    <div 
+                                                        key={idx} 
+                                                        className={`p-3 rounded-lg border-l-4 ${severityColors[comment.severity]}`}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-2 mb-1">
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-white/50">
+                                                                        {comment.comment_type.replace(/_/g, ' ').toUpperCase()}
+                                                                    </span>
+                                                                    <span className={`text-xs font-medium ${typeColors[comment.comment_type] || 'text-gray-700'}`}>
+                                                                        {comment.severity.toUpperCase()} SEVERITY
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-sm font-medium text-gray-900 mb-1">
+                                                                    <span className="italic">"{comment.anchor_text}"</span>
+                                                                </p>
+                                                                <p className="text-sm text-gray-800">
+                                                                    {comment.comment}
+                                                                </p>
+                                                                {comment.suggested_fix && (
+                                                                    <div className="mt-2 pt-2 border-t border-gray-300">
+                                                                        <p className="text-xs font-semibold text-gray-700 mb-1">Suggested Fix:</p>
+                                                                        <p className="text-xs text-gray-600">{comment.suggested_fix}</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
 
                             {/* Feedback Grid */}
                             <div className="grid gap-4 md:grid-cols-3">
