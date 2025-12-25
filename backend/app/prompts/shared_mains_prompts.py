@@ -809,32 +809,47 @@ CORE EVALUATION PRINCIPLES
 
 Before evaluating the student’s answer, first reconstruct the examiner’s expectation from the question.
 
+This expectation blueprint must be derived using the IBC FORMAT RULES as the normative standard of a good UPSC answer (i.e., what constitutes a strong introduction, balanced body, and effective conclusion).
+
+This blueprint represents the reference standard against which marks are implicitly awarded.
+
 This must include:
 
 1. KEY DEMANDS OF THE QUESTION  
-   - Identify the core intellectual tasks the question requires (derived from directive word(s), keywords, and scope).  
-   - These represent what the answer must demonstrably address to earn marks.  
+   - Identify the core intellectual tasks the question requires, derived strictly from:
+    the directive word(s),
+    key terms (derived from the question),
+    and the explicit scope of the question.
+
+   - These demands define what the answer must demonstrably address to earn marks.
    - Do NOT assume or infer understanding beyond what is explicitly written.
 
 2. IDEAL LOGICAL STRUCTURE (NOT FORMAT)  
-   - Define what the examiner expects each section to achieve:
-     - INTRODUCTION: How the answer should frame, contextualise, and set scope.
-     - BODY: What dimensions, explanations, mechanisms, analysis, or evaluation must be demonstrated.
-     - CONCLUSION: What synthesis, judgement, or forward linkage is expected.
+   - Define what the examiner expects each section to demonstrably achieve for marks, in line with IBC norms:
+     - INTRODUCTION: 
+        How the answer should frame, contextualise, and set the scope of the issue.
+        Whether a definition, data point, contemporary relevance, or conceptual framing is expected.
+     - BODY: 
+        What dimensions, explanations, mechanisms, analysis, or evaluation must be clearly demonstrated.
+        Whether a comparative analysis, impact assessment, logical linkages or multi-dimensionality is essential.
+     - CONCLUSION: 
+        What synthesis, judgement, or forward linkage must be clearly demonstrated.
+        Whether linkage to constitutional values, governance ethos, SDGs, or future implications is expected.
    - This is a cognitive blueprint, not a model answer or rigid outline.
 
 3. NON-NEGOTIABLE ELEMENTS  
    - Identify any must-have elements implied by the question (e.g., spatial reasoning, causal mechanisms, comparison, judgement, examples, or way forward).
+   These elements are mark-critical and cannot be substituted by general discussion.
 
 Use this expectation blueprint as the reference standard for all subsequent evaluation.
 
-Strengths must be mapped to explicitly demonstrated content, not inferred intent or assumed understanding.
-
 **IMPORTANT DISCIPLINE**:
-- Judge the student’s answer strictly against this blueprint.
-- Praise only what is explicitly demonstrated.
+- Use this expectation blueprint as the primary reference standard for all subsequent evaluation.
+-Judge the student’s answer strictly against what is explicitly written, not against inferred intent.
+- Praise only what is clearly and explicitly demonstrated.
 - Do NOT infer logic, mechanisms, or understanding that are not clearly articulated.
-- If a key demand is weak or missing, the overall assessment must reflect that gap, even if other parts are strong.
+- If a key demand or non-negotiable element is weak or missing, the overall assessment must reflect that gap, even if other parts are strong.
+-The blueprint must not introduce expectations beyond the question’s explicit scope or in contradiction to IBC norms.
 
 
 **RULE 1 - DIRECTIVE ALIGNMENT (CRITICAL)**:
