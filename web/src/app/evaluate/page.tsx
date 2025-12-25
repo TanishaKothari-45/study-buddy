@@ -4,6 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { fetchApi, API_URL } from "@/lib/api";
 import { Upload, FileText, CheckCircle, AlertCircle, Loader2, BookOpen } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -47,6 +50,11 @@ export default function EvaluatePage() {
     const [files, setFiles] = useState<File[]>([]);
     const [showCompressed, setShowCompressed] = useState(true);
     const [showOriginal, setShowOriginal] = useState(false);
+    const [evaluationMode, setEvaluationMode] = useState<"single" | "batch">("single");
+    const [useStandardFormat, setUseStandardFormat] = useState(false);
+    const [questionFile, setQuestionFile] = useState<File | null>(null);
+    const [numQuestions, setNumQuestions] = useState<number>(1);
+    const [questionTexts, setQuestionTexts] = useState<string[]>([""]);
 
     // Derived state for UI
     const loading = jobStatus === 'pending' || jobStatus === 'processing' || jobStatus === 'queued';
@@ -87,7 +95,20 @@ export default function EvaluatePage() {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const newFiles = Array.from(e.target.files);
-            setFiles(prev => [...prev, ...newFiles]);
+            
+            // For batch mode: only allow PDF, replace existing files
+            if (evaluationMode === "batch") {
+                const pdfFiles = newFiles.filter(f => f.name.toLowerCase().endsWith('.pdf'));
+                if (pdfFiles.length === 0) {
+                    setError("Batch mode only accepts PDF files. Please upload a PDF.");
+                    return;
+                }
+                // Batch mode: single file only
+                setFiles(pdfFiles.slice(0, 1));
+            } else {
+                // Single mode: allow multiple files
+                setFiles(prev => [...prev, ...newFiles]);
+            }
         }
     };
 
@@ -101,6 +122,8 @@ export default function EvaluatePage() {
         setFiles([]);
         setShowCompressed(true);
         setShowOriginal(false);
+        setEvaluationMode("single");
+        setUseStandardFormat(false);
     };
 
     const handleGenerateImprovedAnswer = async () => {
@@ -172,10 +195,59 @@ export default function EvaluatePage() {
         if (activeJobId.current !== id) return;
 
         try {
-            const data = await apiClient<{ status: string, result?: EvaluationResult, error?: string }>(`/evaluate-answer/status/${id}`);
+            const data = await apiClient<{ 
+                status: string, 
+                result?: EvaluationResult, 
+                batch_data?: any,
+                error?: string 
+            }>(`/evaluate-answer/status/${id}`);
 
             if (activeJobId.current !== id) return;
 
+            // Handle batch mode responses
+            if (data.batch_data) {
+                const batchData = data.batch_data;
+                const completed = batchData.completed_answers || 0;
+                const total = batchData.total_answers || 0;
+                const failed = batchData.failed_answers || 0;
+
+                if (data.status === 'completed' || data.status === 'partial_failed') {
+                    // Batch completed (fully or partially)
+                    setStatusMessage(
+                        `Batch complete: ${completed} completed, ${failed} failed out of ${total} answers`
+                    );
+                    // Store batch data in result for display
+                    setResult({
+                        question: `Batch Evaluation (${total} answers)`,
+                        student_answer: "",
+                        feedback: batchData as any,
+                        word_count: 0,
+                        success: true
+                    });
+                    setJobId(null);
+                    activeJobId.current = null;
+                } else if (data.status === 'cancelled' || data.status === 'failed') {
+                    const cleanedError = data.error || "Batch evaluation failed";
+                    setError(cleanedError);
+                    setJobStatus('failed');
+                    if (cleanedError.toLowerCase().includes("api key") || cleanedError.includes("API_KEY_INVALID")) {
+                        setIsApiKeyValid('invalid');
+                        setShowBanner(true);
+                    }
+                    setJobId(null);
+                    activeJobId.current = null;
+                } else {
+                    // Still processing
+                    setJobStatus('processing');
+                    setStatusMessage(
+                        `Processing batch: ${completed}/${total} completed${failed > 0 ? `, ${failed} failed` : ''}...`
+                    );
+                    setTimeout(() => pollStatus(id), 2000);
+                }
+                return;
+            }
+
+            // Handle single answer mode (existing logic)
             if (data.status === 'completed') {
                 if (data.result) {
                     setResult(data.result);
@@ -267,6 +339,22 @@ export default function EvaluatePage() {
             return;
         }
 
+        // Batch mode requires PDF only
+        if (evaluationMode === "batch") {
+            if (files.length === 0) {
+                setError("Please upload a PDF file for batch evaluation.");
+                return;
+            }
+            if (files.length > 1) {
+                setError("Batch mode supports only a single PDF file with multiple answers.");
+                return;
+            }
+            if (!files[0].name.toLowerCase().endsWith('.pdf')) {
+                setError("Batch mode only supports PDF files. Please convert your images to PDF first.");
+                return;
+            }
+        }
+
         setError(null);
         setResult(null);
         setJobId(null);
@@ -274,39 +362,79 @@ export default function EvaluatePage() {
         setStatusMessage("Uploading and starting...");
 
         const formData = new FormData();
-        files.forEach((file) => {
-            formData.append("files", file);
-        });
-        if (question) formData.append("question", question);
+        
+        if (evaluationMode === "batch") {
+            // Batch mode: single PDF file
+            formData.append("file", files[0]);
+            if (useStandardFormat) {
+                formData.append("use_standard_format", "true");
+            }
+            
+            try {
+                const data = await apiClient<{ job_id: string, status: string }>('/evaluate-answer/batch', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {},
+                });
 
-        try {
-            const data = await apiClient<{ job_id: string, status: string }>('/evaluate-answer/', {
-                method: 'POST',
-                body: formData,
-                headers: {},
+                if (data.job_id) {
+                    setJobId(data.job_id);
+                    setJobStatus('queued');
+                    activeJobId.current = data.job_id;
+                    setStatusMessage("Queued for batch evaluation...");
+                    pollStatus(data.job_id);
+                } else {
+                    throw new Error("No job ID received");
+                }
+            } catch (err) {
+                setJobStatus('failed');
+                let message = "Batch evaluation failed";
+                if (err instanceof ApiError) {
+                    message = err.message;
+                } else if (err instanceof Error) {
+                    message = err.message;
+                }
+                setError(message);
+                if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("invalid") || message.toLowerCase().includes("gemini")) {
+                    setShowBanner(true);
+                }
+            }
+        } else {
+            // Single answer mode: existing flow
+            files.forEach((file) => {
+                formData.append("files", file);
             });
+            if (question) formData.append("question", question);
 
-            if (data.job_id) {
-                setJobId(data.job_id);
-                setJobStatus('queued');
-                activeJobId.current = data.job_id;
-                setStatusMessage("Queued for evaluation...");
-                pollStatus(data.job_id);
-            } else {
-                throw new Error("No job ID received");
-            }
+            try {
+                const data = await apiClient<{ job_id: string, status: string }>('/evaluate-answer/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {},
+                });
 
-        } catch (err) {
-            setJobStatus('failed');
-            let message = "Evaluation failed";
-            if (err instanceof ApiError) {
-                message = err.message;
-            } else if (err instanceof Error) {
-                message = err.message;
-            }
-            setError(message);
-            if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("invalid") || message.toLowerCase().includes("gemini")) {
-                setShowBanner(true);
+                if (data.job_id) {
+                    setJobId(data.job_id);
+                    setJobStatus('queued');
+                    activeJobId.current = data.job_id;
+                    setStatusMessage("Queued for evaluation...");
+                    pollStatus(data.job_id);
+                } else {
+                    throw new Error("No job ID received");
+                }
+
+            } catch (err) {
+                setJobStatus('failed');
+                let message = "Evaluation failed";
+                if (err instanceof ApiError) {
+                    message = err.message;
+                } else if (err instanceof Error) {
+                    message = err.message;
+                }
+                setError(message);
+                if (message.toLowerCase().includes("api key") || message.toLowerCase().includes("invalid") || message.toLowerCase().includes("gemini")) {
+                    setShowBanner(true);
+                }
             }
         }
     };
@@ -356,10 +484,196 @@ export default function EvaluatePage() {
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={handleSubmit} className="space-y-4">
+                                {/* Evaluation Mode Selection - At the top */}
+                                <Label className="text-sm font-medium mb-2">Evaluation Mode</Label>
+                                <div className="space-y-3 p-4 border rounded-lg bg-gray-50 dark:bg-gray-900">
+                                    
+                                    <RadioGroup
+                                        value={evaluationMode}
+                                        onValueChange={(value) => {
+                                            setEvaluationMode(value as "single" | "batch");
+                                            // Reset batch-specific state when switching modes
+                                            if (value === "single") {
+                                                setQuestionFile(null);
+                                                setNumQuestions(1);
+                                                setQuestionTexts([""]);
+                                                setUseStandardFormat(false);
+                                            }
+                                        }}
+                                        className="flex flex-start space-x-2"
+                                    >
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="single" id="single" />
+                                            <Label htmlFor="single" className="cursor-pointer">
+                                                Single Answer
+                                            </Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="batch" id="batch" />
+                                            <Label htmlFor="batch" className="cursor-pointer">
+                                                Multiple Answers
+                                            </Label>
+                                        </div>
+                                    </RadioGroup>
+                                    
+                                    {evaluationMode === "batch" && (
+                                        <div className="mt-3 pt-3 border-t space-y-2">
+                                            <div className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id="standard-format"
+                                                    checked={useStandardFormat}
+                                                    onCheckedChange={(checked) => setUseStandardFormat(checked === true)}
+                                                />
+                                                <Label htmlFor="standard-format" className="cursor-pointer text-sm">
+                                                    Use UPSC standard format
+                                                </Label>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground ml-6">
+                                                2 pages for Q1-10 (10 marks), 3 pages for Q11-20 (15 marks)
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Batch Mode: Question Input Options */}
+                                {evaluationMode === "batch" && (
+                                    <div className="space-y-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                                        <Label className="text-sm font-medium">Question Reference (Optional but Recommended)</Label>
+                                        <p className="text-xs text-muted-foreground mb-3">
+                                            Provide questions to improve answer detection accuracy. Choose one option:
+                                        </p>
+                                        
+                                        {/* Option 1: Upload Question File */}
+                                        <div className="space-y-2">
+                                            <Label className="text-sm font-medium">Option 1: Upload Question File</Label>
+                                            <div className="flex items-center justify-center w-full">
+                                                <label
+                                                    htmlFor="question-file"
+                                                    className={cn(
+                                                        "flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer bg-white hover:bg-gray-50 transition-colors",
+                                                        questionFile ? "border-green-500 bg-green-50" : "border-gray-300"
+                                                    )}
+                                                >
+                                                    <div className="flex flex-col items-center justify-center pt-3 pb-3">
+                                                        {questionFile ? (
+                                                            <>
+                                                                <CheckCircle className="w-6 h-6 mb-1 text-green-500" />
+                                                                <p className="text-xs text-green-700 font-medium truncate max-w-[200px]">
+                                                                    {questionFile.name}
+                                                                </p>
+                                                                <p className="text-xs text-green-600">Click to change</p>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <FileText className="w-6 h-6 mb-1 text-gray-400" />
+                                                                <p className="text-xs text-gray-500">
+                                                                    <span className="font-semibold">Click to upload</span> question paper
+                                                                </p>
+                                                                <p className="text-xs text-gray-400">PDF or Image (MAX. 10MB)</p>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    <input
+                                                        id="question-file"
+                                                        type="file"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            if (e.target.files && e.target.files[0]) {
+                                                                setQuestionFile(e.target.files[0]);
+                                                                // Clear manual questions when file is uploaded
+                                                                setNumQuestions(1);
+                                                                setQuestionTexts([""]);
+                                                            }
+                                                        }}
+                                                        accept=".pdf,image/*"
+                                                    />
+                                                </label>
+                                            </div>
+                                            {questionFile && (
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => setQuestionFile(null)}
+                                                    className="text-xs"
+                                                >
+                                                    Remove question file
+                                                </Button>
+                                            )}
+                                        </div>
+
+                                        {/* Option 2: Manual Question Input */}
+                                        <div className="space-y-2 pt-2 border-t">
+                                            <div className="flex items-center justify-between">
+                                                <Label className="text-sm font-medium">Option 2: Enter Questions Manually</Label>
+                                                {!questionFile && (
+                                                    <div className="flex items-center gap-2">
+                                                        <Label className="text-xs text-muted-foreground">Number of questions:</Label>
+                                                        <Input
+                                                            type="number"
+                                                            min="1"
+                                                            max="20"
+                                                            value={numQuestions}
+                                                            onChange={(e) => {
+                                                                const num = parseInt(e.target.value) || 1;
+                                                                const clamped = Math.min(Math.max(1, num), 20);
+                                                                setNumQuestions(clamped);
+                                                                // Resize question texts array
+                                                                const newTexts = [...questionTexts];
+                                                                while (newTexts.length < clamped) {
+                                                                    newTexts.push("");
+                                                                }
+                                                                while (newTexts.length > clamped) {
+                                                                    newTexts.pop();
+                                                                }
+                                                                setQuestionTexts(newTexts);
+                                                            }}
+                                                            className="w-20 h-8 text-sm"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {!questionFile && numQuestions > 0 && (
+                                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                                    {questionTexts.map((text, idx) => (
+                                                        <div key={idx} className="space-y-1">
+                                                            <Label className="text-xs text-muted-foreground">
+                                                                Question {idx + 1}:
+                                                            </Label>
+                                                            <Input
+                                                                placeholder={`Enter question ${idx + 1} text...`}
+                                                                value={text}
+                                                                onChange={(e) => {
+                                                                    const newTexts = [...questionTexts];
+                                                                    newTexts[idx] = e.target.value;
+                                                                    setQuestionTexts(newTexts);
+                                                                }}
+                                                                className="text-sm"
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                        Answer Files (PDF/Images) - Multiple pages supported
+                                        {evaluationMode === "batch" ? (
+                                            <>
+                                                Answer PDF File <span className="text-red-500">*</span>{" "}
+                                                <span className="text-xs text-muted-foreground font-normal">(Multiple answers in one PDF)</span>
+                                            </>
+                                        ) : (
+                                            "Answer Files (PDF/Images) - Multiple pages supported"
+                                        )}
                                     </label>
+                                    {evaluationMode === "batch" && (
+                                        <p className="text-xs text-red-600 dark:text-red-400">
+                                            ⚠️ It supports PDF format only. Please convert to PDF before uploading.
+                                        </p>
+                                    )}
                                     <div className="flex items-center justify-center w-full">
                                         <label
                                             htmlFor="dropzone-file"
@@ -375,7 +689,11 @@ export default function EvaluatePage() {
                                                         <p className="mb-2 text-sm text-green-700 font-medium">
                                                             {files.length} file{files.length > 1 ? 's' : ''} selected
                                                         </p>
-                                                        <p className="text-xs text-green-600">Click to add more</p>
+                                                        {evaluationMode === "batch" ? (
+                                                            <p className="text-xs text-green-600">PDF file ready</p>
+                                                        ) : (
+                                                            <p className="text-xs text-green-600">Click to add more</p>
+                                                        )}
                                                     </>
                                                 ) : (
                                                     <>
@@ -383,7 +701,11 @@ export default function EvaluatePage() {
                                                         <p className="mb-2 text-sm text-gray-500">
                                                             <span className="font-semibold">Click to upload</span> or drag and drop
                                                         </p>
-                                                        <p className="text-xs text-gray-500">PDF, PNG, JPG (MAX. 10MB each)</p>
+                                                        <p className="text-xs text-gray-500">
+                                                            {evaluationMode === "batch" 
+                                                                ? "PDF only (MAX. 50MB)"
+                                                                : "PDF, PNG, JPG (MAX. 10MB each)"}
+                                                        </p>
                                                     </>
                                                 )}
                                             </div>
@@ -392,8 +714,8 @@ export default function EvaluatePage() {
                                                 type="file"
                                                 className="hidden"
                                                 onChange={handleFileChange}
-                                                accept=".pdf,image/*"
-                                                multiple
+                                                accept={evaluationMode === "batch" ? ".pdf" : ".pdf,image/*"}
+                                                multiple={evaluationMode !== "batch"}
                                             />
                                         </label>
                                     </div>
@@ -423,17 +745,20 @@ export default function EvaluatePage() {
                                     )}
                                 </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Question (Optional)</label>
-                                    <Input
-                                        placeholder="Enter the question text..."
-                                        value={question}
-                                        onChange={(e) => setQuestion(e.target.value)}
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                        If left blank, AI will try to identify it from the file.
-                                    </p>
-                                </div>
+                                {/* Single Mode: Question Input */}
+                                {evaluationMode === "single" && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Question (Optional)</label>
+                                        <Input
+                                            placeholder="Enter the question text..."
+                                            value={question}
+                                            onChange={(e) => setQuestion(e.target.value)}
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            If left blank, AI will try to identify it from the file.
+                                        </p>
+                                    </div>
+                                )}
 
 
                                 {error && (
@@ -457,10 +782,10 @@ export default function EvaluatePage() {
                                         ) : result ? (
                                             <>
                                                 <CheckCircle className="mr-2 h-4 w-4" />
-                                                Evaluated
+                                                {evaluationMode === "batch" ? "Batch Evaluated" : "Evaluated"}
                                             </>
                                         ) : (
-                                            "Evaluate Answer"
+                                            evaluationMode === "batch" ? "Evaluate Batch Answers" : "Evaluate Answer"
                                         )}
                                     </Button>
 

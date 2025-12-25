@@ -810,7 +810,329 @@ def _parse_evaluation_response(response_text: str) -> dict:
 
 
 # ============================================================
-# TASK 2B: GENERATE IMPROVED ANSWER (Separate from Evaluation)
+# TASK 2B: BATCH ANSWER EVALUATION (Multiple Answers from Single PDF)
+# ============================================================
+
+@trace_chain("batch_evaluation_pipeline")
+async def evaluate_batch_answers_task(
+    ctx,
+    job_id: str,
+    pdf_path: str,
+    user_id: str,
+    gemini_api_key: str,
+    use_standard_format: bool = False,
+    question_file_path: Optional[str] = None,
+    question_texts: Optional[List[str]] = None
+):
+    """
+    Evaluate multiple answers from a single PDF using batch processing.
+    
+    FLOW:
+    1. Split PDF into answer chunks using regex (Q1, Q2, etc.)
+    2. For each answer chunk:
+       - OCR and extract question
+       - Run evaluation pipeline
+       - Track status per answer
+    3. Handle errors gracefully:
+       - 429/401: Cancel entire batch
+       - Transient errors: Retry then mark failed, continue
+    4. Update progress in Redis for polling
+    
+    Redis Structure:
+    - job_status:{job_id} = "processing" | "completed" | "partial_failed" | "cancelled"
+    - job_batch_data:{job_id} = JSON with {total_answers, completed_answers, failed_answers, answers: [...]}
+    """
+    logger.info(f"📦 [BATCH JOB {job_id}] Starting batch evaluation for user {user_id}")
+    redis = ctx["redis"]
+    
+    # Initialize batch status
+    batch_data = {
+        "total_answers": 0,
+        "completed_answers": 0,
+        "failed_answers": 0,
+        "answers": []
+    }
+    
+    await set_job_status(redis, job_id, "processing", batch_data=json.dumps(batch_data))
+    
+    try:
+        await check_cancellation(ctx, job_id)
+        
+        # Import answer splitter
+        from .utils.answer_splitter import split_pdf_by_answers
+        
+        # Step 1: Split PDF into answer chunks
+        logger.info(f"📄 [BATCH JOB {job_id}] Step 1: Splitting PDF into answer chunks...")
+        output_dir = Path(pdf_path).parent / f"batch_{job_id}"
+        answer_chunks = split_pdf_by_answers(
+            pdf_path, 
+            str(output_dir), 
+            use_standard_format=use_standard_format,
+            question_file_path=question_file_path,
+            question_texts=question_texts
+        )
+        
+        if not answer_chunks:
+            raise Exception("No answer chunks detected in PDF")
+        
+        # Enforce max 20 answers
+        if len(answer_chunks) > 20:
+            logger.warning(f"⚠️ [BATCH JOB {job_id}] Limiting to 20 answers (found {len(answer_chunks)})")
+            answer_chunks = answer_chunks[:20]
+        
+        batch_data["total_answers"] = len(answer_chunks)
+        logger.info(f"✅ [BATCH JOB {job_id}] Split into {len(answer_chunks)} answer chunks")
+        
+        # Log detected question numbers
+        q_nums = [chunk.get("question_number", idx + 1) for idx, chunk in enumerate(answer_chunks)]
+        logger.info(f"📋 [BATCH JOB {job_id}] Detected question numbers: {q_nums}")
+        
+        # Initialize Gemini Client
+        gemini_client = GeminiClient(api_key=gemini_api_key, model_name=settings.GEMINI_MODEL_PRO)
+        
+        # Import shared prompt
+        try:
+            from .prompts.shared_mains_prompts import get_evaluation_system_prompt
+            system_prompt = get_evaluation_system_prompt()
+        except ImportError:
+            logger.warning("⚠️ Using fallback generic system prompt")
+            system_prompt = "You are an expert evaluator. Provide detailed feedback on the student's answer."
+        
+        # Load training examples
+        training_examples = []
+        try:
+            training_data_file = Path(__file__).parent.parent.parent / "data" / "training_examples.json"
+            if training_data_file.exists():
+                with open(training_data_file, 'r', encoding='utf-8') as f:
+                    training_data = json.load(f)
+                    all_examples = training_data.get("training_examples", [])
+                    training_examples = all_examples[-3:] if len(all_examples) > 3 else all_examples
+        except Exception as e:
+            logger.debug(f"No training examples loaded: {e}")
+        
+        # Step 2: Process each answer sequentially
+        logger.info(f"🔄 [BATCH JOB {job_id}] Step 2: Processing {len(answer_chunks)} answers sequentially...")
+        
+        batch_cancelled = False
+        
+        for idx, chunk in enumerate(answer_chunks):
+            answer_id = chunk["answer_id"]
+            answer_file_path = chunk["file_path"]
+            question_number = chunk["question_number"]  # Actual question number (preserved)
+            marks = chunk.get("marks")  # Optional marks indicator
+            
+            logger.info(f"📝 [BATCH JOB {job_id}] Processing answer {idx + 1}/{len(answer_chunks)}: {answer_id} (Q{question_number}" + 
+                       (f", {marks} marks" if marks else "") + ")")
+            
+            # Check cancellation
+            try:
+                await check_cancellation(ctx, job_id)
+            except asyncio.CancelledError:
+                logger.info(f"🚫 [BATCH JOB {job_id}] Batch cancelled by user")
+                batch_cancelled = True
+                break
+            
+            # Initialize answer status
+            answer_data = {
+                "answer_id": answer_id,
+                "question_number": question_number,  # Actual question number
+                "status": "processing",
+                "evaluation": None,
+                "error": None
+            }
+            
+            # Add marks if available
+            if marks:
+                answer_data["marks"] = marks
+            batch_data["answers"].append(answer_data)
+            await set_job_status(redis, job_id, "processing", batch_data=json.dumps(batch_data))
+            
+            try:
+                # Extract question from answer PDF
+                question_prompt = """Read the handwritten answer and identify:
+1. The QUESTION text
+2. The marks/word count (e.g., "10 marks" or "15 marks" or "150 words" or "250 words")
+
+Return in format:
+QUESTION: [question text]
+MARKS: [10 or 15 or detected word count]
+If marks are 10, word count is 150. If marks are 15, word count is 250."""
+                
+                identified_question = None
+                word_count_int = 250  # Default
+                
+                # Acquire lock for question extraction
+                lock_key = f"lock:user:{user_id}"
+                async with redis.lock(lock_key, timeout=60, blocking_timeout=60):
+                    try:
+                        question_response = await gemini_client.generate_response(
+                            question_prompt,
+                            pdf_path=answer_file_path,
+                            temperature=0.0,
+                            max_retries=2
+                        )
+                        
+                        # Parse response
+                        response_text = question_response.strip()
+                        lines = response_text.split('\n')
+                        for line in lines:
+                            if line.startswith('QUESTION:'):
+                                identified_question = line.replace('QUESTION:', '').strip()
+                            elif line.startswith('MARKS:'):
+                                marks_text = line.replace('MARKS:', '').strip()
+                                import re
+                                marks_match = re.search(r'\d+', marks_text)
+                                if marks_match:
+                                    marks = int(marks_match.group())
+                                    if marks == 10:
+                                        word_count_int = 150
+                                    elif marks == 15:
+                                        word_count_int = 250
+                        
+                        if not identified_question:
+                            identified_question = response_text.split('\n')[0].replace('QUESTION:', '').strip() or f"Question {question_number}"
+                        
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        # Check for fatal errors (429/401)
+                        if '429' in error_str or 'quota' in error_str or '401' in error_str or '403' in error_str or 'api key' in error_str:
+                            logger.error(f"❌ [BATCH JOB {job_id}] Fatal error (429/401) at answer {answer_id}: {e}")
+                            batch_cancelled = True
+                            raise  # Re-raise to cancel batch
+                        # Transient error - mark as failed and continue
+                        logger.warning(f"⚠️ [BATCH JOB {job_id}] Failed to extract question for {answer_id}: {e}")
+                        identified_question = f"Question {question_number}"
+                
+                if batch_cancelled:
+                    break
+                
+                # Build evaluation prompt
+                user_prompt = _build_evaluation_prompt(
+                    identified_question=identified_question,
+                    training_examples=training_examples,
+                    word_count=word_count_int
+                )
+                
+                # Call Gemini for evaluation (with lock)
+                async with redis.lock(lock_key, timeout=120, blocking_timeout=70):
+                    await check_cancellation(ctx, job_id)
+                    
+                    try:
+                        response_text = await gemini_client.generate_response(
+                            user_prompt=user_prompt,
+                            system_prompt=system_prompt,
+                            pdf_path=answer_file_path,
+                            temperature=0.2,
+                            max_retries=2  # Max 2 retries per answer
+                        )
+                        
+                        # Parse evaluation response
+                        feedback = _parse_evaluation_response(response_text)
+                        
+                        # Mark answer as completed
+                        answer_data["status"] = "completed"
+                        answer_data["evaluation"] = {
+                            "question": identified_question,
+                            "feedback": feedback,
+                            "word_count": word_count_int
+                        }
+                        batch_data["completed_answers"] += 1
+                        
+                        logger.info(f"✅ [BATCH JOB {job_id}] Completed answer {answer_id}")
+                        
+                    except Exception as e:
+                        error_str = str(e).lower()
+                        # Check for fatal errors (429/401)
+                        if '429' in error_str or 'quota' in error_str or '401' in error_str or '403' in error_str or 'api key' in error_str:
+                            logger.error(f"❌ [BATCH JOB {job_id}] Fatal error (429/401) at answer {answer_id}: {e}")
+                            batch_cancelled = True
+                            raise  # Re-raise to cancel batch
+                        
+                        # Transient error - mark as failed and continue
+                        logger.warning(f"⚠️ [BATCH JOB {job_id}] Failed to evaluate answer {answer_id}: {e}")
+                        answer_data["status"] = "failed"
+                        answer_data["error"] = clean_gemini_error(str(e))
+                        batch_data["failed_answers"] += 1
+                
+                if batch_cancelled:
+                    break
+                
+            except asyncio.CancelledError:
+                batch_cancelled = True
+                break
+            except Exception as e:
+                error_str = str(e).lower()
+                # Check for fatal errors
+                if '429' in error_str or 'quota' in error_str or '401' in error_str or '403' in error_str or 'api key' in error_str:
+                    logger.error(f"❌ [BATCH JOB {job_id}] Fatal error (429/401): {e}")
+                    batch_cancelled = True
+                    answer_data["status"] = "failed"
+                    answer_data["error"] = clean_gemini_error(str(e))
+                    batch_data["failed_answers"] += 1
+                    break
+                else:
+                    # Transient error
+                    logger.warning(f"⚠️ [BATCH JOB {job_id}] Error processing answer {answer_id}: {e}")
+                    answer_data["status"] = "failed"
+                    answer_data["error"] = clean_gemini_error(str(e))
+                    batch_data["failed_answers"] += 1
+            
+            # Update progress
+            await set_job_status(redis, job_id, "processing", batch_data=json.dumps(batch_data))
+            # Also store separately for easy retrieval
+            await redis.set(f"job_batch_data:{job_id}", json.dumps(batch_data), ex=7200)
+        
+        # Step 3: Finalize batch status
+        # Store final batch_data
+        await redis.set(f"job_batch_data:{job_id}", json.dumps(batch_data), ex=7200)
+        
+        if batch_cancelled:
+            await set_job_status(redis, job_id, "cancelled", batch_data=json.dumps(batch_data))
+            await set_job_error(redis, job_id, "Batch cancelled due to API error (429/401) or user request")
+        elif batch_data["failed_answers"] > 0:
+            await set_job_status(redis, job_id, "partial_failed", batch_data=json.dumps(batch_data))
+            await set_job_result(redis, job_id, batch_data)
+        else:
+            await set_job_status(redis, job_id, "completed", batch_data=json.dumps(batch_data))
+            await set_job_result(redis, job_id, batch_data)
+        
+        logger.info(f"✅ [BATCH JOB {job_id}] Batch complete: {batch_data['completed_answers']} completed, {batch_data['failed_answers']} failed")
+        
+    except asyncio.CancelledError:
+        if 'batch_data' in locals():
+            await redis.set(f"job_batch_data:{job_id}", json.dumps(batch_data), ex=7200)
+            await set_job_status(redis, job_id, "cancelled", batch_data=json.dumps(batch_data))
+        await set_job_error(redis, job_id, "Cancelled by user")
+    except Exception as e:
+        logger.error(f"❌ [BATCH JOB {job_id}] Batch failed: {e}", exc_info=True)
+        if 'batch_data' in locals():
+            await redis.set(f"job_batch_data:{job_id}", json.dumps(batch_data), ex=7200)
+            await set_job_status(redis, job_id, "failed", batch_data=json.dumps(batch_data))
+        await set_job_error(redis, job_id, clean_gemini_error(str(e)))
+    finally:
+        # Cleanup: Remove split PDFs and temp directory
+        try:
+            if 'output_dir' in locals():
+                import shutil
+                if Path(output_dir).exists():
+                    shutil.rmtree(output_dir)
+                    logger.info(f"🧹 [BATCH JOB {job_id}] Cleaned up temp directory")
+        except Exception as e:
+            logger.warning(f"⚠️ [BATCH JOB {job_id}] Failed to cleanup: {e}")
+        
+        # Cleanup original PDF if it was in temp directory
+        try:
+            if Path(pdf_path).parent.name == "temp":
+                if os.path.exists(pdf_path):
+                    os.remove(pdf_path)
+        except:
+            pass
+        
+        await redis.delete(f"cancel:{job_id}")
+
+
+# ============================================================
+# TASK 2C: GENERATE IMPROVED ANSWER (Separate from Evaluation)
 # ============================================================
 
 @trace_chain("improved_answer_generation_pipeline")
@@ -1376,7 +1698,7 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
 
 class WorkerSettings:
     """ARQ Worker configuration"""
-    functions = [generate_mock_test_task, evaluate_answer_task, generate_improved_answer_task, generate_mains_answer_task]
+    functions = [generate_mock_test_task, evaluate_answer_task, evaluate_batch_answers_task, generate_improved_answer_task, generate_mains_answer_task]
     redis_settings = REDIS_SETTINGS
     on_startup = startup
     on_shutdown = shutdown
