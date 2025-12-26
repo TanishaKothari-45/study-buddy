@@ -1007,7 +1007,7 @@ export default function EvaluatePage() {
                             )}
 
                             {/* Feedback Grid */}
-                            <div className="grid gap-4 md:grid-cols-3">
+                            <div className="grid gap-4 md:grid-cols-2">
                                 <Card className="border-l-4 border-l-green-500">
                                     <CardHeader className="pb-2">
                                         <CardTitle className="text-base text-green-700">Strengths</CardTitle>
@@ -1025,36 +1025,61 @@ export default function EvaluatePage() {
                                     </CardContent>
                                 </Card>
 
-                                <Card className="border-l-4 border-l-orange-500">
+                                {/* Critical Gaps and Remedies */}
+                                <Card className="border-l-4 border-l-red-500">
                                     <CardHeader className="pb-2">
-                                        <CardTitle className="text-base text-orange-700">Missing Elements</CardTitle>
+                                        <CardTitle className="text-base text-red-700">Critical Gaps & Remedies</CardTitle>
+                                        <CardDescription className="text-xs">
+                                            Key issues and how to fix them
+                                        </CardDescription>
                                     </CardHeader>
                                     <CardContent>
-                                        {result.feedback.missing_elements && result.feedback.missing_elements.length > 0 ? (
-                                            <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700">
-                                                {result.feedback.missing_elements.map((item, i) => (
-                                                    <li key={i}>{item}</li>
+                                        {result.feedback.critical_gaps_and_remedies && result.feedback.critical_gaps_and_remedies.length > 0 ? (
+                                            <div className="space-y-3">
+                                                {result.feedback.critical_gaps_and_remedies.map((item, i) => (
+                                                    <div key={i} className="p-3 bg-red-50/50 rounded-md border border-red-100">
+                                                        <div className="mb-2">
+                                                            <span className="text-xs font-semibold text-red-800 uppercase">Gap:</span>
+                                                            <p className="text-sm text-gray-800 mt-1">{item.gap}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-xs font-semibold text-green-800 uppercase">Remedy:</span>
+                                                            <p className="text-sm text-gray-700 mt-1 font-medium">{item.remedy}</p>
+                                                        </div>
+                                                    </div>
                                                 ))}
-                                            </ul>
+                                            </div>
                                         ) : (
-                                            <p className="text-sm text-gray-500 italic">All key elements present</p>
-                                        )}
-                                    </CardContent>
-                                </Card>
-
-                                <Card className="border-l-4 border-l-amber-500">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base text-amber-700">Improvements Needed</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        {result.feedback.improvements_needed && result.feedback.improvements_needed.length > 0 ? (
-                                            <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700">
-                                                {result.feedback.improvements_needed.map((item, i) => (
-                                                    <li key={i}>{item}</li>
-                                                ))}
-                                            </ul>
-                                        ) : (
-                                            <p className="text-sm text-gray-500 italic">No major improvements needed</p>
+                                            // Fallback to legacy fields for backward compatibility
+                                            <>
+                                                {(result.feedback.missing_elements && result.feedback.missing_elements.length > 0) || 
+                                                 (result.feedback.improvements_needed && result.feedback.improvements_needed.length > 0) ? (
+                                                    <div className="space-y-3">
+                                                        {result.feedback.missing_elements && result.feedback.missing_elements.length > 0 && (
+                                                            <div>
+                                                                <span className="text-xs font-semibold text-red-800 uppercase">Missing Elements:</span>
+                                                                <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700 mt-1">
+                                                                    {result.feedback.missing_elements.map((item, i) => (
+                                                                        <li key={i}>{item}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        )}
+                                                        {result.feedback.improvements_needed && result.feedback.improvements_needed.length > 0 && (
+                                                            <div>
+                                                                <span className="text-xs font-semibold text-green-800 uppercase">Improvements:</span>
+                                                                <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700 mt-1">
+                                                                    {result.feedback.improvements_needed.map((item, i) => (
+                                                                        <li key={i}>{item}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-sm text-gray-500 italic">No critical gaps identified</p>
+                                                )}
+                                            </>
                                         )}
                                     </CardContent>
                                 </Card>
@@ -1109,12 +1134,6 @@ export default function EvaluatePage() {
                                         <div>
                                             <h4 className="font-semibold text-gray-900 mb-1">Visuals (Maps/Diagrams/Tables)</h4>
                                             <p className="text-gray-600">{result.feedback.visual_feedback}</p>
-                                        </div>
-                                    )}
-                                    {result.feedback.examiner_expectation_gap && (
-                                        <div className="bg-blue-50 p-3 rounded-md border border-blue-100">
-                                            <h4 className="font-semibold text-blue-900 mb-1">Examiner's Perspective</h4>
-                                            <p className="text-blue-800">{result.feedback.examiner_expectation_gap}</p>
                                         </div>
                                     )}
                                     {result.feedback.strategy_tip && (

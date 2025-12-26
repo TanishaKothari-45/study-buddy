@@ -77,20 +77,26 @@ export interface MarginComment {
     suggested_fix?: string;
 }
 
+export interface CriticalGapAndRemedy {
+    gap: string;
+    remedy: string;
+}
+
 export interface Feedback {
     examiner_expectation_blueprint?: ExaminerExpectationBlueprint;
     strengths: string[];
-    missing_elements: string[];
-    improvements_needed: string[];
+    critical_gaps_and_remedies?: CriticalGapAndRemedy[];
     section_wise_assessment?: SectionWiseAssessment;
     directive_alignment?: DirectiveAlignment;
     evidence_feedback: string;
     visual_feedback?: string;
-    examiner_expectation_gap?: string;
     strategy_tip?: string;
     overall_assessment: string;
     margin_comments?: MarginComment[];
     // Legacy fields for backward compatibility
+    missing_elements?: string[];
+    improvements_needed?: string[];
+    examiner_expectation_gap?: string;
     structure_feedback?: string;
 }
 

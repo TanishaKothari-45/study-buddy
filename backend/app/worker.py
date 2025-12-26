@@ -762,8 +762,7 @@ def _parse_evaluation_response(response_text: str) -> dict:
                 "non_negotiables": []
             }),
             "strengths": feedback_data.get("strengths", []),
-            "missing_elements": feedback_data.get("missing_elements", []),
-            "improvements_needed": feedback_data.get("improvements_needed", []),
+            "critical_gaps_and_remedies": feedback_data.get("critical_gaps_and_remedies", []),
             "section_wise_assessment": feedback_data.get("section_wise_assessment", {
                 "introduction": "",
                 "body": "",
@@ -772,7 +771,6 @@ def _parse_evaluation_response(response_text: str) -> dict:
             "directive_alignment": feedback_data.get("directive_alignment"),
             "evidence_feedback": feedback_data.get("evidence_feedback", ""),
             "visual_feedback": feedback_data.get("visual_feedback"),
-            "examiner_expectation_gap": feedback_data.get("examiner_expectation_gap"),
             "strategy_tip": feedback_data.get("strategy_tip"),
             "overall_assessment": feedback_data.get("overall_assessment", ""),
             "margin_comments": feedback_data.get("margin_comments", [])
@@ -794,8 +792,7 @@ def _parse_evaluation_response(response_text: str) -> dict:
                 "non_negotiables": []
             },
             "strengths": [],
-            "missing_elements": [],
-            "improvements_needed": [],
+            "critical_gaps_and_remedies": [],
             "section_wise_assessment": {
                 "introduction": "",
                 "body": "",
@@ -804,7 +801,6 @@ def _parse_evaluation_response(response_text: str) -> dict:
             "directive_alignment": None,
             "evidence_feedback": "Unable to parse structured feedback from response",
             "visual_feedback": None,
-            "examiner_expectation_gap": None,
             "strategy_tip": None,
             "overall_assessment": "Evaluation completed but response format was unexpected.",
             "margin_comments": []

@@ -165,7 +165,7 @@ Constraints / Format:
  - Include 2–3 bullets, each starting with a dash (-).
  - Each bullet must be actionable, future-oriented, and specific.
  - Keep bullets concise, concrete, and implementable.
-- CONCLUSION: 1 para connecting to constitutional artciles, values, Technological solutions, SDG goals, or India’s governance ethos (equity, sustainability, decentralisation) or policy frameworks.
+- CONCLUSION: 1 para connecting to constitutional artciles, values, or SDG goals, or India’s governance ethos (equity, sustainability, decentralisation) or policy frameworks and where contextually relevant, appropriate technological or adaptive solutions.
 - WORD COUNT: Target ~{word_count} words. Acceptable range: 80%-140% of target. Only compress bullet language if exceeding 140%.
 - For directive words (Analyse, Evaluate, Critically examine, Discuss), follow the Directive Decoder rules in SYSTEM PROMPT.
 - Tone: concise, exam-style, zero fluff.

@@ -20,19 +20,24 @@ class MarginComment(BaseModel):
         description="Optional: very brief guidance on how this could be improved or corrected"
     )
 
+class CriticalGapAndRemedy(BaseModel):
+    """Critical gap identified in the answer with its remedy."""
+    gap: str = Field(
+        description="Description of the fault or missing element"
+    )
+    remedy: str = Field(
+        description="Concise, actionable instruction on how to fix it"
+    )
+
 class FeedbackDetails(BaseModel):
     """Structured feedback for student answer evaluation."""
     strengths: List[str] = Field(
         default_factory=list,
         description="Specific strengths of the student's answer"
     )
-    missing_elements: List[str] = Field(
+    critical_gaps_and_remedies: List[CriticalGapAndRemedy] = Field(
         default_factory=list,
-        description="Key points missing from the student's answer"
-    )
-    improvements_needed: List[str] = Field(
-        default_factory=list,
-        description="Actionable suggestions for improvement"
+        description="Critical gaps identified with actionable remedies"
     )
     structure_feedback: str = Field(
         default="",
