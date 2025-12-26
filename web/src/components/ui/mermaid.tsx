@@ -12,16 +12,46 @@ interface MermaidProps {
 
 export function Mermaid({ chart, className = '' }: MermaidProps) {
     const ref = useRef<HTMLDivElement>(null);
-    const [zoom, setZoom] = useState(1.4); // Start at 120% for better readability
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [zoom, setZoom] = useState(1.4); // Start at 140% for better readability
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState({ x: 0, y: 0 });
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
 
-    const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.25, 3));
-    const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.25, 0.5));
+    const handleZoomIn = () => {
+        setZoom(prev => {
+            const newZoom = Math.min(prev + 0.25, 3);
+            // Scroll to top when zooming to ensure top is visible
+            setTimeout(() => {
+                if (containerRef.current) {
+                    containerRef.current.scrollTop = 0;
+                    containerRef.current.scrollLeft = 0;
+                }
+            }, 50);
+            return newZoom;
+        });
+    };
+    const handleZoomOut = () => {
+        setZoom(prev => {
+            const newZoom = Math.max(prev - 0.25, 0.5);
+            // Scroll to top when zooming to ensure top is visible
+            setTimeout(() => {
+                if (containerRef.current) {
+                    containerRef.current.scrollTop = 0;
+                    containerRef.current.scrollLeft = 0;
+                }
+            }, 50);
+            return newZoom;
+        });
+    };
     const handleReset = () => {
-        setZoom(1.4); // Reset to default 120%
+        setZoom(1.4); // Reset to default 140%
         setPanOffset({ x: 0, y: 0 });
+        // Scroll to top when resetting
+        if (containerRef.current) {
+            containerRef.current.scrollTop = 0;
+            containerRef.current.scrollLeft = 0;
+        }
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -161,6 +191,17 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
                             svgElement.setAttribute('viewBox',
                                 `${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`
                             );
+                            
+                            // Scroll container to top after rendering to ensure top is visible
+                            if (containerRef.current) {
+                                // Use setTimeout to ensure DOM is fully updated
+                                setTimeout(() => {
+                                    if (containerRef.current) {
+                                        containerRef.current.scrollTop = 0;
+                                        containerRef.current.scrollLeft = 0;
+                                    }
+                                }, 100);
+                            }
                         }
                     }
                 }).catch((error) => {
@@ -208,6 +249,7 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
 
             {/* Diagram Container */}
             <div
+                ref={containerRef}
                 className="mermaid-container"
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
@@ -222,7 +264,7 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
                     className="mermaid-diagram"
                     style={{
                         transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
-                        transformOrigin: 'center center',
+                        transformOrigin: 'top center',
                     }}
                 />
             </div>

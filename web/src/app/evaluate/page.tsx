@@ -382,6 +382,8 @@ export default function EvaluatePage() {
         setJobId(null);
         setJobStatus('queued');
         setStatusMessage("Uploading and starting...");
+        // Reset improved answer when starting a new evaluation
+        resetImprovedAnswer();
 
         const formData = new FormData();
         
@@ -1249,13 +1251,23 @@ export default function EvaluatePage() {
                                         </div>
                                         <Button
                                             onClick={handleGenerateImprovedAnswer}
-                                            disabled={improvedAnswerStatus === 'pending' || improvedAnswerStatus === 'processing' || improvedAnswerStatus === 'queued'}
-                                            className="bg-indigo-300 hover:bg-indigo-400"
+                                            disabled={
+                                                improvedAnswerStatus === 'pending' || 
+                                                improvedAnswerStatus === 'processing' || 
+                                                improvedAnswerStatus === 'queued' ||
+                                                !!improvedAnswerResult
+                                            }
+                                            className={improvedAnswerResult ? "bg-green-500 hover:bg-green-500 cursor-not-allowed" : "bg-indigo-300 hover:bg-indigo-400"}
                                         >
                                             {improvedAnswerStatus === 'pending' || improvedAnswerStatus === 'processing' || improvedAnswerStatus === 'queued' ? (
                                                 <>
                                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                                     Generating...
+                                                </>
+                                            ) : improvedAnswerResult ? (
+                                                <>
+                                                    <CheckCircle className="mr-2 h-4 w-4" />
+                                                    Generated
                                                 </>
                                             ) : (
                                                 <>
