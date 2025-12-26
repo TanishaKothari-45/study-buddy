@@ -640,6 +640,7 @@ EXAMPLE OF VALID TABLE CELLS:
     - An Indian policy, mission, or institutional reform suggestion
     - A governance, administrative or community-level solution
     - A policy or institutional reform suggestion to resolve the issue
+    - Technological solutions to resolve the issue
   - Keep bullets concise and concrete.
   - No philosophical or vague guidance.
 
@@ -648,6 +649,7 @@ For descriptive/scientific geography questions:
   - Provide a 2-line synthesizing insight, summarizing the concept’s significance, spatial relevance, or broader geophysical importance.
 For human geography / governance / impact / development questions:
   - Must connect the issue to policy frameworks, constitutional articles, values or SDG goals. 
+  - Techonological solutions to resolve the issue
 - Tone: concise, closing insight,optimistic, future-oriented, governance-aligned.
 - Should not introduce new arguments; must synthesize the overall answer.
 """
@@ -834,7 +836,7 @@ This must include:
         Whether a comparative analysis, impact assessment, logical linkages or multi-dimensionality is essential.
      - CONCLUSION: 
         What synthesis, judgement, or forward linkage must be clearly demonstrated.
-        Whether linkage to constitutional values, governance ethos, SDGs, or future implications is expected.
+        Whether linkage to Technological solutions, constitutional values, governance ethos, SDGs, or future implications is expected.
    - This is a cognitive blueprint, not a model answer or rigid outline.
 
 3. NON-NEGOTIABLE ELEMENTS  
@@ -934,56 +936,56 @@ Generate a margin comment ONLY when one of the following conditions is met:
 
 Example 1 - Strength (Low Severity):
 ```json
-{
+{{
   "anchor_text": "The answer correctly identifies three key factors affecting monsoon variability",
   "comment": "Good identification of core factors",
   "comment_type": "strength",
   "severity": "low"
-}
+}}
 ```
 
 Example 2 - Missing Evidence (Medium Severity):
 ```json
-{
+{{
   "anchor_text": "Climate change impacts agriculture significantly",
   "comment": "Needs specific data or example",
   "comment_type": "evidence_gap",
   "severity": "medium",
   "suggested_fix": "Add IMD 2023 data or state-specific example"
-}
+}}
 ```
 
 Example 3 - Directive Misalignment (High Severity):
 ```json
-{
+{{
   "anchor_text": "The question asks to evaluate but answer only describes",
   "comment": "Missing evaluation - directive not followed",
   "comment_type": "directive_misalignment",
   "severity": "high",
   "suggested_fix": "Add pros/cons analysis and judgement"
-}
+}}
 ```
 
 Example 4 - Missing Non-Negotiable Element (High Severity):
 ```json
-{
+{{
   "anchor_text": "Answer discusses distribution but no map provided",
   "comment": "Map mandatory for distribution questions",
   "comment_type": "visual_gap",
   "severity": "high",
   "suggested_fix": "Include map-json block showing spatial pattern"
-}
+}}
 ```
 
 Example 5 - Weakness (Medium Severity):
 ```json
-{
+{{
   "anchor_text": "Vague statement without concrete mechanism",
   "comment": "Too generic - needs specific mechanism",
   "comment_type": "weakness",
   "severity": "medium",
   "suggested_fix": "Explain the causal chain step-by-step or provide a specific example"
-}
+}}
 ```
 
 **IMPORTANT**: 
@@ -1070,13 +1072,13 @@ You MUST return ONLY a valid JSON object in the following structure:
     "overall_assessment": "Balanced, honest UPSC examiner-style verdict with encouragement",
 
     "margin_comments": [
-  {
+  {{
     "anchor_text": "Exact phrase or short excerpt from the student's answer",
     "comment": "Examiner-style remark explaining the issue or merit",
     "comment_type": "strength | weakness | omission | directive_misalignment | evidence_gap | structure_issue | visual_gap",
     "severity": "low | medium | high",
     "suggested_fix": "Optional: very brief guidance on how this could be improved or corrected"
-  }
+  }}
 ]
 
   }}

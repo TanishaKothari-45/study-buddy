@@ -774,7 +774,8 @@ def _parse_evaluation_response(response_text: str) -> dict:
             "visual_feedback": feedback_data.get("visual_feedback"),
             "examiner_expectation_gap": feedback_data.get("examiner_expectation_gap"),
             "strategy_tip": feedback_data.get("strategy_tip"),
-            "overall_assessment": feedback_data.get("overall_assessment", "")
+            "overall_assessment": feedback_data.get("overall_assessment", ""),
+            "margin_comments": feedback_data.get("margin_comments", [])
         }
         
         return feedback
@@ -805,7 +806,8 @@ def _parse_evaluation_response(response_text: str) -> dict:
             "visual_feedback": None,
             "examiner_expectation_gap": None,
             "strategy_tip": None,
-            "overall_assessment": "Evaluation completed but response format was unexpected."
+            "overall_assessment": "Evaluation completed but response format was unexpected.",
+            "margin_comments": []
         }
 
 

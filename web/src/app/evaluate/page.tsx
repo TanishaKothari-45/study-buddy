@@ -19,6 +19,28 @@ import { useEvaluateAnswerStore } from "@/stores";
 import { useAuth } from "@/context/AuthContext";
 import { EvaluationResult } from "@/stores/types";
 
+// Helper function to format text with line breaks around ** markers for better readability
+const formatBlueprintText = (text: string): string => {
+    if (!text) return text;
+    
+    // First, fix broken patterns where ** markers are split across lines
+    // Pattern: "1.\n**Text:\n**" -> "1. **Text:**"
+    let formatted = text
+        // Fix: Remove line breaks between number and **
+        .replace(/(\d+)\.\s*\n\s*\*\*/g, '$1. **')
+        // Fix: Remove line breaks between **Text: and **
+        .replace(/\*\*([^*:]+?):\s*\n\s*\*\*/g, '**$1:**')
+        // Fix: Remove line breaks in the middle of ** markers
+        .replace(/\*\*\s*\n\s*\*\*/g, '**')
+        // Now format correctly: "1. **Text:** explanation" -> "1.**Text:**\n explanation"
+        .replace(/(\d+)\.\s*\*\*([^*:]+?):\*\*\s*/g, '$1.**$2:**\n')
+        // Clean up multiple newlines
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    
+    return formatted;
+};
+
 export default function EvaluatePage() {
     const { user, refreshUser, isApiKeyValid, setIsApiKeyValid, verifyApiKey } = useAuth();
     const [showBanner, setShowBanner] = useState(false);
@@ -834,12 +856,12 @@ export default function EvaluatePage() {
                                     <CardContent>
                                         <div className="space-y-3">
                                             {result.feedback.margin_comments.map((comment, idx) => {
-                                                const severityColors = {
+                                                const severityColors: Record<string, string> = {
                                                     low: "bg-blue-50 border-blue-200 text-blue-800",
                                                     medium: "bg-amber-50 border-amber-200 text-amber-800",
                                                     high: "bg-red-50 border-red-200 text-red-800"
                                                 };
-                                                const typeColors = {
+                                                const typeColors: Record<string, string> = {
                                                     strength: "text-green-700",
                                                     weakness: "text-red-700",
                                                     omission: "text-orange-700",
@@ -849,10 +871,13 @@ export default function EvaluatePage() {
                                                     visual_gap: "text-cyan-700"
                                                 };
                                                 
+                                                const severity = (comment.severity || "low").toLowerCase();
+                                                const severityColor = severityColors[severity] || severityColors.low;
+                                                
                                                 return (
                                                     <div 
                                                         key={idx} 
-                                                        className={`p-3 rounded-lg border-l-4 ${severityColors[comment.severity]}`}
+                                                        className={`p-3 rounded-lg border-l-4 ${severityColor}`}
                                                     >
                                                         <div className="flex items-start justify-between gap-2 mb-1">
                                                             <div className="flex-1">
@@ -861,7 +886,7 @@ export default function EvaluatePage() {
                                                                         {comment.comment_type.replace(/_/g, ' ').toUpperCase()}
                                                                     </span>
                                                                     <span className={`text-xs font-medium ${typeColors[comment.comment_type] || 'text-gray-700'}`}>
-                                                                        {comment.severity.toUpperCase()} SEVERITY
+                                                                        {severity.toUpperCase()} SEVERITY
                                                                     </span>
                                                                 </div>
                                                                 <p className="text-sm font-medium text-gray-900 mb-1">
@@ -881,6 +906,101 @@ export default function EvaluatePage() {
                                                     </div>
                                                 );
                                             })}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Examiner Expectation Blueprint */}
+                            {result.feedback.examiner_expectation_blueprint && (
+                                <Card className="border-l-4 border-l-blue-500">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-base text-blue-700">Examiner's Expectation Blueprint</CardTitle>
+                                        <CardDescription className="text-xs">
+                                            What the examiner expects for this question
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4 text-sm">
+                                        {result.feedback.examiner_expectation_blueprint.key_demands_of_the_question && result.feedback.examiner_expectation_blueprint.key_demands_of_the_question.length > 0 && (
+                                            <div>
+                                                <h4 className="font-semibold text-gray-900 mb-2">Key Demands of the Question</h4>
+                                                <ul className="list-disc pl-4 space-y-1 text-gray-700">
+                                                    {result.feedback.examiner_expectation_blueprint.key_demands_of_the_question.map((demand: string, i: number) => (
+                                                        <li key={i}>{demand}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {result.feedback.examiner_expectation_blueprint.ideal_logical_structure && (
+                                            <div>
+                                                <h4 className="font-semibold text-gray-900 mb-2">Ideal Logical Structure</h4>
+                                                <div className="space-y-3 pl-4 border-l-2 border-blue-200">
+                                                    <div>
+                                                        <span className="font-medium text-blue-700">Introduction: </span>
+                                                        <div className="text-gray-700 whitespace-pre-line mt-1">
+                                                            {formatBlueprintText(result.feedback.examiner_expectation_blueprint.ideal_logical_structure.introduction)}
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-medium text-blue-700">Body: </span>
+                                                        <div className="text-gray-700 whitespace-pre-line mt-1">
+                                                            {formatBlueprintText(result.feedback.examiner_expectation_blueprint.ideal_logical_structure.body)}
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-medium text-blue-700">Conclusion: </span>
+                                                        <div className="text-gray-700 whitespace-pre-line mt-1">
+                                                            {formatBlueprintText(result.feedback.examiner_expectation_blueprint.ideal_logical_structure.conclusion)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {result.feedback.examiner_expectation_blueprint.non_negotiables && result.feedback.examiner_expectation_blueprint.non_negotiables.length > 0 && (
+                                            <div>
+                                                <h4 className="font-semibold text-gray-900 mb-2">Non-Negotiable Elements</h4>
+                                                <ul className="list-disc pl-4 space-y-1 text-gray-700">
+                                                    {result.feedback.examiner_expectation_blueprint.non_negotiables.map((item: string, i: number) => (
+                                                        <li key={i}>{item}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Directive Alignment */}
+                            {result.feedback.directive_alignment && (
+                                <Card className="border-l-4 border-l-purple-500">
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-base text-purple-700">Directive Alignment</CardTitle>
+                                        <CardDescription className="text-xs">
+                                            How well your answer matches the question's directive
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-3 text-sm">
+                                        <div>
+                                            <span className="font-semibold text-gray-900">Directive Identified: </span>
+                                            <span className="text-purple-700 font-medium">{result.feedback.directive_alignment.directive_identified}</span>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-semibold text-gray-900 mb-1">Alignment Assessment</h4>
+                                            <p className="text-gray-700">{result.feedback.directive_alignment.alignment_assessment}</p>
+                                        </div>
+                                        {result.feedback.directive_alignment.issues_if_any && result.feedback.directive_alignment.issues_if_any.length > 0 && (
+                                            <div>
+                                                <h4 className="font-semibold text-amber-700 mb-1">Issues Identified</h4>
+                                                <ul className="list-disc pl-4 space-y-1 text-gray-700">
+                                                    {result.feedback.directive_alignment.issues_if_any.map((issue, i) => (
+                                                        <li key={i}>{issue}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        <div className="bg-purple-50 p-3 rounded-md border border-purple-100">
+                                            <h4 className="font-semibold text-purple-900 mb-1">How to Improve</h4>
+                                            <p className="text-purple-800">{result.feedback.directive_alignment.how_to_improve}</p>
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -939,95 +1059,6 @@ export default function EvaluatePage() {
                                     </CardContent>
                                 </Card>
                             </div>
-
-                            {/* Directive Alignment (NEW) */}
-                            {result.feedback.directive_alignment && (
-                                <Card className="border-l-4 border-l-purple-500">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base text-purple-700">Directive Alignment</CardTitle>
-                                        <CardDescription className="text-xs">
-                                            How well your answer matches the question's directive
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-3 text-sm">
-                                        <div>
-                                            <span className="font-semibold text-gray-900">Directive Identified: </span>
-                                            <span className="text-purple-700 font-medium">{result.feedback.directive_alignment.directive_identified}</span>
-                                        </div>
-                                        <div>
-                                            <h4 className="font-semibold text-gray-900 mb-1">Alignment Assessment</h4>
-                                            <p className="text-gray-700">{result.feedback.directive_alignment.alignment_assessment}</p>
-                                        </div>
-                                        {result.feedback.directive_alignment.issues_if_any && result.feedback.directive_alignment.issues_if_any.length > 0 && (
-                                            <div>
-                                                <h4 className="font-semibold text-amber-700 mb-1">Issues Identified</h4>
-                                                <ul className="list-disc pl-4 space-y-1 text-gray-700">
-                                                    {result.feedback.directive_alignment.issues_if_any.map((issue, i) => (
-                                                        <li key={i}>{issue}</li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                        <div className="bg-purple-50 p-3 rounded-md border border-purple-100">
-                                            <h4 className="font-semibold text-purple-900 mb-1">How to Improve</h4>
-                                            <p className="text-purple-800">{result.feedback.directive_alignment.how_to_improve}</p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {/* Examiner Expectation Blueprint */}
-                            {result.feedback.examiner_expectation_blueprint && (
-                                <Card className="border-l-4 border-l-blue-500">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base text-blue-700">Examiner's Expectation Blueprint</CardTitle>
-                                        <CardDescription className="text-xs">
-                                            What the examiner expects for this question
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4 text-sm">
-                                        {result.feedback.examiner_expectation_blueprint.key_demands_of_the_question && result.feedback.examiner_expectation_blueprint.key_demands_of_the_question.length > 0 && (
-                                            <div>
-                                                <h4 className="font-semibold text-gray-900 mb-2">Key Demands of the Question</h4>
-                                                <ul className="list-disc pl-4 space-y-1 text-gray-700">
-                                                    {result.feedback.examiner_expectation_blueprint.key_demands_of_the_question.map((demand: string, i: number) => (
-                                                        <li key={i}>{demand}</li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                        {result.feedback.examiner_expectation_blueprint.ideal_logical_structure && (
-                                            <div>
-                                                <h4 className="font-semibold text-gray-900 mb-2">Ideal Logical Structure</h4>
-                                                <div className="space-y-2 pl-4 border-l-2 border-blue-200">
-                                                    <div>
-                                                        <span className="font-medium text-blue-700">Introduction: </span>
-                                                        <span className="text-gray-700">{result.feedback.examiner_expectation_blueprint.ideal_logical_structure.introduction}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="font-medium text-blue-700">Body: </span>
-                                                        <span className="text-gray-700">{result.feedback.examiner_expectation_blueprint.ideal_logical_structure.body}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="font-medium text-blue-700">Conclusion: </span>
-                                                        <span className="text-gray-700">{result.feedback.examiner_expectation_blueprint.ideal_logical_structure.conclusion}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {result.feedback.examiner_expectation_blueprint.non_negotiables && result.feedback.examiner_expectation_blueprint.non_negotiables.length > 0 && (
-                                            <div>
-                                                <h4 className="font-semibold text-gray-900 mb-2">Non-Negotiable Elements</h4>
-                                                <ul className="list-disc pl-4 space-y-1 text-gray-700">
-                                                    {result.feedback.examiner_expectation_blueprint.non_negotiables.map((item: string, i: number) => (
-                                                        <li key={i}>{item}</li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            )}
 
                             {/* Section-wise Assessment */}
                             {result.feedback.section_wise_assessment && (
