@@ -893,13 +893,29 @@ Evaluate:
 - Relevance to the question
 - Depth appropriate to question weight (10 vs 15) or word count (150 vs 250)
 
-**RULE 6 - VISUAL JUDGEMENT**:
+**RULE 6 - MARK EXPECTATION DISCIPLINE**:
+
+Evaluate the answer relative to the question’s mark value.
+
+- For 10-mark questions:
+  Expect conceptual clarity, relevance, and correct coverage.
+  Limited depth or synthesis is acceptable if core demands are met.
+
+- For 15-mark questions:
+  Expect deeper reasoning, interlinkages, evaluation, and a clear conclusion.
+  Purely descriptive answers should be marked down even if factually correct.
+
+Do NOT penalise the use of diagrams, maps, or tables in any question.
+Marks determine depth of reasoning, not choice of presentation tools.
+
+
+**RULE 7 - VISUAL JUDGEMENT**:
 Assess whether:
 - A map/diagram/table was REQUIRED but missing
 - The chosen visual was sub-optimal
 - A simpler or better visual could improve marks
 
-**RULE 7 - MARGIN COMMENTS (MANDATORY, SPARSE)**:
+**RULE 8 - MARGIN COMMENTS (MANDATORY, SPARSE)**:
 In addition to global feedback, provide brief margin-style comments anchored to specific phrases in the student’s answer.
 
 **MARGIN COMMENT TRIGGER RULES (CRITICAL)**:

@@ -504,6 +504,7 @@ async def evaluate_answer_task(
         # ============================================================
         identified_question = question
         word_count_int = 250  # Default
+        marks_int = 15  # Default (15 marks = 250 words)
         
         if not identified_question:
             logger.info(f"📝 [JOB {job_id}] STEP 1: Extracting question from files...")
@@ -534,21 +535,32 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
                                 identified_question = line.replace('QUESTION:', '').strip()
                             elif line.startswith('MARKS:'):
                                 marks_text = line.replace('MARKS:', '').strip()
-                                # Extract number
+                                # Extract number - handle both marks and word count (bidirectional)
                                 import re
                                 marks_match = re.search(r'\d+', marks_text)
                                 if marks_match:
-                                    marks = int(marks_match.group())
-                                    if marks == 10:
+                                    value = int(marks_match.group())
+                                    # Only 10 and 15 are marks; 150 and 250 are word counts
+                                    if value == 10:
+                                        # Marks provided: 10 marks
+                                        marks_int = 10
                                         word_count_int = 150
-                                    elif marks == 15:
+                                    elif value == 15:
+                                        # Marks provided: 15 marks
+                                        marks_int = 15
+                                        word_count_int = 250
+                                    elif value == 150:
+                                        # Word count provided: 150 words
+                                        marks_int = 10
+                                        word_count_int = 150
+                                    elif value == 250:
+                                        # Word count provided: 250 words
+                                        marks_int = 15
                                         word_count_int = 250
                                     else:
-                                        # Check if it's already a word count
-                                        if '150' in marks_text or marks == 150:
-                                            word_count_int = 150
-                                        elif '250' in marks_text or marks == 250:
-                                            word_count_int = 250
+                                        # Unknown value, default to 15 marks / 250 words
+                                        marks_int = 15
+                                        word_count_int = 250
                         
                         if not identified_question:
                             identified_question = response_text.split('\n')[0].replace('QUESTION:', '').strip()
@@ -564,15 +576,28 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
                 identified_question = question or "Question not identified"
         else:
             logger.info(f"📝 [JOB {job_id}] STEP 1: Using provided question")
-            # Try to extract word count from question text
+            # Try to extract marks or word count from question text (bidirectional)
             import re
+            # First try to find marks (10 marks, 15 marks)
             marks_match = re.search(r'(\d+)\s*marks?', identified_question, re.IGNORECASE)
             if marks_match:
                 marks = int(marks_match.group(1))
+                marks_int = marks
                 if marks == 10:
                     word_count_int = 150
                 elif marks == 15:
                     word_count_int = 250
+            else:
+                # Try to find word count (150 words, 250 words) and derive marks
+                word_count_match = re.search(r'(\d+)\s*words?', identified_question, re.IGNORECASE)
+                if word_count_match:
+                    word_count_value = int(word_count_match.group(1))
+                    if word_count_value == 150:
+                        marks_int = 10
+                        word_count_int = 150
+                    elif word_count_value == 250:
+                        marks_int = 15
+                        word_count_int = 250
         
         await check_cancellation(ctx, job_id)
         
@@ -598,7 +623,8 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
         user_prompt = _build_evaluation_prompt(
             identified_question=identified_question,
             training_examples=training_examples,
-            word_count=word_count_int
+            word_count=word_count_int,
+            marks=marks_int
         )
         
         # ============================================================
@@ -696,11 +722,29 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
 def _build_evaluation_prompt(
     identified_question: str,
     training_examples: List[dict],
-    word_count: int
+    word_count: int,
+    marks: int = 15
 ) -> str:
     """Build the evaluation user prompt (feedback only, no context)"""
-    parts = [f"**QUESTION**: {identified_question}\n\n"]
-    parts.append(f"**EXPECTED WORD COUNT**: {word_count} words (based on question marks/requirements)\n\n")
+    import json
+    # Include marks and word_limit in JSON format as specified
+    input_json = {
+        "question_text": identified_question,
+        "answer_text": "[Read from uploaded file]",
+        "marks": marks,
+        "word_limit": word_count
+    }
+    parts = [f"""**INPUT FORMAT**:
+```json
+{json.dumps(input_json, indent=2, ensure_ascii=False)}
+```
+
+**QUESTION**: {identified_question}
+
+**MARKS**: {marks} marks
+**WORD LIMIT**: {word_count} words
+
+"""]
     
     # Add few-shot examples
     if training_examples:
@@ -958,6 +1002,7 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
                 
                 identified_question = None
                 word_count_int = 250  # Default
+                marks_int = 15  # Default (15 marks = 250 words)
                 
                 # Acquire lock for question extraction
                 lock_key = f"lock:user:{user_id}"
@@ -978,13 +1023,31 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
                                 identified_question = line.replace('QUESTION:', '').strip()
                             elif line.startswith('MARKS:'):
                                 marks_text = line.replace('MARKS:', '').strip()
+                                # Extract number - handle both marks and word count (bidirectional)
                                 import re
                                 marks_match = re.search(r'\d+', marks_text)
                                 if marks_match:
-                                    marks = int(marks_match.group())
-                                    if marks == 10:
+                                    value = int(marks_match.group())
+                                    # Only 10 and 15 are marks; 150 and 250 are word counts
+                                    if value == 10:
+                                        # Marks provided: 10 marks
+                                        marks_int = 10
                                         word_count_int = 150
-                                    elif marks == 15:
+                                    elif value == 15:
+                                        # Marks provided: 15 marks
+                                        marks_int = 15
+                                        word_count_int = 250
+                                    elif value == 150:
+                                        # Word count provided: 150 words
+                                        marks_int = 10
+                                        word_count_int = 150
+                                    elif value == 250:
+                                        # Word count provided: 250 words
+                                        marks_int = 15
+                                        word_count_int = 250
+                                    else:
+                                        # Unknown value, default to 15 marks / 250 words
+                                        marks_int = 15
                                         word_count_int = 250
                         
                         if not identified_question:
@@ -1008,7 +1071,8 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
                 user_prompt = _build_evaluation_prompt(
                     identified_question=identified_question,
                     training_examples=training_examples,
-                    word_count=word_count_int
+                    word_count=word_count_int,
+                    marks=marks_int
                 )
                 
                 # Call Gemini for evaluation (with lock)
