@@ -646,9 +646,9 @@ EXAMPLE OF VALID TABLE CELLS:
 
 - **CONCLUSION**:
 For descriptive/scientific geography questions:
-  - Provide a 2-line synthesizing insight, summarizing the concept’s significance, spatial relevance, or broader geophysical importance.
+  - Provide a 2-line synthesizing insight, summarizing the concept’s significance, spatial relevance, or broader geophysical importance and where contextually relevant, appropriate technological or adaptive solutions.
 For human geography / governance / impact / development questions:
-  - Must connect the issue to policy frameworks, constitutional articles, values, or SDG goals and where contextually relevant, appropriate technological or adaptive solutions. 
+  - Must connect the issue to policy frameworks, Supreme Court judgements, constitutional articles, values, or SDG goals and where contextually relevant, appropriate technological or adaptive solutions.  
 - Tone: concise, closing insight,optimistic, future-oriented, governance-aligned.
 - Should not introduce new arguments; must synthesize the overall answer.
 """
