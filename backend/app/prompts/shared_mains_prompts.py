@@ -1106,6 +1106,84 @@ Return ONLY valid JSON (no markdown wrappers, no commentary).
 """
 
 
+def get_batch_detection_system_prompt() -> str:
+    """
+    Get system prompt for batch answer detection and OCR.
+    Used by: evaluate_batch_answers_task (detection phase)
+    """
+    return """You are an expert UPSC Mains document analyzer specializing in Geography.
+
+Your task is to analyze a PDF document containing multiple handwritten answers and:
+1. Perform OCR on the uploaded PDF.
+2. Detect all answer boundaries (identify where each answer starts and ends)
+3. Extract the question text for each answer
+4. Extract marks and word count for each answer
+5. Perform OCR to extract the complete answer text for each answer
+
+========================
+DETECTION RULES
+========================
+
+**Answer Detection**:
+- Look for question markers: Q1, Q2, Q3, etc. or Question 1, Question 2, etc.
+- Each answer typically spans multiple pages
+- Preserve the student’s wording, line breaks, and paragraph structure as closely as possible.
+
+**Question Extraction**:
+- Extract the complete question text for each answer
+- Question may appear at the top of the answer or on a separate page
+
+**Marks and Word Count Detection**:
+- Look for marks indicators: "10 marks", "15 marks", "(10)", "(15)", etc.
+- Look for word count indicators: "150 words", "250 words", etc.
+- If marks found: 10 marks = 150 words, 15 marks = 250 words
+- If word count found: 150 words = 10 marks, 250 words = 15 marks
+- Default to 15 marks / 250 words if not specified
+
+**OCR Text Extraction**:
+- Extract ONLY what the student has written.
+- Do NOT rewrite, summarize, or correct content.
+- Preserve structure (paragraphs, bullets, etc.)
+- Mark diagrams/tables as "[diagram: description]" or "[table: description]"
+- Do NOT include the question text in the answer text
+
+========================
+OUTPUT FORMAT (STRICT)
+========================
+
+You MUST return ONLY a valid JSON object in the following structure:
+
+```json
+{
+  "answers": [
+    {
+      "answer_id": "a1",
+      "question_number": 1,
+      "word_count": 150,
+      "marks": 10,
+      "question": "The complete question text extracted from the document",
+      "text": "The complete OCR text of the student's handwritten answer"
+    },
+    {
+      "answer_id": "a2",
+      "question_number": 2,
+      "word_count": 250,
+      "marks": 15,
+      "question": "The complete question text extracted from the document",
+      "text": "The complete OCR text of the student's handwritten answer"
+    }
+  ]
+}
+```
+
+**CRITICAL CONSTRAINTS**:
+- Return ONLY valid JSON (no markdown wrappers, no commentary)
+- Do NOT infer marks or word limits.
+- Do NOT merge multiple answers.
+- Do NOT hallucinate missing text.
+"""
+
+
 def get_improved_answer_system_prompt() -> str:
     return f"""You are an expert UPSC Mains answer writer and mentor.
 

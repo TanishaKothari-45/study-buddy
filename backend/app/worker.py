@@ -523,7 +523,8 @@ async def evaluate_answer_task(
         logger.info(f"📝 [JOB {job_id}] STEP 2: Building evaluation prompt...")
         user_prompt = _build_evaluation_prompt(
             provided_question=identified_question,  # May be empty, will be extracted if not provided
-            training_examples=training_examples
+            training_examples=training_examples,
+            use_extracted_text=False  # Single mode: read from files
         )
         
         # ============================================================
@@ -636,23 +637,74 @@ async def evaluate_answer_task(
 
 
 def _build_evaluation_prompt(
-    provided_question: str,
-    training_examples: List[dict]
+    provided_question: str = "",
+    training_examples: List[dict] = None,
+    answer_text: str = None,
+    word_count: int = None,
+    marks: int = None,
+    use_extracted_text: bool = False
 ) -> str:
-    """Build the evaluation user prompt (feedback only, no context)"""
+    """
+    Build the evaluation user prompt (unified for both single and batch modes).
+    
+    Args:
+        provided_question: Question text (optional for single mode, required for batch mode)
+        training_examples: Few-shot examples for learning feedback patterns
+        answer_text: Extracted answer text (only for batch mode when use_extracted_text=True)
+        word_count: Word count (only for batch mode when use_extracted_text=True)
+        marks: Marks (only for batch mode when use_extracted_text=True)
+        use_extracted_text: If True, use provided answer_text instead of reading from files
+    
+    Returns:
+        Formatted evaluation prompt string
+    """
     import json
+    
+    if training_examples is None:
+        training_examples = []
     
     parts = []
     
-    # Add instruction to extract question, marks, and word_count if question not provided
-    if provided_question:
-        parts.append(f"""**QUESTION PROVIDED**: {provided_question}
+    if use_extracted_text:
+        # Batch mode: Use extracted text (question, marks, word_count, answer_text already provided)
+        if not provided_question or not answer_text:
+            raise ValueError("For batch mode, question and answer_text must be provided")
+        if word_count is None or marks is None:
+            raise ValueError("For batch mode, word_count and marks must be provided")
+        
+        # Include marks and word_limit in JSON format as specified
+        input_json = {
+            "question_text": provided_question,
+            "answer_text": answer_text,
+            "marks": marks,
+            "word_limit": word_count
+        }
+        parts.append(f"""**INPUT FORMAT**:
+```json
+{json.dumps(input_json, indent=2, ensure_ascii=False)}
+```
+
+**QUESTION**: {provided_question}
+
+**MARKS**: {marks} marks
+**WORD LIMIT**: {word_count} words
+
+**STUDENT ANSWER TEXT**:
+{answer_text}
+
+""")
+        
+        task_description = "Evaluate the student's answer text provided above and provide detailed feedback."
+    else:
+        # Single mode: Read from uploaded files (OCR + evaluation)
+        if provided_question:
+            parts.append(f"""**QUESTION PROVIDED**: {provided_question}
 
 **TASK**: Extract marks and word count from the question or uploaded file, then evaluate the student's handwritten answer.
 
 """)
-    else:
-        parts.append("""**TASK**: 
+        else:
+            parts.append("""**TASK**: 
 1. First, extract the QUESTION text from the uploaded file(s)
 2. Extract the MARKS (10 or 15) and WORD COUNT (150 or 250 words) from the question or file
    - 10 marks = 150 words
@@ -660,8 +712,10 @@ def _build_evaluation_prompt(
 3. Then evaluate the student's handwritten answer
 
 """)
+        
+        task_description = "Read the student's handwritten answer from the uploaded file and provide detailed feedback."
     
-    # Add few-shot examples
+    # Add few-shot examples (same for both modes)
     if training_examples:
         parts.append("\n**FEW-SHOT EXAMPLES** (learn from these feedback examples):\n")
         parts.append("---\n")
@@ -672,8 +726,9 @@ def _build_evaluation_prompt(
             parts.append(f"Ideal Feedback Given:\n{example.get('ideal_feedback', 'N/A')}\n")
             parts.append("\n---\n")
     
-    parts.append("""**REQUIREMENTS FOR EVALUATION**:
-1. Extract question, marks, and word_count from the uploaded file(s) if not provided
+    # Evaluation requirements (same for both modes)
+    parts.append(f"""**REQUIREMENTS FOR EVALUATION**:
+1. {"Extract question, marks, and word_count from the uploaded file(s) if not provided" if not use_extracted_text else "Use the provided question, marks, and word_count"}
 2. Identify specific strengths in the student's answer
 3. Point out missing elements (facts, examples, structure, visuals)
 4. Provide actionable improvement suggestions
@@ -686,13 +741,15 @@ def _build_evaluation_prompt(
     if training_examples:
         parts.append(f"9. Learn from the {len(training_examples)} few-shot examples above to provide similar quality feedback\n")
     
-    parts.append("""
+    parts.append(f"""
+**TASK**: {task_description}
+
 **Note**: This is FEEDBACK ONLY. Do NOT generate an improved answer. Focus solely on evaluating the student's work.
 
 Return ONLY a valid JSON object as specified in the system prompt. The JSON must include:
-- "question": extracted question text
-- "marks": 10 or 15
-- "word_count": 150 or 250
+- "question": {"extracted question text" if not use_extracted_text else f"question text (use: {provided_question})"}
+- "marks": {"10 or 15" if not use_extracted_text else str(marks)}
+- "word_count": {"150 or 250" if not use_extracted_text else str(word_count)}
 - "feedback": evaluation feedback object
 
 No markdown code blocks, no commentary.""")
@@ -825,11 +882,14 @@ async def evaluate_batch_answers_task(
     """
     Evaluate multiple answers from a single PDF using batch processing.
     
-    FLOW:
-    1. Split PDF into answer chunks using regex (Q1, Q2, etc.)
-    2. For each answer chunk:
-       - OCR and extract question
-       - Run evaluation pipeline
+    NEW FLOW:
+    1. Single Gemini call: Detection + OCR mode
+       - Detect all answers in PDF
+       - Extract question, marks, word_count, and OCR text for each answer
+       - Returns JSON with all answers
+    2. Sequential evaluation calls:
+       - For each detected answer, make evaluation API call
+       - Use extracted question and text (no need to send files again)
        - Track status per answer
     3. Handle errors gracefully:
        - 429/401: Cancel entire batch
@@ -856,45 +916,87 @@ async def evaluate_batch_answers_task(
     try:
         await check_cancellation(ctx, job_id)
         
-        # Import answer splitter
-        from .utils.answer_splitter import split_pdf_by_answers
-        
-        # Step 1: Split PDF into answer chunks
-        logger.info(f"📄 [BATCH JOB {job_id}] Step 1: Splitting PDF into answer chunks...")
-        output_dir = Path(pdf_path).parent / f"batch_{job_id}"
-        answer_chunks = split_pdf_by_answers(
-            pdf_path, 
-            str(output_dir), 
-            use_standard_format=use_standard_format,
-            question_file_path=question_file_path,
-            question_texts=question_texts
-        )
-        
-        if not answer_chunks:
-            raise Exception("No answer chunks detected in PDF")
-        
-        # Enforce max 20 answers
-        if len(answer_chunks) > 20:
-            logger.warning(f"⚠️ [BATCH JOB {job_id}] Limiting to 20 answers (found {len(answer_chunks)})")
-            answer_chunks = answer_chunks[:20]
-        
-        batch_data["total_answers"] = len(answer_chunks)
-        logger.info(f"✅ [BATCH JOB {job_id}] Split into {len(answer_chunks)} answer chunks")
-        
-        # Log detected question numbers
-        q_nums = [chunk.get("question_number", idx + 1) for idx, chunk in enumerate(answer_chunks)]
-        logger.info(f"📋 [BATCH JOB {job_id}] Detected question numbers: {q_nums}")
-        
         # Initialize Gemini Client
         gemini_client = GeminiClient(api_key=gemini_api_key, model_name=settings.GEMINI_MODEL_PRO)
         
-        # Import shared prompt
+        # Import detection system prompt
         try:
-            from .prompts.shared_mains_prompts import get_evaluation_system_prompt
-            system_prompt = get_evaluation_system_prompt()
+            from .prompts.shared_mains_prompts import get_batch_detection_system_prompt, get_evaluation_system_prompt
+            detection_system_prompt = get_batch_detection_system_prompt()
+            evaluation_system_prompt = get_evaluation_system_prompt()
         except ImportError:
-            logger.warning("⚠️ Using fallback generic system prompt")
-            system_prompt = "You are an expert evaluator. Provide detailed feedback on the student's answer."
+            logger.warning("⚠️ Using fallback generic system prompts")
+            detection_system_prompt = "You are an expert document analyzer. Detect all answers in the PDF and extract questions, marks, word counts, and OCR text."
+            evaluation_system_prompt = "You are an expert evaluator. Provide detailed feedback on the student's answer."
+        
+        # ============================================================
+        # STEP 1: Detection + OCR (Single Gemini Call)
+        # ============================================================
+        logger.info(f"🔍 [BATCH JOB {job_id}] Step 1: Detecting answers and extracting OCR text...")
+        
+        detection_prompt = """Analyze the PDF document and detect all answers. For each answer:
+1. Identify the answer boundaries (where each answer starts and ends)
+2. Extract the question text
+3. Extract marks (10 or 15) and word count (150 or 250)
+4. Perform OCR to extract the complete answer text
+
+Return the result in the exact JSON format specified in the system prompt."""
+        
+        lock_key = f"lock:user:{user_id}"
+        detected_answers = []
+        
+        async with redis.lock(lock_key, timeout=180, blocking_timeout=90):
+            await check_cancellation(ctx, job_id)
+            
+            try:
+                detection_response = await gemini_client.generate_response(
+                    user_prompt=detection_prompt,
+                    system_prompt=detection_system_prompt,
+                    pdf_path=pdf_path,
+                    temperature=0.0,
+                    max_retries=3
+                )
+                
+                # Parse detection response
+                cleaned_response = detection_response.strip()
+                if cleaned_response.startswith("```json"):
+                    cleaned_response = cleaned_response[7:]
+                if cleaned_response.startswith("```"):
+                    cleaned_response = cleaned_response[3:]
+                if cleaned_response.endswith("```"):
+                    cleaned_response = cleaned_response[:-3]
+                cleaned_response = cleaned_response.strip()
+                
+                detection_data = json.loads(cleaned_response)
+                detected_answers = detection_data.get("answers", [])
+                
+                if not detected_answers:
+                    raise Exception("No answers detected in PDF")
+                
+                # Enforce max 20 answers
+                if len(detected_answers) > 20:
+                    logger.warning(f"⚠️ [BATCH JOB {job_id}] Limiting to 20 answers (found {len(detected_answers)})")
+                    detected_answers = detected_answers[:20]
+                
+                batch_data["total_answers"] = len(detected_answers)
+                logger.info(f"✅ [BATCH JOB {job_id}] Detected {len(detected_answers)} answers")
+                
+                # Log detected question numbers
+                q_nums = [ans.get("question_number", idx + 1) for idx, ans in enumerate(detected_answers)]
+                logger.info(f"📋 [BATCH JOB {job_id}] Detected question numbers: {q_nums}")
+                
+            except Exception as e:
+                error_str = str(e).lower()
+                if '429' in error_str or 'quota' in error_str or '401' in error_str or '403' in error_str or 'api key' in error_str:
+                    logger.error(f"❌ [BATCH JOB {job_id}] Fatal error during detection: {e}")
+                    raise
+                logger.error(f"❌ [BATCH JOB {job_id}] Detection failed: {e}", exc_info=True)
+                raise Exception(f"Failed to detect answers: {str(e)}")
+        
+        # ============================================================
+        # STEP 2: Sequential Evaluation Calls
+        # ============================================================
+        logger.info(f"🔄 [BATCH JOB {job_id}] Step 2: Evaluating {len(detected_answers)} answers sequentially...")
         
         # Load training examples
         training_examples = []
@@ -908,19 +1010,17 @@ async def evaluate_batch_answers_task(
         except Exception as e:
             logger.debug(f"No training examples loaded: {e}")
         
-        # Step 2: Process each answer sequentially
-        logger.info(f"🔄 [BATCH JOB {job_id}] Step 2: Processing {len(answer_chunks)} answers sequentially...")
-        
         batch_cancelled = False
         
-        for idx, chunk in enumerate(answer_chunks):
-            answer_id = chunk["answer_id"]
-            answer_file_path = chunk["file_path"]
-            question_number = chunk["question_number"]  # Actual question number (preserved)
-            marks = chunk.get("marks")  # Optional marks indicator
+        for idx, detected_answer in enumerate(detected_answers):
+            answer_id = detected_answer.get("answer_id", f"a{idx + 1}")
+            question_number = detected_answer.get("question_number", idx + 1)
+            word_count = detected_answer.get("word_count", 250)
+            marks = detected_answer.get("marks", 15)
+            question_text = detected_answer.get("question", f"Question {question_number}")
+            answer_text = detected_answer.get("text", "")
             
-            logger.info(f"📝 [BATCH JOB {job_id}] Processing answer {idx + 1}/{len(answer_chunks)}: {answer_id} (Q{question_number}" + 
-                       (f", {marks} marks" if marks else "") + ")")
+            logger.info(f"📝 [BATCH JOB {job_id}] Processing answer {idx + 1}/{len(detected_answers)}: {answer_id} (Q{question_number}, {marks} marks)")
             
             # Check cancellation
             try:
@@ -933,102 +1033,25 @@ async def evaluate_batch_answers_task(
             # Initialize answer status
             answer_data = {
                 "answer_id": answer_id,
-                "question_number": question_number,  # Actual question number
+                "question_number": question_number,
                 "status": "processing",
                 "evaluation": None,
-                "error": None
+                "error": None,
+                "marks": marks,
+                "word_count": word_count
             }
-            
-            # Add marks if available
-            if marks:
-                answer_data["marks"] = marks
             batch_data["answers"].append(answer_data)
             await set_job_status(redis, job_id, "processing", batch_data=json.dumps(batch_data))
             
             try:
-                # Extract question from answer PDF
-                question_prompt = """Read the handwritten answer and identify:
-1. The QUESTION text
-2. The marks/word count (e.g., "10 marks" or "15 marks" or "150 words" or "250 words")
-
-Return in format:
-QUESTION: [question text]
-MARKS: [10 or 15 or detected word count]
-If marks are 10, word count is 150. If marks are 15, word count is 250."""
-                
-                identified_question = None
-                word_count_int = 250  # Default
-                marks_int = 15  # Default (15 marks = 250 words)
-                
-                # Acquire lock for question extraction
-                lock_key = f"lock:user:{user_id}"
-                async with redis.lock(lock_key, timeout=60, blocking_timeout=60):
-                    try:
-                        question_response = await gemini_client.generate_response(
-                            question_prompt,
-                            pdf_path=answer_file_path,
-                            temperature=0.0,
-                            max_retries=2
-                        )
-                        
-                        # Parse response
-                        response_text = question_response.strip()
-                        lines = response_text.split('\n')
-                        for line in lines:
-                            if line.startswith('QUESTION:'):
-                                identified_question = line.replace('QUESTION:', '').strip()
-                            elif line.startswith('MARKS:'):
-                                marks_text = line.replace('MARKS:', '').strip()
-                                # Extract number - handle both marks and word count (bidirectional)
-                                import re
-                                marks_match = re.search(r'\d+', marks_text)
-                                if marks_match:
-                                    value = int(marks_match.group())
-                                    # Only 10 and 15 are marks; 150 and 250 are word counts
-                                    if value == 10:
-                                        # Marks provided: 10 marks
-                                        marks_int = 10
-                                        word_count_int = 150
-                                    elif value == 15:
-                                        # Marks provided: 15 marks
-                                        marks_int = 15
-                                        word_count_int = 250
-                                    elif value == 150:
-                                        # Word count provided: 150 words
-                                        marks_int = 10
-                                        word_count_int = 150
-                                    elif value == 250:
-                                        # Word count provided: 250 words
-                                        marks_int = 15
-                                        word_count_int = 250
-                                    else:
-                                        # Unknown value, default to 15 marks / 250 words
-                                        marks_int = 15
-                                        word_count_int = 250
-                        
-                        if not identified_question:
-                            identified_question = response_text.split('\n')[0].replace('QUESTION:', '').strip() or f"Question {question_number}"
-                        
-                    except Exception as e:
-                        error_str = str(e).lower()
-                        # Check for fatal errors (429/401)
-                        if '429' in error_str or 'quota' in error_str or '401' in error_str or '403' in error_str or 'api key' in error_str:
-                            logger.error(f"❌ [BATCH JOB {job_id}] Fatal error (429/401) at answer {answer_id}: {e}")
-                            batch_cancelled = True
-                            raise  # Re-raise to cancel batch
-                        # Transient error - mark as failed and continue
-                        logger.warning(f"⚠️ [BATCH JOB {job_id}] Failed to extract question for {answer_id}: {e}")
-                        identified_question = f"Question {question_number}"
-                
-                if batch_cancelled:
-                    break
-                
-                # Build evaluation prompt
+                # Build evaluation prompt using extracted question and text (batch mode)
                 user_prompt = _build_evaluation_prompt(
-                    identified_question=identified_question,
+                    provided_question=question_text,
                     training_examples=training_examples,
-                    word_count=word_count_int,
-                    marks=marks_int
+                    answer_text=answer_text,
+                    word_count=word_count,
+                    marks=marks,
+                    use_extracted_text=True  # Batch mode: use extracted text
                 )
                 
                 # Call Gemini for evaluation (with lock)
@@ -1038,21 +1061,22 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
                     try:
                         response_text = await gemini_client.generate_response(
                             user_prompt=user_prompt,
-                            system_prompt=system_prompt,
-                            pdf_path=answer_file_path,
+                            system_prompt=evaluation_system_prompt,
                             temperature=0.2,
-                            max_retries=2  # Max 2 retries per answer
+                            max_retries=2
                         )
                         
                         # Parse evaluation response
-                        feedback = _parse_evaluation_response(response_text)
+                        parsed_result = _parse_evaluation_response(response_text)
+                        feedback = parsed_result.get("feedback", {})
                         
                         # Mark answer as completed
                         answer_data["status"] = "completed"
                         answer_data["evaluation"] = {
-                            "question": identified_question,
+                            "question": question_text,
                             "feedback": feedback,
-                            "word_count": word_count_int
+                            "word_count": word_count,
+                            "marks": marks
                         }
                         batch_data["completed_answers"] += 1
                         
@@ -1097,7 +1121,6 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
             
             # Update progress
             await set_job_status(redis, job_id, "processing", batch_data=json.dumps(batch_data))
-            # Also store separately for easy retrieval
             await redis.set(f"job_batch_data:{job_id}", json.dumps(batch_data), ex=7200)
         
         # Step 3: Finalize batch status
@@ -1128,23 +1151,14 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
             await set_job_status(redis, job_id, "failed", batch_data=json.dumps(batch_data))
         await set_job_error(redis, job_id, clean_gemini_error(str(e)))
     finally:
-        # Cleanup: Remove split PDFs and temp directory
-        try:
-            if 'output_dir' in locals():
-                import shutil
-                if Path(output_dir).exists():
-                    shutil.rmtree(output_dir)
-                    logger.info(f"🧹 [BATCH JOB {job_id}] Cleaned up temp directory")
-        except Exception as e:
-            logger.warning(f"⚠️ [BATCH JOB {job_id}] Failed to cleanup: {e}")
-        
-        # Cleanup original PDF if it was in temp directory
+        # Cleanup: Remove PDF if it was in temp directory
         try:
             if Path(pdf_path).parent.name == "temp":
                 if os.path.exists(pdf_path):
                     os.remove(pdf_path)
-        except:
-            pass
+                    logger.info(f"🧹 [BATCH JOB {job_id}] Cleaned up temp PDF")
+        except Exception as e:
+            logger.warning(f"⚠️ [BATCH JOB {job_id}] Failed to cleanup PDF: {e}")
         
         await redis.delete(f"cancel:{job_id}")
 
