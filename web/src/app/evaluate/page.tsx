@@ -836,10 +836,26 @@ export default function EvaluatePage() {
                             {/* Question & Summary */}
                             <Card className="bg-blue-50/50 border-blue-100">
                                 <CardHeader className="pb-3">
-                                    <CardTitle className="text-lg text-blue-900">Identified Question</CardTitle>
+                                    <CardTitle className="text-lg text-blue-900">Question</CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <p className="text-blue-800 font-medium">{result.question}</p>
+                                    <p className="text-blue-800 font-medium">
+                                        {result.question || "Question extracted from uploaded file"}
+                                    </p>
+                                    {(result.marks || result.word_count) && (
+                                        <div className="mt-3 flex gap-4 text-sm text-blue-700">
+                                            {result.marks && (
+                                                <span className="font-semibold">
+                                                    Marks: {result.marks}
+                                                </span>
+                                            )}
+                                            {result.word_count && (
+                                                <span className="font-semibold">
+                                                    Word Count: {result.word_count}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
 

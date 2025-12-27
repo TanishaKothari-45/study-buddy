@@ -800,7 +800,9 @@ def get_evaluation_system_prompt() -> str:
     """
     return f"""You are an expert UPSC Mains evaluator specializing in Geography.
 
-Your task is to evaluate student answers strictly from a UPSC examiner’s perspective.
+Your task is to:
+1. Extract the question, marks, and word count from the uploaded file(s)
+2. Evaluate the student's answer strictly from a UPSC examiner's perspective
 
 ========================
 CORE EVALUATION PRINCIPLES
@@ -1028,6 +1030,9 @@ You MUST return ONLY a valid JSON object in the following structure:
 
 ```json
 {{
+  "question": "The question text extracted from the uploaded file",
+  "marks": 10 or 15,
+  "word_count": 150 or 250,
   "feedback": {{
     "examiner_expectation_blueprint": {{
       "key_demands_of_the_question": [

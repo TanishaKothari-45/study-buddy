@@ -439,37 +439,33 @@ async def evaluate_answer_task(
     EVALUATION FLOW (Simplified):
     =============================
     
-    1. OCR (Question Extraction + Word Count Detection):
-       - If question not provided, use Gemini to extract question from uploaded files
-       - Extract word count from question (10 marks -> 150 words, 15 marks -> 250 words)
-       - Uses Gemini Pro with OCR capabilities (PDF/image reading)
-       - Locked briefly to prevent concurrent API calls
-    
-    2. TRAINING EXAMPLES:
+    1. TRAINING EXAMPLES:
        - Loads few-shot examples from training_examples.json
        - Provides examples of good feedback patterns
     
-    3. PROMPT BUILDING:
+    2. PROMPT BUILDING:
        - Builds evaluation prompt with:
-         * Question
          * Training examples (few-shot learning)
+         * Instructions to extract question, marks, word_count from files
          * Instructions for feedback ONLY (no improved answer)
     
-    4. GEMINI EVALUATION (Locked):
+    3. GEMINI EVALUATION (Locked):
        - Sends prompt + student's handwritten answer (PDF/image) to Gemini 2.5 Pro
        - Gemini performs OCR on handwritten answer
-       - Gemini evaluates and returns JSON with detailed feedback ONLY
+       - Gemini extracts question, marks, word_count AND evaluates answer
+       - Returns JSON with question, marks, word_count, and detailed feedback
     
-    5. RESPONSE PARSING:
+    4. RESPONSE PARSING:
        - Parses JSON response
-       - Extracts feedback structure only
+       - Extracts question, marks, word_count, and feedback structure
        - Handles parsing errors gracefully
     
-    6. RESULT SAVING:
+    5. RESULT SAVING:
        - Saves feedback result to Redis
-       - Includes: question, student_answer, feedback, word_count
+       - Includes: question, student_answer, feedback, word_count, marks
     
     KEY FEATURES:
+    - Single API call for question extraction + evaluation (more efficient)
     - Pure prompt-based evaluation (no retrieval to save tokens)
     - User lock prevents concurrent evaluations per user
     - Cancellation support via Redis flags
@@ -499,110 +495,15 @@ async def evaluate_answer_task(
         all_is_pdf = all(f.lower().endswith('.pdf') for f in file_paths)
         all_is_image = all(f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')) for f in file_paths)
 
-        # ============================================================
-        # STEP 1: Extract question from files if not provided (OCR + Word Count)
-        # ============================================================
-        identified_question = question
+        # Default values (will be extracted from response)
+        identified_question = question or ""  # Use provided question if available, otherwise will be extracted
         word_count_int = 250  # Default
         marks_int = 15  # Default (15 marks = 250 words)
-        
-        if not identified_question:
-            logger.info(f"📝 [JOB {job_id}] STEP 1: Extracting question from files...")
-            try:
-                question_prompt = """Read the handwritten answer and identify:
-1. The QUESTION text
-2. The marks/word count (e.g., "10 marks" or "15 marks" or "150 words" or "250 words")
-
-Return in format:
-QUESTION: [question text]
-MARKS: [10 or 15 or detected word count]
-If marks are 10, word count is 150. If marks are 15, word count is 250."""
-                
-                lock_key = f"lock:user:{user_id}"
-                lock = RedisLock(redis, lock_key, timeout=60)
-                if await lock.acquire(blocking=True, blocking_timeout=60):
-                    try:
-                        if all_is_pdf:
-                            question_response = await gemini_client.generate_response(question_prompt, pdf_path=file_paths[0], temperature=0.0)
-                        else:
-                            question_response = await gemini_client.generate_response(question_prompt, image_path=file_paths[0], temperature=0.0)
-                        
-                        # Parse response to extract question and word count
-                        response_text = question_response.strip()
-                        lines = response_text.split('\n')
-                        for line in lines:
-                            if line.startswith('QUESTION:'):
-                                identified_question = line.replace('QUESTION:', '').strip()
-                            elif line.startswith('MARKS:'):
-                                marks_text = line.replace('MARKS:', '').strip()
-                                # Extract number - handle both marks and word count (bidirectional)
-                                import re
-                                marks_match = re.search(r'\d+', marks_text)
-                                if marks_match:
-                                    value = int(marks_match.group())
-                                    # Only 10 and 15 are marks; 150 and 250 are word counts
-                                    if value == 10:
-                                        # Marks provided: 10 marks
-                                        marks_int = 10
-                                        word_count_int = 150
-                                    elif value == 15:
-                                        # Marks provided: 15 marks
-                                        marks_int = 15
-                                        word_count_int = 250
-                                    elif value == 150:
-                                        # Word count provided: 150 words
-                                        marks_int = 10
-                                        word_count_int = 150
-                                    elif value == 250:
-                                        # Word count provided: 250 words
-                                        marks_int = 15
-                                        word_count_int = 250
-                                    else:
-                                        # Unknown value, default to 15 marks / 250 words
-                                        marks_int = 15
-                                        word_count_int = 250
-                        
-                        if not identified_question:
-                            identified_question = response_text.split('\n')[0].replace('QUESTION:', '').strip()
-                        
-                        logger.info(f"✅ [JOB {job_id}] Identified question: {identified_question[:100]}...")
-                        logger.info(f"✅ [JOB {job_id}] Detected word count: {word_count_int}")
-                    finally:
-                        await lock.release()
-                else:
-                    raise Exception("Could not acquire user lock for OCR after 60s")
-            except Exception as e:
-                logger.warning(f"⚠️ [JOB {job_id}] Failed to identify question: {e}")
-                identified_question = question or "Question not identified"
-        else:
-            logger.info(f"📝 [JOB {job_id}] STEP 1: Using provided question")
-            # Try to extract marks or word count from question text (bidirectional)
-            import re
-            # First try to find marks (10 marks, 15 marks)
-            marks_match = re.search(r'(\d+)\s*marks?', identified_question, re.IGNORECASE)
-            if marks_match:
-                marks = int(marks_match.group(1))
-                marks_int = marks
-                if marks == 10:
-                    word_count_int = 150
-                elif marks == 15:
-                    word_count_int = 250
-            else:
-                # Try to find word count (150 words, 250 words) and derive marks
-                word_count_match = re.search(r'(\d+)\s*words?', identified_question, re.IGNORECASE)
-                if word_count_match:
-                    word_count_value = int(word_count_match.group(1))
-                    if word_count_value == 150:
-                        marks_int = 10
-                        word_count_int = 150
-                    elif word_count_value == 250:
-                        marks_int = 15
-                        word_count_int = 250
         
         await check_cancellation(ctx, job_id)
         
         # ============================================================
-        # STEP 5: Load training examples (few-shot learning)
+        # STEP 1: Load training examples (few-shot learning)
         # ============================================================
         training_examples = []
         try:
@@ -621,10 +522,8 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
         # ============================================================
         logger.info(f"📝 [JOB {job_id}] STEP 2: Building evaluation prompt...")
         user_prompt = _build_evaluation_prompt(
-            identified_question=identified_question,
-            training_examples=training_examples,
-            word_count=word_count_int,
-            marks=marks_int
+            provided_question=identified_question,  # May be empty, will be extracted if not provided
+            training_examples=training_examples
         )
         
         # ============================================================
@@ -675,10 +574,26 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
             logger.info(f"✅ [JOB {job_id}] Received response: {len(response_text)} chars")
         
         # ============================================================
-        # STEP 4: Parse response (feedback only)
+        # STEP 4: Parse response (extract question, marks, word_count, and feedback)
         # ============================================================
         logger.info(f"🔍 [JOB {job_id}] STEP 4: Parsing response...")
-        feedback = _parse_evaluation_response(response_text)
+        parsed_result = _parse_evaluation_response(response_text)
+        feedback = parsed_result.get("feedback", {})
+        
+        # Extract question, marks, and word_count from response
+        extracted_question = parsed_result.get("question", "")
+        extracted_marks = parsed_result.get("marks", 15)
+        extracted_word_count = parsed_result.get("word_count", 250)
+        
+        # Use extracted values if question was not provided, otherwise use provided question
+        if not identified_question and extracted_question:
+            identified_question = extracted_question
+            logger.info(f"✅ [JOB {job_id}] Extracted question: {identified_question[:100]}...")
+        
+        # Always use extracted marks and word_count (they're more accurate)
+        marks_int = extracted_marks
+        word_count_int = extracted_word_count
+        logger.info(f"✅ [JOB {job_id}] Extracted marks: {marks_int}, word_count: {word_count_int}")
         
         # ============================================================
         # STEP 5: Save Result (feedback only)
@@ -690,6 +605,7 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
             "student_answer": "Answer extracted by Gemini",
             "feedback": feedback,
             "word_count": word_count_int,
+            "marks": marks_int,
             "success": True
         }
         
@@ -720,31 +636,30 @@ If marks are 10, word count is 150. If marks are 15, word count is 250."""
 
 
 def _build_evaluation_prompt(
-    identified_question: str,
-    training_examples: List[dict],
-    word_count: int,
-    marks: int = 15
+    provided_question: str,
+    training_examples: List[dict]
 ) -> str:
     """Build the evaluation user prompt (feedback only, no context)"""
     import json
-    # Include marks and word_limit in JSON format as specified
-    input_json = {
-        "question_text": identified_question,
-        "answer_text": "[Read from uploaded file]",
-        "marks": marks,
-        "word_limit": word_count
-    }
-    parts = [f"""**INPUT FORMAT**:
-```json
-{json.dumps(input_json, indent=2, ensure_ascii=False)}
-```
+    
+    parts = []
+    
+    # Add instruction to extract question, marks, and word_count if question not provided
+    if provided_question:
+        parts.append(f"""**QUESTION PROVIDED**: {provided_question}
 
-**QUESTION**: {identified_question}
+**TASK**: Extract marks and word count from the question or uploaded file, then evaluate the student's handwritten answer.
 
-**MARKS**: {marks} marks
-**WORD LIMIT**: {word_count} words
+""")
+    else:
+        parts.append("""**TASK**: 
+1. First, extract the QUESTION text from the uploaded file(s)
+2. Extract the MARKS (10 or 15) and WORD COUNT (150 or 250 words) from the question or file
+   - 10 marks = 150 words
+   - 15 marks = 250 words
+3. Then evaluate the student's handwritten answer
 
-"""]
+""")
     
     # Add few-shot examples
     if training_examples:
@@ -757,27 +672,36 @@ def _build_evaluation_prompt(
             parts.append(f"Ideal Feedback Given:\n{example.get('ideal_feedback', 'N/A')}\n")
             parts.append("\n---\n")
     
-    parts.append(f"""\n**TASK**: Read the student's handwritten answer from the uploaded file and provide detailed feedback.
-
-**Requirements for Feedback**:
-1. Identify specific strengths in the student's answer
-2. Point out missing elements (facts, examples, structure, visuals)
-3. Provide actionable improvement suggestions
-4. Comment on IBC format adherence and evidence usage
-5. Assess directive alignment (if directive word is present in question)
-6. Comment on whether visuals (maps/diagrams/tables) were needed but missing
-7. Give an overall encouraging assessment
-{f'8. Learn from the {len(training_examples)} few-shot examples above to provide similar quality feedback' if training_examples else ''}
-
+    parts.append("""**REQUIREMENTS FOR EVALUATION**:
+1. Extract question, marks, and word_count from the uploaded file(s) if not provided
+2. Identify specific strengths in the student's answer
+3. Point out missing elements (facts, examples, structure, visuals)
+4. Provide actionable improvement suggestions
+5. Comment on IBC format adherence and evidence usage
+6. Assess directive alignment (if directive word is present in question)
+7. Comment on whether visuals (maps/diagrams/tables) were needed but missing
+8. Give an overall encouraging assessment
+""")
+    
+    if training_examples:
+        parts.append(f"9. Learn from the {len(training_examples)} few-shot examples above to provide similar quality feedback\n")
+    
+    parts.append("""
 **Note**: This is FEEDBACK ONLY. Do NOT generate an improved answer. Focus solely on evaluating the student's work.
 
-Return ONLY a valid JSON object as specified in the system prompt. No markdown code blocks, no commentary.""")
+Return ONLY a valid JSON object as specified in the system prompt. The JSON must include:
+- "question": extracted question text
+- "marks": 10 or 15
+- "word_count": 150 or 250
+- "feedback": evaluation feedback object
+
+No markdown code blocks, no commentary.""")
     
     return "".join(parts)
 
 
 def _parse_evaluation_response(response_text: str) -> dict:
-    """Parse Gemini's evaluation response (feedback only)"""
+    """Parse Gemini's evaluation response (extract question, marks, word_count, and feedback)"""
     try:
         # Clean response
         cleaned = response_text.strip()
@@ -791,6 +715,28 @@ def _parse_evaluation_response(response_text: str) -> dict:
         
         # Parse JSON
         response_data = json.loads(cleaned)
+        
+        # Extract question, marks, and word_count from root level
+        extracted_question = response_data.get("question", "")
+        extracted_marks = response_data.get("marks", 15)
+        extracted_word_count = response_data.get("word_count", 250)
+        
+        # Validate and normalize marks/word_count
+        if extracted_marks not in [10, 15]:
+            # Try to derive from word_count
+            if extracted_word_count == 150:
+                extracted_marks = 10
+            elif extracted_word_count == 250:
+                extracted_marks = 15
+            else:
+                extracted_marks = 15  # Default
+                extracted_word_count = 250  # Default
+        
+        # Ensure consistency: 10 marks = 150 words, 15 marks = 250 words
+        if extracted_marks == 10 and extracted_word_count != 150:
+            extracted_word_count = 150
+        elif extracted_marks == 15 and extracted_word_count != 250:
+            extracted_word_count = 250
         
         # Extract feedback (may be nested under "feedback" key or at root)
         feedback_data = response_data.get("feedback", response_data)
@@ -820,34 +766,44 @@ def _parse_evaluation_response(response_text: str) -> dict:
             "margin_comments": feedback_data.get("margin_comments", [])
         }
         
-        return feedback
+        return {
+            "question": extracted_question,
+            "marks": extracted_marks,
+            "word_count": extracted_word_count,
+            "feedback": feedback
+        }
         
     except json.JSONDecodeError as e:
         logger.warning(f"Failed to parse evaluation response as JSON: {e}")
-        # Fallback: return minimal feedback structure
+        # Fallback: return minimal structure
         return {
-            "examiner_expectation_blueprint": {
-                "key_demands_of_the_question": [],
-                "ideal_logical_structure": {
+            "question": "",
+            "marks": 15,
+            "word_count": 250,
+            "feedback": {
+                "examiner_expectation_blueprint": {
+                    "key_demands_of_the_question": [],
+                    "ideal_logical_structure": {
+                        "introduction": "",
+                        "body": "",
+                        "conclusion": ""
+                    },
+                    "non_negotiables": []
+                },
+                "strengths": [],
+                "critical_gaps_and_remedies": [],
+                "section_wise_assessment": {
                     "introduction": "",
                     "body": "",
                     "conclusion": ""
                 },
-                "non_negotiables": []
-            },
-            "strengths": [],
-            "critical_gaps_and_remedies": [],
-            "section_wise_assessment": {
-                "introduction": "",
-                "body": "",
-                "conclusion": ""
-            },
-            "directive_alignment": None,
-            "evidence_feedback": "Unable to parse structured feedback from response",
-            "visual_feedback": None,
-            "strategy_tip": None,
-            "overall_assessment": "Evaluation completed but response format was unexpected.",
-            "margin_comments": []
+                "directive_alignment": None,
+                "evidence_feedback": "Unable to parse structured feedback from response",
+                "visual_feedback": None,
+                "strategy_tip": None,
+                "overall_assessment": "Evaluation completed but response format was unexpected.",
+                "margin_comments": []
+            }
         }
 
 

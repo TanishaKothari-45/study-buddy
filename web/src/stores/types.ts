@@ -131,5 +131,6 @@ export interface EvaluationResult {
     word_count_actual?: number;
     word_count_compressed?: number | null;
     word_count?: number;  // Added for new format
+    marks?: number;  // Added for extracted marks (10 or 15)
     success?: boolean;
 }
