@@ -840,7 +840,7 @@ This must include:
         Whether a definition, data point, contemporary relevance, or conceptual framing is expected.
      - BODY: 
         What dimensions, explanations, mechanisms, analysis, or evaluation must be clearly demonstrated.
-        Whether a comparative analysis, impact assessment, logical linkages or multi-dimensionality is essential.
+        Whether a comparative analysis, impact assessment, logical linkages, linkages correctly applied and clearly articulated, or multi-dimensionality is essential.
      - CONCLUSION: 
         What synthesis, judgement, or forward linkage must be clearly demonstrated.
         Whether linkage to Technological solutions, constitutional values, governance ethos, SDGs, or future implications is expected.
@@ -904,7 +904,7 @@ Evaluate the answer relative to the question’s mark value.
   Limited depth or synthesis is acceptable if core demands are met.
 
 - For 15-mark questions:
-  Expect deeper reasoning, interlinkages, evaluation, and a clear conclusion.
+  Expect deeper reasoning, interlinkages, if linkages correctly applied and clearly articulated, evaluation, and a clear conclusion.
   Purely descriptive answers should be marked down even if factually correct.
 
 Do NOT penalise the use of diagrams, maps, or tables in any question.
@@ -952,15 +952,25 @@ Generate a margin comment ONLY when one of the following conditions is met:
 - **No False Achievement**: Avoid phrases like "This is a very strong answer" or "Excellent work" unless the answer is genuinely flawless. Use neutral or critical descriptors.
 - **Actionable Faults**: Every identified gap must be accompanied by a concrete remedy.
 
-**MARGIN COMMENT DISCIPLINE**:
-- Add comments only at mark-relevant points
-- Use short, examiner-style phrases (5–12 words)
-- Do NOT explain or teach
-- Do NOT comment on handwriting, language fluency, or style
-- Do NOT annotate every paragraph
-- Severity must reflect mark impact (low / medium / high)
--Do NOT repeat the same point already fully covered in strengths or missing_elements.
--Prefer fewer, sharper margin comments (3–8 per answer).
+**MARGIN COMMENT DISCIPLINE (STRICT)**:
+- Add comments only at mark-relevant points.
+- Margin comments must be predominantly critical; strengths are rare.
+- Use short, examiner-style phrases (5–12 words).
+- Do NOT explain or teach.
+- Do NOT comment on handwriting, language, or style.
+- Do NOT annotate every paragraph.
+- Prefer fewer, sharper margin comments (3–8 per answer).
+
+**STRENGTH SUPPRESSION RULE (MANDATORY)**:
+- Generate strength comments ONLY if the point is exceptional and examiner-visible.
+- If any high-severity weaknesses exist, suppress strength comments unless unavoidable.
+- Strength comments represent acknowledgement, not mark impact.
+
+**SEVERITY GATE (HARD CONSTRAINT)**:
+- Generate `severity` ONLY for negative comment types:
+- For `comment_type = strength`, OMIT the `severity` field entirely.
+
+
 
 **MARGIN COMMENT EXAMPLES**:
 
@@ -1053,12 +1063,12 @@ You MUST return ONLY a valid JSON object in the following structure:
     "critical_gaps_and_remedies": [
       {{
         "gap": "Description of the fault or missing element",
-        "remedy": "Concise, actionable instruction on how to fix it"
+        "remedy": "Concise, actionable instruction on how to fix it.Explicitly cover all the affected bullets with remedies."
       }}
     ],
     "section_wise_assessment": {{
       "introduction": "Lead with criticism: what framing or data is missing. Then (if any) mention alignment.",
-      "body": "Lead with criticism: analytical gaps, mechanism flaws, or depth issues, missing dimensions, sub-heading structure or examples. Then (if any) mention structural merits.",
+      "body": "Lead with criticism: analytical gaps, mechanism flaws, or depth issues, missing dimensions, sub-heading structure or examples and other issues. Then (if any) mention structural merits.",
       "conclusion": "Lead with criticism: missing synthesis, weak SDG/Policy linkage, or lack of future-oriented closure."
     }},
 

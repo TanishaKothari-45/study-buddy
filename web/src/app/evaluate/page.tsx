@@ -22,7 +22,7 @@ import { EvaluationResult } from "@/stores/types";
 // Helper function to format text with line breaks around ** markers for better readability
 const formatBlueprintText = (text: string): string => {
     if (!text) return text;
-    
+
     // First, fix broken patterns where ** markers are split across lines
     // Pattern: "1.\n**Text:\n**" -> "1. **Text:**"
     let formatted = text
@@ -37,7 +37,7 @@ const formatBlueprintText = (text: string): string => {
         // Clean up multiple newlines
         .replace(/\n{3,}/g, '\n\n')
         .trim();
-    
+
     return formatted;
 };
 
@@ -117,7 +117,7 @@ export default function EvaluatePage() {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const newFiles = Array.from(e.target.files);
-            
+
             // For batch mode: only allow PDF, replace existing files
             if (evaluationMode === "batch") {
                 const pdfFiles = newFiles.filter(f => f.name.toLowerCase().endsWith('.pdf'));
@@ -217,11 +217,11 @@ export default function EvaluatePage() {
         if (activeJobId.current !== id) return;
 
         try {
-            const data = await apiClient<{ 
-                status: string, 
-                result?: EvaluationResult, 
+            const data = await apiClient<{
+                status: string,
+                result?: EvaluationResult,
                 batch_data?: any,
-                error?: string 
+                error?: string
             }>(`/evaluate-answer/status/${id}`);
 
             if (activeJobId.current !== id) return;
@@ -386,14 +386,14 @@ export default function EvaluatePage() {
         resetImprovedAnswer();
 
         const formData = new FormData();
-        
+
         if (evaluationMode === "batch") {
             // Batch mode: single PDF file
             formData.append("file", files[0]);
             if (useStandardFormat) {
                 formData.append("use_standard_format", "true");
             }
-            
+
             try {
                 const data = await apiClient<{ job_id: string, status: string }>('/evaluate-answer/batch', {
                     method: 'POST',
@@ -511,7 +511,7 @@ export default function EvaluatePage() {
                                 {/* Evaluation Mode Selection - At the top */}
                                 <Label className="text-sm font-medium mb-2">Evaluation Mode</Label>
                                 <div className="space-y-3 p-4 border rounded-lg bg-card">
-                                    
+
                                     <RadioGroup
                                         value={evaluationMode}
                                         onValueChange={(value) => {
@@ -539,7 +539,7 @@ export default function EvaluatePage() {
                                             </Label>
                                         </div>
                                     </RadioGroup>
-                                    
+
                                     {evaluationMode === "batch" && (
                                         <div className="mt-3 pt-3 border-t space-y-2">
                                             <div className="flex items-center space-x-2">
@@ -566,7 +566,7 @@ export default function EvaluatePage() {
                                         <p className="text-xs text-muted-foreground mb-3">
                                             Provide questions to improve answer detection accuracy. Choose one option:
                                         </p>
-                                        
+
                                         {/* Option 1: Upload Question File */}
                                         <div className="space-y-2">
                                             <Label className="text-sm font-medium">Option 1: Upload Question File</Label>
@@ -726,7 +726,7 @@ export default function EvaluatePage() {
                                                             <span className="font-semibold">Click to upload</span> or drag and drop
                                                         </p>
                                                         <p className="text-xs text-gray-500">
-                                                            {evaluationMode === "batch" 
+                                                            {evaluationMode === "batch"
                                                                 ? "PDF only (MAX. 50MB)"
                                                                 : "PDF, PNG, JPG (MAX. 10MB each)"}
                                                         </p>
@@ -858,77 +858,6 @@ export default function EvaluatePage() {
                                     )}
                                 </CardContent>
                             </Card>
-
-                            {/* Margin Comments - Displayed First */}
-                            {result.feedback.margin_comments && result.feedback.margin_comments.length > 0 && (
-                                <Card className="border-l-4 border-l-indigo-500">
-                                    <CardHeader className="pb-3">
-                                        <CardTitle className="text-base text-indigo-700 flex items-center gap-2">
-                                            <BookOpen className="h-5 w-5" />
-                                            Margin Comments
-                                        </CardTitle>
-                                        <CardDescription className="text-xs">
-                                            Examiner-style annotations on specific parts of your answer
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="space-y-3">
-                                            {result.feedback.margin_comments.map((comment, idx) => {
-                                                const severityColors: Record<string, string> = {
-                                                    low: "bg-blue-50 border-blue-200 text-blue-800",
-                                                    medium: "bg-amber-50 border-amber-200 text-amber-800",
-                                                    high: "bg-red-50 border-red-200 text-red-800"
-                                                };
-                                                const typeColors: Record<string, string> = {
-                                                    strength: "text-green-700",
-                                                    weakness: "text-red-700",
-                                                    omission: "text-orange-700",
-                                                    directive_misalignment: "text-purple-700",
-                                                    evidence_gap: "text-yellow-700",
-                                                    structure_issue: "text-pink-700",
-                                                    visual_gap: "text-cyan-700"
-                                                };
-                                                
-                                                const severity = (comment.severity || "low").toLowerCase();
-                                                const severityColor = severityColors[severity] || severityColors.low;
-                                                
-                                                return (
-                                                    <div 
-                                                        key={idx} 
-                                                        className={`p-3 rounded-lg border-l-4 ${severityColor}`}
-                                                    >
-                                                        <div className="flex items-start justify-between gap-2 mb-1">
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-white/50">
-                                                                        {comment.comment_type.replace(/_/g, ' ').toUpperCase()}
-                                                                    </span>
-                                                                    <span className={`text-xs font-medium ${typeColors[comment.comment_type] || 'text-gray-700'}`}>
-                                                                        {severity.toUpperCase()} SEVERITY
-                                                                    </span>
-                                                                </div>
-                                                                <p className="text-sm font-medium text-gray-900 mb-1">
-                                                                    <span className="italic">"{comment.anchor_text}"</span>
-                                                                </p>
-                                                                <p className="text-sm text-gray-800">
-                                                                    {comment.comment}
-                                                                </p>
-                                                                {comment.suggested_fix && (
-                                                                    <div className="mt-2 pt-2 border-t border-gray-300">
-                                                                        <p className="text-xs font-semibold text-gray-700 mb-1">Suggested Fix:</p>
-                                                                        <p className="text-xs text-gray-600">{comment.suggested_fix}</p>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )}
-
                             {/* Examiner Expectation Blueprint */}
                             {result.feedback.examiner_expectation_blueprint && (
                                 <Card className="border-l-4 border-l-blue-500">
@@ -984,6 +913,76 @@ export default function EvaluatePage() {
                                                 </ul>
                                             </div>
                                         )}
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Margin Comments - Displayed Fisrt */}
+                            {result.feedback.margin_comments && result.feedback.margin_comments.length > 0 && (
+                                <Card className="border-l-4 border-l-indigo-500">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-base text-indigo-700 flex items-center gap-2">
+                                            <BookOpen className="h-5 w-5" />
+                                            Margin Comments
+                                        </CardTitle>
+                                        <CardDescription className="text-xs">
+                                            Examiner-style annotations on specific parts of your answer
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-3">
+                                            {result.feedback.margin_comments.map((comment, idx) => {
+                                                const severityColors: Record<string, string> = {
+                                                    low: "bg-blue-50 border-blue-200 text-blue-800",
+                                                    medium: "bg-amber-50 border-amber-200 text-amber-800",
+                                                    high: "bg-red-50 border-red-200 text-red-800"
+                                                };
+                                                const typeColors: Record<string, string> = {
+                                                    strength: "text-green-700",
+                                                    weakness: "text-red-700",
+                                                    omission: "text-orange-700",
+                                                    directive_misalignment: "text-purple-700",
+                                                    evidence_gap: "text-yellow-700",
+                                                    structure_issue: "text-pink-700",
+                                                    visual_gap: "text-cyan-700"
+                                                };
+
+                                                const severity = (comment.severity || "low").toLowerCase();
+                                                const severityColor = severityColors[severity] || severityColors.low;
+
+                                                return (
+                                                    <div
+                                                        key={idx}
+                                                        className={`p-3 rounded-lg border-l-4 ${severityColor}`}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-2 mb-1">
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-white/50">
+                                                                        {comment.comment_type.replace(/_/g, ' ').toUpperCase()}
+                                                                    </span>
+                                                                    <span className={`text-xs font-medium ${typeColors[comment.comment_type] || 'text-gray-700'}`}>
+                                                                        {severity.toUpperCase()} SEVERITY
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-sm font-medium text-gray-900 mb-1">
+                                                                    <span className="italic">"{comment.anchor_text}"</span>
+                                                                </p>
+                                                                <p className="text-sm text-gray-800">
+                                                                    {comment.comment}
+                                                                </p>
+                                                                {comment.suggested_fix && (
+                                                                    <div className="mt-2 pt-2 border-t border-gray-300">
+                                                                        <p className="text-xs font-semibold text-gray-700 mb-1">Suggested Fix:</p>
+                                                                        <p className="text-xs text-gray-600">{comment.suggested_fix}</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </CardContent>
                                 </Card>
                             )}
@@ -1070,8 +1069,8 @@ export default function EvaluatePage() {
                                         ) : (
                                             // Fallback to legacy fields for backward compatibility
                                             <>
-                                                {(result.feedback.missing_elements && result.feedback.missing_elements.length > 0) || 
-                                                 (result.feedback.improvements_needed && result.feedback.improvements_needed.length > 0) ? (
+                                                {(result.feedback.missing_elements && result.feedback.missing_elements.length > 0) ||
+                                                    (result.feedback.improvements_needed && result.feedback.improvements_needed.length > 0) ? (
                                                     <div className="space-y-3">
                                                         {result.feedback.missing_elements && result.feedback.missing_elements.length > 0 && (
                                                             <div>
@@ -1268,8 +1267,8 @@ export default function EvaluatePage() {
                                         <Button
                                             onClick={handleGenerateImprovedAnswer}
                                             disabled={
-                                                improvedAnswerStatus === 'pending' || 
-                                                improvedAnswerStatus === 'processing' || 
+                                                improvedAnswerStatus === 'pending' ||
+                                                improvedAnswerStatus === 'processing' ||
                                                 improvedAnswerStatus === 'queued' ||
                                                 !!improvedAnswerResult
                                             }
