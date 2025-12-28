@@ -1097,7 +1097,7 @@ You MUST return ONLY a valid JSON object in the following structure:
   {{
     "anchor_text": "Exact phrase or short excerpt from the student's answer",
     "comment": "Examiner-style remark explaining the issue or merit",
-    "comment_type": "strength | weakness | omission | directive_misalignment | evidence_gap | structure_issue | visual_gap",
+    "comment_type": "strength | weakness | omission | directive_misalignment | evidence_gap | structure_issue | visual_gap | lack_interlinkages",
     "severity": "low | medium | high",
     "suggested_fix": "Optional: very brief guidance on how this could be improved or corrected"
   }}
