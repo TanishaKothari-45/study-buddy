@@ -45,6 +45,9 @@ REDIS_SETTINGS = RedisSettings(host="localhost", port=6379)
 # Job status TTL (1 hour)
 JOB_STATUS_TTL = 3600
 
+# Batch processing concurrency limit (for parallel Gemini calls)
+BATCH_CONCURRENT_LIMIT = 10
+
 
 # ============================================================
 # WORKER LIFECYCLE
@@ -86,6 +89,64 @@ async def check_cancellation(ctx, job_id: str):
     if await ctx["redis"].exists(f"cancel:{job_id}"):
         logger.info(f"🚫 Job {job_id} cancelled by user")
         raise asyncio.CancelledError("Job cancelled by user")
+
+
+# ============================================================
+# GEMINI CLIENT FACTORY (Cached by api_key + model)
+# ============================================================
+
+def get_gemini_client(ctx: dict, api_key: str, model_name: str) -> GeminiClient:
+    """
+    Get or create a GeminiClient instance with caching.
+    Caches clients by (api_key_prefix, model_name) to avoid redundant initialization.
+    
+    Args:
+        ctx: Worker context dict
+        api_key: Gemini API key
+        model_name: Model name (e.g., gemini-2.5-pro)
+        
+    Returns:
+        GeminiClient instance (cached or new)
+    """
+    # Initialize cache dict if not exists
+    if "gemini_clients" not in ctx:
+        ctx["gemini_clients"] = {}
+    
+    # Cache key: first 8 chars of api_key + model_name (for privacy)
+    cache_key = f"{api_key[:8]}:{model_name}"
+    
+    if cache_key not in ctx["gemini_clients"]:
+        ctx["gemini_clients"][cache_key] = GeminiClient(api_key=api_key, model_name=model_name)
+        logger.debug(f"✅ Created new GeminiClient for {cache_key}")
+    
+    return ctx["gemini_clients"][cache_key]
+
+
+# ============================================================
+# TRAINING EXAMPLES LOADER (Consolidated)
+# ============================================================
+
+def load_training_examples(max_examples: int = 3) -> List[dict]:
+    """
+    Load few-shot training examples from data file (consolidated helper).
+    
+    Args:
+        max_examples: Maximum number of examples to return (default: 3)
+        
+    Returns:
+        List of training example dicts
+    """
+    try:
+        training_data_file = Path(__file__).parent.parent.parent / "data" / "training_examples.json"
+        if training_data_file.exists():
+            with open(training_data_file, 'r', encoding='utf-8') as f:
+                training_data = json.load(f)
+                all_examples = training_data.get("training_examples", [])
+                # Return last N examples (most recent)
+                return all_examples[-max_examples:] if len(all_examples) > max_examples else all_examples
+    except Exception as e:
+        logger.debug(f"No training examples loaded: {e}")
+    return []
 
 
 # ============================================================
@@ -480,8 +541,8 @@ async def evaluate_answer_task(
     try:
         await check_cancellation(ctx, job_id)
         
-        # Initialize Gemini Client
-        gemini_client = GeminiClient(api_key=gemini_api_key, model_name=settings.GEMINI_MODEL_PRO)
+        # Initialize Gemini Client (using cached factory)
+        gemini_client = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_PRO)
         
         # Import shared prompt
         try:
@@ -503,19 +564,11 @@ async def evaluate_answer_task(
         await check_cancellation(ctx, job_id)
         
         # ============================================================
-        # STEP 1: Load training examples (few-shot learning)
+        # STEP 1: Load training examples (using consolidated helper)
         # ============================================================
-        training_examples = []
-        try:
-            training_data_file = Path(__file__).parent.parent.parent / "data" / "training_examples.json"
-            if training_data_file.exists():
-                with open(training_data_file, 'r', encoding='utf-8') as f:
-                    training_data = json.load(f)
-                    all_examples = training_data.get("training_examples", [])
-                    training_examples = all_examples[-3:] if len(all_examples) > 3 else all_examples
-                    logger.info(f"✅ [JOB {job_id}] Loaded {len(training_examples)} training examples")
-        except Exception as e:
-            logger.debug(f"No training examples loaded: {e}")
+        training_examples = load_training_examples(max_examples=3)
+        if training_examples:
+            logger.info(f"✅ [JOB {job_id}] Loaded {len(training_examples)} training examples")
 
         # ============================================================
         # STEP 2: Build evaluation prompt (feedback only, no context)
@@ -865,6 +918,104 @@ def _parse_evaluation_response(response_text: str) -> dict:
 
 
 # ============================================================
+# HELPER: Single Answer Evaluation (for parallel batch processing)
+# ============================================================
+
+async def _evaluate_single_answer_async(
+    answer_data: dict,
+    gemini_client: GeminiClient,
+    evaluation_system_prompt: str,
+    training_examples: List[dict],
+    semaphore: asyncio.Semaphore,
+    job_id: str
+) -> dict:
+    """
+    Evaluate a single answer with semaphore-controlled concurrency.
+    
+    Args:
+        answer_data: Dict with answer_id, question_number, question, text, marks, word_count
+        gemini_client: Shared GeminiClient instance
+        evaluation_system_prompt: System prompt for evaluation
+        training_examples: Few-shot examples
+        semaphore: Semaphore for rate limiting concurrent calls
+        job_id: Job ID for logging
+        
+    Returns:
+        Dict with status, evaluation result, or error
+    """
+    answer_id = answer_data.get("answer_id", "unknown")
+    question_number = answer_data.get("question_number", 0)
+    question_text = answer_data.get("question", f"Question {question_number}")
+    answer_text = answer_data.get("text", "")
+    word_count = answer_data.get("word_count", 250)
+    marks = answer_data.get("marks", 15)
+    
+    result = {
+        "answer_id": answer_id,
+        "question_number": question_number,
+        "status": "processing",
+        "evaluation": None,
+        "error": None,
+        "marks": marks,
+        "word_count": word_count
+    }
+    
+    try:
+        # Use semaphore for rate limiting
+        async with semaphore:
+            logger.info(f"📝 [BATCH JOB {job_id}] Evaluating answer {answer_id} (Q{question_number})")
+            
+            # Build evaluation prompt
+            user_prompt = _build_evaluation_prompt(
+                provided_question=question_text,
+                training_examples=training_examples,
+                answer_text=answer_text,
+                word_count=word_count,
+                marks=marks,
+                use_extracted_text=True
+            )
+            
+            # Call Gemini for evaluation (no lock needed - semaphore handles rate limiting)
+            response_text = await gemini_client.generate_response(
+                user_prompt=user_prompt,
+                system_prompt=evaluation_system_prompt,
+                temperature=0.2,
+                max_retries=2
+            )
+            
+            # Parse evaluation response
+            parsed_result = _parse_evaluation_response(response_text)
+            feedback = parsed_result.get("feedback", {})
+            
+            # Mark answer as completed
+            result["status"] = "completed"
+            result["evaluation"] = {
+                "question": question_text,
+                "feedback": feedback,
+                "word_count": word_count,
+                "marks": marks
+            }
+            
+            logger.info(f"✅ [BATCH JOB {job_id}] Completed answer {answer_id}")
+            
+    except Exception as e:
+        error_str = str(e).lower()
+        
+        # Check for fatal errors (429/401) - these should stop the entire batch
+        if '429' in error_str or 'quota' in error_str or '401' in error_str or '403' in error_str or 'api key' in error_str:
+            logger.error(f"❌ [BATCH JOB {job_id}] Fatal error at answer {answer_id}: {e}")
+            result["status"] = "fatal_error"
+            result["error"] = clean_gemini_error(str(e))
+        else:
+            # Transient error - mark as failed
+            logger.warning(f"⚠️ [BATCH JOB {job_id}] Failed to evaluate answer {answer_id}: {e}")
+            result["status"] = "failed"
+            result["error"] = clean_gemini_error(str(e))
+    
+    return result
+
+
+# ============================================================
 # TASK 2B: BATCH ANSWER EVALUATION (Multiple Answers from Single PDF)
 # ============================================================
 
@@ -916,8 +1067,8 @@ async def evaluate_batch_answers_task(
     try:
         await check_cancellation(ctx, job_id)
         
-        # Initialize Gemini Client
-        gemini_client = GeminiClient(api_key=gemini_api_key, model_name=settings.GEMINI_MODEL_PRO)
+        # Initialize Gemini Client (using cached factory)
+        gemini_client = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_PRO)
         
         # Import detection system prompt
         try:
@@ -994,134 +1145,78 @@ Return the result in the exact JSON format specified in the system prompt."""
                 raise Exception(f"Failed to detect answers: {str(e)}")
         
         # ============================================================
-        # STEP 2: Sequential Evaluation Calls
+        # STEP 2: Parallel Evaluation Calls (with Semaphore)
         # ============================================================
-        logger.info(f"🔄 [BATCH JOB {job_id}] Step 2: Evaluating {len(detected_answers)} answers sequentially...")
+        logger.info(f"🚀 [BATCH JOB {job_id}] Step 2: Evaluating {len(detected_answers)} answers in PARALLEL (max {BATCH_CONCURRENT_LIMIT} concurrent)...")
         
-        # Load training examples
-        training_examples = []
-        try:
-            training_data_file = Path(__file__).parent.parent.parent / "data" / "training_examples.json"
-            if training_data_file.exists():
-                with open(training_data_file, 'r', encoding='utf-8') as f:
-                    training_data = json.load(f)
-                    all_examples = training_data.get("training_examples", [])
-                    training_examples = all_examples[-3:] if len(all_examples) > 3 else all_examples
-        except Exception as e:
-            logger.debug(f"No training examples loaded: {e}")
+        # Load training examples once (using consolidated helper)
+        training_examples = load_training_examples(max_examples=3)
+        if training_examples:
+            logger.info(f"✅ [BATCH JOB {job_id}] Loaded {len(training_examples)} training examples")
         
-        batch_cancelled = False
+        # Create semaphore for rate limiting
+        semaphore = asyncio.Semaphore(BATCH_CONCURRENT_LIMIT)
         
+        # Check for cancellation before starting parallel evaluation
+        await check_cancellation(ctx, job_id)
+        
+        # Prepare answer data for parallel processing
         for idx, detected_answer in enumerate(detected_answers):
-            answer_id = detected_answer.get("answer_id", f"a{idx + 1}")
-            question_number = detected_answer.get("question_number", idx + 1)
-            word_count = detected_answer.get("word_count", 250)
-            marks = detected_answer.get("marks", 15)
-            question_text = detected_answer.get("question", f"Question {question_number}")
-            answer_text = detected_answer.get("text", "")
-            
-            logger.info(f"📝 [BATCH JOB {job_id}] Processing answer {idx + 1}/{len(detected_answers)}: {answer_id} (Q{question_number}, {marks} marks)")
-            
-            # Check cancellation
-            try:
-                await check_cancellation(ctx, job_id)
-            except asyncio.CancelledError:
-                logger.info(f"🚫 [BATCH JOB {job_id}] Batch cancelled by user")
-                batch_cancelled = True
-                break
-            
-            # Initialize answer status
-            answer_data = {
-                "answer_id": answer_id,
-                "question_number": question_number,
-                "status": "processing",
-                "evaluation": None,
-                "error": None,
-                "marks": marks,
-                "word_count": word_count
-            }
-            batch_data["answers"].append(answer_data)
-            await set_job_status(redis, job_id, "processing", batch_data=json.dumps(batch_data))
-            
-            try:
-                # Build evaluation prompt using extracted question and text (batch mode)
-                user_prompt = _build_evaluation_prompt(
-                    provided_question=question_text,
-                    training_examples=training_examples,
-                    answer_text=answer_text,
-                    word_count=word_count,
-                    marks=marks,
-                    use_extracted_text=True  # Batch mode: use extracted text
-                )
-                
-                # Call Gemini for evaluation (with lock)
-                async with redis.lock(lock_key, timeout=120, blocking_timeout=70):
-                    await check_cancellation(ctx, job_id)
-                    
-                    try:
-                        response_text = await gemini_client.generate_response(
-                            user_prompt=user_prompt,
-                            system_prompt=evaluation_system_prompt,
-                            temperature=0.2,
-                            max_retries=2
-                        )
-                        
-                        # Parse evaluation response
-                        parsed_result = _parse_evaluation_response(response_text)
-                        feedback = parsed_result.get("feedback", {})
-                        
-                        # Mark answer as completed
-                        answer_data["status"] = "completed"
-                        answer_data["evaluation"] = {
-                            "question": question_text,
-                            "feedback": feedback,
-                            "word_count": word_count,
-                            "marks": marks
-                        }
-                        batch_data["completed_answers"] += 1
-                        
-                        logger.info(f"✅ [BATCH JOB {job_id}] Completed answer {answer_id}")
-                        
-                    except Exception as e:
-                        error_str = str(e).lower()
-                        # Check for fatal errors (429/401)
-                        if '429' in error_str or 'quota' in error_str or '401' in error_str or '403' in error_str or 'api key' in error_str:
-                            logger.error(f"❌ [BATCH JOB {job_id}] Fatal error (429/401) at answer {answer_id}: {e}")
-                            batch_cancelled = True
-                            raise  # Re-raise to cancel batch
-                        
-                        # Transient error - mark as failed and continue
-                        logger.warning(f"⚠️ [BATCH JOB {job_id}] Failed to evaluate answer {answer_id}: {e}")
-                        answer_data["status"] = "failed"
-                        answer_data["error"] = clean_gemini_error(str(e))
-                        batch_data["failed_answers"] += 1
-                
-                if batch_cancelled:
-                    break
-                
-            except asyncio.CancelledError:
-                batch_cancelled = True
-                break
-            except Exception as e:
-                error_str = str(e).lower()
-                # Check for fatal errors
-                if '429' in error_str or 'quota' in error_str or '401' in error_str or '403' in error_str or 'api key' in error_str:
-                    logger.error(f"❌ [BATCH JOB {job_id}] Fatal error (429/401): {e}")
+            detected_answer["answer_id"] = detected_answer.get("answer_id", f"a{idx + 1}")
+            detected_answer["question_number"] = detected_answer.get("question_number", idx + 1)
+        
+        # Create tasks for parallel evaluation
+        evaluation_tasks = [
+            _evaluate_single_answer_async(
+                answer_data=answer,
+                gemini_client=gemini_client,
+                evaluation_system_prompt=evaluation_system_prompt,
+                training_examples=training_examples,
+                semaphore=semaphore,
+                job_id=job_id
+            )
+            for answer in detected_answers
+        ]
+        
+        # Run all evaluations in parallel with return_exceptions=True
+        # This ensures we get results for all answers even if some fail
+        logger.info(f"⏳ [BATCH JOB {job_id}] Starting parallel evaluation of {len(evaluation_tasks)} answers...")
+        evaluation_results = await asyncio.gather(*evaluation_tasks, return_exceptions=True)
+        
+        # Process results and check for fatal errors
+        batch_cancelled = False
+        for result in evaluation_results:
+            if isinstance(result, Exception):
+                # Handle exceptions from gather
+                error_str = str(result).lower()
+                if '429' in error_str or 'quota' in error_str or '401' in error_str or '403' in error_str:
                     batch_cancelled = True
-                    answer_data["status"] = "failed"
-                    answer_data["error"] = clean_gemini_error(str(e))
+                batch_data["answers"].append({
+                    "answer_id": "unknown",
+                    "question_number": 0,
+                    "status": "failed",
+                    "evaluation": None,
+                    "error": clean_gemini_error(str(result)),
+                    "marks": 15,
+                    "word_count": 250
+                })
+                batch_data["failed_answers"] += 1
+            else:
+                # Normal result dict from _evaluate_single_answer_async
+                batch_data["answers"].append(result)
+                if result["status"] == "completed":
+                    batch_data["completed_answers"] += 1
+                elif result["status"] == "fatal_error":
+                    batch_cancelled = True
                     batch_data["failed_answers"] += 1
-                    break
-                else:
-                    # Transient error
-                    logger.warning(f"⚠️ [BATCH JOB {job_id}] Error processing answer {answer_id}: {e}")
-                    answer_data["status"] = "failed"
-                    answer_data["error"] = clean_gemini_error(str(e))
+                else:  # failed
                     batch_data["failed_answers"] += 1
-            
-            # Update progress
-            await set_job_status(redis, job_id, "processing", batch_data=json.dumps(batch_data))
-            await redis.set(f"job_batch_data:{job_id}", json.dumps(batch_data), ex=7200)
+        
+        # Update progress after parallel completion
+        await set_job_status(redis, job_id, "processing", batch_data=json.dumps(batch_data))
+        await redis.set(f"job_batch_data:{job_id}", json.dumps(batch_data), ex=7200)
+        
+        logger.info(f"📊 [BATCH JOB {job_id}] Parallel evaluation complete: {batch_data['completed_answers']} completed, {batch_data['failed_answers']} failed")
         
         # Step 3: Finalize batch status
         # Store final batch_data
@@ -1198,8 +1293,8 @@ async def generate_improved_answer_task(
     try:
         await check_cancellation(ctx, job_id)
         
-        # Initialize Gemini Client
-        gemini_client = GeminiClient(api_key=gemini_api_key, model_name=settings.GEMINI_MODEL_PRO)
+        # Initialize Gemini Client (using cached factory)
+        gemini_client = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_PRO)
         
         # Import utilities
         from .utils.map_proxy import parse_and_generate_maps, check_map_service_health
@@ -1500,11 +1595,6 @@ def clean_gemini_error(error_msg: str) -> str:
         
     return f"AI Error: {error_msg[:150]}..."
 
-def enforce_diagrams(answer: str, required: int = 1) -> str:
-    """Ensure at least `required` Mermaid diagrams exist"""
-    # Simple check - if missing, we relies on prompt instructions effectively
-    # or we could inject a template. For now, just pass through.
-    return answer
 
 def count_words_excluding_visuals(text: str) -> int:
     """Count words excluding visuals"""
