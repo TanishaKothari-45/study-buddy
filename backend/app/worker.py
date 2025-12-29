@@ -1645,20 +1645,6 @@ Return ONLY the improved answer in markdown format. No JSON, no explanation, jus
 # HELPER FUNCTIONS FOR MAINS ANSWER
 # ============================================================
 
-def clean_gemini_error(error_msg: str) -> str:
-    """Clean Gemini API error messages for user-friendly display"""
-    # For quota errors (429)
-    if '429' in error_msg or 'ResourceExhausted' in error_msg:
-        return "You exceeded your current quota. Check usage at https://ai.dev/usage?tab=rate-limit."
-    
-    # For auth errors
-    lower_msg = error_msg.lower()
-    if 'api_key_invalid' in error_msg or 'api key not valid' in lower_msg or 'invalid api key' in lower_msg:
-        return "Invalid Gemini API key. Please update your API key in Settings."
-        
-    return f"AI Error: {error_msg[:150]}..."
-
-
 def count_words_excluding_visuals(text: str) -> int:
     """Count words excluding visuals"""
     cleaned_text = re.sub(r'```mermaid[\s\S]*?```', '', text)
@@ -1699,9 +1685,7 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         from .utils.map_proxy import parse_and_generate_maps, check_map_service_health
         from .utils.answer_compressor import compress_answer
         
-        # Initialize resources (using cached factory for consistency)
-        gemini_client = get_gemini_client(ctx, gemini_api_key, "gemini-2.5-pro")
-        flash_client = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_FLASH)
+        gemini_client = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_PRO)
         cache = get_cache_manager()
         pinecone_handler = ctx.get("pinecone_handler")
         
@@ -1798,57 +1782,55 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         word_count_actual = count_words_excluding_visuals(answer_text)
         
         # ============================================================
-        # POST-PROCESSING (Map + Compress)
+        # PHASE 5: MAPS
         # ============================================================
-        
-        # Map Generation
         if map_service_healthy:
             try:
                 answer_text = await parse_and_generate_maps(answer_text)
             except Exception as e:
                 logger.warning(f"Map generation failed: {e}")
         
-        # Compression
+        # ============================================================
+        # PHASE 6: COMPRESSION
+        # ============================================================
         compressed_answer = None
         word_count_compressed = None
         try:
-             # Compression uses Gemini, might need lock? Usually fast/cheap.
-             # Strict rate limit might require lock. Let's skip lock for compression to avoid holding it too long.
-             # Or use system key? current compress_answer might use different client.
-             # It accepts gemini_client.
-             compressed = await compress_answer(
-                 original_answer=answer_text,
-                 target_word_count=word_count,
-                 gemini_client=gemini_client,
-                 threshold_ratio=1.5
-             )
-             if compressed:
-                 compressed_answer = compressed
-                 word_count_compressed = count_words_excluding_visuals(compressed)
+            compressed = await compress_answer(
+                original_answer=answer_text,
+                target_word_count=word_count,
+                gemini_client=gemini_client,
+                threshold_ratio=1.5,
+                compression_target_ratio=1.2
+            )
+            if compressed:
+                compressed_answer = compressed
+                word_count_compressed = count_words_excluding_visuals(compressed)
         except Exception as e:
-             logger.warning(f"Compression failed: {e}")
-
+            logger.warning(f"Compression failed: {e}")
+            
         # ============================================================
-        # SAVE RESULT & CACHE
+        # PHASE 7: CACHE & SAVE
         # ============================================================
+        result = {
+            "question": query,
+            "answer": compressed_answer or answer_text,
+            "compressed_answer": answer_text if compressed_answer else None,
+            "sources": sources,
+            "word_count_actual": word_count_compressed or word_count_actual,
+            "word_count_compressed": word_count_actual if compressed_answer else None
+        }
         
-        # Cache Result
-        model_version = "gemini-2.5-pro-v1"
-        answer_to_cache = compressed_answer or answer_text
-        word_count_cache = count_words_excluding_visuals(answer_to_cache)
-        compressed_for_cache = None if not compressed_answer or compressed_answer.strip() == answer_to_cache.strip() else compressed_answer
-        
+        # Cache for historical retrieval
         if cache:
              cache.set_cached_answer(
-                question=query,
-                word_count=word_count,
-                answer=answer_to_cache,
-                sources=sources,
-                model_version=model_version,
-                compressed_answer=compressed_for_cache,
-                word_count_actual=word_count_cache,
-                word_count_compressed=word_count_compressed
-            )
+                 question=query,
+                 word_count=word_count,
+                 answer=compressed_answer or answer_text,
+                 sources=sources,
+                 word_count_actual=word_count_compressed or word_count_actual,
+                 model_version="gemini-2.5-pro-v1"
+             )
              # Add to history
              cache.add_user_history(
                 user_id=user_id,
@@ -1856,16 +1838,7 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
                 word_count=word_count,
                 answer_preview=answer_text
             )
-
-        result = {
-            "question": query,
-            "answer": answer_text,
-            "compressed_answer": compressed_answer,
-            "sources": sources,
-            "word_count_actual": word_count_actual,
-            "word_count_compressed": word_count_compressed
-        }
-        
+             
         await set_job_result(redis, job_id, result)
         logger.info(f"✅ [JOB {job_id}] Mains generation complete")
 
@@ -1873,7 +1846,7 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         await set_job_error(redis, job_id, "Cancelled by user")
     except Exception as e:
         logger.error(f"❌ [JOB {job_id}] Failed: {e}", exc_info=True)
-        await set_job_error(redis, job_id, str(e))
+        await set_job_error(redis, job_id, clean_gemini_error(str(e)))
     finally:
         await redis.delete(f"cancel:{job_id}")
 

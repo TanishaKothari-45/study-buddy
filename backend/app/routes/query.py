@@ -14,19 +14,21 @@ import json
 import redis.asyncio as redis
 from uuid import uuid4
 from fastapi import APIRouter, Request, HTTPException, Depends
-from pydantic import BaseModel
 from typing import Optional, List, Dict
+from ..models.mains import QueryRequest
+from ..utils.user_api_key import get_gemini_api_key_for_request
+from ..gemini_core import settings_gemini_key
+
+# Global default (fallback)
+GEMINI_API_KEY_SYSTEM = settings_gemini_key.GEMINI_API_KEY
 
 from ..core.deps import get_current_user
 from ..models.user import User
 
 logger = logging.getLogger(__name__)
 
+# Routes
 router = APIRouter()
-
-class QueryRequest(BaseModel):
-    query: str
-    mode: str = "concise" # concise or detailed
 
 @router.post("/")
 async def generate_answer(
@@ -40,6 +42,18 @@ async def generate_answer(
     """
     try:
         user_id = str(current_user.id) if current_user else "anonymous"
+        
+        # 1. Get Gemini Key
+        try:
+            gemini_api_key = get_gemini_api_key_for_request(current_user)
+            if not gemini_api_key or not gemini_api_key.strip():
+                gemini_api_key = GEMINI_API_KEY_SYSTEM
+        except Exception:
+            gemini_api_key = GEMINI_API_KEY_SYSTEM
+
+        if not gemini_api_key or not gemini_api_key.strip():
+             raise HTTPException(400, "No Gemini API key available. Please configure an API key in Settings.")
+
         job_id = str(uuid4())
         
         arq_pool = request.app.state.arq_pool

@@ -145,7 +145,6 @@ class CacheManager:
         cache_value = {
             # Store compressed answer as primary to avoid recompressing on read
             "answer": compressed_answer or answer,
-            "compressed_answer": compressed_answer,
             "sources": sources,
             "question": question,
             "word_count": word_count,

@@ -13,7 +13,7 @@ interface MermaidProps {
 export function Mermaid({ chart, className = '' }: MermaidProps) {
     const ref = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const [zoom, setZoom] = useState(1.4); // Start at 140% for better readability
+    const [zoom, setZoom] = useState(1.2); // Start at 140% for better readability
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState({ x: 0, y: 0 });
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -45,7 +45,7 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
         });
     };
     const handleReset = () => {
-        setZoom(1.4); // Reset to default 140%
+        setZoom(1.2); // Reset to default 120%
         setPanOffset({ x: 0, y: 0 });
         // Scroll to top when resetting
         if (containerRef.current) {
@@ -191,7 +191,7 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
                             svgElement.setAttribute('viewBox',
                                 `${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`
                             );
-                            
+
                             // Scroll container to top after rendering to ensure top is visible
                             if (containerRef.current) {
                                 // Use setTimeout to ensure DOM is fully updated
