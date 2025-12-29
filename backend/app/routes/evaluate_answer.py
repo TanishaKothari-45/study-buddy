@@ -51,13 +51,13 @@ async def evaluate_answer_endpoint(
         # 1. Get Gemini Key
         try:
             gemini_api_key = get_gemini_api_key_for_request(current_user)
-            if not gemini_api_key:
+            if not gemini_api_key or not gemini_api_key.strip():
                 gemini_api_key = GEMINI_API_KEY_SYSTEM
         except Exception:
             gemini_api_key = GEMINI_API_KEY_SYSTEM
 
-        if not gemini_api_key:
-             raise HTTPException(400, "No Gemini API key available.")
+        if not gemini_api_key or not gemini_api_key.strip():
+             raise HTTPException(400, "No Gemini API key available. Please configure an API key in Settings.")
             
         # 2. Preparation
         job_id = str(uuid4())

@@ -41,7 +41,7 @@ class GeminiClient:
         # Configure client with timeout via http_options
         self.client = genai.Client(
             api_key=api_key,
-            http_options=types.HttpOptions(timeout=timeout)
+            http_options=types.HttpOptions(timeout=int(timeout * 1000))
         )
     
     async def generate_response(
@@ -174,10 +174,15 @@ class GeminiClient:
             while retry_count <= max_retries:
                 try:
                     # Use native async API (timeout configured at client level via http_options)
+                    # CRITICAL: google-genai SDK uses MILLISECONDS for timeout
+                    gen_timeout_ms = int(self.timeout * 1000)
+                    gen_http_options = types.HttpOptions(timeout=gen_timeout_ms)
+                    
                     response = await self.client.aio.models.generate_content(
                         model=self.model_name,
                         contents=contents,
-                        config=generation_config
+                        config=generation_config,
+                        http_options=gen_http_options
                     )
                     
                     if response and response.text:
@@ -204,7 +209,9 @@ class GeminiClient:
                     retry_count += 1
                     if retry_count <= max_retries:
                         wait_time = retry_count * 2  # Exponential-ish backoff: 2s, 4s, 6s
-                        print(f"⚠️  Gemini API error: {e}. Retrying ({retry_count}/{max_retries}) after {wait_time}s...")
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.warning(f"⚠️  Gemini API error: {e}. Retrying ({retry_count}/{max_retries}) after {wait_time}s...")
                         await asyncio.sleep(wait_time)
                     else:
                         raise

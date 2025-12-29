@@ -541,6 +541,10 @@ async def evaluate_answer_task(
     try:
         await check_cancellation(ctx, job_id)
         
+        # Validate API key before proceeding
+        if not gemini_api_key or not gemini_api_key.strip():
+            raise Exception("Invalid API key: API key is empty or not provided. Please check your API key in Settings.")
+        
         # Initialize Gemini Client (using cached factory)
         gemini_client = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_PRO)
         
@@ -1636,9 +1640,9 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         from .utils.map_proxy import parse_and_generate_maps, check_map_service_health
         from .utils.answer_compressor import compress_answer
         
-        # Initialize resources
-        gemini_client = GeminiClient(api_key=gemini_api_key, model_name="gemini-2.5-pro")
-        flash_client = GeminiClient(api_key=gemini_api_key, model_name=settings.GEMINI_MODEL_FLASH)
+        # Initialize resources (using cached factory for consistency)
+        gemini_client = get_gemini_client(ctx, gemini_api_key, "gemini-2.5-pro")
+        flash_client = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_FLASH)
         cache = get_cache_manager()
         pinecone_handler = ctx.get("pinecone_handler")
         
