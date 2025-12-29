@@ -173,16 +173,11 @@ class GeminiClient:
             # Retry loop for transient errors
             while retry_count <= max_retries:
                 try:
-                    # Use native async API (timeout configured at client level via http_options)
-                    # CRITICAL: google-genai SDK uses MILLISECONDS for timeout
-                    gen_timeout_ms = int(self.timeout * 1000)
-                    gen_http_options = types.HttpOptions(timeout=gen_timeout_ms)
-                    
+                    # Use native async API (timeout configured at client level via http_options in __init__)
                     response = await self.client.aio.models.generate_content(
                         model=self.model_name,
                         contents=contents,
-                        config=generation_config,
-                        http_options=gen_http_options
+                        config=generation_config
                     )
                     
                     if response and response.text:

@@ -8,16 +8,17 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { fetchApi, API_URL } from "@/lib/api";
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, BookOpen } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertCircle, Loader2, BookOpen, RefreshCw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { cn } from "@/lib/utils";
 import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
+import { EvaluationResult, BatchData, BatchAnswerResult } from "@/stores/types";
+import { EvaluationResultCard } from "@/components/evaluate/EvaluationResultCard";
 import { apiClient, ApiError, api, showToast } from "@/lib/apiClient";
 import { useEvaluateAnswerStore } from "@/stores";
 import { useAuth } from "@/context/AuthContext";
-import { EvaluationResult } from "@/stores/types";
 
 // Helper function to format text with line breaks around ** markers for better readability
 const formatBlueprintText = (text: string): string => {
@@ -56,17 +57,6 @@ export default function EvaluatePage() {
         setResult,
         setError,
         reset,
-        // Improved Answer State
-        improvedAnswerJobId,
-        improvedAnswerStatus,
-        improvedAnswerResult,
-        improvedAnswerError,
-        setImprovedAnswerJobId,
-        setImprovedAnswerStatus,
-        setImprovedAnswerResult,
-        setImprovedAnswerError,
-        generateImprovedAnswer,
-        resetImprovedAnswer
     } = useEvaluateAnswerStore();
 
     const [files, setFiles] = useState<File[]>([]);
@@ -86,16 +76,11 @@ export default function EvaluatePage() {
 
     // Ref to track active job for cancellation effect
     const activeJobId = useRef<string | null>(null);
-    const activeImprovedAnswerJobId = useRef<string | null>(null);
 
     // Sync ref with store
     useEffect(() => {
         activeJobId.current = jobId;
     }, [jobId]);
-
-    useEffect(() => {
-        activeImprovedAnswerJobId.current = improvedAnswerJobId;
-    }, [improvedAnswerJobId]);
 
     // Resume polling on mount if active
     useEffect(() => {
@@ -104,15 +89,6 @@ export default function EvaluatePage() {
             pollStatus(jobId);
         }
     }, []);
-
-    // Resume polling for improved answer if active
-    useEffect(() => {
-        if (improvedAnswerJobId && (improvedAnswerStatus === 'pending' || improvedAnswerStatus === 'processing' || improvedAnswerStatus === 'queued')) {
-            pollImprovedAnswerStatus(improvedAnswerJobId);
-        }
-    }, []);
-
-    // Proactively show banner removed - on-demand only
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -140,78 +116,20 @@ export default function EvaluatePage() {
 
     const handleReset = () => {
         reset();
-        resetImprovedAnswer();
         setFiles([]);
         setShowCompressed(true);
         setShowOriginal(false);
         setEvaluationMode("single");
         setUseStandardFormat(false);
+        setError(null);
+        setJobId(null);
+        setJobStatus('idle');
+        setStatusMessage("Evaluating...");
+        setQuestionFile(null);
+        setNumQuestions(1);
+        setQuestionTexts([""]);
     };
 
-    const handleGenerateImprovedAnswer = async () => {
-        if (!result || !result.feedback) {
-            showToast("No evaluation feedback available", "error");
-            return;
-        }
-
-        try {
-            await generateImprovedAnswer(
-                result.question,
-                result.student_answer || null,
-                result.feedback,
-                result.word_count || 250,
-                files.length > 0 ? files : undefined
-            );
-
-            // Start polling - get the job ID from store after state update
-            setTimeout(() => {
-                const store = useEvaluateAnswerStore.getState();
-                if (store.improvedAnswerJobId) {
-                    pollImprovedAnswerStatus(store.improvedAnswerJobId);
-                }
-            }, 100);
-        } catch (error: any) {
-            console.error("Failed to generate improved answer:", error);
-            showToast(error.message || "Failed to generate improved answer", "error");
-        }
-    };
-
-    const pollImprovedAnswerStatus = async (id: string) => {
-        if (activeImprovedAnswerJobId.current !== id) return;
-
-        try {
-            const data = await apiClient<{ status: string, result?: any, error?: string }>(`/evaluate-answer/status/${id}`);
-
-            if (activeImprovedAnswerJobId.current !== id) return;
-
-            if (data.status === 'completed') {
-                if (data.result) {
-                    setImprovedAnswerResult(data.result);
-                    setImprovedAnswerJobId(null);
-                    activeImprovedAnswerJobId.current = null;
-                } else {
-                    setImprovedAnswerError("Improved answer generation completed but returned no results.");
-                    setImprovedAnswerJobId(null);
-                    activeImprovedAnswerJobId.current = null;
-                }
-            } else if (data.status === 'failed') {
-                setImprovedAnswerError(data.error || "Improved answer generation failed");
-                setImprovedAnswerJobId(null);
-                activeImprovedAnswerJobId.current = null;
-            } else {
-                // Still processing, poll again
-                setImprovedAnswerStatus(data.status as any);
-                setTimeout(() => pollImprovedAnswerStatus(id), 2000);
-            }
-        } catch (error: any) {
-            console.error("Failed to poll improved answer status:", error);
-            if (activeImprovedAnswerJobId.current === id) {
-                setImprovedAnswerError(error.message || "Failed to check status");
-                setImprovedAnswerJobId(null);
-                activeImprovedAnswerJobId.current = null;
-            }
-        }
-    };
 
     const pollStatus = async (id: string) => {
         if (activeJobId.current !== id) return;
@@ -382,8 +300,6 @@ export default function EvaluatePage() {
         setJobId(null);
         setJobStatus('queued');
         setStatusMessage("Uploading and starting...");
-        // Reset improved answer when starting a new evaluation
-        resetImprovedAnswer();
 
         const formData = new FormData();
 
@@ -833,579 +749,55 @@ export default function EvaluatePage() {
                 <div className="lg:col-span-2 space-y-6">
                     {result ? (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            {/* Question & Summary */}
-                            <Card className="bg-blue-50/50 border-blue-100">
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-lg text-blue-900">Question</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <p className="text-blue-800 font-medium">
-                                        {result.question || "Question extracted from uploaded file"}
-                                    </p>
-                                    {(result.marks || result.word_count) && (
-                                        <div className="mt-3 flex gap-4 text-sm text-blue-700">
-                                            {result.marks && (
-                                                <span className="font-semibold">
-                                                    Marks: {result.marks}
-                                                </span>
-                                            )}
-                                            {result.word_count && (
-                                                <span className="font-semibold">
-                                                    Word Count: {result.word_count}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                            {/* Examiner Expectation Blueprint */}
-                            {result.feedback.examiner_expectation_blueprint && (
-                                <Card className="border-l-4 border-l-blue-500">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base text-blue-700">Examiner's Expectation Blueprint</CardTitle>
-                                        <CardDescription className="text-xs">
-                                            What the examiner expects for this question
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4 text-sm">
-                                        {result.feedback.examiner_expectation_blueprint.key_demands_of_the_question && result.feedback.examiner_expectation_blueprint.key_demands_of_the_question.length > 0 && (
-                                            <div>
-                                                <h4 className="font-semibold text-gray-900 mb-2">Key Demands of the Question</h4>
-                                                <ul className="list-disc pl-4 space-y-1 text-gray-700">
-                                                    {result.feedback.examiner_expectation_blueprint.key_demands_of_the_question.map((demand: string, i: number) => (
-                                                        <li key={i}>{demand}</li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                        {result.feedback.examiner_expectation_blueprint.ideal_logical_structure && (
-                                            <div>
-                                                <h4 className="font-semibold text-gray-900 mb-2">Ideal Logical Structure</h4>
-                                                <div className="space-y-3 pl-4 border-l-2 border-blue-200">
-                                                    <div>
-                                                        <span className="font-medium text-blue-700">Introduction: </span>
-                                                        <div className="text-gray-700 whitespace-pre-line mt-1">
-                                                            {formatBlueprintText(result.feedback.examiner_expectation_blueprint.ideal_logical_structure.introduction)}
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <span className="font-medium text-blue-700">Body: </span>
-                                                        <div className="text-gray-700 whitespace-pre-line mt-1">
-                                                            {formatBlueprintText(result.feedback.examiner_expectation_blueprint.ideal_logical_structure.body)}
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <span className="font-medium text-blue-700">Conclusion: </span>
-                                                        <div className="text-gray-700 whitespace-pre-line mt-1">
-                                                            {formatBlueprintText(result.feedback.examiner_expectation_blueprint.ideal_logical_structure.conclusion)}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {result.feedback.examiner_expectation_blueprint.non_negotiables && result.feedback.examiner_expectation_blueprint.non_negotiables.length > 0 && (
-                                            <div>
-                                                <h4 className="font-semibold text-gray-900 mb-2">Non-Negotiable Elements</h4>
-                                                <ul className="list-disc pl-4 space-y-1 text-gray-700">
-                                                    {result.feedback.examiner_expectation_blueprint.non_negotiables.map((item: string, i: number) => (
-                                                        <li key={i}>{item}</li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {/* Margin Comments - Displayed Fisrt */}
-                            {result.feedback.margin_comments && result.feedback.margin_comments.length > 0 && (
-                                <Card className="border-l-4 border-l-indigo-500">
-                                    <CardHeader className="pb-3">
-                                        <CardTitle className="text-base text-indigo-700 flex items-center gap-2">
-                                            <BookOpen className="h-5 w-5" />
-                                            Margin Comments
-                                        </CardTitle>
-                                        <CardDescription className="text-xs">
-                                            Examiner-style annotations on specific parts of your answer
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="space-y-3">
-                                            {result.feedback.margin_comments.map((comment, idx) => {
-                                                const severityColors: Record<string, string> = {
-                                                    low: "bg-blue-50 border-blue-200 text-blue-800",
-                                                    medium: "bg-amber-50 border-amber-200 text-amber-800",
-                                                    high: "bg-red-50 border-red-200 text-red-800"
-                                                };
-                                                const typeColors: Record<string, string> = {
-                                                    strength: "text-green-700",
-                                                    weakness: "text-red-700",
-                                                    omission: "text-orange-700",
-                                                    directive_misalignment: "text-purple-700",
-                                                    evidence_gap: "text-yellow-700",
-                                                    structure_issue: "text-pink-700",
-                                                    visual_gap: "text-cyan-700"
-                                                };
-
-                                                const severity = (comment.severity || "low").toLowerCase();
-                                                const severityColor = severityColors[severity] || severityColors.low;
-
-                                                return (
-                                                    <div
-                                                        key={idx}
-                                                        className={`p-3 rounded-lg border-l-4 ${severityColor}`}
-                                                    >
-                                                        <div className="flex items-start justify-between gap-2 mb-1">
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-white/50">
-                                                                        {comment.comment_type.replace(/_/g, ' ').toUpperCase()}
-                                                                    </span>
-                                                                    <span className={`text-xs font-medium ${typeColors[comment.comment_type] || 'text-gray-700'}`}>
-                                                                        {severity.toUpperCase()} SEVERITY
-                                                                    </span>
-                                                                </div>
-                                                                <p className="text-sm font-medium text-gray-900 mb-1">
-                                                                    <span className="italic">"{comment.anchor_text}"</span>
-                                                                </p>
-                                                                <p className="text-sm text-gray-800">
-                                                                    {comment.comment}
-                                                                </p>
-                                                                {comment.suggested_fix && (
-                                                                    <div className="mt-2 pt-2 border-t border-gray-300">
-                                                                        <p className="text-xs font-semibold text-gray-700 mb-1">Suggested Fix:</p>
-                                                                        <p className="text-xs text-gray-600">{comment.suggested_fix}</p>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {/* Directive Alignment */}
-                            {result.feedback.directive_alignment && (
-                                <Card className="border-l-4 border-l-purple-500">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base text-purple-700">Directive Alignment</CardTitle>
-                                        <CardDescription className="text-xs">
-                                            How well your answer matches the question's directive
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-3 text-sm">
-                                        <div>
-                                            <span className="font-semibold text-gray-900">Directive Identified: </span>
-                                            <span className="text-purple-700 font-medium">{result.feedback.directive_alignment.directive_identified}</span>
-                                        </div>
-                                        <div>
-                                            <h4 className="font-semibold text-gray-900 mb-1">Alignment Assessment</h4>
-                                            <p className="text-gray-700">{result.feedback.directive_alignment.alignment_assessment}</p>
-                                        </div>
-                                        {result.feedback.directive_alignment.issues_if_any && result.feedback.directive_alignment.issues_if_any.length > 0 && (
-                                            <div>
-                                                <h4 className="font-semibold text-amber-700 mb-1">Issues Identified</h4>
-                                                <ul className="list-disc pl-4 space-y-1 text-gray-700">
-                                                    {result.feedback.directive_alignment.issues_if_any.map((issue, i) => (
-                                                        <li key={i}>{issue}</li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                        <div className="bg-purple-50 p-3 rounded-md border border-purple-100">
-                                            <h4 className="font-semibold text-purple-900 mb-1">How to Improve</h4>
-                                            <p className="text-purple-800">{result.feedback.directive_alignment.how_to_improve}</p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {/* Feedback Grid */}
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <Card className="border-l-4 border-l-green-500">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base text-green-700">Strengths</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        {result.feedback.strengths && result.feedback.strengths.length > 0 ? (
-                                            <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700">
-                                                {result.feedback.strengths.map((item, i) => (
-                                                    <li key={i}>{item}</li>
-                                                ))}
-                                            </ul>
-                                        ) : (
-                                            <p className="text-sm text-gray-500 italic">No specific strengths identified</p>
-                                        )}
-                                    </CardContent>
-                                </Card>
-
-                                {/* Critical Gaps and Remedies */}
-                                <Card className="border-l-4 border-l-red-500">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base text-red-700">Critical Gaps & Remedies</CardTitle>
-                                        <CardDescription className="text-xs">
-                                            Key issues and how to fix them
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        {result.feedback.critical_gaps_and_remedies && result.feedback.critical_gaps_and_remedies.length > 0 ? (
-                                            <div className="space-y-3">
-                                                {result.feedback.critical_gaps_and_remedies.map((item, i) => (
-                                                    <div key={i} className="p-3 bg-red-50/50 rounded-md border border-red-100">
-                                                        <div className="mb-2">
-                                                            <span className="text-xs font-semibold text-red-800 uppercase">Gap:</span>
-                                                            <p className="text-sm text-gray-800 mt-1">{item.gap}</p>
-                                                        </div>
-                                                        <div>
-                                                            <span className="text-xs font-semibold text-green-800 uppercase">Remedy:</span>
-                                                            <p className="text-sm text-gray-700 mt-1 font-medium">{item.remedy}</p>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            // Fallback to legacy fields for backward compatibility
-                                            <>
-                                                {(result.feedback.missing_elements && result.feedback.missing_elements.length > 0) ||
-                                                    (result.feedback.improvements_needed && result.feedback.improvements_needed.length > 0) ? (
-                                                    <div className="space-y-3">
-                                                        {result.feedback.missing_elements && result.feedback.missing_elements.length > 0 && (
-                                                            <div>
-                                                                <span className="text-xs font-semibold text-red-800 uppercase">Missing Elements:</span>
-                                                                <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700 mt-1">
-                                                                    {result.feedback.missing_elements.map((item, i) => (
-                                                                        <li key={i}>{item}</li>
-                                                                    ))}
-                                                                </ul>
-                                                            </div>
-                                                        )}
-                                                        {result.feedback.improvements_needed && result.feedback.improvements_needed.length > 0 && (
-                                                            <div>
-                                                                <span className="text-xs font-semibold text-green-800 uppercase">Improvements:</span>
-                                                                <ul className="list-disc pl-4 space-y-1 text-sm text-gray-700 mt-1">
-                                                                    {result.feedback.improvements_needed.map((item, i) => (
-                                                                        <li key={i}>{item}</li>
-                                                                    ))}
-                                                                </ul>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-sm text-gray-500 italic">No critical gaps identified</p>
-                                                )}
-                                            </>
-                                        )}
-                                    </CardContent>
-                                </Card>
+                            {/* Global Reset Button in Results Header */}
+                            <div className="flex justify-between items-center bg-white p-4 rounded-lg border shadow-sm">
+                                <h2 className="text-xl font-semibold text-foreground">
+                                    {evaluationMode === "batch" ? "Batch Evaluation Results" : "Evaluation Result"}
+                                </h2>
+                                <Button
+                                    variant="outline"
+                                    onClick={handleReset}
+                                    className="flex items-center gap-2 border-primary/20 hover:border-primary/50"
+                                >
+                                    <RefreshCw className="h-4 w-4" />
+                                    New Evaluation
+                                </Button>
                             </div>
 
-                            {/* Section-wise Assessment */}
-                            {result.feedback.section_wise_assessment && (
-                                <Card className="border-l-4 border-l-teal-500">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-base text-teal-700">Section-wise Assessment</CardTitle>
-                                        <CardDescription className="text-xs">
-                                            Detailed evaluation of each section
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-3 text-sm">
-                                        <div>
-                                            <h4 className="font-semibold text-gray-900 mb-1">Introduction</h4>
-                                            <p className="text-gray-700">{result.feedback.section_wise_assessment.introduction}</p>
-                                        </div>
-                                        <div>
-                                            <h4 className="font-semibold text-gray-900 mb-1">Body</h4>
-                                            <p className="text-gray-700">{result.feedback.section_wise_assessment.body}</p>
-                                        </div>
-                                        <div>
-                                            <h4 className="font-semibold text-gray-900 mb-1">Conclusion</h4>
-                                            <p className="text-gray-700">{result.feedback.section_wise_assessment.conclusion}</p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {/* Detailed Feedback */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Detailed Assessment</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4 text-sm">
-                                    {result.feedback.section_wise_assessment ? (
-                                        // If section_wise_assessment exists, don't show structure_feedback separately
-                                        null
-                                    ) : result.feedback.structure_feedback ? (
-                                        <div>
-                                            <h4 className="font-semibold text-gray-900 mb-1">Structure & Format</h4>
-                                            <p className="text-gray-600">{result.feedback.structure_feedback}</p>
-                                        </div>
-                                    ) : null}
-                                    <div>
-                                        <h4 className="font-semibold text-gray-900 mb-1">Evidence & Examples</h4>
-                                        <p className="text-gray-600">{result.feedback.evidence_feedback}</p>
-                                    </div>
-                                    {result.feedback.visual_feedback && (
-                                        <div>
-                                            <h4 className="font-semibold text-gray-900 mb-1">Visuals (Maps/Diagrams/Tables)</h4>
-                                            <p className="text-gray-600">{result.feedback.visual_feedback}</p>
-                                        </div>
-                                    )}
-                                    {result.feedback.strategy_tip && (
-                                        <div className="bg-green-50 p-3 rounded-md border border-green-100">
-                                            <h4 className="font-semibold text-green-900 mb-1 flex items-center gap-2">
-                                                <BookOpen className="h-4 w-4" />
-                                                Exam Strategy Tip
-                                            </h4>
-                                            <p className="text-green-800">{result.feedback.strategy_tip}</p>
-                                        </div>
-                                    )}
-                                    <div className="bg-gray-50 p-3 rounded-md">
-                                        <h4 className="font-semibold text-gray-900 mb-1">Overall Verdict</h4>
-                                        <p className="text-gray-600 italic">{result.feedback.overall_assessment}</p>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            {/* Generate Improved Answer Button or Display Improved Answer */}
-                            {result.improved_answer ? (
-                                // Legacy format: Show improved answer directly (backward compatibility)
-                                <div className="space-y-4">
-                                    {result.compressed_answer && (
-                                        <Card className="border-2 border-indigo-100 overflow-hidden shadow-sm">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowCompressed(!showCompressed)}
-                                                className="w-full flex items-center justify-between p-4 bg-indigo-50/50 hover:bg-indigo-100/50 transition-colors border-b border-indigo-100"
-                                            >
-                                                <div className="flex flex-col items-start gap-1">
-                                                    <div className="flex items-center gap-2 text-indigo-900 font-semibold">
-                                                        <Minimize2 className="h-4 w-4" />
-                                                        Compressed Model Solution
-                                                    </div>
-                                                    <div className="text-xs text-indigo-600/70">
-                                                        {result.word_count_compressed} words • Optimized for quick reading
-                                                    </div>
-                                                </div>
-                                                <ChevronDown className={cn("h-4 w-4 text-indigo-400 transition-transform", showCompressed && "rotate-180")} />
-                                            </button>
-                                            {showCompressed && (
-                                                <CardContent className="p-6">
-                                                    <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900">
-                                                        <ReactMarkdown
-                                                            remarkPlugins={[remarkGfm]}
-                                                            components={markdownComponents}
-                                                            urlTransform={urlTransform}
-                                                        >
-                                                            {result.compressed_answer}
-                                                        </ReactMarkdown>
-                                                    </div>
+                            {evaluationMode === "batch" && (result.feedback as any).answers ? (
+                                (result.feedback as any).answers.map((answer: any, i: number) => (
+                                    <div key={answer.answer_id || i} className="pb-4">
+                                        {answer.status === 'completed' && answer.evaluation ? (
+                                            <EvaluationResultCard
+                                                result={answer.evaluation}
+                                                index={i}
+                                                files={files}
+                                                isCollapsible={true}
+                                                defaultExpanded={i === 0}
+                                            />
+                                        ) : (
+                                            <Card className="bg-red-50 border-red-100">
+                                                <CardHeader>
+                                                    <CardTitle className="text-red-900">
+                                                        Answer {i + 1} Failed
+                                                    </CardTitle>
+                                                </CardHeader>
+                                                <CardContent>
+                                                    <p className="text-red-800 font-medium">
+                                                        {answer.error || "An error occurred during evaluation of this segment."}
+                                                    </p>
                                                 </CardContent>
-                                            )}
-                                        </Card>
-                                    )}
-                                    <Card className={cn(
-                                        "overflow-hidden",
-                                        result.compressed_answer ? "border-dashed border-gray-300" : "border-2 border-indigo-100 shadow-sm"
-                                    )}>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowOriginal(!showOriginal)}
-                                            className={cn(
-                                                "w-full flex items-center justify-between p-4 transition-colors border-b",
-                                                result.compressed_answer ? "bg-gray-50/50 hover:bg-gray-100/50" : "bg-indigo-50/50 hover:bg-indigo-100/50"
-                                            )}
-                                        >
-                                            <div className="flex flex-col items-start gap-1">
-                                                <div className={cn(
-                                                    "flex items-center gap-2 font-semibold",
-                                                    result.compressed_answer ? "text-gray-700" : "text-indigo-900"
-                                                )}>
-                                                    <FileText className="h-4 w-4" />
-                                                    {result.compressed_answer ? "Original Model Solution" : "Model Solution"}
-                                                </div>
-                                                <div className="text-xs text-muted-foreground">
-                                                    {result.word_count_actual} words • Comprehensive version
-                                                </div>
-                                            </div>
-                                            <ChevronDown className={cn(
-                                                "h-4 w-4 transition-transform",
-                                                result.compressed_answer ? "text-gray-400" : "text-indigo-400",
-                                                (showOriginal || !result.compressed_answer) && "rotate-180"
-                                            )} />
-                                        </button>
-                                        {(showOriginal || !result.compressed_answer) && (
-                                            <CardContent className="p-6">
-                                                <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900">
-                                                    <ReactMarkdown
-                                                        remarkPlugins={[remarkGfm]}
-                                                        components={markdownComponents}
-                                                        urlTransform={urlTransform}
-                                                    >
-                                                        {result.improved_answer}
-                                                    </ReactMarkdown>
-                                                </div>
-                                            </CardContent>
+                                            </Card>
                                         )}
-                                    </Card>
-                                </div>
+                                    </div>
+                                ))
                             ) : (
-                                // New format: Show button to generate improved answer
-                                <Card className="border-2 border-dashed border-indigo-200 bg-indigo-50/30">
-                                    <CardContent className="p-6 flex flex-col items-center justify-center text-center space-y-4">
-                                        <div className="bg-indigo-100 p-3 rounded-full">
-                                            <FileText className="h-6 w-6 text-indigo-600" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Generate Improved Answer</h3>
-                                            <p className="text-sm text-gray-600 max-w-md">
-                                                Based on the feedback above, generate an improved model answer with retrieval, current affairs, and enhanced content.
-                                            </p>
-                                        </div>
-                                        <Button
-                                            onClick={handleGenerateImprovedAnswer}
-                                            disabled={
-                                                improvedAnswerStatus === 'pending' ||
-                                                improvedAnswerStatus === 'processing' ||
-                                                improvedAnswerStatus === 'queued' ||
-                                                !!improvedAnswerResult
-                                            }
-                                            className={improvedAnswerResult ? "bg-green-500 hover:bg-green-500 cursor-not-allowed" : "bg-indigo-300 hover:bg-indigo-400"}
-                                        >
-                                            {improvedAnswerStatus === 'pending' || improvedAnswerStatus === 'processing' || improvedAnswerStatus === 'queued' ? (
-                                                <>
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                    Generating...
-                                                </>
-                                            ) : improvedAnswerResult ? (
-                                                <>
-                                                    <CheckCircle className="mr-2 h-4 w-4" />
-                                                    Generated
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <RefreshCw className="mr-2 h-4 w-4" />
-                                                    Generate Improved Answer
-                                                </>
-                                            )}
-                                        </Button>
-                                        {improvedAnswerError && (
-                                            <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                                                {improvedAnswerError}
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {/* Improved Answer Result (from separate generation) */}
-                            {improvedAnswerResult && (
-                                <div className="space-y-4 mt-4">
-                                    {/* Sources Info Card */}
-                                    {improvedAnswerResult.sources && improvedAnswerResult.sources.length > 0 && (
-                                        <Card className="border-l-4 border-l-blue-500 bg-blue-50/30">
-                                            <CardHeader className="pb-2">
-                                                <CardTitle className="text-sm text-blue-900 flex items-center gap-2">
-                                                    <BookOpen className="h-4 w-4" />
-                                                    Sources Used ({improvedAnswerResult.sources.length})
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent>
-                                                <div className="flex flex-wrap gap-2 text-xs">
-                                                    {improvedAnswerResult.sources.slice(0, 5).map((source: any, idx: number) => (
-                                                        <span key={idx} className="px-2 py-1 bg-white rounded border border-blue-200 text-blue-700">
-                                                            {source.filename || source.content_source || `Source ${idx + 1}`}
-                                                        </span>
-                                                    ))}
-                                                    {improvedAnswerResult.sources.length > 5 && (
-                                                        <span className="px-2 py-1 bg-white rounded border border-blue-200 text-blue-700">
-                                                            +{improvedAnswerResult.sources.length - 5} more
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    )}
-                                    {improvedAnswerResult.compressed_answer && (
-                                        <Card className="border-2 border-indigo-100 overflow-hidden shadow-sm">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowCompressed(!showCompressed)}
-                                                className="w-full flex items-center justify-between p-4 bg-indigo-50/50 hover:bg-indigo-100/50 transition-colors border-b border-indigo-100"
-                                            >
-                                                <div className="flex flex-col items-start gap-1">
-                                                    <div className="flex items-center gap-2 text-indigo-900 font-semibold">
-                                                        <Minimize2 className="h-4 w-4" />
-                                                        Compressed Model Solution
-                                                    </div>
-                                                    <div className="text-xs text-indigo-600/70">
-                                                        {improvedAnswerResult.word_count_compressed} words • Optimized for quick reading
-                                                    </div>
-                                                </div>
-                                                <ChevronDown className={cn("h-4 w-4 text-indigo-400 transition-transform", showCompressed && "rotate-180")} />
-                                            </button>
-                                            {showCompressed && (
-                                                <CardContent className="p-6">
-                                                    <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900">
-                                                        <ReactMarkdown
-                                                            remarkPlugins={[remarkGfm]}
-                                                            components={markdownComponents}
-                                                            urlTransform={urlTransform}
-                                                        >
-                                                            {improvedAnswerResult.compressed_answer}
-                                                        </ReactMarkdown>
-                                                    </div>
-                                                </CardContent>
-                                            )}
-                                        </Card>
-                                    )}
-                                    <Card className={cn(
-                                        "overflow-hidden",
-                                        improvedAnswerResult.compressed_answer ? "border-dashed border-gray-300" : "border-2 border-indigo-100 shadow-sm"
-                                    )}>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowOriginal(!showOriginal)}
-                                            className={cn(
-                                                "w-full flex items-center justify-between p-4 transition-colors border-b",
-                                                improvedAnswerResult.compressed_answer ? "bg-gray-50/50 hover:bg-gray-100/50" : "bg-indigo-50/50 hover:bg-indigo-100/50"
-                                            )}
-                                        >
-                                            <div className="flex flex-col items-start gap-1">
-                                                <div className={cn(
-                                                    "flex items-center gap-2 font-semibold",
-                                                    improvedAnswerResult.compressed_answer ? "text-gray-700" : "text-indigo-900"
-                                                )}>
-                                                    <FileText className="h-4 w-4" />
-                                                    {improvedAnswerResult.compressed_answer ? "Original Model Solution" : "Model Solution"}
-                                                </div>
-                                                <div className="text-xs text-muted-foreground">
-                                                    {improvedAnswerResult.word_count_actual} words • Comprehensive version
-                                                </div>
-                                            </div>
-                                            <ChevronDown className={cn(
-                                                "h-4 w-4 transition-transform",
-                                                improvedAnswerResult.compressed_answer ? "text-gray-400" : "text-indigo-400",
-                                                (showOriginal || !improvedAnswerResult.compressed_answer) && "rotate-180"
-                                            )} />
-                                        </button>
-                                        {(showOriginal || !improvedAnswerResult.compressed_answer) && (
-                                            <CardContent className="p-6">
-                                                <div className="prose prose-indigo max-w-none prose-headings:text-indigo-900">
-                                                    <ReactMarkdown
-                                                        remarkPlugins={[remarkGfm]}
-                                                        components={markdownComponents}
-                                                        urlTransform={urlTransform}
-                                                    >
-                                                        {improvedAnswerResult.improved_answer}
-                                                    </ReactMarkdown>
-                                                </div>
-                                            </CardContent>
-                                        )}
-                                    </Card>
-                                </div>
+                                <EvaluationResultCard
+                                    result={result}
+                                    files={files}
+                                    isCollapsible={true}
+                                    defaultExpanded={true}
+                                />
                             )}
                         </div>
                     ) : (
@@ -1421,9 +813,6 @@ export default function EvaluatePage() {
                     )}
                 </div>
             </div>
-        </div >
+        </div>
     );
 }
-
-// Import additional icons
-import { RefreshCw, Minimize2, ChevronDown } from "lucide-react";

@@ -589,7 +589,8 @@ async def evaluate_answer_task(
         # ============================================================
         logger.info(f"🤖 [JOB {job_id}] STEP 3: Calling Gemini with user lock...")
         
-        async with redis.lock(f"lock:user:{user_id}", timeout=120, blocking_timeout=70):
+        # Re-applied increased timeout for evaluation (Gemini 2.5 Pro can be slow)
+        async with redis.lock(f"lock:user:{user_id}", timeout=600, blocking_timeout=70):
             logger.info(f"🔐 [JOB {job_id}] Lock acquired, calling Gemini...")
             await check_cancellation(ctx, job_id)
             
@@ -931,21 +932,12 @@ async def _evaluate_single_answer_async(
     evaluation_system_prompt: str,
     training_examples: List[dict],
     semaphore: asyncio.Semaphore,
-    job_id: str
+    job_id: str,
+    temp_dir: Path
 ) -> dict:
     """
     Evaluate a single answer with semaphore-controlled concurrency.
-    
-    Args:
-        answer_data: Dict with answer_id, question_number, question, text, marks, word_count
-        gemini_client: Shared GeminiClient instance
-        evaluation_system_prompt: System prompt for evaluation
-        training_examples: Few-shot examples
-        semaphore: Semaphore for rate limiting concurrent calls
-        job_id: Job ID for logging
-        
-    Returns:
-        Dict with status, evaluation result, or error
+    Now supports PDF segments for improved reliability.
     """
     answer_id = answer_data.get("answer_id", "unknown")
     question_number = answer_data.get("question_number", 0)
@@ -969,23 +961,46 @@ async def _evaluate_single_answer_async(
         async with semaphore:
             logger.info(f"📝 [BATCH JOB {job_id}] Evaluating answer {answer_id} (Q{question_number})")
             
-            # Build evaluation prompt
-            user_prompt = _build_evaluation_prompt(
-                provided_question=question_text,
-                training_examples=training_examples,
-                answer_text=answer_text,
-                word_count=word_count,
-                marks=marks,
-                use_extracted_text=True
-            )
+            # Check if we have a segment PDF or just text
+            segment_pdf_path = answer_data.get("segment_pdf_path")
             
-            # Call Gemini for evaluation (no lock needed - semaphore handles rate limiting)
-            response_text = await gemini_client.generate_response(
-                user_prompt=user_prompt,
-                system_prompt=evaluation_system_prompt,
-                temperature=0.2,
-                max_retries=2
-            )
+            if segment_pdf_path and os.path.exists(segment_pdf_path):
+                # USE PDF SEGMENT (Most Reliable)
+                # Build evaluation prompt (single-answer style)
+                user_prompt = _build_evaluation_prompt(
+                    provided_question=question_text,
+                    training_examples=training_examples,
+                    word_count=word_count,
+                    marks=marks,
+                    use_extracted_text=False  # Tell Gemini to read from file
+                )
+                
+                # Call Gemini for evaluation
+                response_text = await gemini_client.generate_response(
+                    user_prompt=user_prompt,
+                    system_prompt=evaluation_system_prompt,
+                    pdf_path=segment_pdf_path,
+                    temperature=0.2,
+                    max_retries=2
+                )
+            else:
+                # FALLBACK: Use Extracted Text if split failed
+                user_prompt = _build_evaluation_prompt(
+                    provided_question=question_text,
+                    training_examples=training_examples,
+                    answer_text=answer_text,
+                    word_count=word_count,
+                    marks=marks,
+                    use_extracted_text=True
+                )
+                
+                # Call Gemini for evaluation
+                response_text = await gemini_client.generate_response(
+                    user_prompt=user_prompt,
+                    system_prompt=evaluation_system_prompt,
+                    temperature=0.2,
+                    max_retries=2
+                )
             
             # Parse evaluation response
             parsed_result = _parse_evaluation_response(response_text)
@@ -1100,7 +1115,8 @@ Return the result in the exact JSON format specified in the system prompt."""
         lock_key = f"lock:user:{user_id}"
         detected_answers = []
         
-        async with redis.lock(lock_key, timeout=180, blocking_timeout=90):
+        # Re-applied increased timeout for batch OCR/Detection (Segmentation pass)
+        async with redis.lock(lock_key, timeout=900, blocking_timeout=90):
             await check_cancellation(ctx, job_id)
             
             try:
@@ -1133,12 +1149,49 @@ Return the result in the exact JSON format specified in the system prompt."""
                     logger.warning(f"⚠️ [BATCH JOB {job_id}] Limiting to 20 answers (found {len(detected_answers)})")
                     detected_answers = detected_answers[:20]
                 
-                batch_data["total_answers"] = len(detected_answers)
-                logger.info(f"✅ [BATCH JOB {job_id}] Detected {len(detected_answers)} answers")
+                # ============================================================
+                # STEP 1.5: SPLIT PDF (New Segmentation Logic)
+                # ============================================================
+                from PyPDF2 import PdfReader, PdfWriter
                 
-                # Log detected question numbers
-                q_nums = [ans.get("question_number", idx + 1) for idx, ans in enumerate(detected_answers)]
-                logger.info(f"📋 [BATCH JOB {job_id}] Detected question numbers: {q_nums}")
+                logger.info(f"✂️ [BATCH JOB {job_id}] Splitting PDF into {len(detected_answers)} segments...")
+                temp_dir = Path(pdf_path).parent / "segments"
+                temp_dir.mkdir(exist_ok=True)
+                
+                reader = PdfReader(pdf_path)
+                total_pages = len(reader.pages)
+                
+                valid_segments = []
+                for idx, ans in enumerate(detected_answers):
+                    try:
+                        start_page = int(ans.get("start_page", 1)) - 1 # 0-indexed
+                        end_page = int(ans.get("end_page", start_page + 1)) - 1
+                        
+                        # Safety checks
+                        start_page = max(0, min(start_page, total_pages - 1))
+                        end_page = max(start_page, min(end_page, total_pages - 1))
+                        
+                        writer = PdfWriter()
+                        for p in range(start_page, end_page + 1):
+                            writer.add_page(reader.pages[p])
+                        
+                        segment_filename = f"segment_{job_id}_{idx+1}.pdf"
+                        segment_path = temp_dir / segment_filename
+                        
+                        with open(segment_path, "wb") as f:
+                            writer.write(f)
+                        
+                        ans["segment_pdf_path"] = str(segment_path)
+                        valid_segments.append(ans)
+                        logger.debug(f"  • Created segment {idx+1}: Pages {start_page+1}-{end_page+1}")
+                    except Exception as split_err:
+                        logger.warning(f"  ⚠️ Failed to split segment {idx+1}: {split_err}")
+                        # Keep it anyway, will fallback to text or fail later
+                        valid_segments.append(ans)
+                
+                detected_answers = valid_segments
+                batch_data["total_answers"] = len(detected_answers)
+                logger.info(f"✅ [BATCH JOB {job_id}] Segmentation complete. {len(detected_answers)} answers ready.")
                 
             except Exception as e:
                 error_str = str(e).lower()
@@ -1177,7 +1230,8 @@ Return the result in the exact JSON format specified in the system prompt."""
                 evaluation_system_prompt=evaluation_system_prompt,
                 training_examples=training_examples,
                 semaphore=semaphore,
-                job_id=job_id
+                job_id=job_id,
+                temp_dir=temp_dir if 'temp_dir' in locals() else Path(pdf_path).parent
             )
             for answer in detected_answers
         ]
@@ -1250,8 +1304,13 @@ Return the result in the exact JSON format specified in the system prompt."""
             await set_job_status(redis, job_id, "failed", batch_data=json.dumps(batch_data))
         await set_job_error(redis, job_id, clean_gemini_error(str(e)))
     finally:
-        # Cleanup: Remove PDF if it was in temp directory
+        # Cleanup: Remove segments and PDF if they were in temp directory
         try:
+            # Cleanup segments
+            if 'temp_dir' in locals() and temp_dir.exists():
+                shutil.rmtree(temp_dir)
+                logger.info(f"🧹 [BATCH JOB {job_id}] Cleaned up temporary segments")
+                
             if Path(pdf_path).parent.name == "temp":
                 if os.path.exists(pdf_path):
                     os.remove(pdf_path)
@@ -1679,7 +1738,8 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         logger.info(f"🔐 [JOB {job_id}] Acquiring lock {lock_key}...")
         
         try:
-            async with redis.lock(lock_key, timeout=120, blocking_timeout=70):
+            # Re-applied increased timeout for mock test generation
+            async with redis.lock(lock_key, timeout=600, blocking_timeout=70):
                  await check_cancellation(ctx, job_id)
                  logger.info(f"🤖 [JOB {job_id}] Calling Gemini (Locked)...")
                  
@@ -1829,7 +1889,8 @@ class WorkerSettings:
     on_startup = startup
     on_shutdown = shutdown
     max_jobs = 20      # Handling I/O bound tasks (Gemini API), manageable for single worker
-    job_timeout = 300  # 5 minutes max per job
+    # Job timeout (Re-applied to allow long-running batch evaluation/OCR)
+    job_timeout = 900  # 15 minutes max per job
     max_tries = 1      # Do not retry jobs on failure/cancellation
 
 if __name__ == "__main__":

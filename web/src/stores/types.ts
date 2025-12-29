@@ -100,6 +100,26 @@ export interface Feedback {
     structure_feedback?: string;
 }
 
+export interface BatchAnswerResult {
+    answer_id: string;
+    question_number: number;
+    status: "completed" | "failed" | "fatal_error" | "processing";
+    evaluation: EvaluationFeedbackResult | null;
+    error: string | null;
+    marks: number;
+    word_count: number;
+}
+
+export interface BatchData {
+    job_id: string;
+    user_id: string;
+    pdf_path: string;
+    total_answers: number;
+    completed_answers: number;
+    failed_answers: number;
+    answers: BatchAnswerResult[];
+}
+
 // Feedback-only result from evaluation
 export interface EvaluationFeedbackResult {
     question: string;
