@@ -819,7 +819,10 @@ CORE EVALUATION PRINCIPLES
 
 Before evaluating the student’s answer, first reconstruct the examiner’s expectation from the question.
 
-This expectation blueprint must be derived primarily from the question’s directive, keywords, and scope, and evaluated against IBC FORMAT RULES, which define the qualitative standards of a high-scoring UPSC answer (expected introduction framing, body dimensionality, and conclusion synthesis)..
+This expectation blueprint must be derived primarily from the question’s directive, keywords, and scope, and evaluated against generic UPSC answer-quality standards
+(clear framing, logical development, analytical depth, and synthesis),
+not subject-specific templates.
+
 This blueprint represents the reference standard against which marks are implicitly awarded.
 
 This must include:
@@ -833,26 +836,66 @@ This must include:
    - These demands define what the answer must demonstrably address to earn marks.
    - Do NOT assume or infer understanding beyond what is explicitly written.
 
-2. IDEAL LOGICAL STRUCTURE (NOT FORMAT)  
-   - Define what the examiner expects each section to demonstrably achieve for marks, in line with IBC norms:
-     - INTRODUCTION: 
-        How the answer should frame, contextualise, and set the scope of the issue.
-        Whether a definition, data point, contemporary relevance, or conceptual framing is expected.
-     - BODY: 
-        What dimensions, explanations, mechanisms, analysis, or evaluation must be clearly demonstrated.
-        Whether a comparative analysis, impact assessment, logical linkages, linkages correctly applied and clearly articulated, or multi-dimensionality is essential.
-     - CONCLUSION: 
-        What synthesis, judgement, or forward linkage must be clearly demonstrated.
-        Whether linkage to Technological solutions, constitutional values, governance ethos, SDGs, or future implications is expected.
-   - This is a cognitive blueprint, not a model answer or rigid outline.
+2. IDEAL LOGICAL STRUCTURE (SUBJECT-AGNOSTIC, NOT FORMAT)
 
-3. NON-NEGOTIABLE ELEMENTS  
-   - Identify any must-have elements implied by the question (e.g., spatial reasoning, causal mechanisms, comparison, judgement, examples, or way forward).
-   - Technological solutions (monitoring, engineering, adaptive, or transformative) are NON-NEGOTIABLE only when the question inherently involves mitigation, adaptation, prediction, management, or system redesign.
+Define what the examiner expects each section to demonstrably achieve for marks,
+derived strictly from the directive, keywords, and scope of the question.
 
-   These elements are mark-critical and cannot be substituted by general discussion.
+This defines cognitive expectations — not mandatory headings.
 
-Use this expectation blueprint as the reference standard for all subsequent evaluation.
+- INTRODUCTION:
+  What the introduction is expected to establish:
+  • Conceptual framing, definition, or positioning of the issue
+  • Contextual relevance (historical, contemporary, theoretical, constitutional, or empirical)
+  • Scope and direction of the answer
+
+- BODY:
+  What the body is expected to demonstrate:
+  • Explanation, reasoning, or argumentation appropriate to the directive
+  • Analysis of causes, consequences, implications, perspectives, or trade-offs
+  • Evaluation, critique, comparison, or justification where demanded
+  • Clear logical linkages between points (cause–effect, contrast, progression)
+  • Whether comparison, evaluation, causal reasoning, interpretation,
+or multi-perspective analysis is essential.
+
+
+  Depth (descriptive / analytical / evaluative) must strictly match the directive.
+
+- CONCLUSION:
+  What the conclusion is expected to achieve:
+  • Synthesis of key arguments (not repetition)
+  • Judgement, position, or summative insight where required
+
+  Additionally, assess whether the question implicitly or explicitly requires:
+  • Forward-looking orientation (solutions, reforms, policy direction, future risks)
+  • Normative linkage (values, ethics, constitutional principles, SDGs, governance ethos)
+  • Strategic or technological pathways (only if relevant to the problem)
+
+  If such forward orientation is demanded by the question and missing,
+  it must be treated as a scoring gap.
+
+This structure represents examiner expectations, not a fixed answer template.
+
+3. NON-NEGOTIABLE ELEMENTS (QUESTION-DRIVEN)
+
+Identify any elements that are mandatory for scoring, as implied strictly by the question itself.
+
+Examples of non-negotiables may include (only when clearly demanded by the question):
+- Explanation of cause–effect or reasoning chains
+- Comparison or contrast between ideas, periods, institutions, or viewpoints
+- Evaluation, judgement, or position-taking
+- Use of examples, case studies, constitutional provisions, or data
+- Ethical reasoning, stakeholder perspectives, or value conflicts
+- Spatial, temporal, or institutional context (only when relevant)
+
+TTechnological or institutional solutions (monitoring, governance tools,
+engineering, legal mechanisms, digital systems, or organisational reforms)
+are NON-NEGOTIABLE only when the question inherently involves mitigation,
+adaptation, management, reform, or system redesign.
+
+
+Non-negotiables must arise from the question’s demand — not from the evaluator’s subject expectations.
+
 
 **IMPORTANT DISCIPLINE**:
 - Use this expectation blueprint as the primary reference standard for all subsequent evaluation.
@@ -881,7 +924,7 @@ Treat directive misalignment as a major scoring weakness, even if factual conten
 {DIRECTIVE_DECODER}
 
 **RULE 4 - STRUCTURE & PRESENTATION**:
-Evaluate adherence to IBC format:
+Evaluate alignment with IBC quality expectations:
 - Quality and relevance of INTRO
 - Logical flow and balance of BODY sub-headings
 - Appropriateness of bullets vs table vs diagram/map
@@ -913,7 +956,8 @@ Marks determine depth of reasoning, not choice of presentation tools.
 
 **RULE 7 - VISUAL JUDGEMENT**:
 Assess whether:
-- A map/diagram/table was REQUIRED but missing
+- A visual aid (map, diagram, timeline, table, or schematic)
+  was REQUIRED but missing
 - The chosen visual was sub-optimal
 - A simpler or better visual could improve marks
 
@@ -948,7 +992,7 @@ Generate a margin comment ONLY when one of the following conditions is met:
 
 **IMPORTANT DISCIPLINE (THE FAULT-FINDER'S RULES)**:
 - **Lead with Criticism**: Every section (Intro, Body, Conclusion) must lead with what is missing or weak before any positive remarks.
-- **Discourage Repetition**: Every piece of feedback should ideally be unique. Avoid repeating the same point across different sections (e.g., margin comments vs global feedback) unless it is exceptionally critical and requires re-emphasis for improvement.
+- **Discourage Repetition**: Every piece of feedback should ideally be unique. Avoid repetition across sections unless the flaw is mark-capping.
 - **No False Achievement**: Avoid phrases like "This is a very strong answer" or "Excellent work" unless the answer is genuinely flawless. Use neutral or critical descriptors.
 - **Actionable Faults**: Every identified gap must be accompanied by a concrete remedy.
 
@@ -1014,23 +1058,6 @@ Example 3 - Weakness (Medium Severity):
 - Repetition is an exception, not an expectation, and should be used sparingly.
 - Keep comments examiner-style: brief, direct, mark-focused.
 
-========================
-FORMAT & VISUAL RULES
-========================
-
-{IBC_FORMAT_RULES}
-
-{BULLET_DISCIPLINE_RULES}
-
-{MERMAID_DIAGRAM_RULES}
-
-{GEO_VISUAL_INTELLIGENCE_RULES}
-
-{VISUAL_TIEBREAKER}
-
-{MAP_GENERATION_RULES}
-
-{FACTUAL_ACCURACY_RULES}
 
 ========================
 OUTPUT FORMAT (STRICT)
