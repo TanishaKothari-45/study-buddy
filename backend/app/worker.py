@@ -33,6 +33,7 @@ from .gemini_core.gemini_client import GeminiClient
 from .utils.cache_manager import get_cache_manager
 from .utils.langsmith_tracer import trace_chain
 from .core.langsmith_config import configure_langsmith
+from .utils import error_handlers
 
 # Initialize LangSmith
 configure_langsmith()
@@ -198,7 +199,6 @@ async def run_enriched_pipeline(
     Includes smart truncation.
     """
     from .utils.context_retriever import retrieve_context_for_question
-    from .utils.question_parser import parse_question_for_search
     from .utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
     from .utils.map_proxy import check_map_service_health
     from .utils.cache_manager import get_cache_manager
@@ -233,45 +233,27 @@ async def run_enriched_pipeline(
             logger.warning(f"Retrieval failed: {e}")
             return "", []
 
-    # 3. News (Parsing + Fetching)
-    async def fetch_news_with_parsing():
+    # 3. News (Dimension-Based Research)
+    async def fetch_news_dimension_research():
         try:
-            # Step A: Parse question (Fix keyword: use gemini_api_key)
-            parsed = await parse_question_for_search(query, gemini_api_key=gemini_api_key)
-            bullets = []
-            if parsed:
-                # Step B: Check news cache
-                time_range = "3months"
-                cached_news = None
-                if cache:
-                    cached_news = cache.get_cached_news(parsed, time_range)
-                
-                if cached_news:
-                    bullets = cached_news
-                    logger.info(f"🎯 [JOB {job_id}] News cache hit")
-                else:
-                    # Step C: Fetch from MCP
-                    bullets = await fetch_current_affairs_for_question(
-                        parsed, max_bullets=5, time_range=time_range, gemini_api_key=gemini_api_key
-                    )
-                    if cache and bullets:
-                        cache.set_cached_news(parsed, bullets, time_range)
-            return parsed, bullets
+            # We skip parse_question_for_search because run_dimension_pipeline 
+            # handles its own planning (dimensions + priority queries)
+            bullets = await fetch_current_affairs_for_question(
+                question_text=query,
+                max_bullets=20,
+                gemini_api_key=gemini_api_key
+            )
+            return {}, bullets # Return empty dict for parsed_topics compatibility
         except Exception as e:
-            error_msg = str(e).lower()
-            if '401' in error_msg or '403' in error_msg or 'api key' in error_msg or 'invalid' in error_msg:
-                logger.error(f"❌ Critical API Key error in news pipeline: {e}")
-                # Re-raise for fail-fast
-                raise
-            logger.warning(f"News pipeline failed (fallback allowed): {e}")
+            logger.warning(f"Research pipeline failed (fallback allowed): {e}")
             return {}, []
 
     # Run in parallel
-    logger.info(f"🚀 [JOB {job_id}] Running shared enriched pipeline in parallel...")
+    logger.info(f"🚀 [JOB {job_id}] Running shared research-enriched pipeline in parallel...")
     results = await asyncio.gather(
         timed_health_check(),
         timed_retrieval(),
-        fetch_news_with_parsing()
+        fetch_news_dimension_research()
     )
     
     map_service_healthy = results[0]
@@ -476,7 +458,7 @@ async def generate_mock_test_task(
         await set_job_error(redis, job_id, "Cancelled by user")
     except Exception as e:
         logger.error(f"❌ [JOB {job_id}] Failed: {e}", exc_info=True)
-        await set_job_error(redis, job_id, clean_gemini_error(str(e)))
+        await set_job_error(redis, job_id, error_handlers.clean_gemini_error(str(e)))
     finally:
         await redis.delete(f"cancel:{job_id}")
 
@@ -675,7 +657,7 @@ async def evaluate_answer_task(
         await set_job_error(redis, job_id, "Cancelled by user")
     except Exception as e:
         logger.error(f"❌ [JOB {job_id}] Failed: {e}", exc_info=True)
-        await set_job_error(redis, job_id, clean_gemini_error(str(e)))
+        await set_job_error(redis, job_id, error_handlers.clean_gemini_error(str(e)))
     finally:
         # Cleanup files
         for path in file_paths:
@@ -1024,12 +1006,12 @@ async def _evaluate_single_answer_async(
         if '429' in error_str or 'quota' in error_str or '401' in error_str or '403' in error_str or 'api key' in error_str:
             logger.error(f"❌ [BATCH JOB {job_id}] Fatal error at answer {answer_id}: {e}")
             result["status"] = "fatal_error"
-            result["error"] = clean_gemini_error(str(e))
+            result["error"] = error_handlers.clean_gemini_error(str(e))
         else:
             # Transient error - mark as failed
             logger.warning(f"⚠️ [BATCH JOB {job_id}] Failed to evaluate answer {answer_id}: {e}")
             result["status"] = "failed"
-            result["error"] = clean_gemini_error(str(e))
+            result["error"] = error_handlers.clean_gemini_error(str(e))
     
     return result
 
@@ -1254,7 +1236,7 @@ Return the result in the exact JSON format specified in the system prompt."""
                     "question_number": 0,
                     "status": "failed",
                     "evaluation": None,
-                    "error": clean_gemini_error(str(result)),
+                    "error": error_handlers.clean_gemini_error(str(result)),
                     "marks": 15,
                     "word_count": 250
                 })
@@ -1302,7 +1284,7 @@ Return the result in the exact JSON format specified in the system prompt."""
         if 'batch_data' in locals():
             await redis.set(f"job_batch_data:{job_id}", json.dumps(batch_data), ex=7200)
             await set_job_status(redis, job_id, "failed", batch_data=json.dumps(batch_data))
-        await set_job_error(redis, job_id, clean_gemini_error(str(e)))
+        await set_job_error(redis, job_id, error_handlers.clean_gemini_error(str(e)))
     finally:
         # Cleanup: Remove segments and PDF if they were in temp directory
         try:
@@ -1533,7 +1515,7 @@ async def generate_improved_answer_task(
         await set_job_error(redis, job_id, "Cancelled by user")
     except Exception as e:
         logger.error(f"❌ [JOB {job_id}] Failed: {e}", exc_info=True)
-        await set_job_error(redis, job_id, clean_gemini_error(str(e)))
+        await set_job_error(redis, job_id, error_handlers.clean_gemini_error(str(e)))
     finally:
         # Cleanup files if provided
         if file_paths:
@@ -1680,7 +1662,6 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         # Imports
         from .prompts.mains_prompt import assemble_mains_prompt
         from .utils.context_retriever import retrieve_context_for_question
-        from .utils.question_parser import parse_question_for_search
         from .utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
         from .utils.map_proxy import parse_and_generate_maps, check_map_service_health
         from .utils.answer_compressor import compress_answer
@@ -1766,7 +1747,7 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
                          gemini_task.cancel()
                      raise
         except Exception as e:
-            error_msg = clean_gemini_error(str(e))
+            error_msg = error_handlers.clean_gemini_error(str(e))
             logger.error(f"❌ [JOB {job_id}] Generation failed: {error_msg}")
             
             # Update Redis status so frontend polling sees the error
@@ -1846,7 +1827,7 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         await set_job_error(redis, job_id, "Cancelled by user")
     except Exception as e:
         logger.error(f"❌ [JOB {job_id}] Failed: {e}", exc_info=True)
-        await set_job_error(redis, job_id, clean_gemini_error(str(e)))
+        await set_job_error(redis, job_id, error_handlers.clean_gemini_error(str(e)))
     finally:
         await redis.delete(f"cancel:{job_id}")
 

@@ -45,6 +45,18 @@ from .config import (
     URL_SIMILARITY_THRESHOLD
 )
 
+# Import new dimension pipeline
+try:
+    from app.utils.dimension_current_affairs.pipeline import fetch_dimension_current_affairs_structured
+except ImportError:
+    # Fallback for different path structures
+    import sys
+    from pathlib import Path
+    backend_root = Path(__file__).resolve().parent.parent
+    if str(backend_root) not in sys.path:
+        sys.path.insert(0, str(backend_root))
+    from app.utils.dimension_current_affairs.pipeline import fetch_dimension_current_affairs_structured
+
 # Initialize MCP server
 server = Server("current-affairs-mcp")
 
@@ -66,6 +78,20 @@ async def list_tools():
                 },
                 "required": ["topic"]
             }
+        ),
+        Tool(
+            name="fetch_dimension_current_affairs",
+            description="Fetch deep, high-quality current affairs using dimension-based planning. Best for UPSC Mains answer enrichment. Breaks topic into 5-7 dimensions and fetches targeted evidence for each.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "topic": {
+                        "type": "string",
+                        "description": "The UPSC question or topic to research"
+                    }
+                },
+                "required": ["topic"]
+            }
         )
     ]
 
@@ -80,6 +106,14 @@ async def call_tool(name: str, arguments: dict):
         
         keywords = arguments.get("keywords")  # Optional pre-parsed keywords
         result = await fetch_diversified_current_affairs(topic, keywords=keywords)
+        return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
+    
+    if name == "fetch_dimension_current_affairs":
+        topic = arguments.get("topic", "")
+        if not topic:
+            return [TextContent(type="text", text="Error: topic is required")]
+        
+        result = await fetch_dimension_current_affairs_structured(topic)
         return [TextContent(type="text", text=json.dumps(result, indent=2, ensure_ascii=False))]
     
     raise ValueError(f"Unknown tool: {name}")

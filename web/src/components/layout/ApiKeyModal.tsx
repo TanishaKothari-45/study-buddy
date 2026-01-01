@@ -19,7 +19,7 @@ interface ApiKeyModalProps {
 }
 
 export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProps) {
-    const { token, isApiKeyValid, setIsApiKeyValid, verifyApiKey } = useAuth();
+    const { token, isApiKeyValid, setIsApiKeyValid, verifyApiKey, refreshUser } = useAuth();
     const [isUpdating, setIsUpdating] = useState(false);
     const [hasApiKey, setHasApiKey] = useState(false);
     const [apiKey, setApiKey] = useState("");
@@ -81,6 +81,7 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
                 setApiKey("");
                 setShowKey(false);
                 setIsUpdating(false);
+                refreshUser();
                 if (onApiKeyChange) onApiKeyChange();
                 // Only close if it was a fresh key setup, otherwise keep open to show success
                 if (!hasApiKey) onClose();
@@ -112,6 +113,7 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
             if (response.ok) {
                 setHasApiKey(false);
                 setIsApiKeyValid('unknown');
+                refreshUser();
                 if (onApiKeyChange) onApiKeyChange();
                 // Don't close, just show the set view
                 setIsUpdating(false);

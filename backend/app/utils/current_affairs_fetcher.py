@@ -26,13 +26,13 @@ backend_dir = Path(__file__).resolve().parent.parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-# Import MCP current affairs server
+# Import new dimension pipeline
 try:
-    from mcp_current_affairs.mcp_current_affairs_server import fetch_diversified_current_affairs
-    MCP_AVAILABLE = True
+    from .dimension_current_affairs.pipeline import run_dimension_pipeline
+    PIPELINE_AVAILABLE = True
 except ImportError as e:
-    MCP_AVAILABLE = False
-    logger.warning(f"Could not import MCP server: {e}")
+    PIPELINE_AVAILABLE = False
+    logger.warning(f"Could not import dimension pipeline: {e}")
 
 from .langsmith_tracer import trace_chain
 
@@ -66,78 +66,60 @@ def format_current_affairs_to_bullets(result: Dict[str, Any], max_bullets: int =
 
 @trace_chain("fetch_current_affairs")
 async def fetch_current_affairs_for_question(
-    parsed_keywords: Dict[str, Any],
+    question_text: str,
     max_bullets: int = 5,
-    time_range: str = "6months",
-    gemini_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None,
+    # Kept for backward compatibility if needed by old calls
+    parsed_keywords: Optional[Dict[str, Any]] = None,
+    **kwargs
 ) -> List[str]:
     """
-    Fetch current affairs for a question using parsed keywords.
+    Fetch current affairs using the new dimension-based pipeline.
     
     Args:
-        parsed_keywords: Dict with main_topic, sub_topics, search_query
+        question_text: The UPSC question or topic
         max_bullets: Maximum number of bullet points to return (default: 5)
-        time_range: Time range for news (default: 6months)
+        gemini_api_key: Optional API key
     
     Returns:
-        List of formatted bullet strings (40-50 words each)
+        List of formatted bullet strings (30-40 words each)
     """
-    if not MCP_AVAILABLE:
-        logger.warning("MCP server not available, skipping current affairs fetch")
+    if not PIPELINE_AVAILABLE:
+        logger.warning("Dimension pipeline not available, skipping current affairs fetch")
         return []
     
-    if not parsed_keywords:
-        logger.warning("No parsed keywords provided")
+    # If question_text is actually parsed_keywords (old call format)
+    if isinstance(question_text, dict):
+        parsed_keywords = question_text
+        question_text = parsed_keywords.get("main_topic") or parsed_keywords.get("search_query", "")
+    elif not question_text and parsed_keywords:
+        question_text = parsed_keywords.get("main_topic") or parsed_keywords.get("search_query", "")
+
+    if not question_text:
+        logger.warning("No question text provided for dimension pipeline")
         return []
-    
-    search_query = parsed_keywords.get("search_query", "")
-    if not search_query:
-        # Try main_topic as fallback
-        search_query = parsed_keywords.get("main_topic", "")
-    
-    if not search_query:
-        logger.warning("Empty search query")
-        return []
-    
-    # Extract keywords array from parsed data (avoid redundant LLM extraction)
-    keywords_array = None
-    if parsed_keywords.get("main_topic") or parsed_keywords.get("sub_topics"):
-        # Keep combined phrases from question parser (e.g., "tribal agriculture drought" as one keyword)
-        main_topic = parsed_keywords.get("main_topic", "").strip()
-        sub_topics = parsed_keywords.get("sub_topics", [])
-        
-        # Build keyword array: [main_topic, sub_topic1, sub_topic2, ..., search_query]
-        keywords_array = [main_topic] if main_topic else []
-        keywords_array.extend(sub_topics)
-        
-        # Also add the search query itself to ensure we catch articles matching the query specific terms
-        if search_query and search_query != main_topic:
-            keywords_array.append(search_query)
-        
-        logger.info(f"🎯 Using pre-parsed keywords (including query): {keywords_array}")
     
     try:
-        logger.info(f"🗞️ Fetching current affairs for: {search_query[:50]}...")
+        logger.info(f"🗞️ Running dimension-based research for: {question_text[:50]}...")
         
-        # Call the MCP server's fetch function directly with pre-parsed keywords
-        result = await fetch_diversified_current_affairs(
-            topic=search_query,
-            keywords=keywords_array,
-            api_key=gemini_api_key
+        # Run the full dimension pipeline
+        bullets = await run_dimension_pipeline(
+            topic=question_text,
+            gemini_api_key=gemini_api_key,
+            max_total_bullets=max_bullets
         )
         
-        # Convert to bullet format for LLM
-        bullets = format_current_affairs_to_bullets(result, max_bullets)
-        
         if bullets:
-            logger.info(f"✅ Retrieved {len(bullets)} current affairs bullets")
+            logger.info(f"✅ Retrieved {len(bullets)} research-backed bullets")
+            for i, bullet in enumerate(bullets, 1):
+                logger.info(f"      {i}. {bullet}")
             return bullets
         
-        logger.info("⚠️ No current affairs found for topic")
+        logger.info("⚠️ No relevant research found for topic")
         return []
         
     except Exception as e:
-        logger.error(f"❌ Current affairs fetch failed: {e}", exc_info=True)
+        logger.error(f"❌ Research pipeline failed: {e}", exc_info=True)
         return []
 
 
