@@ -99,6 +99,14 @@ async def fetch_current_affairs_for_question(
         logger.warning("No question text provided for dimension pipeline")
         return []
     
+    # Check Research Cache
+    from .cache_manager import get_cache_manager
+    cache = get_cache_manager()
+    cached_bullets = cache.get_cached_research(question_text)
+    if cached_bullets:
+        logger.info(f"✅ [CACHE] Using cached research bullets for: {question_text[:50]}...")
+        return cached_bullets[:max_bullets]
+    
     try:
         logger.info(f"🗞️ Running dimension-based research for: {question_text[:50]}...")
         
@@ -113,6 +121,9 @@ async def fetch_current_affairs_for_question(
             logger.info(f"✅ Retrieved {len(bullets)} research-backed bullets")
             for i, bullet in enumerate(bullets, 1):
                 logger.info(f"      {i}. {bullet}")
+            
+            # Store in Research Cache
+            cache.set_cached_research(question_text, bullets)
             return bullets
         
         logger.info("⚠️ No relevant research found for topic")

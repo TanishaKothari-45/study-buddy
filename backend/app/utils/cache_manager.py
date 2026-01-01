@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Cache TTLs (in seconds)
 TTL_ANSWER = 7 * 24 * 60 * 60  # 7 days
 TTL_NEWS = 60 * 60  # 1 hour
+TTL_RESEARCH = 72 * 60 * 60  # 72 hours (3 days)
 TTL_MAP = 30 * 24 * 60 * 60  # 30 days
 TTL_LOCK = 30  # 30 seconds for dogpile protection
 
@@ -249,6 +250,58 @@ class CacheManager:
             logger.error(f"Error writing news cache: {e}")
             return False
     
+    # ============================================================
+    # RESEARCH CACHE (Dimension-based bullets)
+    # ============================================================
+    
+    def get_research_cache_key(self, topic: str) -> str:
+        """Generate cache key for research bullets"""
+        normalized_topic = topic.lower().strip()
+        hash_id = self._hash_string(normalized_topic)
+        return self._make_key("research", f"topic:{hash_id}")
+    
+    def get_cached_research(self, topic: str) -> Optional[List[str]]:
+        """Retrieve cached research bullets if exists"""
+        if not self.enabled:
+            return None
+        
+        cache_key = self.get_research_cache_key(topic)
+        
+        try:
+            cached_json = self.redis.get(cache_key)
+            if cached_json:
+                data = json.loads(cached_json)
+                logger.info(f"✅ Research cache HIT: {cache_key}")
+                return data.get("bullets", [])
+            else:
+                logger.info(f"❌ Research cache MISS: {cache_key}")
+                return None
+        except Exception as e:
+            logger.error(f"Error reading research cache: {e}")
+            return None
+    
+    def set_cached_research(self, topic: str, bullets: List[str]) -> bool:
+        """Store research bullets in cache"""
+        if not self.enabled:
+            return False
+            
+        cache_key = self.get_research_cache_key(topic)
+        
+        cache_value = {
+            "bullets": bullets,
+            "topic": topic,
+            "cached_at": datetime.now().isoformat()
+        }
+        
+        try:
+            success = self.redis.set(cache_key, json.dumps(cache_value), ex=TTL_RESEARCH)
+            if success:
+                logger.info(f"💾 Research cached: {cache_key} (TTL: {TTL_RESEARCH}s)")
+            return success
+        except Exception as e:
+            logger.error(f"Error writing research cache: {e}")
+            return False
+
     # ============================================================
     # MAP CACHE
     # ============================================================
