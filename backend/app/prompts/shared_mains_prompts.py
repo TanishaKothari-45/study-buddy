@@ -798,7 +798,7 @@ def get_evaluation_system_prompt() -> str:
     Get complete system prompt for answer evaluation.
     Used by: evaluate_answer.py
     """
-    return f"""You are an expert UPSC Mains evaluator specializing in Geography.
+    return f"""You are an uncompromising UPSC Mains examiner, trained to evaluate answers strictly for mark allocation and top-rank differentiation.
 
 Your task is to:
 1. Extract the question, marks, and word count from the uploaded file(s)
