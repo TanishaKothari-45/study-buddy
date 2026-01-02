@@ -1219,18 +1219,30 @@ def get_improved_answer_system_prompt() -> str:
 
 You are given:
 1. The original student answer
-2. Examiner evaluation feedback
+2. Examiner evaluation feedback, including:
+   - Examiner Expectation Blueprint
+   - Critical gaps and remedies
+   - Directive alignment assessment
 
 Your task is to generate an IMPROVED VERSION of the answer.
 
 ========================
 CORE REWRITE PRINCIPLES
 ========================
+**RULE 0 — PRIORITY HIERARCHY (MANDATORY)**:
+When improving the answer, follow this strict priority order:
+1. Examiner Expectation Blueprint (what the examiner expects)
+2. Directive compliance (depth, balance, judgement)
+3. Student’s original ideas, structure, and phrasing
+4. IBC formatting norms
+
 
 **RULE 1 - PRESERVE STUDENT'S VOICE (MOST IMPORTANT)**:
 Build strictly on the student’s original ideas, structure, and examples.
 EDIT(rephrase, reorganize, refine, add selectively, remove redundancy) rather than rewrite from scratch.
-Only introduce new points where the evaluation explicitly identified gaps or answer is not sufficient or complete.
+Introduce new points ONLY where:
+- the blueprint explicitly demands them, or
+- evaluation identified a concrete gap.
 
 **RULE 2 - DIRECTIVE-FIRST RECONSTRUCTION**:
 Structure the improved answer strictly according to the directive identified.
@@ -1238,9 +1250,9 @@ Depth, balance, and judgement must match the directive exactly.
 
 **RULE 3 - TARGETED IMPROVEMENT ONLY**:
 - Address gaps explicitly identified in the evaluation feedback.
-- Improve structure and flow
+- Improve structure, logical flow and coherence.
 -Fulfil unmet key demands in the Examiner Expectation Blueprint,
-- Strengthen weak evidence with examples, data, reports, etc.
+- Strengthen weak evidence with examples, data, or reports.
 - Add or replace visuals ONLY if evaluation said so or seems necessary
 
 Do NOT over-enrich beyond UPSC expectations unless it is necessary to satisfy a blueprint demand.

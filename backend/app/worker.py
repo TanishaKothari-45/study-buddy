@@ -1575,24 +1575,38 @@ def _build_improved_answer_prompt(
         if blueprint_sections:
             feedback_parts.append("**EXAMINER EXPECTATION BLUEPRINT**:\n" + "\n".join(blueprint_sections))
     
-    # 2. Missing Elements
-    if feedback.get("missing_elements") and len(feedback["missing_elements"]) > 0:
-        feedback_parts.append(f"\n**MISSING ELEMENTS**:\n" + "\n".join([f"- {item}" for item in feedback["missing_elements"]]))
-    
-    # 3. Improvements Needed
-    if feedback.get("improvements_needed") and len(feedback["improvements_needed"]) > 0:
-        feedback_parts.append(f"\n**IMPROVEMENTS NEEDED**:\n" + "\n".join([f"- {item}" for item in feedback["improvements_needed"]]))
+    # 2. Critical Gaps & Remedies
+    if feedback.get("critical_gaps_and_remedies"):
+        gaps = feedback["critical_gaps_and_remedies"]
+        gap_sections = []
+        for item in gaps:
+            gap_text = item.get("gap", "")
+            remedy_text = item.get("remedy", "")
+            if gap_text or remedy_text:
+                gap_sections.append(f"- **GAP**: {gap_text}\n  **REMEDY**: {remedy_text}")
+        
+        if gap_sections:
+            feedback_parts.append("\n**CRITICAL GAPS & REMEDIES**:\n" + "\n".join(gap_sections))
     
     if feedback_parts:
         parts.append("**EVALUATION FEEDBACK**:\n")
         parts.append("\n".join(feedback_parts))
         parts.append("\n\n")
     
-    # Add context
+    # Add context (with smart truncation)
     if context:
-        max_context_chars = 8000
-        if len(context) > max_context_chars:
-            context = context[:max_context_chars] + "\n\n[CONTEXT TRUNCATED]"
+        try:
+            from .utils.smart_truncator import smart_truncate_context
+            context = smart_truncate_context(
+                text=context,
+                max_tokens=2000, # ~8000 chars
+                strategy="head",
+                preserve_structure=True
+            )
+        except ImportError:
+            logger.warning("⚠️ Could not import smart_truncator, falling back to basic slicing")
+            if len(context) > 8000:
+                context = context[:8000] + "\n\n[CONTEXT TRUNCATED]"
         
         parts.append(f"""**REFERENCE CONTEXT** (use to add facts, data, examples):
 ---
@@ -1605,15 +1619,13 @@ def _build_improved_answer_prompt(
 
 **Requirements**:
 1. Preserve the student's voice and original points where possible
-2. Address ALL feedback points (missing elements, improvements needed, structure issues)
+2. Address ALL issues explicitly listed under:
+   - Examiner Expectation Blueprint
+   - Critical Gaps & Remedies
 3. Use REFERENCE CONTEXT to add facts, data, reports, and examples
-4. Follow strict IBC format (Introduction-Body-Conclusion)
-5. Target word count: approximately {word_count} words
-6. Include visuals (maps/diagrams/tables) if feedback indicated they were missing
-7. Every bullet must have: evidence (report/data) + example (India/World)
-8. Ensure directive alignment if directive word was identified in feedback
+4. Target word count: approximately {word_count} words
 
-Return ONLY the improved answer in markdown format. No JSON, no explanation, just the answer.""")
+Return ONLY the improved answer in markdown format. No reflection, no explanation, just the answer.""")
     
     return "".join(parts)
 
