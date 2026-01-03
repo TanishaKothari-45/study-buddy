@@ -151,6 +151,23 @@ def load_training_examples(max_examples: int = 3) -> List[dict]:
 
 
 # ============================================================
+# SYLLABUS LOADER
+# ============================================================
+
+def _load_syllabus() -> str:
+    """Load UPSC syllabus from JSON file for prompt injection."""
+    try:
+        syllabus_path = settings.BASE_DIR / "web" / "syllabus.json"
+        if syllabus_path.exists():
+            with open(syllabus_path, 'r', encoding='utf-8') as f:
+                syllabus = json.load(f)
+                return json.dumps(syllabus, indent=2)
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to load syllabus: {e}")
+    return ""
+
+
+# ============================================================
 # REDIS JOB STATUS HELPERS
 # ============================================================
 
@@ -191,7 +208,8 @@ async def run_enriched_pipeline(
     gemini_api_key: Optional[str] = None,
     k: int = 12,
     fetch_k: int = 30,
-    max_total_tokens: int = 32000
+    max_total_tokens: int = 32000,
+    skip_vector_search: bool = False
 ) -> Dict[str, Any]:
     """
     Shared retrieval & news pipeline for Mains and Evaluation.
@@ -219,6 +237,10 @@ async def run_enriched_pipeline(
     # 2. Retrieval (Top 20 -> 6 with re-ranking)
     async def timed_retrieval():
         try:
+            if skip_vector_search:
+                logger.info("⏩ Skipping vector search (Configuration or Domain)")
+                return "", []
+
             return await asyncio.to_thread(
                 retrieve_context_for_question,
                 search_query=query,
@@ -559,11 +581,19 @@ async def evaluate_answer_task(
         # ============================================================
         # STEP 2: Build evaluation prompt (feedback only, no context)
         # ============================================================
+        # ============================================================
+        # STEP 2: Build evaluation prompt (feedback only, no context)
+        # ============================================================
         logger.info(f"📝 [JOB {job_id}] STEP 2: Building evaluation prompt...")
+        
+        # Load syllabus
+        syllabus_content = _load_syllabus()
+        
         user_prompt = _build_evaluation_prompt(
             provided_question=identified_question,  # May be empty, will be extracted if not provided
             training_examples=training_examples,
-            use_extracted_text=False  # Single mode: read from files
+            use_extracted_text=False,  # Single mode: read from files
+            syllabus_content=syllabus_content
         )
         
         # ============================================================
@@ -582,7 +612,7 @@ async def evaluate_answer_task(
                     user_prompt=user_prompt,
                     system_prompt=system_prompt,
                     pdf_path=file_paths,
-                    temperature=0.2,
+                    temperature=0.1,
                     max_retries=3
                 )
             elif all_is_image:
@@ -590,27 +620,27 @@ async def evaluate_answer_task(
                     user_prompt=user_prompt,
                     system_prompt=system_prompt,
                     image_path=file_paths,
-                    temperature=0.2,
+                    temperature=0.1,
                     max_retries=3
                 )
             else:
                 # Mixed types - use first file
-                if file_paths[0].lower().endswith('.pdf'):
-                    response_text = await gemini_client.generate_response(
-                        user_prompt=user_prompt,
-                        system_prompt=system_prompt,
-                        pdf_path=file_paths[0],
-                        temperature=0.2,
-                        max_retries=3
-                    )
-                else:
-                    response_text = await gemini_client.generate_response(
-                        user_prompt=user_prompt,
-                        system_prompt=system_prompt,
-                        image_path=file_paths[0],
-                        temperature=0.2,
-                        max_retries=3
-                    )
+                    if file_paths[0].lower().endswith('.pdf'):
+                        response_text = await gemini_client.generate_response(
+                            user_prompt=user_prompt,
+                            system_prompt=system_prompt,
+                            pdf_path=file_paths[0],
+                            temperature=0.1,
+                            max_retries=3
+                        )
+                    else:
+                        response_text = await gemini_client.generate_response(
+                            user_prompt=user_prompt,
+                            system_prompt=system_prompt,
+                            image_path=file_paths[0],
+                            temperature=0.1,
+                            max_retries=3
+                        )
             
             logger.info(f"✅ [JOB {job_id}] Received response: {len(response_text)} chars")
         
@@ -647,6 +677,7 @@ async def evaluate_answer_task(
             "feedback": feedback,
             "word_count": word_count_int,
             "marks": marks_int,
+            "paper_and_subject_identification": parsed_result.get("paper_and_subject_identification"),
             "success": True
         }
         
@@ -682,7 +713,8 @@ def _build_evaluation_prompt(
     answer_text: str = None,
     word_count: int = None,
     marks: int = None,
-    use_extracted_text: bool = False
+    use_extracted_text: bool = False,
+    syllabus_content: str = None
 ) -> str:
     """
     Build the evaluation user prompt (unified for both single and batch modes).
@@ -694,6 +726,7 @@ def _build_evaluation_prompt(
         word_count: Word count (only for batch mode when use_extracted_text=True)
         marks: Marks (only for batch mode when use_extracted_text=True)
         use_extracted_text: If True, use provided answer_text instead of reading from files
+        syllabus_content: UPSC Syllabus JSON string for prompt injection
     
     Returns:
         Formatted evaluation prompt string
@@ -778,6 +811,16 @@ def _build_evaluation_prompt(
 8. Give an overall encouraging assessment
 """)
     
+    if syllabus_content:
+        parts.append(f"""
+**UPSC SYLLABUS ANCHOR (Rule 1a)**:
+Use this syllabus to identify GS Paper and Subject Domain:
+
+```json
+{syllabus_content}
+```
+""")
+    
     if training_examples:
         parts.append(f"9. Learn from the {len(training_examples)} few-shot examples above to provide similar quality feedback\n")
     
@@ -790,6 +833,11 @@ Return ONLY a valid JSON object as specified in the system prompt. The JSON must
 - "question": {"extracted question text" if not use_extracted_text else f"question text (use: {provided_question})"}
 - "marks": {"10 or 15" if not use_extracted_text else str(marks)}
 - "word_count": {"150 or 250" if not use_extracted_text else str(word_count)}
+- "paper_and_subject_identification": {{
+  "gs_paper": "GS1 | GS2 | GS3 | GS4",
+  "primary_domain": "Domain from syllabus",
+  "secondary_domain": "Optional"
+}}
 - "feedback": evaluation feedback object
 
 No markdown code blocks, no commentary.""")
@@ -867,6 +915,7 @@ def _parse_evaluation_response(response_text: str) -> dict:
             "question": extracted_question,
             "marks": extracted_marks,
             "word_count": extracted_word_count,
+            "paper_and_subject_identification": response_data.get("paper_and_subject_identification"),
             "feedback": feedback
         }
         
@@ -954,7 +1003,8 @@ async def _evaluate_single_answer_async(
                     training_examples=training_examples,
                     word_count=word_count,
                     marks=marks,
-                    use_extracted_text=False  # Tell Gemini to read from file
+                    use_extracted_text=False,  # Tell Gemini to read from file
+                    syllabus_content=_load_syllabus()
                 )
                 
                 # Call Gemini for evaluation
@@ -962,7 +1012,7 @@ async def _evaluate_single_answer_async(
                     user_prompt=user_prompt,
                     system_prompt=evaluation_system_prompt,
                     pdf_path=segment_pdf_path,
-                    temperature=0.2,
+                    temperature=0.1,
                     max_retries=2
                 )
             else:
@@ -973,14 +1023,15 @@ async def _evaluate_single_answer_async(
                     answer_text=answer_text,
                     word_count=word_count,
                     marks=marks,
-                    use_extracted_text=True
+                    use_extracted_text=True,
+                    syllabus_content=_load_syllabus()
                 )
                 
                 # Call Gemini for evaluation
                 response_text = await gemini_client.generate_response(
                     user_prompt=user_prompt,
                     system_prompt=evaluation_system_prompt,
-                    temperature=0.2,
+                    temperature=0.1,
                     max_retries=2
                 )
             
@@ -994,7 +1045,8 @@ async def _evaluate_single_answer_async(
                 "question": question_text,
                 "feedback": feedback,
                 "word_count": word_count,
-                "marks": marks
+                "marks": marks,
+                "paper_and_subject_identification": parsed_result.get("paper_and_subject_identification")
             }
             
             logger.info(f"✅ [BATCH JOB {job_id}] Completed answer {answer_id}")
@@ -1317,7 +1369,8 @@ async def generate_improved_answer_task(
     feedback: dict,  # Feedback JSON from evaluation
     user_id: str,
     gemini_api_key: str,
-    word_count: int = 250
+    word_count: int = 250,
+    paper_and_subject_identification: dict = None
 ):
     """
     Generate improved answer based on evaluation feedback.
@@ -1345,6 +1398,11 @@ async def generate_improved_answer_task(
         from .utils.map_proxy import parse_and_generate_maps, check_map_service_health
         from .utils.answer_compressor import compress_answer
         
+        # Extract primary_domain for conditional logic
+        primary_domain = ""
+        if paper_and_subject_identification:
+            primary_domain = paper_and_subject_identification.get("primary_domain", "")
+            
         # Import shared prompt
         try:
             from .prompts.shared_mains_prompts import get_improved_answer_system_prompt
@@ -1388,12 +1446,32 @@ async def generate_improved_answer_task(
         # ============================================================
         # STEP 1: Run retrieval pipeline
         # ============================================================
+        # Determine if we should skip vector search (Only run for Geography)
+        skip_vector_search = True
+        if paper_and_subject_identification:
+            p_dom = paper_and_subject_identification.get("primary_domain", "")
+            s_dom = paper_and_subject_identification.get("secondary_domain", "")
+            
+            # Normalize to string for checking
+            p_dom_str = str(p_dom).lower()
+            if isinstance(s_dom, list):
+                s_dom_str = " ".join([str(x) for x in s_dom]).lower()
+            else:
+                s_dom_str = str(s_dom).lower()
+
+            if "geography" in p_dom_str or "geography" in s_dom_str:
+                skip_vector_search = False
+        
+        if skip_vector_search:
+            logger.info(f"⏩ [JOB {job_id}] Skipping Pinecone retrieval (Domain not Geography)")
+
         logger.info(f"📚 [JOB {job_id}] STEP 1: Running retrieval pipeline...")
         pipeline_result = await run_enriched_pipeline(
             ctx=ctx,
             job_id=job_id,
             query=question,
-            gemini_api_key=gemini_api_key
+            gemini_api_key=gemini_api_key,
+            skip_vector_search=skip_vector_search
         )
         
         context = pipeline_result["context"]
@@ -1416,7 +1494,8 @@ async def generate_improved_answer_task(
             student_answer=student_answer_text or "Student answer from uploaded file",
             feedback=feedback,
             context=context,
-            word_count=word_count
+            word_count=word_count,
+            paper_and_subject_identification=paper_and_subject_identification
         )
         
         # ============================================================
@@ -1474,37 +1553,35 @@ async def generate_improved_answer_task(
             logger.warning("⚠️ Map service unavailable - skipping map generation")
         
         # ============================================================
-        # STEP 5: Compression
+        # STEP 5: Compression (DISABLED)
         # ============================================================
-        logger.info(f"🗜️ [JOB {job_id}] STEP 5: Applying compression...")
-        compressed_answer = None
-        word_count_compressed = None
-        try:
-            compressed = await compress_answer(
-                original_answer=improved_answer,
-                target_word_count=word_count,
-                gemini_client=gemini_client,
-                threshold_ratio=1.4,
-                compression_target_ratio=1.2
-            )
-            if compressed:
-                compressed_answer = compressed
-                word_count_compressed = count_words_excluding_visuals(compressed)
-                logger.info(f"✅ [JOB {job_id}] Compression successful: {word_count_actual} -> {word_count_compressed} words")
-        except Exception as e:
-            logger.warning(f"⚠️ [JOB {job_id}] Compression failed: {e}")
+        # logger.info(f"🗜️ [JOB {job_id}] STEP 5: Compressing answer (Optional)...")
+        compressed_answer = None # DISABLED as per user request
+        # if len(improved_answer) > 2000:
+        #     try:
+        #         compressed = await compress_answer(
+        #             ctx=ctx,
+        #             original_answer=improved_answer,
+        #             gemini_api_key=gemini_api_key
+        #         )
+        #         compressed_answer = compressed
+        #         logger.info(f"✅ [JOB {job_id}] Compression complete: {len(compressed_answer)} chars")
+        #     except Exception as e:
+        #         logger.warning(f"⚠️ [JOB {job_id}] Compression failed: {e}")
+        # else:
+        #     logger.info(f"ℹ️ [JOB {job_id}] Skipping compression (too short)")
+        
+        word_count_compressed = count_words_excluding_visuals(compressed_answer) if compressed_answer else 0
         
         # ============================================================
         # STEP 6: Save Result
         # ============================================================
-        logger.info(f"💾 [JOB {job_id}] STEP 6: Saving result...")
-        
         result = {
             "improved_answer": improved_answer,
-            "compressed_answer": compressed_answer,
+            "compressed_answer": None, # Explicitly None
             "sources": sources,
             "word_count_actual": word_count_actual,
-            "word_count_compressed": word_count_compressed,
+            "word_count_compressed": 0,
             "success": True
         }
         
@@ -1539,7 +1616,8 @@ def _build_improved_answer_prompt(
     student_answer: str,
     feedback: dict,
     context: str,
-    word_count: int
+    word_count: int,
+    paper_and_subject_identification: dict = None
 ) -> str:
     """Build the improved answer generation prompt"""
     parts = [f"**QUESTION**: {question}\n\n"]
@@ -1548,6 +1626,22 @@ def _build_improved_answer_prompt(
     
     # Format feedback - Only include: Examiner Expectation Blueprint, Missing Elements, Improvements Needed
     feedback_parts = []
+    
+    # 0. GS Paper & Domain (if available)
+    if paper_and_subject_identification:
+        gs_paper = paper_and_subject_identification.get("gs_paper", "N/A")
+        primary_domain = paper_and_subject_identification.get("primary_domain", "N/A")
+        secondary_domain = paper_and_subject_identification.get("secondary_domain", "")
+        
+        domain_str = f"Primary: {primary_domain}"
+        if secondary_domain:
+            if isinstance(secondary_domain, list):
+                s_dom_str = ", ".join([str(x) for x in secondary_domain])
+            else:
+                s_dom_str = str(secondary_domain)
+            domain_str += f", Secondary: {s_dom_str}"
+            
+        parts.append(f"**CONTEXT**: {gs_paper} ({domain_str})\n\n")
     
     # 1. Examiner Expectation Blueprint
     if feedback.get("examiner_expectation_blueprint"):
@@ -1574,6 +1668,20 @@ def _build_improved_answer_prompt(
         
         if blueprint_sections:
             feedback_parts.append("**EXAMINER EXPECTATION BLUEPRINT**:\n" + "\n".join(blueprint_sections))
+
+    # 2. Directive Alignment (NEW)
+    if feedback.get("directive_alignment"):
+        da = feedback["directive_alignment"]
+        da_parts = []
+        if da.get("directive_identified"):
+            da_parts.append(f"Directive: {da['directive_identified']}")
+        if da.get("alignment_assessment"):
+            da_parts.append(f"Assessment: {da['alignment_assessment']}")
+        if da.get("how_to_improve"):
+            da_parts.append(f"How to Improve: {da['how_to_improve']}")
+            
+        if da_parts:
+             feedback_parts.append("\n**DIRECTIVE ALIGNMENT FEEDBACK**:\n" + "\n".join(da_parts))
     
     # 2. Critical Gaps & Remedies
     if feedback.get("critical_gaps_and_remedies"):

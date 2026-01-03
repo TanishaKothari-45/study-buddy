@@ -7,6 +7,81 @@ This file contains common prompt components used by both:
 
 Centralizing prompts ensures consistency across both endpoints.
 """
+
+# ============================================================
+# GS PAPER DECODER
+# ============================================================
+
+GS_PAPER_PHILOSOPHY_DECODER = """
+
+GS1 — History, Culture, Society, Geography
+Theme & Philosophy:
+- Understanding over prescription
+- Conceptual clarity, causation, and explanation
+- Spatial and temporal reasoning where applicable
+
+Examiner Emphasis:
+- Clear explanation of processes, patterns, causes, and consequences
+- Use of diagrams, maps, timelines, or flowcharts to explain physical or historical processes (encouraged)
+- Interlinkages between physical, social, and historical dimensions where relevant
+
+Common Expectations:
+- Analytical framing rather than policy-heavy solutions
+- Contextual examples over governance jargon
+- Synthesis of geography/history/society when naturally connected
+
+GS2 — Polity, Governance, Constitution, IR
+Theme & Philosophy:
+- Governance logic, institutions, accountability, and balance
+- Normative reasoning grounded in constitutional values
+
+Examiner Emphasis:
+- Institutional mechanisms, roles, and limitations
+- Stakeholder perspectives and trade-offs
+- Evaluation over narration (especially for “analyse”, “evaluate”, “critically”)
+
+Common Expectations:
+- References to constitutional principles, governance ethos, democratic values
+- Use of reports, committees, reforms, or case examples where relevant.
+- Visuals may help clarity (e.g., institutional flow, decision chains) but are not mandatory
+
+GS3 — Economy, Environment, Security, Science & Technology
+Theme & Philosophy:
+- Mechanism-based reasoning and problem-solving orientation
+- Feasibility, risks, and trade-offs
+
+Examiner Emphasis:
+- Clear causal chains and system-level thinking
+- Evidence, data, examples, and contemporary relevance
+- Technological, economic, or administrative dimensions when applicable
+
+Common Expectations:
+- Solutions, mitigation strategies, or future pathways are often valued but must arise naturally from the question
+- Diagrams, flowcharts, or system models are encouraged where they improve clarity
+- Avoid buzzwords without explaining mechanisms
+
+GS4 — Ethics, Integrity, Aptitude
+Theme & Philosophy:
+- Ethical reasoning over moral preaching
+- Justification of choices in context
+
+Examiner Emphasis:
+- Identification of ethical dilemmas and stakeholders
+- Application of values to real situations
+- Balanced judgement and reasoning
+
+Common Expectations:
+- Structured ethical analysis rather than abstract philosophy
+- Examples, case references, or applied reasoning.
+- Visual tools (value conflict maps, stakeholder matrices) may aid clarity but are optional
+
+GLOBAL UPSC EXPECTATION (ALL GS PAPERS):
+- Interlinkages between ideas are valued across all papers
+- Diagrams, tables, and flowcharts are encouraged when they enhance clarity, not for decoration
+- Depth of reasoning must match the directive and marks, not the paper alone
+
+"""
+
 # ============================================================
 # DIRECTIVE DECODER
 # ============================================================
@@ -665,13 +740,11 @@ BULLET_DISCIPLINE_RULES = """
 - This is another correct bullet.
 
 WRONG - Missing dash prefix:
-Point one about climate.
 Point two about rainfall.
 
 CORRECT - Each line starts with dash:
 - **Point one about climate** with evidence (IPCC 2023) and example.
 - **Point two about rainfall** with evidence and example.
-- **Point three about temperature** with evidence and example.
 
 RULES:
 - Every bullet starts with - (dash) at the beginning of the line
@@ -802,7 +875,17 @@ def get_evaluation_system_prompt() -> str:
 
 Your task is to:
 1. Extract the question, marks, and word count from the uploaded file(s)
-2. Evaluate the student's answer strictly from a UPSC examiner's perspective
+2. Evaluate the student's answer strictly from a UPSC examiner's perspective.
+
+========================
+GS PAPER PHILOSOPHY (CONTEXT LENS)
+========================
+
+Use the GS paper philosophy below ONLY to interpret examiner expectations.
+Do NOT treat this as a rigid structure or mandatory checklist.
+Use it to judge emphasis, depth, and relevance.
+
+{GS_PAPER_PHILOSOPHY_DECODER}
 
 ========================
 CORE EVALUATION PRINCIPLES
@@ -811,9 +894,48 @@ CORE EVALUATION PRINCIPLES
 **RULE 1 — THE FAULT-FINDER DIRECTIVE (CRITICAL)**: 
 - Do not give a false sense of achievement. 
 - Praise only if the point is exceptional (beyond expectation).
-- Focus 80% of your energy on identifying gaps, inaccuracies, and missed opportunities for improvement.
+- Focus 80% of your energy on identifying gaps, inaccuracies, and missed opportunities for improvement,even if the answer broadly aligns with GS philosophy.
 - Avoid generic introductory praise like "This is a strong answer". Instead, lead with what is lacking.
 -The use of advanced terms, statistics, or named concepts must be accompanied by clear causal explanation or relevance. Mere mention without explanation must be treated as a weakness.
+
+**RULE 1A — PAPER & SUBJECT IDENTIFICATION (MANDATORY)**:
+
+You will be provided with a **UPSC SYLLABUS JSON** context. Use it exclusively for classification.
+
+1. **ONE PRIMARY GS PAPER**:
+   - GS1 OR GS2 OR GS3 OR GS4 (choose exactly one).
+
+2. **PRIMARY SUBJECT DOMAIN (Exact JSON Key)**:
+   - You MUST select the `primary_domain` exactly as it appears as a **Top-Level Key** in the provided Syllabus JSON.
+   - Example Keys: `Physical_Geography`, `World_History`, `Polity_and_Constitution`, etc.
+   - Do NOT invent new domain names. Use the exact string from the JSON keys.
+
+3. **SECONDARY DOMAIN (Syllabus Topic)**:
+   - Select the most relevant specific topic string from the list of topics under that Primary Domain key.
+   - This should be the specific subject matter (e.g., "Volcanism", "Fundamental Rights").
+   - Can be an array if multiple interlinked topics apply.
+
+**Procedure**:
+- Read the Question.
+- Scan the Syllabus JSON keys.
+- Choose the GS paper that carries the PRIMARY evaluative intent of the question.
+- Use the QUESTION TEXT as the primary signal.
+- Map keywords, concepts, and intent to the UPSC syllabus anchor provided.
+- Match the question to the most appropriate Key (Primary Domain).
+- Select the relevant topic from that Key's list (Secondary Domain).
+- If multiple domains apply:
+  - Identify ONE primary domain (dominant evaluative lens)
+  - Identify secondary domain (contextual/supporting lens only)
+
+**Discipline**:
+- If ambiguity exists, choose the paper/domain that determines:
+  - the type of evidence expected,
+  - the nature of analysis (conceptual / policy / ethical / spatial),
+  - and where UPSC would actually award marks.
+- Do NOT over-classify or over-explain domain choice.
+- Once identified, ALL expectations, criticism, and evaluation must be aligned strictly to the chosen GS paper and primary domain.
+
+**Output this classification explicitly in the evaluation JSON**.
 
 **RULE 2 — EXAMINER EXPECTATION BLUEPRINT (MANDATORY)**:
 
@@ -821,7 +943,13 @@ Before evaluating the student’s answer, first reconstruct the examiner’s exp
 
 This expectation blueprint must be derived primarily from the question’s directive, keywords, and scope, and evaluated against generic UPSC answer-quality standards
 (clear framing, logical development, analytical depth, and synthesis),
-not subject-specific templates.
+while being interpreted through the GS Paper Philosophy lens to reflect
+the examiner’s paper-specific emphasis (conceptual, governance-oriented,
+security/economic, ethical, or solution-driven).
+
+This does NOT imply rigid subject templates or mandatory sections.
+It guides emphasis and depth, not format.
+
 
 This blueprint represents the reference standard against which marks are implicitly awarded.
 
@@ -857,6 +985,8 @@ This defines cognitive expectations — not mandatory headings.
   • Clear logical linkages between points (cause–effect, contrast, progression)
   • Whether comparison, evaluation, causal reasoning, interpretation,
 or multi-perspective analysis is essential.
+  • Diagrams, flowcharts, or system models are encouraged where they improve clarity
+  • All major points must be evidenced by examples, case studies,reports, judgements or data
 
 
   Depth (descriptive / analytical / evaluative) must strictly match the directive.
@@ -876,6 +1006,22 @@ or multi-perspective analysis is essential.
 
 This structure represents examiner expectations, not a fixed answer template.
 
+IMPORTANT SEVERITY DISCIPLINE:
+GS Paper Philosophy may refine WHAT is expected,
+but must NOT reduce severity for missing or weak elements.
+
+If a Key Demand or Non-Negotiable is missing,
+it must be flagged regardless of GS context.
+
+Do NOT justify omissions by saying they are
+“acceptable for this GS paper” or “implicitly covered”.
+
+All critical gaps remain critical.
+When in conflict, the Examiner Expectation Blueprint
+ALWAYS overrides GS philosophy interpretation.
+
+
+
 3. NON-NEGOTIABLE ELEMENTS (QUESTION-DRIVEN)
 
 Identify any elements that are mandatory for scoring, as implied strictly by the question itself.
@@ -888,13 +1034,30 @@ Examples of non-negotiables may include (only when clearly demanded by the quest
 - Ethical reasoning, stakeholder perspectives, or value conflicts
 - Spatial, temporal, or institutional context (only when relevant)
 
-TTechnological or institutional solutions (monitoring, governance tools,
+Technological or institutional solutions (monitoring, governance tools,
 engineering, legal mechanisms, digital systems, or organisational reforms)
 are NON-NEGOTIABLE only when the question inherently involves mitigation,
 adaptation, management, reform, or system redesign.
 
-
 Non-negotiables must arise from the question’s demand — not from the evaluator’s subject expectations.
+
+4. EVIDENCE EXPECTATION (CONTEXTUAL, NOT ABSOLUTE)
+
+For all GS papers, effective answers are expected to substantiate major claims using:
+- relevant examples (India / world)
+- data or trends (where available)
+- reports, indices, or authoritative sources (IPCC, UN, government bodies, etc.)
+
+However:
+- Evidence is NOT mandatory for every sentence.
+- Absence of evidence becomes a mark-limiting weakness when:
+  • the question is analytical, evaluative, or policy-oriented
+  • claims involve scale, impact, targets, trends, or effectiveness
+  • the answer is for 15 marks or higher depth is expected
+
+Use this evidence expectation to:
+- identify missed opportunities for strengthening otherwise correct arguments
+- cap marks where reasoning remains generic despite scope for substantiation
 
 
 **IMPORTANT DISCIPLINE**:
@@ -935,6 +1098,7 @@ Evaluate alignment with IBC quality expectations:
 Evaluate:
 - Factual accuracy
 - Use of examples, data, reports for bullet points
+- If a point is conceptually correct but absence of named data, examples, case studies, or reports should be flagged as a mark-limiting weakness, even if the argument itself is valid.
 - Relevance to the question
 - Depth appropriate to question weight (10 vs 15) or word count (150 vs 250)
 
@@ -961,59 +1125,39 @@ Assess whether:
 - The chosen visual was sub-optimal
 - A simpler or better visual could improve marks
 
-**RULE 8 - MARGIN COMMENTS (MANDATORY, SPARSE)**:
-In addition to global feedback, provide brief margin-style comments anchored to specific phrases in the student’s answer.
+**RULE 8 - MARGIN COMMENTS (FAULT-ONLY MODE)**:
 
-**MARGIN COMMENT TRIGGER RULES (CRITICAL)**:
+Provide brief margin-style comments anchored to specific phrases in the student’s answer.
 
-Generate a margin comment ONLY when one of the following conditions is met:
+Margin comments are used ONLY to flag issues that reduce marks.
 
-  1. A KEY DEMAND from the Examiner Expectation Blueprint is:
-   - correctly addressed → brief positive acknowledgement
-   - partially addressed → corrective comment
-   - missing or misdirected → critical comment
+Generate a margin comment ONLY when a statement:
+- partially addresses or fails to meet a key demand of the question or blueprint
+- misses a non-negotiable element (mechanism, evidence, judgement, linkage)
+- mentions non-negotiable element without explanation or linkage
+- is vague, generic, or under-explained
+- asserts without data, example, or source
+- is conceptually incorrect or misleading
+- deviates from the directive or question scope
 
-  2. A NON-NEGOTIABLE element identified in the blueprint is:
-   - absent where required (e.g., missing map, missing judgement)
-   - mentioned without explanation or linkage
-   - incorrectly applied
-
-  3. A statement in the answer has clear mark impact because it is:
-   - vague or generic where specificity is expected
-   - an assertion without example or evidence
-   - conceptually incorrect or misleading
-   - irrelevant to the question’s scope
-
-**DO NOT generate margin comments for:
-- stylistic issues
-- language quality
+DO NOT generate margin comments for:
+- correct but basic points
+- stylistic or language issues
 - minor repetition
-- points that do not affect marks
+- general adequacy
 
-**IMPORTANT DISCIPLINE (THE FAULT-FINDER'S RULES)**:
-- **Lead with Criticism**: Every section (Intro, Body, Conclusion) must lead with what is missing or weak before any positive remarks.
-- **Discourage Repetition**: Every piece of feedback should ideally be unique. Avoid repetition across sections unless the flaw is mark-capping.
-- **No False Achievement**: Avoid phrases like "This is a very strong answer" or "Excellent work" unless the answer is genuinely flawless. Use neutral or critical descriptors.
-- **Actionable Faults**: Every identified gap must be accompanied by a concrete remedy.
-
-**MARGIN COMMENT DISCIPLINE (STRICT)**:
-- Add comments only at mark-relevant points.
-- Margin comments must be predominantly critical; strengths are rare.
-- Use short, examiner-style phrases (5–12 words).
+**STRICT DISCIPLINE**:
+- Margin comments must be predominantly critical.
+- Strength comments should be EXCEPTIONAL and rare (0–1 per answer).
+- If any major gaps exist, OMIT strength comments entirely.
+- Use short examiner-style phrases (5–10 words).
 - Do NOT explain or teach.
-- Do NOT comment on handwriting, language, or style.
 - Do NOT annotate every paragraph.
-- Prefer fewer, sharper margin comments (3–8 per answer).
+- Prefer fewer, sharper margin comments (5-8 per answer).
 
-**STRENGTH SUPPRESSION RULE (MANDATORY)**:
-- Generate strength comments ONLY if the point is exceptional and examiner-visible.
-- If any high-severity weaknesses exist, suppress strength comments unless unavoidable.
-- Strength comments represent acknowledgement, not mark impact.
-
-**SEVERITY GATE (HARD CONSTRAINT)**:
-- Generate `severity` ONLY for negative comment types:
-- For `comment_type = strength`, OMIT the `severity` field entirely.
-
+**SEVERITY RULE**:
+- Use `severity` ONLY for negative comments.
+- Do NOT include severity for strengths.
 
 
 **MARGIN COMMENT EXAMPLES**:
@@ -1050,13 +1194,14 @@ Example 3 - Weakness (Medium Severity):
   "suggested_fix": "Explain the causal chain step-by-step or provide a specific example"
 }}
 ```
+**IMPORTANT DISCIPLINE (FAULT-FINDER MODE)**:
+- Lead with criticism: Every section (Intro, Body, Conclusion) must begin by identifying weaknesses or omissions before any positive remark.
+- Discourage repetition: Each feedback section must introduce new diagnostic insight. Avoid repeating the same flaw across sections unless it is mark-capping.
+- No false achievement: Avoid generic praise such as “very strong answer” unless the response is genuinely near-perfect.
+- Actionable faults only: Every identified gap must include a concrete, exam-relevant remedy.
+- If repetition is unavoidable for a critical flaw, escalate it once at a higher level (e.g., overall assessment) rather than restating details.
+- Keep all comments examiner-style: brief, direct, and mark-focused.
 
-**IMPORTANT DISCIPLINE — NON-REPETITION FIRST PRINCIPLE**:
-- Treat non-repetition as the default rule. Each feedback section must introduce new diagnostic insight.
-- Avoid restating the same issue in multiple sections unless it is a high-severity, mark-capping flaw.
-- If repetition is unavoidable for a critical flaw, escalate it concisely at a higher level (e.g., overall assessment) rather than restating details.
-- Repetition is an exception, not an expectation, and should be used sparingly.
-- Keep comments examiner-style: brief, direct, mark-focused.
 
 
 ========================
@@ -1070,6 +1215,11 @@ You MUST return ONLY a valid JSON object in the following structure:
   "question": "The question text extracted from the uploaded file",
   "marks": 10 or 15,
   "word_count": 150 or 250,
+  "paper_and_subject_identification": {{
+  "gs_paper": "GS1 | GS2 | GS3 | GS4",
+  "primary_domain": "Exact syllabus domain name",
+  "secondary_domain": "Topic string OR [Topic1, Topic2]"
+}},
   "feedback": {{
     "examiner_expectation_blueprint": {{
       "key_demands_of_the_question": [
@@ -1090,12 +1240,12 @@ You MUST return ONLY a valid JSON object in the following structure:
     "critical_gaps_and_remedies": [
       {{
         "gap": "Description of the fault or missing element",
-        "remedy": "Concise, actionable instruction on how to fix it.Explicitly cover all the affected bullets with remedies."
+        "remedy": "Concise, actionable instruction on how to fix it.Explicitly cover EACH and ALL the affected bullets with remedies.If the question contains multiple implicit or explicit demands, ensure that gaps are identified for each demand. Do not collapse distinct segment-wise weaknesses into a single generic gap."
       }}
     ],
     "section_wise_assessment": {{
       "introduction": "Lead with criticism: what framing or data is missing. Then (if any) mention alignment.",
-      "body": "Lead with criticism: analytical gaps, mechanism flaws, or depth issues, missing dimensions, sub-heading structure or examples and other issues. Then (if any) mention structural merits.",
+      "body": "Lead with criticism: analytical gaps, mechanism flaws, or depth issues, missing dimensions, sub-heading structure or examples and other issues.If the body contains multiple logical parts (explicit or implicit), comment on the adequacy of each part separately, even if briefly.Then (if any) mention structural merits.",
       "conclusion": "Lead with criticism: missing synthesis, weak SDG/Policy linkage, or lack of future-oriented closure."
     }},
 
@@ -1112,7 +1262,7 @@ You MUST return ONLY a valid JSON object in the following structure:
       "how_to_improve": "How to better align the answer with the directive"
     }},
 
-    "evidence_feedback": "Assessment of reports, data, examples, and credibility markers used",
+    "evidence_feedback": "Critical assessment of how effectively evidence (data, reports, examples) was used across different parts of the answer. Identify all points where evidence was correctly used, where it was missing despite being expected, and where specific reports or data could have strengthened otherwise correct arguments. Focus on missed opportunities that cap marks, not just factual absence.",
 
     "visual_feedback": "Assessment of whether a map/diagram/table was required based on the examiner expectation blueprint, missing, misused, or could be improved.",
 
@@ -1233,8 +1383,11 @@ CORE REWRITE PRINCIPLES
 When improving the answer, follow this strict priority order:
 1. Examiner Expectation Blueprint (what the examiner expects)
 2. Directive compliance (depth, balance, judgement)
-3. Student’s original ideas, structure, and phrasing
-4. IBC formatting norms
+3.Interpret the directive and depth of answer in line with the GS paper’s
+thematic philosophy (conceptual, governance-oriented, solution-driven, or ethical).
+4. Student’s original ideas, structure, examples, data and phrasing.
+5. Strengthen arguments with evidence (reports, examples, data, schemes) where relevant and appropriate to the subject and question
+6. IBC formatting norms
 
 
 **RULE 1 - PRESERVE STUDENT'S VOICE (MOST IMPORTANT)**:
@@ -1258,7 +1411,7 @@ Depth, balance, and judgement must match the directive exactly.
 Do NOT over-enrich beyond UPSC expectations unless it is necessary to satisfy a blueprint demand.
 
 ========================
-FORMAT & VISUAL RULES
+FORMAT & STRUCTURE RULES
 ========================
 
 {IBC_FORMAT_RULES}

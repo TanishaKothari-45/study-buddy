@@ -57,6 +57,9 @@ export function EvaluationResultCard({ result, index, files, isCollapsible = fal
             formData.append("question", result.question);
             if (result.student_answer) formData.append("student_answer", result.student_answer);
             formData.append("feedback", JSON.stringify(feedback));
+            if (result.paper_and_subject_identification) {
+                formData.append("paper_and_subject_identification", JSON.stringify(result.paper_and_subject_identification));
+            }
             formData.append("word_count", (result.word_count || 250).toString());
 
             if (files && files.length > 0) {
@@ -135,6 +138,29 @@ export function EvaluationResultCard({ result, index, files, isCollapsible = fal
                     <p className="text-blue-800 font-medium">
                         {result.question || "Question extracted from uploaded file"}
                     </p>
+                    {result.paper_and_subject_identification && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                {result.paper_and_subject_identification.gs_paper}
+                            </span>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                                {result.paper_and_subject_identification.primary_domain}
+                            </span>
+                            {result.paper_and_subject_identification.secondary_domain && (
+                                Array.isArray(result.paper_and_subject_identification.secondary_domain) ? (
+                                    result.paper_and_subject_identification.secondary_domain.map((topic: string, i: number) => (
+                                        <span key={i} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800 border border-pink-200">
+                                            {topic}
+                                        </span>
+                                    ))
+                                ) : (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800 border border-pink-200">
+                                        {result.paper_and_subject_identification.secondary_domain}
+                                    </span>
+                                )
+                            )}
+                        </div>
+                    )}
                     {(result.marks || result.word_count) && (
                         <div className="mt-3 flex gap-4 text-sm text-blue-700">
                             {result.marks && <span className="font-semibold">Marks: {result.marks}</span>}

@@ -83,6 +83,11 @@ export interface CriticalGapAndRemedy {
 }
 
 export interface Feedback {
+    paper_and_subject_identification?: {
+        gs_paper: string;
+        primary_domain: string;
+        secondary_domain?: string;
+    };
     examiner_expectation_blueprint?: ExaminerExpectationBlueprint;
     strengths: string[];
     critical_gaps_and_remedies?: CriticalGapAndRemedy[];
@@ -152,5 +157,10 @@ export interface EvaluationResult {
     word_count_compressed?: number | null;
     word_count?: number;  // Added for new format
     marks?: number;  // Added for extracted marks (10 or 15)
+    paper_and_subject_identification?: {
+        gs_paper: string;
+        primary_domain: string;
+        secondary_domain?: string;
+    };
     success?: boolean;
 }

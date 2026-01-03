@@ -342,6 +342,7 @@ async def generate_improved_answer_endpoint(
     request: Request,
     question: str = Form(...),
     feedback: str = Form(...),  # JSON string
+    paper_and_subject_identification: Optional[str] = Form(default=None), # JSON string
     student_answer: Optional[str] = Form(default=None),
     word_count: Optional[int] = Form(default=250),
     files: Optional[List[UploadFile]] = File(default=None),
@@ -368,6 +369,14 @@ async def generate_improved_answer_endpoint(
             feedback_dict = json.loads(feedback)
         except json.JSONDecodeError:
             raise HTTPException(400, "Invalid feedback JSON format")
+            
+        # Parse paper identification if provided
+        paper_id_dict = None
+        if paper_and_subject_identification:
+            try:
+                paper_id_dict = json.loads(paper_and_subject_identification)
+            except json.JSONDecodeError:
+                logger.warning("Invalid paper_and_subject_identification JSON")
         
         # 3. Preparation
         job_id = str(uuid4())
@@ -407,6 +416,7 @@ async def generate_improved_answer_endpoint(
             student_answer=student_answer,
             file_paths=saved_file_paths,
             feedback=feedback_dict,
+            paper_and_subject_identification=paper_id_dict,
             user_id=str(current_user.id) if current_user else "anonymous",
             gemini_api_key=gemini_api_key,
             word_count=word_count
