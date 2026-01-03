@@ -1451,15 +1451,18 @@ async def generate_improved_answer_task(
         if paper_and_subject_identification:
             p_dom = paper_and_subject_identification.get("primary_domain", "")
             s_dom = paper_and_subject_identification.get("secondary_domain", "")
+            sub_dom = paper_and_subject_identification.get("subject_domain", "")
             
             # Normalize to string for checking
             p_dom_str = str(p_dom).lower()
+            sub_dom_str = str(sub_dom).lower()
             if isinstance(s_dom, list):
                 s_dom_str = " ".join([str(x) for x in s_dom]).lower()
             else:
                 s_dom_str = str(s_dom).lower()
 
-            if "geography" in p_dom_str or "geography" in s_dom_str:
+            # Check for Geography in subject_domain (priority) or primary/secondary
+            if "geography" in sub_dom_str or "geography" in p_dom_str:
                 skip_vector_search = False
         
         if skip_vector_search:

@@ -900,34 +900,32 @@ CORE EVALUATION PRINCIPLES
 
 **RULE 1A — PAPER & SUBJECT IDENTIFICATION (MANDATORY)**:
 
-You will be provided with a **UPSC SYLLABUS JSON** context. Use it exclusively for classification.
+Before constructing the Examiner Expectation Blueprint, you MUST identify:
 
-1. **ONE PRIMARY GS PAPER**:
-   - GS1 OR GS2 OR GS3 OR GS4 (choose exactly one).
+1. ONE primary GS paper only:
+   - GS1 OR GS2 OR GS3 OR GS4 (choose exactly one)
 
-2. **PRIMARY SUBJECT DOMAIN (Exact JSON Key)**:
+2. SUBJECT DOMAIN (Exact JSON Key):
    - You MUST select the `primary_domain` exactly as it appears as a **Top-Level Key** in the provided Syllabus JSON.
    - Example Keys: `Physical_Geography`, `World_History`, `Polity_and_Constitution`, etc.
-   - Do NOT invent new domain names. Use the exact string from the JSON keys.
+   - Do NOT invent new domain names. Use the exact string from the JSON keys.Select only one.
 
-3. **SECONDARY DOMAIN (Syllabus Topic)**:
-   - Select the most relevant specific topic string from the list of topics under that Primary Domain key.
-   - This should be the specific subject matter (e.g., "Volcanism", "Fundamental Rights").
-   - Can be an array if multiple interlinked topics apply.
+2. PRIMARY SUBJECT DOMAIN (from the UPSC syllabus):
+   - Choose the most relevant syllabus-level subject and topics (not micro-topics).
 
-**Procedure**:
-- Read the Question.
-- Scan the Syllabus JSON keys.
+3. SECONDARY DOMAIN (only if the question is clearly interdisciplinary):
+   - This is a supporting lens, not the evaluative driver.
+
+Procedure:
 - Choose the GS paper that carries the PRIMARY evaluative intent of the question.
 - Use the QUESTION TEXT as the primary signal.
 - Map keywords, concepts, and intent to the UPSC syllabus anchor provided.
-- Match the question to the most appropriate Key (Primary Domain).
-- Select the relevant topic from that Key's list (Secondary Domain).
 - If multiple domains apply:
   - Identify ONE primary domain (dominant evaluative lens)
-  - Identify secondary domain (contextual/supporting lens only)
+  - Identify ONE secondary domain (contextual/supporting lens only)
 
-**Discipline**:
+Discipline:
+- Do NOT label a question as “mixed” or assign multiple GS papers.
 - If ambiguity exists, choose the paper/domain that determines:
   - the type of evidence expected,
   - the nature of analysis (conceptual / policy / ethical / spatial),
@@ -935,7 +933,7 @@ You will be provided with a **UPSC SYLLABUS JSON** context. Use it exclusively f
 - Do NOT over-classify or over-explain domain choice.
 - Once identified, ALL expectations, criticism, and evaluation must be aligned strictly to the chosen GS paper and primary domain.
 
-**Output this classification explicitly in the evaluation JSON**.
+Output this classification explicitly in the evaluation JSON.
 
 **RULE 2 — EXAMINER EXPECTATION BLUEPRINT (MANDATORY)**:
 
@@ -1217,7 +1215,8 @@ You MUST return ONLY a valid JSON object in the following structure:
   "word_count": 150 or 250,
   "paper_and_subject_identification": {{
   "gs_paper": "GS1 | GS2 | GS3 | GS4",
-  "primary_domain": "Exact syllabus domain name",
+  "subject_domain": "Exact syllabus JSON Key (e.g. Physical_Geography)",
+  "primary_domain": "Broader Subject",
   "secondary_domain": "Topic string OR [Topic1, Topic2]"
 }},
   "feedback": {{

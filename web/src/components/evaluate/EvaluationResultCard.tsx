@@ -144,8 +144,13 @@ export function EvaluationResultCard({ result, index, files, isCollapsible = fal
                                 {result.paper_and_subject_identification.gs_paper}
                             </span>
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                                {result.paper_and_subject_identification.primary_domain}
+                                {result.paper_and_subject_identification.subject_domain || result.paper_and_subject_identification.primary_domain}
                             </span>
+                            {result.paper_and_subject_identification.subject_domain && result.paper_and_subject_identification.primary_domain && result.paper_and_subject_identification.subject_domain !== result.paper_and_subject_identification.primary_domain && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                    {result.paper_and_subject_identification.primary_domain}
+                                </span>
+                            )}
                             {result.paper_and_subject_identification.secondary_domain && (
                                 Array.isArray(result.paper_and_subject_identification.secondary_domain) ? (
                                     result.paper_and_subject_identification.secondary_domain.map((topic: string, i: number) => (

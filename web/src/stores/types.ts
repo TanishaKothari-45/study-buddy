@@ -85,6 +85,7 @@ export interface CriticalGapAndRemedy {
 export interface Feedback {
     paper_and_subject_identification?: {
         gs_paper: string;
+        subject_domain?: string; // Exact JSON Key
         primary_domain: string;
         secondary_domain?: string;
     };
@@ -159,6 +160,7 @@ export interface EvaluationResult {
     marks?: number;  // Added for extracted marks (10 or 15)
     paper_and_subject_identification?: {
         gs_paper: string;
+        subject_domain?: string;
         primary_domain: string;
         secondary_domain?: string;
     };

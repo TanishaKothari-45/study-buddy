@@ -58,6 +58,17 @@ class FeedbackDetails(BaseModel):
 
 class EvaluationResponse(BaseModel):
     """Structured response for answer evaluation."""
+    paper_and_subject_identification: Optional[dict] = Field(
+        default=None,
+        description="Identified GS Paper, Subject Domain, Primary Domain, and Secondary Domain"
+    )
+    # Note: paper_and_subject_identification dict structure:
+    # {
+    #   "gs_paper": "GS1",
+    #   "subject_domain": "Physical_Geography", # Exact JSON Key
+    #   "primary_domain": "Geography",
+    #   "secondary_domain": "Volcanism"
+    # }
     improved_answer: str = Field(
         min_length=1,
         description="Improved answer in markdown format following IBC rules"
