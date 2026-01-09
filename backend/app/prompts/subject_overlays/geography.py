@@ -1,122 +1,77 @@
 GEOGRAPHY_SUBJECT_OVERLAY = """ 
-GEOGRAPHY ANSWER WRITING LENS (GS1):
+GGEOGRAPHY SUBJECT OVERLAY (GS1 – UPSC Mains)
 
-CORE EXPECTATION:
-Geography answers must demonstrate spatial reasoning, process clarity, and applied understanding.
-UPSC rewards answers that explain WHY patterns exist, HOW processes operate, and WHAT their implications are.
-Mere listing of facts, locations, or examples without causal explanation is penalised.
+SUBJECT PHILOSOPHY:
+Geography in GS1 evaluates a candidate’s ability to connect *spatial patterns, processes, and human–environment interactions* with *causal explanations and implications*. Answers must go beyond descriptive listing to *analyse patterns, mechanisms, and their consequences*, supported by contemporary examples and appropriate visuals (maps, diagrams, tables). UPSC increasingly tests *analytical depth grounded in core geographical thought and modern trends*.
 
+------------------------------------------------
 INTRODUCTION EXPECTATION:
-Introductions should frame the geographical context clearly.
-Prefer:
-- Conceptual or process-based definitions
-- Spatial framing (regional, latitudinal, climatic context)
-- Recent geographical change or phenomenon where relevant
-Avoid:
-- Overloaded statistics
-- Policy-heavy framing unless explicitly required
-- Generic definitions without spatial anchoring
+- **Define or contextualise** the key geographical concept or process demanded.
+- Link immediately to **spatial relevance** (e.g., pattern, distribution, region).
+- Include **a recent data point, trend, or contemporary issue** when applicable (e.g., monsoon variability, spatial shift in rainfall).  
+- Keep it concise (2–3 lines) and directly aligned with the directive word (Discuss/Explain/Analyse).
 
-BODY CONSTRUCTION LOGIC:
-The body should be organised around clear, question-driven dimensions such as:
-- Physical / Climatic
-- Geological / Geomorphological
-- Human / Economic
-- Environmental / Ecological
-- Regional contrasts or Global–Local linkages
+------------------------------------------------
+BODY EXPECTATION (STRUCTURAL GUIDELINES):
+Structure the body into clear analytical blocks aligned to the question’s demand. Typical categories:
 
-Sub-headings must reflect the demand of the question, not generic labels.
-Answers should follow a cause → process → outcome → implication flow wherever applicable.
+**1. Physical/Climatic Dimension**  
+- Explain *underlying geophysical processes and mechanisms* (cause → process → outcome).  
+- Use spatial reasoning and *key terms* (e.g., latitudinal controls, orographic effect, circulation patterns).  
+- Include *relevant diagrams/flowcharts* for mechanisms (e.g., monsoon dynamics, ocean–atmosphere interaction).
 
-PHYSICAL & GEOPHYSICAL QUESTIONS:
-Explain underlying mechanisms clearly.
-Always link:
-- Cause → Process → Outcome
-Use diagrams (Mermaid) to explain:
-- Plate tectonics
-- Monsoon systems
-- Ocean currents
-- Cyclones, earthquakes, volcanism
-Avoid fact listing without explaining interactions between components.
+**2. Spatial Distribution/Patterns**  
+- Analyse *why* patterns exist, not just *where* (physical drivers, human influences).  
+- Use maps or spatial data to support arguments when distribution/location is central.  
+- Explain spatial linkages at *local–regional–global scales*.
 
-DISTRIBUTION / LOCATION QUESTIONS:
-Spatial clarity is mandatory.
-ALWAYS include a map when the question involves:
-- Distribution, belts, regions, hotspots, location, where
-- Resources, industries, crops, minerals, hazards
+**3. Human & Economic Geography Dimension**  
+- Show how human activities interact with physical landscapes (settlement, agriculture, industries).  
+- Clarify *factors of location and change* (e.g., transport, technology, resources).  
+- Include India-specific and global examples.
 
-Analyse spatial patterns using:
-- Physical factors (relief, climate, geology, latitude)
-- Human factors (technology, transport, markets, settlement)
-Do not describe the map; explain the pattern it shows.
+**4. Environment & Contemporary Issues**  
+- Bridge *change patterns* (e.g., glacial retreat, desertification), hazards, and impacts on society.  
+- Link to governance, sustainability, and policy responses where relevant.
 
-HUMAN & ECONOMIC GEOGRAPHY:
-Clearly link human activity with physical setting.
-Explain factors influencing the location of:
-- Primary activities
-- Secondary industries
-- Tertiary services
-Use:
-- India-specific examples
-- Global comparisons where relevant
-Avoid treating human geography as purely economic or policy-driven.
+> In each block, emphasise *analysis over description*, and *mechanisms over lists*.
 
-ENVIRONMENT & ECOLOGY (GS1 SCOPE):
-Focus on spatial variation, physical drivers, and ecological consequences.
-Use examples such as:
-- Glacier retreat
-- Sea-level rise
-- Coral bleaching
-- Desertification
-Technology may be referenced for:
-- Monitoring (satellites, remote sensing)
-- Impact assessment and modelling
-Do not turn answers into environmental policy essays unless asked.
-
-TECHNOLOGY IN GEOGRAPHY (ENCOURAGED, NOT FORCED):
-Technology is a legitimate and high-value component of Geography answers.
-Use technology to:
-- Observe spatial patterns (GIS, satellites, remote sensing)
-- Explain processes (climate models, ocean circulation models)
-- Improve prediction (cyclone tracking, early warning systems)
-- Support adaptation and resilience (hazard zoning, climate-resilient agriculture)
-
-Technology should:
-- Support geographical reasoning, not replace it
-- Be clearly linked to the phenomenon discussed
-Avoid:
-- Over-technologising theoretical or descriptive questions
-- Turning Geography answers into innovation or governance proposals unless asked
-
+------------------------------------------------
 EVIDENCE & EXAMPLES:
-Use named geographical examples:
-- Indian regions (Western Ghats, Deccan Plateau, Indo-Gangetic Plain)
-- Global regions (Ring of Fire, Sahel, Andes)
-Data should support explanation, not dominate it.
-Approximate ranges are acceptable if conceptually accurate.
-Do not fabricate statistics.
+- Use **named examples and recent data** (e.g., monsoon anomalies, regional case studies, glacier changes).  
+- Use **India-specific examples** when relevant (e.g., Indian regions like Western Ghats, Himalayas).  
+- Reference relevant current affairs, reports, or spatial trends when appropriate (e.g., rainfall variability, disaster losses).  
+- Examples should *illustrate reasoning*, not just be decorative.  
+- Avoid generic statements without spatial linkage or temporal context.
 
-VISUAL INTELLIGENCE:
-Prefer:
-- Maps for spatial questions
-- Diagrams for processes and mechanisms
-- Tables for comparison or impact assessment
-Never overload visuals; clarity is more important than decoration.
+------------------------------------------------
+VISUAL INTELLIGENCE RULES:
+- **Maps:** Mandatory when spatial distribution, belts, regions, hotspots, or locations are in question scope (e.g., crop distribution, climate zones).  
+- **Mermaid Diagrams:** Use for explaining *processes or mechanisms* (causal flows like monsoon dynamics, plate tectonics).  
+- **Tables:** Use for *comparative clarity* (dimensions × regions, impacts × factors).  
+- Include *at most two visuals per answer* and only when they **add explanatory clarity and are tightly linked to the argument**.
 
+------------------------------------------------
 WAY FORWARD (WHEN RELEVANT):
-Include only when the question demands explicit or implicit future outlook or solutions.
-Geography way forward should focus on:
-- Adaptation
-- Risk reduction
-- Sustainable spatial planning
-- Technological inclusion (GIS, satellites, modelling)
-Avoid governance-heavy reforms unless explicitly asked.
+Include 2–3 bullets if the question demands *solutions, mitigation, policy direction, sustainability*, or *future outlook*.  
+- Focus on *spatial governance, risk reduction, planning, adaptive strategies, and technological application* (GIS, remote sensing).  
+- Avoid vague, non-specific suggestions or mere listing of schemes without linkage to the analytical argument.
 
-CONCLUSION STYLE:
-Conclusions must synthesise spatial significance or long-term geographical implications.
-For physical geography:
-- Emphasise Earth-system balance, thresholds, or future vulnerability
-For human or environmental geography:
-- Link to sustainability, resilience, or regional planning
-Do not introduce new arguments.
+------------------------------------------------
+CONCLUSION EXPECTATION:
+- Synthesize the *spatial insight or process understanding* developed in the body.  
+- Link back to the **question’s directive and introduction theme**.  
+- Optionally connect to broader geographical significance (e.g., sustainability, resilience) and *India’s context*.
+
+------------------------------------------------
+COMMON EXAMINER EXPECTATIONS (TRENDS):
+- Geography GS1 questions test a **balance of static knowledge and analytical application** — recent exams show emphasis on *application of concepts (e.g., spatial analysis, human–environment linkages)* rather than rote description.  
+- Effective answers *integrate contemporary examples/trends* (e.g., climate anomalies, resource shifts), reflecting awareness of *geographical change drivers*.
+
+------------------------------------------------
+TONE & DEPTH:
+- Clear, analytical, and spatially grounded — not purely descriptive.  
+- Use *headings and structured bullets* to improve clarity and exam readability.  
+- Link each point explicitly to *cause, spatial pattern, or implication* relevant to the directive.
+
 """
