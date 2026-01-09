@@ -1,4 +1,4 @@
-{
+        {
     "GS1": {
         "paper_name": "General Studies Paper I",
         "domains": {
@@ -87,14 +87,12 @@
                 "topics": [
                     "Functions and responsibilities of the Union and the States",
                     "Issues and challenges pertaining to the federal structure",
-                    "Devolution of powers and finances up to local levels",
-                    "Challenges therein"
+                    "Devolution of powers and finances up to local levels and challenges"
                 ]
             },
             "Separation_of_Powers": {
                 "topics": [
-                    "Separation of powers between various organs",
-                    "Dispute redressal mechanisms and institutions"
+                    "Separation of powers between various organs Dispute redressal mechanisms and institutions"
                 ]
             },
             "Parliament_and_State_Legislatures": {
@@ -109,9 +107,7 @@
             "Executive_and_Judiciary": {
                 "topics": [
                     "Structure, organization and functioning of the Executive and Judiciary",
-                    "Ministries and Departments of the Government",
-                    "Pressure groups and formal/informal associations",
-                    "Role in the polity"
+                    "Ministries and Departments of the Government"
                 ]
             },
             "Representation_of_People": {
@@ -127,7 +123,8 @@
             },
             "Statutory_and_Regulatory_Bodies": {
                 "topics": [
-                    "Statutory, regulatory and various quasi-judicial bodies"
+                    "Statutory, regulatory and various quasi-judicial bodies",
+                    "Pressure Groups and formal/informal associations and their role in the Polity"
                 ]
             },
             "Government_Policies": {
@@ -146,8 +143,7 @@
             "Social_Justice": {
                 "topics": [
                     "Welfare schemes for vulnerable sections of the population by the Centre and States",
-                    "Performance of these schemes",
-                    "Mechanisms, laws, institutions and Bodies constituted for the protection and betterment of vulnerable sections",
+                    "Performance of these schemes, Mechanisms, laws, institutions and Bodies constituted for the protection and betterment of vulnerable sections",
                     "Issues relating to development and management of Social Sector/Services",
                     "Health",
                     "Education",
@@ -171,8 +167,7 @@
                     "Bilateral, regional and global groupings and agreements involving India and/or affecting India's interests",
                     "Effect of policies and politics of developed and developing countries on India's interests",
                     "Indian diaspora",
-                    "Important International institutions, agencies and fora",
-                    "Structure, mandate"
+                    "Important International institutions, agencies and fora and their structure, mandate"
                 ]
             }
         }
@@ -196,8 +191,7 @@
                     "Major crops",
                     "Cropping patterns in various parts of the country",
                     "Different types of irrigation and irrigation systems",
-                    "Storage, transport and marketing of agricultural produce",
-                    "Issues and related constraints",
+                    "Storage, transport and marketing of agricultural produce ,Issues and related constraints",
                     "E-technology in the aid of farmers",
                     "Issues related to direct and indirect farm subsidies",
                     "Minimum support prices",
@@ -353,55 +347,6 @@
             "Case_Studies": {
                 "topics": [
                     "Case Studies on above issues"
-                ]
-            }
-        }
-    },
-    "Preliminary": {
-        "paper_name": "Preliminary Examination",
-        "domains": {
-            "Paper_I": {
-                "topics": [
-                    "Current events of national and international importance",
-                    "History of India and Indian National Movement",
-                    "Indian and World Geography - Physical, Social, Economic Geography of India and the World",
-                    "Indian Polity and Governance - Constitution, Political System, Panchayati Raj, Public Policy, Rights Issues, etc.",
-                    "Economic and Social Development Sustainable Development, Poverty, Inclusion, Demographics, Social Sector initiatives, etc.",
-                    "General issues on Environmental Ecology, Bio-diversity and Climate Change - that do not require subject specialization",
-                    "General Science"
-                ]
-            },
-            "Paper_II": {
-                "topics": [
-                    "Comprehension",
-                    "Interpersonal skills including communication skills",
-                    "Logical reasoning and analytical ability",
-                    "Decision-making and problem-solving",
-                    "General mental ability",
-                    "Basic numeracy (numbers and their relations, orders of magnitude, etc.) (Class X level)",
-                    "Data interpretation (charts, graphs, tables, data sufficiency etc. - Class X level)",
-                    "English Language Comprehension skills (Class X level)"
-                ]
-            }
-        }
-    },
-    "Essay": {
-        "paper_name": "Essay Paper",
-        "domains": {
-            "Essay_Writing": {
-                "topics": [
-                    "Essay writing on a specific topic",
-                    "Choice of subjects will be given",
-                    "Keeping closely to the subject of the essay",
-                    "Arranging ideas in orderly fashion",
-                    "Writing concisely",
-                    "Effective and exact expression"
-                ]
-            },
-            "English_Comprehension_and_Precis": {
-                "topics": [
-                    "English language Comprehension (at 10th standard level)",
-                    "English précis writing skills (at 10th standard level)"
                 ]
             }
         }
