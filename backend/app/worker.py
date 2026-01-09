@@ -1763,7 +1763,7 @@ def count_words_excluding_visuals(text: str) -> int:
 # ============================================================
 
 @trace_chain("mains_answer_pipeline")
-async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str, word_count: int = 350, gemini_api_key: str = None):
+async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str, word_count: int = 350, gemini_api_key: str = None, gs_paper: str = None, subject: str = None):
     """
     Generate Mains Answer using Gemini 2.5 Pro (Full Pipeline).
     Includes:
@@ -1819,7 +1819,9 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
             question=query,
             context=context,
             current_bullets=current_affairs_section,
-            word_count=word_count
+            word_count=word_count,
+            gs_paper=gs_paper,
+            subject=subject
         )
         
         lock_key = f"lock:user:{user_id}"

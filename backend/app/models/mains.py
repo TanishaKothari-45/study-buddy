@@ -5,6 +5,8 @@ class MainsAnswerRequest(BaseModel):
     """Request structure for mains answer generation."""
     question: str = Field(..., description="The mains question to generate an answer for")
     word_count: int = Field(default=500, description="Target word count for the answer")
+    gs_paper: Optional[str] = Field(default=None, description="GS Paper context (GS1, GS2, GS3, GS4)")
+    subject: Optional[str] = Field(default=None, description="Subject domain (e.g. Geography, History)")
 
 class MainsAnswerResponse(BaseModel):
     """Response structure for mains answer generation."""

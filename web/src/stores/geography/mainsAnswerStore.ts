@@ -20,6 +20,8 @@ interface PersistedMainsAnswerState {
     jobId: string | null;
     jobStatus: JobStatus;
     result: MainsAnswerResponse | null;
+    gsPaper: string;
+    subject: string;
 }
 
 // Persist form inputs, job tracking, and current result (only one at a time - cleared on "New Answer")
@@ -27,6 +29,8 @@ interface PersistedMainsAnswerState {
 interface MainsAnswerState {
     question: string;
     wordCount: string;
+    gsPaper: string;
+    subject: string;
 
     // Async Job handling
     jobId: string | null;
@@ -43,6 +47,8 @@ interface MainsAnswerState {
 
     setQuestion: (question: string) => void;
     setWordCount: (wordCount: string) => void;
+    setGsPaper: (gsPaper: string) => void;
+    setSubject: (subject: string) => void;
 
     setJobId: (id: string | null) => void;
     setJobStatus: (status: JobStatus) => void;
@@ -62,6 +68,8 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
             (set, get) => ({
                 question: '',
                 wordCount: '250',
+                gsPaper: '',
+                subject: '',
 
                 jobId: null,
                 jobStatus: 'idle',
@@ -77,6 +85,8 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
 
                 setQuestion: (question) => set({ question }),
                 setWordCount: (wordCount) => set({ wordCount }),
+                setGsPaper: (gsPaper) => set({ gsPaper }),
+                setSubject: (subject) => set({ subject }),
 
                 setJobId: (jobId) => set({ jobId }),
                 setJobStatus: (jobStatus) => set({ jobStatus }),
@@ -112,6 +122,8 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                 clear: () => set({
                     question: '',
                     wordCount: '250',
+                    gsPaper: '',
+                    subject: '',
                     result: null,
                     jobId: null,
                     jobStatus: 'idle',
@@ -142,6 +154,8 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                     // 3. Other stores (mockTestStore, evaluateAnswerStore) accumulating data
                     question: state.question,
                     wordCount: state.wordCount,
+                    gsPaper: state.gsPaper,
+                    subject: state.subject,
                     jobId: state.jobId,
                     jobStatus: state.jobStatus,
                     result: state.result // Current answer (cleared before each new generation via clear() in handleGenerate)
@@ -155,6 +169,8 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                         return {
                             question: '',
                             wordCount: '250',
+                            gsPaper: '',
+                            subject: '',
                             jobId: null,
                             jobStatus: 'idle',
                             result: null
@@ -174,6 +190,8 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                         return {
                             question: state.question || '',
                             wordCount: state.wordCount || '250',
+                            gsPaper: state.gsPaper || '',
+                            subject: state.subject || '',
                             jobId: state.jobId || null,
                             jobStatus: state.jobStatus || 'idle',
                             result: state.result || null
@@ -186,6 +204,8 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                     return {
                         question: state.question || '',
                         wordCount: state.wordCount || '250',
+                        gsPaper: state.gsPaper || '',
+                        subject: state.subject || '',
                         jobId: state.jobId || null,
                         jobStatus: state.jobStatus || 'idle',
                         result: state.result || null
