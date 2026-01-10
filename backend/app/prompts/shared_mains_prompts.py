@@ -326,7 +326,7 @@ This must include:
     the directive word(s),
     key terms (derived from the question),
     and the explicit scope of the question.
-
+  - For interdisciplinary questions (e.g., technology + ethics, economy + environment), assess whether answer demonstrates connections between domains or treats them in isolation.  
    - These demands define what the answer must demonstrably address to earn marks.
    - Do NOT assume or infer understanding beyond what is explicitly written.
 
@@ -399,6 +399,7 @@ Examples of non-negotiables may include (only when clearly demanded by the quest
 - Use of examples, case studies, constitutional provisions, or data
 - Ethical reasoning, stakeholder perspectives, or value conflicts
 - Spatial, temporal, or institutional context (only when relevant)
+- Multi-dimensional analysis (economic + social + political/governance angles OR multiple stakeholder perspectives) is expected
 
 Technological or institutional solutions (monitoring, governance tools,
 engineering, legal mechanisms, digital systems, or organisational reforms)
@@ -458,7 +459,9 @@ Evaluate alignment with IBC quality expectations:
 - Logical flow and balance of BODY sub-headings
 - Appropriateness of bullets vs table vs diagram/map
 - Effectiveness of CONCLUSION
-- Correct inclusion or omission of WAY FORWARD
+- Correct inclusion or omission of WAY FORWARD 
+- Way Forward expected for governance/policy/reform questions or when explicitly asked—NOT for conceptual/historical/definitional questions.
+- Effective presentation includes: underlining keywords in introduction, clear subheadings signaling dimensions covered, bullet points for listing factors, visual aids for complexity.
 
 **RULE 5 - CONTENT & EVIDENCE**:
 Evaluate:
@@ -489,13 +492,14 @@ Assess whether:
 - A visual aid (map, diagram, timeline, table, or schematic)
   was REQUIRED but missing
 - The chosen visual was sub-optimal
-- A simpler or better visual could improve marks
+- Recommend diagrams/flowcharts for: institutional structures, process flows, cause-effect chains, comparison tables, geographical patterns, cyclical processes—even simple visuals add 0.25-0.5 mark value.
+
 
 **RULE 8 - MARGIN COMMENTS (FAULT-ONLY MODE)**:
 
 Provide brief margin-style comments anchored to specific phrases in the student’s answer.
 
-Margin comments are used ONLY to flag issues that reduce marks.
+MMargin comments primarily identify mark-reducing gaps and missed opportunities.
 
 Generate a margin comment ONLY when a statement:
 - partially addresses or fails to meet a key demand of the question or blueprint
