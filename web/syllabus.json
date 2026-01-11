@@ -1,0 +1,255 @@
+{
+    "GS1": {
+        "paper_name": "General Studies Paper I",
+        "domains": {
+            "Indian_Heritage_and_Culture": {
+                "topics": [
+                    "Indian culture covering the salient aspects of Art Forms, Literature and Architecture from ancient to modern times",
+                    "Salient features of Indian Art Forms",
+                    "Indian literature traditions",
+                    "Architecture in India"
+                ]
+            },
+            "Modern_Indian_History": {
+                "topics": [
+                    "Modern Indian history from about the middle of the eighteenth century until the present",
+                    "Significant events, personalities, issues of modern Indian history",
+                    "The Freedom Struggle — its various stages and important contributors/contributions from different parts of the country"
+                ]
+            },
+            "Post_Independence_India": {
+                "topics": [
+                    "Post-independence consolidation and reorganization within the country"
+                ]
+            },
+            "World_History": {
+                "topics": [
+                    "History of the world from the 18th century",
+                    "Events such as the Industrial Revolution",
+                    "World wars",
+                    "Redrawal of national boundaries",
+                    "Colonization and decolonization",
+                    "Political philosophies like communism, capitalism, socialism",
+                    "Their forms and effect on society"
+                ]
+            },
+            "Indian_Society": {
+                "topics": [
+                    "Salient features of Indian society",
+                    "Diversity of India",
+                    "Role of women and women’s organization",
+                    "Population and associated issues",
+                    "Poverty and developmental issues",
+                    "Urbanization, problems and remedies",
+                    "Effects of globalization on Indian society",
+                    "Social empowerment",
+                    "Communalism",
+                    "Regionalism",
+                    "Secularism"
+                ]
+            },
+            "Physical_Geography": {
+                "topics": [
+                    "Salient features of world’s physical geography",
+                    "Geomorphology",
+                    "Climatology",
+                    "Oceanography",
+                    "Biogeography"
+                ]
+            },
+            "Indian_Geography": {
+                "topics": [
+                    "Distribution of key natural resources across the world (including South Asia and Indian subcontinent)",
+                    "Factors responsible for the location of primary, secondary and tertiary sector industries",
+                    "Important geophysical phenomena such as earthquakes, tsunamis, volcanic activity, cyclones",
+                    "Geographical features and their location",
+                    "Changes in critical geographical features (including water bodies and ice-caps)",
+                    "Effects of such changes"
+                ]
+            }
+        }
+    },
+    "GS2": {
+        "paper_name": "General Studies Paper II",
+        "domains": {
+            "Indian_Constitution": {
+                "topics": [
+                    "Historical underpinnings",
+                    "Evolution",
+                    "Features",
+                    "Amendments",
+                    "Significant provisions",
+                    "Basic structure",
+                    "Comparison with constitutions of other countries"
+                ]
+            },
+            "Governance_and_Polity": {
+                "topics": [
+                    "Functions and responsibilities of the Union and the States",
+                    "Issues and challenges pertaining to the federal structure",
+                    "Devolution of powers and finances up to local levels",
+                    "Challenges therein",
+                    "Separation of powers",
+                    "Dispute redressal mechanisms and institutions"
+                ]
+            },
+            "Governance_Processes": {
+                "topics": [
+                    "Structure, organization and functioning of the Executive and Judiciary",
+                    "Ministries and Departments of the Government",
+                    "Pressure groups and formal/informal associations",
+                    "Role in the polity"
+                ]
+            },
+            "Social_Justice": {
+                "topics": [
+                    "Welfare schemes for vulnerable sections of the population",
+                    "Performance of these schemes",
+                    "Mechanisms, laws, institutions and Bodies constituted for the protection and betterment of vulnerable sections",
+                    "Issues relating to development and management of Social Sector/Services",
+                    "Health",
+                    "Education",
+                    "Human Resources"
+                ]
+            },
+            "International_Relations": {
+                "topics": [
+                    "India and its neighborhood relations",
+                    "Bilateral, regional and global groupings and agreements",
+                    "Effect of policies and politics of developed and developing countries on India’s interests",
+                    "Indian diaspora",
+                    "Important International institutions, agencies and fora",
+                    "Structure, mandate"
+                ]
+            }
+        }
+    },
+    "GS3": {
+        "paper_name": "General Studies Paper III",
+        "domains": {
+            "Indian_Economy": {
+                "topics": [
+                    "Indian economy and issues relating to planning",
+                    "Mobilization of resources",
+                    "Growth",
+                    "Development",
+                    "Employment",
+                    "Inclusive growth and issues arising from it",
+                    "Government budgeting"
+                ]
+            },
+            "Agriculture": {
+                "topics": [
+                    "Major crops",
+                    "Cropping patterns",
+                    "Irrigation",
+                    "Storage",
+                    "Transport and marketing of agricultural produce",
+                    "Issues related to direct and indirect farm subsidies",
+                    "Minimum support prices",
+                    "Public Distribution System",
+                    "Food processing",
+                    "Technology missions"
+                ]
+            },
+            "Science_and_Technology": {
+                "topics": [
+                    "Developments and applications of science and technology",
+                    "Indigenization of technology",
+                    "Technology transfer",
+                    "Space",
+                    "Defence",
+                    "Nuclear technology",
+                    "IT",
+                    "Biotechnology"
+                ]
+            },
+            "Environment_and_Ecology": {
+                "topics": [
+                    "Conservation",
+                    "Environmental pollution and degradation",
+                    "Environmental impact assessment",
+                    "Climate change",
+                    "Biodiversity"
+                ]
+            },
+            "Internal_Security": {
+                "topics": [
+                    "Linkages between development and spread of extremism",
+                    "Role of external state and non-state actors",
+                    "Challenges to internal security",
+                    "Cyber security",
+                    "Money laundering",
+                    "Border management"
+                ]
+            },
+            "Disaster_Management": {
+                "topics": [
+                    "Disaster and disaster management",
+                    "Preparedness",
+                    "Mitigation",
+                    "Response"
+                ]
+            }
+        }
+    },
+    "GS4": {
+        "paper_name": "General Studies Paper IV",
+        "domains": {
+            "Ethics_and_Human_Interface": {
+                "topics": [
+                    "Essence, determinants and consequences of Ethics in human actions",
+                    "Dimensions of ethics",
+                    "Ethics in private and public relationships"
+                ]
+            },
+            "Human_Values": {
+                "topics": [
+                    "Role of family",
+                    "Society and educational institutions",
+                    "Contributions of moral thinkers and philosophers"
+                ]
+            },
+            "Attitude": {
+                "topics": [
+                    "Content, structure and function of attitude",
+                    "Influence and relation with thought and behaviour",
+                    "Moral and political attitudes",
+                    "Social influence and persuasion"
+                ]
+            },
+            "Aptitude_and_Foundational_Values": {
+                "topics": [
+                    "Aptitude and foundational values for Civil Service",
+                    "Integrity",
+                    "Impartiality",
+                    "Non-partisanship",
+                    "Objectivity",
+                    "Dedication to public service",
+                    "Empathy",
+                    "Tolerance",
+                    "Compassion"
+                ]
+            },
+            "Emotional_Intelligence": {
+                "topics": [
+                    "Concepts of emotional intelligence",
+                    "Utility and application in administration and governance"
+                ]
+            },
+            "Public_Service_Ethics": {
+                "topics": [
+                    "Ethical concerns and dilemmas in government and private institutions",
+                    "Laws, rules, regulations and conscience as sources of ethical guidance",
+                    "Accountability and ethical governance",
+                    "Strengthening of ethical values in governance"
+                ]
+            },
+            "Case_Studies": {
+                "topics": [
+                    "Case studies on ethical issues in public administration"
+                ]
+            }
+        }
+    }
+}

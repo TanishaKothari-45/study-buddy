@@ -7,11 +7,17 @@ Uses Selenium to handle JavaScript-rendered content (Livewire)
 import requests
 from bs4 import BeautifulSoup
 import os
+import sys
 import logging
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 import time
+
+# Add project root to path for imports when running as script
+_project_root = Path(__file__).resolve().parent.parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +40,69 @@ except ImportError:
         logger.info("✅ Selenium available - will use as fallback")
     except ImportError:
         logger.warning("⚠️ Neither Playwright nor Selenium available. Install with: pip install playwright (recommended) or pip install selenium")
+
+
+def rename_to_current_affairs_format(original_path: str) -> str:
+    """
+    Rename downloaded file to current_affairs_<month>_<year>.pdf format.
+    This ensures the metadata enricher correctly identifies it as current affairs.
+    
+    Tries to extract month/year from filename first, falls back to previous month
+    (since script runs on 3rd of each month to download previous month's magazine).
+    
+    Args:
+        original_path: Path to the original downloaded file
+        
+    Returns:
+        Path to the renamed file
+    """
+    if not os.path.exists(original_path):
+        return original_path
+    
+    original_filename = os.path.basename(original_path)
+    directory = os.path.dirname(original_path)
+    
+    # Try to extract month and year from filename first
+    month_pattern = r'(?:^|[^a-z])(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)(?:[^a-z]|$)'
+    year_pattern = r'(20\d{2})'
+    
+    # Month abbreviation to full name mapping
+    month_mapping = {
+        'jan': 'january', 'feb': 'february', 'mar': 'march', 'apr': 'april',
+        'jun': 'june', 'jul': 'july', 'aug': 'august', 
+        'sep': 'september', 'sept': 'september', 'oct': 'october', 
+        'nov': 'november', 'dec': 'december'
+    }
+    
+    filename_lower = original_filename.lower()
+    month_match = re.search(month_pattern, filename_lower)
+    year_match = re.search(year_pattern, filename_lower)
+    
+    if month_match and year_match:
+        month_found = month_match.group(1).lower()
+        month = month_mapping.get(month_found, month_found)  # Convert abbrev to full, or keep as is
+        year = year_match.group(1)
+    else:
+        # Fallback: use previous month (script runs on 3rd, downloads previous month's magazine)
+        now = datetime.now()
+        first_of_month = now.replace(day=1)
+        previous_month_date = first_of_month - timedelta(days=1)
+        month = previous_month_date.strftime("%B").lower()
+        year = previous_month_date.strftime("%Y")
+        logger.info(f"📝 Could not extract month/year from '{original_filename}', using previous month: {month} {year}")
+    
+    new_filename = f"current_affairs_{month}_{year}.pdf"
+    new_path = os.path.join(directory, new_filename)
+    
+    # Rename the file
+    if original_path != new_path:
+        if os.path.exists(new_path):
+            os.remove(new_path)  # Remove existing file with same name
+        os.rename(original_path, new_path)
+        logger.info(f"📝 Renamed: {original_filename} → {new_filename}")
+    
+    return new_path
+
 
 def download_with_playwright(url, download_dir):
     """Use Playwright to find download button, click it, and capture the download"""
@@ -140,7 +209,9 @@ def download_with_playwright(url, download_dir):
                     if os.path.exists(download_path):
                         logger.info(f"✅ Download completed: {download_path}")
                         browser.close()
-                        return download_path
+                        # Rename to current_affairs format for proper metadata tagging
+                        renamed_path = rename_to_current_affairs_format(download_path)
+                        return renamed_path
                     else:
                         logger.warning(f"⚠️ Download path doesn't exist: {download_path}")
                 except Exception as e:
@@ -232,18 +303,19 @@ def download_with_selenium(url, download_dir):
         if driver:
             driver.quit()
 
-def process_extracted_pdf(pdf_path: str, chroma_handler=None, collection_name: str = "geography_docs_enriched"):
+def process_extracted_pdf(pdf_path: str, pinecone_handler=None, content_store=None):
     """
     Process an extracted PDF through the same pipeline as uploaded PDFs:
     1. Extract and clean text
     2. Chunk using hierarchical chunker
-    3. Enrich metadata
-    4. Store in ChromaDB
+    3. Classify metadata with GPT-4o-mini (batch processing)
+    4. Store in Pinecone (embeddings + metadata)
+    5. Store in SQLite content store (full content)
     
     Args:
         pdf_path: Path to the extracted PDF file
-        chroma_handler: ChromaHandler instance (will create if None)
-        collection_name: Name of the ChromaDB collection to store chunks
+        pinecone_handler: PineconeHandler instance (will create if None)
+        content_store: ContentStore instance (will create if None)
         
     Returns:
         dict with processing summary (chunks_added, filename, status)
@@ -254,16 +326,18 @@ def process_extracted_pdf(pdf_path: str, chroma_handler=None, collection_name: s
     # Handle imports - support both relative (when imported) and absolute (when run directly)
     try:
         from ..utils.hierarchical_chunker import HierarchicalChunker
-        from ..utils.metadata_enricher import enrich_metadata
-        from ..utils.chroma_handler import ChromaHandler
+        from ..utils.metadata_enricher import classify_chunks_batch
+        from ..utils.pinecone_handler import PineconeHandler
+        from ..utils.content_store import ContentStore
     except ImportError:
         # If relative imports fail, add backend to path and use absolute imports
         backend_path = Path(__file__).parent.parent.parent
         if str(backend_path) not in sys.path:
             sys.path.insert(0, str(backend_path))
         from app.utils.hierarchical_chunker import HierarchicalChunker
-        from app.utils.metadata_enricher import enrich_metadata
-        from app.utils.chroma_handler import ChromaHandler
+        from app.utils.metadata_enricher import classify_chunks_batch
+        from app.utils.pinecone_handler import PineconeHandler
+        from app.utils.content_store import ContentStore
     
     from openai import OpenAI
     
@@ -272,23 +346,66 @@ def process_extracted_pdf(pdf_path: str, chroma_handler=None, collection_name: s
     logger.info(f"{'='*60}")
     
     try:
-        # Initialize chunker and OpenAI client
+        # Initialize OpenAI client and chunker
         openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         chunker = HierarchicalChunker(llm_client=openai_client)
         
-        # Get or create chroma_handler
-        if chroma_handler is None:
-            chroma_handler = ChromaHandler()
+        # Get or create handlers
+        if pinecone_handler is None:
+            logger.info("🔧 Initializing PineconeHandler...")
+            pinecone_handler = PineconeHandler()
         
-        # Switch to the target collection
-        chroma_handler.switch_to_collection(collection_name)
+        if content_store is None:
+            logger.info("🔧 Initializing ContentStore...")
+            content_store = ContentStore()
         
         # Get filename
         filename = os.path.basename(pdf_path)
         logger.info(f"📄 Filename: {filename}")
         
-        # Process PDF using hierarchical chunker (same as upload.py)
-        logger.info("🔍 Chunking PDF...")
+        # Step 1: Validate extraction status
+        # Check if file is already an extracted section (has _geo_env suffix)
+        if "_geo_env" not in filename:
+            logger.info(f"🔍 File '{filename}' does not appear to be an extracted section.")
+            logger.info("   Attempting to extract Geography/Environment sections now...")
+            
+            try:
+                # Try to import extractor
+                try:
+                    from ..utils.pdf_section_extractor import extract_sections_with_validation
+                except ImportError:
+                    from app.utils.pdf_section_extractor import extract_sections_with_validation
+                
+                # Extract sections
+                extracted_path = extract_sections_with_validation(
+                    pdf_path,
+                    keywords=['geography', 'environment']
+                )
+                
+                if extracted_path and os.path.exists(extracted_path):
+                    logger.info(f"✅ Successfully extracted sections to: {extracted_path}")
+                    # Update path and filename to point to the extracted file
+                    pdf_path = extracted_path
+                    filename = os.path.basename(pdf_path)
+                else:
+                    logger.error("❌ Failed to extract sections from PDF")
+                    return {
+                        "filename": filename,
+                        "status": "failed",
+                        "reason": "Could not extract Geography/Environment sections. Aborting to avoid processing full PDF.",
+                        "chunks_added": 0
+                    }
+            except Exception as e:
+                logger.error(f"❌ Error during section extraction: {e}")
+                return {
+                    "filename": filename,
+                    "status": "failed",
+                    "reason": f"Error during section extraction: {str(e)}",
+                    "chunks_added": 0
+                }
+        
+        # Step 2: Chunk PDF using hierarchical chunker (same as upload.py)
+        logger.info(f"🔍 Chunking PDF: {filename}")
         chunks = chunker.process_pdf(pdf_path, filename)
         
         if not chunks:
@@ -302,43 +419,62 @@ def process_extracted_pdf(pdf_path: str, chroma_handler=None, collection_name: s
         
         logger.info(f"✅ Created {len(chunks)} chunks")
         
-        # Enrich metadata for all chunks
-        logger.info(f"🔍 Enriching metadata for {len(chunks)} chunks...")
-        enriched_chunks = []
+        # Step 2: Classify chunks with GPT-4o-mini (batch processing - same as upload.py)
+        logger.info(f"\n🤖 Classifying {len(chunks)} chunks with GPT-4o-mini (batch processing)...")
+        classified_chunks = classify_chunks_batch(chunks, openai_client)
+        logger.info(f"✅ Classification complete for {len(classified_chunks)} chunks")
         
-        for chunk in chunks:
-            chunk_text = chunk['content']
-            existing_meta = chunk.get('metadata', {})
-            chunk_filename = existing_meta.get('filename', filename)
-            chapter = existing_meta.get('chapter', 'Unknown')
-            section = existing_meta.get('section', 'Unknown')
-            
-            # Enrich metadata
-            try:
-                enriched_meta = enrich_metadata(chunk_text, chunk_filename, chapter, section, openai_client)
-                # Merge enriched metadata with existing metadata
-                existing_meta.update(enriched_meta)
-                chunk['metadata'] = existing_meta
-            except Exception as enrich_error:
-                logger.warning(f"⚠️ Metadata enrichment failed for one chunk: {enrich_error}")
-                # Continue with original metadata if enrichment fails
-            
-            enriched_chunks.append(chunk)
+        # Show first 3 chunks with classification
+        logger.info(f"\n📝 First 3 chunks with classification:")
+        for i, chunk in enumerate(classified_chunks[:3], 1):
+            meta = chunk.get('metadata', {})
+            logger.info(f"\n   Chunk {i}:")
+            logger.info(f"      • Content preview: {chunk['content'][:150].replace(chr(10), ' ')}...")
+            logger.info(f"      • Word count: {len(chunk['content'].split())} words")
+            logger.info(f"      • Major Domain: {meta.get('major_domain', 'N/A')}")
+            logger.info(f"      • Sub Domain: {meta.get('sub_domain', 'N/A')}")
+            logger.info(f"      • Micro Topic: {meta.get('micro_topic', 'N/A')}")
+            if meta.get('sub_topics'):
+                logger.info(f"      • Sub Topics: {', '.join(meta.get('sub_topics', []))}")
         
-        logger.info(f"✅ Metadata enrichment complete")
+        # Step 3: Store classified chunks in Pinecone (generates embeddings automatically)
+        logger.info(f"\n💾 Storing {len(classified_chunks)} chunks in Pinecone (generating embeddings)...")
+        pinecone_handler.add_documents(classified_chunks)
+        logger.info(f"✅ Successfully stored {len(classified_chunks)} chunks in Pinecone")
         
-        # Store enriched chunks in ChromaDB
-        logger.info(f"💾 Storing {len(enriched_chunks)} chunks in ChromaDB...")
-        chroma_handler.add_documents(enriched_chunks)
+        # Step 4: Store in SQLite content store (full content with metadata)
+        logger.info(f"\n💾 Storing {len(classified_chunks)} chunks in SQLite content store...")
         
-        logger.info(f"✅ Successfully processed {filename}")
-        logger.info(f"   • Chunks added: {len(enriched_chunks)}")
+        # Import match_and_store function
+        try:
+            from ..routes.upload_content_store import match_and_store_pinecone_chunks
+        except ImportError:
+            from app.routes.upload_content_store import match_and_store_pinecone_chunks
+        
+        # Match and store chunks
+        matching_results = match_and_store_pinecone_chunks(
+            content_chunks=classified_chunks,
+            pinecone_handler=pinecone_handler,
+            content_store=content_store,
+            filename=filename
+        )
+        
+        logger.info(f"✅ SQLite storage complete:")
+        logger.info(f"   • Stored: {matching_results.get('stored_count', 0)} chunks")
+        logger.info(f"   • Match rate: {matching_results.get('match_rate', 0):.1%}")
+        
+        logger.info(f"\n✅ Successfully processed {filename}")
+        logger.info(f"   • Chunks added to Pinecone: {len(classified_chunks)}")
+        logger.info(f"   • Chunks added to SQLite: {matching_results.get('stored_count', 0)}")
         logger.info(f"{'='*60}\n")
         
         return {
             "filename": filename,
             "status": "success",
-            "chunks_added": len(enriched_chunks)
+            "chunks_added": len(classified_chunks),
+            "pinecone_chunks": len(classified_chunks),
+            "sqlite_chunks": matching_results.get('stored_count', 0),
+            "match_rate": matching_results.get('match_rate', 0)
         }
         
     except Exception as e:
@@ -351,6 +487,7 @@ def process_extracted_pdf(pdf_path: str, chroma_handler=None, collection_name: s
             "reason": str(e),
             "chunks_added": 0
         }
+
 
 
 def download_latest_visionias_workbook(download_dir="data/geography_current_affairs", extract_sections: bool = True):
@@ -444,15 +581,17 @@ def download_latest_visionias_workbook(download_dir="data/geography_current_affa
                 break
     
     # Strategy 4: If no PDF found, use Playwright (preferred) or Selenium (fallback) to click download button
+    playwright_downloaded_file = None
     if not pdf_link:
         if PLAYWRIGHT_AVAILABLE:
             logger.info("🔄 No PDF found in static HTML, trying Playwright to find and click download button...")
             downloaded_file = download_with_playwright(url, download_dir)
             if downloaded_file:
-                # If Playwright downloaded the file directly (returns file path), return it
+                # If Playwright downloaded the file directly (returns file path), save for extraction step
                 if isinstance(downloaded_file, str) and os.path.exists(downloaded_file):
                     logger.info(f"✅ File downloaded successfully via Playwright: {downloaded_file}")
-                    return downloaded_file
+                    playwright_downloaded_file = downloaded_file
+                    # Don't return here - continue to extraction step below
                 # Otherwise, it might have returned a URL
                 elif isinstance(downloaded_file, str) and downloaded_file.startswith('http'):
                     pdf_link = downloaded_file
@@ -464,6 +603,47 @@ def download_latest_visionias_workbook(download_dir="data/geography_current_affa
             pdf_filename = pdf_link.split("/")[-1]
             if "?" in pdf_filename:
                 pdf_filename = pdf_filename.split("?")[0]
+    
+    # If Playwright already downloaded the file, skip to extraction step
+    if playwright_downloaded_file:
+        save_path = playwright_downloaded_file
+        # Jump directly to extraction step
+        if extract_sections:
+            try:
+                try:
+                    from .pdf_section_extractor import extract_sections_with_validation
+                except ImportError:
+                    from backend.app.utils.pdf_section_extractor import extract_sections_with_validation
+                
+                logger.info("\n" + "="*60)
+                logger.info("📚 Extracting Geography and Environment sections...")
+                logger.info("="*60)
+                
+                extracted_file = extract_sections_with_validation(
+                    save_path,
+                    keywords=['geography', 'environment']
+                )
+                
+                if extracted_file and os.path.exists(extracted_file):
+                    # Verify extracted file has content
+                    file_size = os.path.getsize(extracted_file)
+                    if file_size > 0:
+                        logger.info(f"✅ Extracted sections saved to: {extracted_file}")
+                        return extracted_file
+                    else:
+                        logger.error("❌ Extracted PDF is empty (0 bytes)")
+                        raise Exception("No valid Geography/Environment sections extracted - PDF is empty")
+                else:
+                    logger.error("❌ Could not extract Geography/Environment sections from PDF")
+                    raise Exception("No valid Geography/Environment sections found in PDF. Aborting to avoid processing irrelevant content.")
+            except ImportError as e:
+                logger.error(f"❌ PyMuPDF not available for section extraction: {e}")
+                raise Exception("PyMuPDF required for section extraction. Install with: pip install pymupdf")
+            except Exception as e:
+                logger.error(f"❌ Error extracting sections: {e}")
+                raise  # Re-raise to stop processing
+        else:
+            return save_path
     
     if not pdf_link and not (PLAYWRIGHT_AVAILABLE and downloaded_file and os.path.exists(downloaded_file)):
         logger.error("❌ No PDF link found on VisionIAS page")
@@ -553,6 +733,9 @@ def download_latest_visionias_workbook(download_dir="data/geography_current_affa
             logger.info(f"✅ Successfully downloaded: {save_path}")
             logger.info(f"   File size: {total_size / (1024 * 1024):.2f} MB")
             
+            # Rename to current_affairs format for proper metadata tagging
+            save_path = rename_to_current_affairs_format(save_path)
+            
     except requests.exceptions.RequestException as e:
         logger.error(f"❌ Failed to download PDF: {e}")
         # Clean up partial download
@@ -563,7 +746,10 @@ def download_latest_visionias_workbook(download_dir="data/geography_current_affa
     # Step 2: Extract Geography and Environment sections if requested
     if extract_sections:
         try:
-            from .pdf_section_extractor import extract_sections_with_validation
+            try:
+                from .pdf_section_extractor import extract_sections_with_validation
+            except ImportError:
+                from backend.app.utils.pdf_section_extractor import extract_sections_with_validation
             
             logger.info("\n" + "="*60)
             logger.info("📚 Extracting Geography and Environment sections...")
@@ -574,21 +760,24 @@ def download_latest_visionias_workbook(download_dir="data/geography_current_affa
                 keywords=['geography', 'environment']
             )
             
-            if extracted_file:
-                logger.info(f"✅ Extracted sections saved to: {extracted_file}")
-                # Return the extracted file instead of the full PDF
-                return extracted_file
+            if extracted_file and os.path.exists(extracted_file):
+                # Verify extracted file has content
+                file_size = os.path.getsize(extracted_file)
+                if file_size > 0:
+                    logger.info(f"✅ Extracted sections saved to: {extracted_file}")
+                    return extracted_file
+                else:
+                    logger.error("❌ Extracted PDF is empty (0 bytes)")
+                    raise Exception("No valid Geography/Environment sections extracted - PDF is empty")
             else:
-                logger.warning("⚠️ Could not extract sections, returning full PDF")
-                return save_path
-        except ImportError:
-            logger.warning("⚠️ PyMuPDF not available for section extraction. Install with: pip install pymupdf")
-            logger.info("   Returning full PDF instead")
-            return save_path
+                logger.error("❌ Could not extract Geography/Environment sections from PDF")
+                raise Exception("No valid Geography/Environment sections found in PDF. Aborting to avoid processing irrelevant content.")
+        except ImportError as e:
+            logger.error(f"❌ PyMuPDF not available for section extraction: {e}")
+            raise Exception("PyMuPDF required for section extraction. Install with: pip install pymupdf")
         except Exception as e:
             logger.error(f"❌ Error extracting sections: {e}")
-            logger.info("   Returning full PDF instead")
-            return save_path
+            raise  # Re-raise to stop processing
     
     return save_path
 
@@ -602,37 +791,80 @@ if __name__ == "__main__":
     
     try:
         # Step 1: Download the full magazine and extract sections
+        logger.info("="*60)
+        logger.info("🚀 Starting Current Affairs Downloader")
+        logger.info("="*60)
         latest_file = download_latest_visionias_workbook(extract_sections=True)
         
         # Verify we got the extracted PDF, not the full one
         if "_geo_env" not in latest_file:
-            print(f"\n⚠️ Warning: Expected extracted PDF but got: {latest_file}")
-            print(f"   This might be the full PDF. Checking for extracted version...")
+            logger.warning(f"\n⚠️ Warning: Expected extracted PDF but got: {latest_file}")
+            logger.info(f"   This might be the full PDF. Checking for extracted version...")
             # Look for extracted version
             base_name = os.path.splitext(latest_file)[0]
             extracted_path = f"{base_name}_geo_env.pdf"
             if os.path.exists(extracted_path):
                 latest_file = extracted_path
-                print(f"   ✅ Found extracted PDF: {latest_file}")
+                logger.info(f"   ✅ Found extracted PDF: {latest_file}")
             else:
-                print(f"   ⚠️ Extracted PDF not found. Processing full PDF instead.")
+                logger.error(f"   ❌ Extracted PDF not found. Aborting to prevent processing full PDF.")
+                raise Exception("Extracted PDF not found and we do not want to process the full PDF.")
         
-        print(f"\n✅ Latest workbook downloaded and extracted: {latest_file}")
+        logger.info(f"\n✅ Latest workbook downloaded and extracted: {latest_file}")
         
-        # Step 2: Process the extracted PDF through chunking and enrichment pipeline
-        print(f"\n📚 Processing extracted PDF through chunking pipeline...")
-        result = process_extracted_pdf(latest_file)
+        # Step 2: Initialize handlers for new storage system
+        logger.info(f"\n{'='*60}")
+        logger.info(f"🔧 Initializing storage handlers...")
+        logger.info(f"{'='*60}")
+        
+        # Import handlers
+        import sys
+        from pathlib import Path
+        backend_path = Path(__file__).parent.parent.parent
+        if str(backend_path) not in sys.path:
+            sys.path.insert(0, str(backend_path))
+        
+        from app.utils.pinecone_handler import PineconeHandler
+        from app.utils.content_store import ContentStore
+        
+        # Initialize Pinecone handler
+        logger.info("🔧 Initializing PineconeHandler...")
+        pinecone_handler = PineconeHandler()
+        logger.info("✅ PineconeHandler initialized")
+        
+        # Initialize content store
+        logger.info("🔧 Initializing ContentStore...")
+        content_store = ContentStore()
+        logger.info("✅ ContentStore initialized")
+        
+        # Step 3: Process the extracted PDF through chunking and classification pipeline
+        logger.info(f"\n📚 Processing extracted PDF through chunking pipeline...")
+        result = process_extracted_pdf(
+            latest_file,
+            pinecone_handler=pinecone_handler,
+            content_store=content_store
+        )
+        
+        # Step 4: Display results
+        logger.info(f"\n{'='*60}")
+        logger.info(f"📊 FINAL RESULTS")
+        logger.info(f"{'='*60}")
         
         if result["status"] == "success":
-            print(f"\n✅ Successfully processed {result['filename']}")
-            print(f"   • Chunks added: {result['chunks_added']}")
+            logger.info(f"✅ Successfully processed {result['filename']}")
+            logger.info(f"   • Chunks added to Pinecone: {result.get('pinecone_chunks', 0)}")
+            logger.info(f"   • Chunks added to SQLite: {result.get('sqlite_chunks', 0)}")
+            logger.info(f"   • Match rate: {result.get('match_rate', 0):.1%}")
+            logger.info(f"\n🎉 Current affairs processing complete!")
         else:
-            print(f"\n❌ Failed to process {result['filename']}")
-            print(f"   • Reason: {result.get('reason', 'Unknown error')}")
+            logger.error(f"❌ Failed to process {result['filename']}")
+            logger.error(f"   • Reason: {result.get('reason', 'Unknown error')}")
+            exit(1)
             
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        logger.error(f"\n❌ Error: {e}")
         import traceback
         traceback.print_exc()
         exit(1)
+
 

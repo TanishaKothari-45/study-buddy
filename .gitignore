@@ -24,6 +24,7 @@ wheels/
 venv/
 ENV/
 env/
+myenv/
 
 # IDE
 .idea/
@@ -33,10 +34,26 @@ env/
 
 # Project specific
 data/
+!map-service/data/
 models/
+!backend/app/models/
 embeddings/
 .env
+.env.local
 *.log
+logs/
+
+# CRITICAL SECURITY: Never commit encryption keys
+**/ENCRYPTION_KEY
+**/.encryption_key
+**/encryption.key
+
+# Map service
+map-service/node_modules/
+map-service/data/*.backup
+backend/map_storage/*.svg
+backend/map_storage/*.meta.json
+!backend/map_storage/.gitkeep
 
 # Jupyter
 .ipynb_checkpoints
@@ -47,3 +64,34 @@ embeddings/
 .AppleDouble
 .LSOverride
 ._*
+
+# Node
+node_modules/
+package-lock.json
+yarn.lock
+web/package-lock.json
+
+
+!web/src/lib/
+
+backend/uploads/
+venv_python39_backup/
+=2.5.0
+
+# Organized files (now in proper directories, but keeping some patterns for safety)
+# Config files that shouldn't be committed
+config/google_vision.json
+config/cleaned_metadata_backup.json
+
+# Backend cache/temporary files
+backend/app/routes/ocr.py
+backend/app/utils/intrinsic_scorer.py
+backend/web_cache.json
+
+# Documentation (now in docs/, but most should be committed)
+# Only ignore generated/temporary analysis files
+docs/analysis/*.json
+
+web/package-lock.json
+
+backend/map_storage/

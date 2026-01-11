@@ -38,6 +38,17 @@ class ContentStore:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
+        # ============================================================
+        # Enable WAL mode for better concurrent read performance
+        # ============================================================
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")  # Faster writes, still safe
+        cursor.execute("PRAGMA cache_size=-64000")   # 64MB cache for better performance
+        cursor.execute("PRAGMA temp_store=MEMORY")   # Use RAM for temp tables
+        cursor.execute("PRAGMA mmap_size=268435456") # 256MB memory-mapped I/O
+        
+        logger.info("✅ SQLite optimizations enabled: WAL mode + 64MB cache + memory-mapped I/O")
+        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS chunks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

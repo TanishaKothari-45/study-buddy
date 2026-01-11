@@ -14,6 +14,15 @@ except ImportError:
     PYDANTIC_V2_AVAILABLE = False
     ConfigDict = None
 
+# Try to import sentence_transformers for CrossEncoder
+try:
+    from sentence_transformers import SentenceTransformer, CrossEncoder
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SentenceTransformer = None
+    CrossEncoder = None
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+
 # Initialize logger early so it's available for use in try blocks
 logger = logging.getLogger(__name__)
 
@@ -67,8 +76,30 @@ from .embedder import Embedder
 # Log availability
 if not LANGCHAIN_AVAILABLE:
     logger.warning("LangChain not available - some features will not work")
+
 if not PINECONE_AVAILABLE:
     logger.warning("Pinecone not available - please install pinecone-client")
+
+
+class CrossEncoderSingleton:
+    """Singleton to manage CrossEncoder model loading (lazy load)"""
+    _instance = None
+    _model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            if not SENTENCE_TRANSFORMERS_AVAILABLE:
+                logger.warning("⚠️ Sentence Transformers not available, cannot load CrossEncoder")
+                return None
+            try:
+                logger.info(f"🔄 Loading CrossEncoder model: {cls._model_name}...")
+                cls._instance = CrossEncoder(cls._model_name)
+                logger.info("✅ CrossEncoder model loaded")
+            except Exception as e:
+                logger.error(f"❌ Failed to load CrossEncoder model: {e}")
+                return None
+        return cls._instance
 
 
 class PineconeEmbeddings(Embeddings):
@@ -225,27 +256,29 @@ class ContentStoreRetriever(BaseRetriever):
             logger.warning("⚠️ [ContentStoreRetriever] Content store disabled - returning Pinecone preview content only")
             return docs
         
-        # STEP 3: Enrich each document with full content from SQLite
-        logger.info(f"💾 [ContentStoreRetriever] Step 2: Enriching {len(docs)} docs from SQLite content store...")
-        enriched_docs = []
-        sqlite_success = 0
-        sqlite_failed = 0
-        preview_used = 0
+        # STEP 3: Enrich documents with full content from SQLite (PARALLEL for k=20 support)
+        logger.info(f"💾 [ContentStoreRetriever] Step 2: Enriching {len(docs)} docs from SQLite (parallel reads)...")
         
-        for i, doc in enumerate(docs, 1):
+        # Import concurrent.futures and time for parallel execution and metrics
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import time
+        
+        # Start timing SQLite enrichment
+        sqlite_start = time.perf_counter()
+        
+        # Helper function to fetch single chunk from SQLite
+        def fetch_single_chunk(doc):
+            """Fetch full content for a single document (runs in thread pool)"""
+            chunk_start = time.perf_counter()
             meta = doc.metadata
             chunk_id = meta.get("chunk_id")
             filename = meta.get("filename")
             chapter = meta.get("chapter")
             
-            logger.debug(f"   [{i}/{len(docs)}] Looking up chunk_id={chunk_id}, filename={filename}, chapter={chapter}")
-            
-            # Step 4: Hydrate from SQLite
             full_content = None
             if chunk_id and filename:
                 try:
-                    # Try exact chunk_id first (handles split chunks like "1_1_1_split1")
-                    logger.debug(f"      → Querying SQLite for exact chunk_id: {chunk_id}")
+                    # Try exact chunk_id first
                     full_content = self.content_store.get_chunk(
                         chunk_id=chunk_id, filename=filename, chapter=chapter
                     )
@@ -253,20 +286,54 @@ class ContentStoreRetriever(BaseRetriever):
                     # If not found and chunk_id has split suffix, try base chunk_id
                     if not full_content and '_split' in chunk_id:
                         base_chunk_id = chunk_id.rsplit('_split', 1)[0]
-                        logger.debug(f"      → Split chunk not found, trying base chunk_id: {base_chunk_id}")
                         full_content = self.content_store.get_chunk(
                             chunk_id=base_chunk_id, filename=filename, chapter=chapter
                         )
-                    
-                    if full_content:
-                        logger.debug(f"      ✅ Found in SQLite: {len(full_content)} chars")
-                    else:
-                        logger.debug(f"      ⚠️ Not found in SQLite")
                 except Exception as e:
-                    logger.warning(f"      ❌ SQLite lookup failed for {chunk_id}: {e}")
-                    sqlite_failed += 1
+                    logger.warning(f"SQLite lookup failed for {chunk_id}: {e}")
             
-            # Step 5: Replace preview with full text if available
+            chunk_time = (time.perf_counter() - chunk_start) * 1000  # Convert to ms
+            return full_content, chunk_time
+        
+        # Fetch all chunks in parallel using thread pool
+        # WAL mode supports unlimited concurrent readers - no need to batch
+        # For k=20: Sequential would be 20×20ms=400ms, Parallel is max(20ms)=20ms
+        with ThreadPoolExecutor() as executor:
+            # Submit all fetch tasks
+            future_to_doc = {executor.submit(fetch_single_chunk, doc): doc for doc in docs}
+            
+            # Collect results in original order
+            results = []
+            for doc in docs:
+                for future, future_doc in future_to_doc.items():
+                    if future_doc is doc:
+                        results.append(future.result())
+                        break
+        
+        # Unpack results and timing
+        full_contents = [content for content, _ in results]
+        chunk_times = [chunk_time for _, chunk_time in results]
+        
+        # Calculate timing metrics
+        sqlite_total_time = (time.perf_counter() - sqlite_start) * 1000  # ms
+        avg_chunk_time = sum(chunk_times) / len(chunk_times) if chunk_times else 0
+        max_chunk_time = max(chunk_times) if chunk_times else 0
+        min_chunk_time = min(chunk_times) if chunk_times else 0
+        
+        # Sequential time would be sum of all chunk times
+        sequential_time_estimate = sum(chunk_times)
+        time_saved = sequential_time_estimate - sqlite_total_time
+        
+        # Now enrich documents with fetched content
+        enriched_docs = []
+        sqlite_success = 0
+        sqlite_failed = 0
+        preview_used = 0
+        
+        for i, (doc, full_content) in enumerate(zip(docs, full_contents), 1):
+            meta = doc.metadata
+            
+            # Replace preview with full text if available
             preview_length = len(doc.page_content.strip()) if doc.page_content else 0
             if full_content and len(full_content.strip()) > preview_length:
                 # Full content is longer than preview, replace it
@@ -275,15 +342,16 @@ class ContentStoreRetriever(BaseRetriever):
                 object.__setattr__(doc, 'text', full_content)
                 meta["_content_source"] = "content_store"
                 sqlite_success += 1
-                logger.debug(f"      ✅ Enriched: {preview_length} → {len(full_content)} chars (from SQLite)")
+                logger.debug(f"[{i}/{len(docs)}] ✅ Enriched: {preview_length} → {len(full_content)} chars")
             else:
                 # Use preview content (either no full content found, or preview is same/longer)
                 meta["_content_source"] = "content_preview"
                 preview_used += 1
                 if full_content:
-                    logger.debug(f"      ⚠️ Keeping preview (full content {len(full_content)} <= preview {preview_length})")
+                    logger.debug(f"[{i}/{len(docs)}] ⚠️ Keeping preview (full {len(full_content)} <= preview {preview_length})")
                 else:
-                    logger.debug(f"      ⚠️ Using preview (not found in SQLite)")
+                    logger.debug(f"[{i}/{len(docs)}] ⚠️ Using preview (not in SQLite)")
+                    sqlite_failed += 1
             
             enriched_docs.append(doc)
         
@@ -292,8 +360,27 @@ class ContentStoreRetriever(BaseRetriever):
         logger.info(f"   • Enriched from SQLite: {sqlite_success}")
         logger.info(f"   • Using Pinecone preview: {preview_used}")
         logger.info(f"   • SQLite lookup failed: {sqlite_failed}")
+        logger.info(f"⏱️  [PERFORMANCE METRICS - SQLite Reads]:")
+        logger.info(f"   • Total time (parallel): {sqlite_total_time:.1f}ms")
+        logger.info(f"   • Per-chunk time: avg={avg_chunk_time:.1f}ms, min={min_chunk_time:.1f}ms, max={max_chunk_time:.1f}ms")
+        logger.info(f"   • Sequential would take: {sequential_time_estimate:.1f}ms")
+        logger.info(f"   • ⚡ TIME SAVED: {time_saved:.1f}ms ({(time_saved/sequential_time_estimate*100) if sequential_time_estimate > 0 else 0:.0f}% faster)")
         
         return enriched_docs
+    
+    def get_relevant_documents(self, query: str, *, run_manager: Optional[Any] = None) -> List[Document]:
+        """
+        LangChain BaseRetriever method - retrieve relevant documents.
+        This is the standard method that LangChain expects.
+        
+        Args:
+            query: Query string
+            run_manager: Optional callback manager
+            
+        Returns:
+            List of Document objects with full content from content store
+        """
+        return self._get_relevant_documents(query)
     
     def invoke(self, input: str, config: Optional[Any] = None, **kwargs) -> List[Document]:
         """
@@ -353,6 +440,15 @@ class PineconeHandler:
         
         # Initialize vector store (will be created on first use)
         self.vectorstore = None
+        
+        # Initialize Content Store for enrichment
+        try:
+            from .content_store import ContentStore
+            self.content_store = ContentStore()
+            logger.info("✅ Content store initialized in PineconeHandler")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize content store in PineconeHandler: {e}")
+            self.content_store = None
         
         logger.info(f"✅ Initialized PineconeHandler with index: {self.index_name}")
         logger.info(f"   • Embedding dimension: {self.langchain_embeddings.dimensionality}")
@@ -554,6 +650,35 @@ class PineconeHandler:
             logger.warning("⚠️ No valid documents to embed after filtering")
             return
         
+        # ------------------------------------------------------------------
+        # NEW: Store full content in local SQLite content store
+        # This ensures we have the content even if Pinecone only creates vectors
+        # ------------------------------------------------------------------
+        try:
+            from .content_store import ContentStore
+            content_store = ContentStore()
+            
+            # Prepare chunks for content store (need to flatten structure)
+            content_chunks_for_sqlite = []
+            for i, (doc, meta) in enumerate(zip(filtered_documents, filtered_metadatas)):
+                # Create a clean copy for SQLite
+                chunk_data = meta.copy()
+                chunk_data['content'] = doc
+                # Ensure chunk_id exists
+                if 'chunk_id' not in chunk_data:
+                    chunk_data['chunk_id'] = f"doc_{i}"
+                
+                content_chunks_for_sqlite.append(chunk_data)
+            
+            # Batch store to SQLite
+            logger.info(f"💾 Storing {len(content_chunks_for_sqlite)} chunks in local SQLite content store...")
+            store_result = content_store.batch_store(content_chunks_for_sqlite)
+            logger.info(f"   ✅ SQLite Storage: {store_result.get('success', 0)} success, {store_result.get('failed', 0)} failed")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to store chunks in SQLite: {e}")
+            # Don't fail the whole process, continue to Pinecone upload
+            
         logger.info(f"💾 Preparing to store {len(filtered_documents)} chunks in Pinecone (batched)")
         logger.info(f"   • Batch size: {batch_size}")
         logger.info(f"   • Total batches: {(len(filtered_documents) + batch_size - 1) // batch_size}")
@@ -693,107 +818,143 @@ class PineconeHandler:
             import traceback
             logger.error(traceback.format_exc())
     
+    def re_rank_documents(self, query: str, docs: List[Dict[str, Any]], top_k: int = 5) -> List[Dict[str, Any]]:
+        """
+        Re-rank documents using Cross-Encoder.
+        
+        Args:
+            query: The search query
+            docs: List of document dicts (must have 'content')
+            top_k: Number of docs to return
+            
+        Returns:
+            Re-ranked top_k documents
+        """
+        if not docs:
+            return []
+            
+        if not SENTENCE_TRANSFORMERS_AVAILABLE:
+            logger.warning("⚠️ Sentence Transformers not available, skipping re-ranking")
+            return docs[:top_k]
+            
+        try:
+            model = CrossEncoderSingleton.get_instance()
+            if not model:
+                return docs[:top_k]
+                
+            # Prepare pairs for scoring: (query, doc_content)
+            # Limit content length to avoid token limits (first 500 words is usually enough for relevance)
+            pairs = [(query, d.get('content', '')[:2000]) for d in docs]
+            
+            # Predict scores
+            scores = model.predict(pairs)
+            
+            # Combine docs with scores and sort
+            doc_scores = list(zip(docs, scores))
+            doc_scores.sort(key=lambda x: x[1], reverse=True)
+            
+            logger.info(f"📊 Re-ranking results (Top 3 scores): {[round(s, 3) for _, s in doc_scores[:3]]}")
+            
+            return [d for d, s in doc_scores[:top_k]]
+            
+        except Exception as e:
+            logger.error(f"❌ Re-ranking failed: {e}")
+            return docs[:top_k]
+
     def query_documents(self, query_text: str, k: int = 5, 
                        filter_metadata: Optional[Dict[str, Any]] = None,
-                       use_content_store: bool = True) -> List[Dict[str, Any]]:
+                       use_content_store: bool = True,
+                       re_rank: bool = False,
+                       fetch_k: int = 30) -> List[Dict[str, Any]]:
         """
         Query for most relevant documents
         
         Args:
             query_text: Text to search for
-            k: Number of results to return
+            k: Number of results to return (final)
             filter_metadata: Optional dict to filter by metadata fields
             use_content_store: If True, enrich with full content from content store
+            re_rank: If True, fetch 'fetch_k' docs and re-rank to 'k'
+            fetch_k: Candidates to fetch if re_ranking (default 20)
         """
+        logger.info(f"[ENTRY] query_documents called with: k={k}, fetch_k={fetch_k}, re_rank={re_rank}, query_text='{query_text[:60]}', use_content_store={use_content_store}, filter_metadata={filter_metadata}")
         try:
             vectorstore = self._get_vectorstore()
             
             # Build filter if provided
             pinecone_filter = None
             if filter_metadata:
-                # Convert filter to Pinecone filter format
-                pinecone_filter = {}
-                for key, value in filter_metadata.items():
-                    if isinstance(value, str):
-                        # Pinecone supports substring matching with $regex
-                        # For simple substring matching, we'll use $in with a list
-                        # But for now, use exact match
-                        pinecone_filter[key] = {"$eq": value}
-                    else:
-                        pinecone_filter[key] = {"$eq": value}
+                pinecone_filter = filter_metadata
+                
+            # Determine initial fetch count
+            initial_k = fetch_k if re_rank else k
             
-            # Query with similarity search
-            if pinecone_filter:
-                docs = vectorstore.similarity_search(
-                    query_text,
-                    k=k * 3,  # Fetch more to filter
-                    filter=pinecone_filter
-                )
-            else:
-                docs = vectorstore.similarity_search(query_text, k=k)
+            logger.info(f"🔍 [RETRIEVAL-DEBUG] Querying Pinecone for {initial_k} candidates (re_rank={re_rank})")
+            logger.info(f"   Query: '{query_text}'")
             
-            # Format results
+            docs = vectorstore.similarity_search_with_score(
+                query_text,
+                k=initial_k,
+                filter=pinecone_filter
+            )
+            
+            logger.info(f"✅ [RETRIEVAL-DEBUG] Pinecone returned {len(docs)} candidates")
+            
+            # Enrich with content store
+            # We do this logic manually here to match existing pattern or map it
+            # But wait, logic below processes 'docs' which are (Document, score) tuples
+            
             formatted_results = []
-            for doc in docs:
+            enriched_count = 0
+            
+            logger.info(f"💾 [RETRIEVAL-DEBUG] Starting SQL Content Store enrichment for {len(docs)} docs...")
+            
+            for doc, score in docs:
                 chunk = {
                     "content": doc.page_content,
                     "metadata": doc.metadata,
-                    "distance": 0.0  # Pinecone doesn't return distances in similarity_search
+                    "score": float(score)
                 }
                 
-                # Enrich with full content from content store if available
-                if use_content_store:
+                # Enrich from SQLite if requested
+                if use_content_store and self.content_store:
                     try:
-                        from .content_store import ContentStore
-                        content_store = ContentStore()
-                        
+                        # Extract IDs
                         chunk_id = doc.metadata.get("chunk_id")
                         filename = doc.metadata.get("filename")
-                        chapter = doc.metadata.get("chapter")
                         
+                        full_content = None
                         if chunk_id and filename:
-                            full_content = content_store.get_chunk(
-                                chunk_id=chunk_id,
-                                filename=filename,
-                                chapter=chapter
-                            )
-                            if full_content:
-                                chunk["content"] = full_content
-                                chunk["metadata"]["_content_source"] = "content_store"
-                            else:
-                                chunk["metadata"]["_content_source"] = "content_preview"
+                            full_content = self.content_store.get_chunk(chunk_id, filename)
+                            
+                        if full_content:
+                            # Use full content
+                            chunk["content"] = full_content
+                            chunk["_content_source"] = "content_store"
+                            enriched_count += 1
+                        else:
+                            # Fallback: Content might be truncated in Pinecone metadata
+                            chunk["_content_source"] = "pinecone_metadata"
+                            pass
+                            
                     except Exception as e:
-                        logger.debug(f"⚠️ Content store lookup failed: {e}, using preview")
-                        chunk["metadata"]["_content_source"] = "content_preview"
+                        logger.warning(f"⚠️ Content store lookup failed for {filename}/{chunk_id}: {e}")
                 
-                # Apply additional metadata filtering if needed (for substring matching)
-                if filter_metadata:
-                    metadata = chunk["metadata"]
-                    matches = True
-                    for key, value in filter_metadata.items():
-                        if key not in metadata:
-                            matches = False
-                            break
-                        # Support substring matching for string fields
-                        if isinstance(metadata[key], str) and isinstance(value, str):
-                            if value.lower() not in metadata[key].lower():
-                                matches = False
-                                break
-                        elif metadata[key] != value:
-                            matches = False
-                            break
-                    
-                    if matches:
-                        formatted_results.append(chunk)
-                else:
-                    formatted_results.append(chunk)
-                
-                # Stop if we have enough results
-                if len(formatted_results) >= k:
-                    break
+                # Deduplication logic (basic map check seen in previous code, simplified here)
+                # Actually, simplest is just to append
+                formatted_results.append(chunk)
+
+            logger.info(f"✅ [RETRIEVAL-DEBUG] Enrichment complete. {enriched_count}/{len(docs)} enriched from SQL.")
+
+            # Re-rank if requested
+            if re_rank and len(formatted_results) > 0:
+                logger.info(f"🔄 [RETRIEVAL-DEBUG] Re-ranking {len(formatted_results)} candidates -> Top {k}...")
+                formatted_results = self.re_rank_documents(query_text, formatted_results, top_k=k)
+            else:
+                formatted_results = formatted_results[:k]
             
-            logger.info(f"✅ Found {len(formatted_results)} relevant chunks")
-            return formatted_results[:k]
+            logger.info(f"✅ [RETRIEVAL-DEBUG] Final Selection: {len(formatted_results)} relevant chunks")
+            return formatted_results
             
         except Exception as e:
             logger.error(f"❌ Query failed: {e}")
@@ -847,8 +1008,8 @@ class PineconeHandler:
                 }
             )
             
-            # Retrieve diverse chunks
-            docs = retriever.get_relevant_documents(query_text)
+            # Retrieve diverse chunks (using new LangChain API)
+            docs = retriever.invoke(query_text)
             
             # Format results
             formatted_results = []

@@ -1,0 +1,240 @@
+@import "tailwindcss";
+
+@theme {
+  --radius: 0.5rem;
+}
+
+:root {
+  /* Light Theme - Oatmilk × Japanese Minimal */
+  --bg: 40 33% 98%;
+  /* Oatmilk */
+  --bg-secondary: 40 30% 96%;
+  /* Slightly darker oat */
+
+  --card: 40 30% 97%;
+  --card-border: 25 20% 85%;
+
+  --text: 24 16% 32%;
+  /* Soft warm brown */
+  --text-muted: 24 10% 46%;
+
+  --accent: 18 70% 55%;
+  /* Soft Coral/Copper */
+  --accent-hover: 18 75% 48%;
+
+  --sidebar-bg: 40 30% 96%;
+  --sidebar-active: 30 30% 90%;
+
+  --input-bg: 40 30% 97%;
+  --input-border: 25 15% 80%;
+
+  --modal-overlay: 30 20% 20% / 0.6;
+  --modal-bg: 40 30% 97%;
+
+  --destructive: 0 84.2% 60.2%;
+}
+
+.dark {
+  /* Dark Theme - Charcoal × Gold Luxury */
+  --bg: 220 15% 10%;
+  /* Charcoal */
+  --bg-secondary: 220 12% 14%;
+
+  --card: 220 12% 13%;
+  --card-border: 40 10% 20%;
+
+  --text: 40 20% 90%;
+  /* Warm off-white */
+  --text-muted: 40 15% 70%;
+
+  --accent: 35 75% 55%;
+  /* Gold/Amber Glow */
+  --accent-hover: 35 80% 48%;
+
+  --sidebar-bg: 220 12% 12%;
+  --sidebar-active: 220 10% 18%;
+
+  --input-bg: 220 12% 14%;
+  --input-border: 35 10% 40%;
+
+  --modal-overlay: 220 20% 5% / 0.75;
+  --modal-bg: 220 12% 13%;
+
+  --destructive: 0 62.8% 30.6%;
+}
+
+* {
+  border-color: hsl(var(--card-border));
+}
+
+body {
+  background-color: hsl(var(--bg));
+  color: hsl(var(--text));
+}
+
+/* Ensure dropdowns and popovers have solid backgrounds */
+[data-radix-popper-content-wrapper] {
+  --tw-bg-opacity: 1 !important;
+}
+
+[role="listbox"],
+[data-radix-select-content] {
+  background-color: hsl(var(--card)) !important;
+}
+
+/* Answer Content Styling */
+h3 {
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: hsl(var(--text));
+}
+
+/* Bullet points in answers */
+ul {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+li {
+  margin: 0.5rem 0;
+  line-height: 1.6;
+}
+
+/* Bold text in bullets (main idea) */
+li strong {
+  font-weight: 600;
+  color: hsl(var(--text));
+}
+
+/* Mermaid Diagram Wrapper */
+.mermaid-wrapper {
+  margin: 1.5rem 0;
+  border-radius: 12px;
+  border: 1px solid hsl(var(--card-border));
+  background: hsl(var(--bg-secondary));
+  overflow: hidden;
+}
+
+/* Zoom Controls */
+.mermaid-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid hsl(var(--card-border));
+  background: hsl(var(--card));
+}
+
+.mermaid-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid hsl(var(--card-border));
+  background: hsl(var(--bg));
+  color: hsl(var(--text));
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mermaid-control-btn:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--bg));
+  border-color: hsl(var(--accent));
+}
+
+.mermaid-zoom-level {
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--text-muted));
+  min-width: 45px;
+  text-align: center;
+}
+
+/* Diagram Container (scrollable/pannable area) */
+.mermaid-container {
+  overflow: auto;
+  max-height: 500px;
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* The actual diagram */
+.mermaid-diagram {
+  display: inline-block;
+  transition: transform 0.1s ease-out;
+  padding: 1rem;
+}
+
+.mermaid-diagram svg {
+  display: block;
+  max-width: none !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 300px;
+}
+
+/* Ensure text is readable - larger fonts */
+.mermaid-diagram text,
+.mermaid-diagram tspan {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  fill: #111827 !important;
+  letter-spacing: 0.01em !important;
+}
+
+.mermaid-diagram .nodeLabel,
+.mermaid-diagram .edgeLabel {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: #111827 !important;
+}
+
+.mermaid-diagram .label {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+}
+
+.mermaid-diagram foreignObject div {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: #111827 !important;
+}
+
+/* Node styling */
+.mermaid-diagram .node rect,
+.mermaid-diagram .node circle,
+.mermaid-diagram .node ellipse,
+.mermaid-diagram .node polygon {
+  stroke-width: 1.5px !important;
+}
+
+/* Hide small nested rectangles */
+.mermaid-diagram rect[width="20"],
+.mermaid-diagram rect[width="30"],
+.mermaid-diagram rect[height="20"] {
+  display: none !important;
+}
+
+/* Mobile adjustments */
+@media (max-width: 640px) {
+  .mermaid-container {
+    max-height: 400px;
+  }
+  
+  .mermaid-controls {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+  
+  .mermaid-control-btn {
+    width: 28px;
+    height: 28px;
+  }
+}

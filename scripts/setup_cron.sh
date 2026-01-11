@@ -6,9 +6,9 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 CRON_SCRIPT="$SCRIPT_DIR/run_current_affairs_downloader.sh"
 
-# Cron schedule: Run on 15th of every month at 2:00 AM
+# Cron schedule: Run on 2nd of every month at 2:00 AM
 # Format: minute hour day month weekday
-CRON_SCHEDULE="0 2 15 * *"
+CRON_SCHEDULE="0 2 2 * *"
 
 # Create cron job entry
 CRON_JOB="$CRON_SCHEDULE $CRON_SCRIPT"
@@ -17,7 +17,7 @@ echo "=========================================="
 echo "Setting up Current Affairs Cron Job"
 echo "=========================================="
 echo ""
-echo "Schedule: 15th of every month at 2:00 AM"
+echo "Schedule: 2nd of every month at 2:00 AM"
 echo "Script: $CRON_SCRIPT"
 echo ""
 
@@ -44,7 +44,7 @@ fi
 echo "✅ Cron job added successfully!"
 echo ""
 echo "Cron job details:"
-echo "   Schedule: $CRON_SCHEDULE (15th of every month at 2:00 AM)"
+echo "   Schedule: $CRON_SCHEDULE (2nd of every month at 2:00 AM)"
 echo "   Command: $CRON_SCRIPT"
 echo ""
 echo "To view all cron jobs, run: crontab -l"

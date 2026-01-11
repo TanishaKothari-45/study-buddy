@@ -28,12 +28,13 @@ This directory contains scripts to automatically download and process the latest
 ## What It Does
 
 The cron job will:
-1. Run on the **10th of every month at 2:00 AM**
+1. Run on the **1st of every month at 2:00 AM**
 2. Download the latest VisionIAS monthly workbook PDF
 3. Extract Geography and Environment sections (pages 27-37)
-4. Process the extracted PDF through chunking and enrichment
-5. Store chunks in ChromaDB collection `geography_docs_enriched`
-6. Log all output to `logs/current_affairs_YYYYMMDD_HHMMSS.log`
+4. Process the extracted PDF through chunking and metadata classification
+5. Store embeddings in Pinecone index
+6. Store full content in SQLite database (content_store)
+7. Log all output to `logs/current_affairs_YYYYMMDD_HHMMSS.log`
 
 ## Manual Testing
 
@@ -99,9 +100,9 @@ crontab -e
 ```
 
 Cron format: `minute hour day month weekday`
-- Current: `0 2 10 * *` (2:00 AM on 10th of every month)
+- Current: `0 2 1 * *` (2:00 AM on 1st of every month)
 - Examples:
-  - `0 3 10 * *` - 3:00 AM on 10th
-  - `0 2 10,20 * *` - 2:00 AM on 10th and 20th
-  - `0 2 10 1,4,7,10 *` - 2:00 AM on 10th of Jan, Apr, Jul, Oct (quarterly)
+  - `0 3 1 * *` - 3:00 AM on 1st
+  - `0 2 1,15 * *` - 2:00 AM on 1st and 15th
+  - `0 2 1 1,4,7,10 *` - 2:00 AM on 1st of Jan, Apr, Jul, Oct (quarterly)
 

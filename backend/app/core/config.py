@@ -1,8 +1,12 @@
 """
-Application configuration
+Application configuration with environment variable validation
 """
 from pydantic_settings import BaseSettings
+from pydantic import Field, validator, ValidationError
 from pathlib import Path
+from typing import Optional
+import secrets
+import sys
 from .env import load_env_vars
 
 # Load environment variables first
@@ -11,17 +15,43 @@ load_env_vars()
 class Settings(BaseSettings):
     # API Settings
     PROJECT_NAME: str = "Study Buddy AI"
-    OPENAI_API_KEY: str = None  # Will be loaded from environment
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"  # Ignore extra fields from .env that aren't in the model
     
+    # Required API Keys (will fail if not set)
+    OPENAI_API_KEY: str = Field(..., min_length=20)
+    GEMINI_API_KEY: str = Field(..., min_length=20)
+    PINECONE_API_KEY: str = Field(..., min_length=20)
+    
+    # JWT Authentication Settings (CRITICAL: Must be set in production)
+    JWT_SECRET_KEY: str = Field(..., min_length=32)
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 2880  # 2 days (48 hours)
+    
+    # API Key Encryption (for user-specific Gemini keys)
+    ENCRYPTION_KEY: Optional[str] = Field(None, min_length=32)
+    
+    @validator('JWT_SECRET_KEY')
+    def validate_jwt_secret(cls, v):
+        if len(v) < 32:
+            raise ValueError("JWT_SECRET_KEY must be at least 32 characters for security")
+        # Warn if using a weak/default secret
+        if v in ["your-secret-key-here", "changeme", "secret"]:
+            print("⚠️  WARNING: Using a weak JWT_SECRET_KEY. Generate a secure one!")
+        return v
+    
+    # Optional API Keys
+    GNEWS_API_KEY: Optional[str] = None
+    NEWS_API_KEY: Optional[str] = None
+    THENEWSAPI_KEY: Optional[str] = None
+
     # Directory Settings
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
+
+    class Config:
+        env_file = str(Path(__file__).resolve().parent.parent.parent / ".env")
+        env_file_encoding = "utf-8"
+        case_sensitive = True
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
-    DB_DIR: Path = BASE_DIR / "data" / "chroma"
+    DB_DIR: Path = BASE_DIR / "data" / "databases"
     
     # PDF Chunking Settings
     CHUNK_SIZE_WORDS: int = 500  # Standard chunk size in words
@@ -45,10 +75,15 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     
     # Model Selection Strategy: Use mini for 90% of tasks, large only for final question generation
-    LLM_MODEL_SMALL: str = "gpt-4o-mini"  # For most tasks (embeddings, chunking, evaluation, etc.)
+    # OpenAI Models
+    LLM_MODEL_SMALL: str = "gpt-4o-mini"  # For most tasks (embeddings, chunking, query, etc.)
     LLM_MODEL_LARGE: str = "gpt-4o"  # For final test/question generation only
     
-    # Legacy: defaults to small model for backward compatibility
+    # Gemini Models
+    GEMINI_MODEL_PRO: str = "gemini-2.5-pro"  # For mains answer & evaluation (superior reasoning)
+    GEMINI_MODEL_FLASH: str = "gemini-2.5-flash"  # For speed-critical tasks (if needed)
+    
+    # Default LLM (for backward compatibility)
     LLM_MODEL: str = "gpt-4o-mini"
     
     # Fallback Model
@@ -56,6 +91,10 @@ class Settings(BaseSettings):
     
     # RAG Settings
     TOP_K_CHUNKS: int = 8  # Increased to get more context
+    
+    # Redis Settings
+    REDIS_URL: str = "redis://localhost:6379"
+    REDIS_PORT: int = 6379
     
     def setup_directories(self):
         """Create necessary directories"""

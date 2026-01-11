@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@radix-ui/react-progress": "^1.1.8",
+    "mermaid": "^11.12.1",
+    "rehype-mermaid": "^3.0.0"
+  }
+}

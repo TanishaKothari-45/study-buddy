@@ -48,37 +48,63 @@ def extract_relevant_sections(pdf_path: str, keywords: List[str] = None, output_
         
         # Extract all section headings with page numbers from TOC
         all_sections = []
-        for line in lines:
+        # Also track section headers without page numbers (e.g., "5. ENVIRONMENT")
+        section_headers = {}  # Maps major section number to (name, line_index)
+        
+        for idx, line in enumerate(lines):
+            # First, check for section headers like "5. ENVIRONMENT" (no page number)
+            header_match = re.match(r'^(\d+)\.\s*([A-Z][A-Z\s&]+)$', line.strip())
+            if header_match:
+                major_num = int(header_match.group(1))
+                section_name = header_match.group(2).strip()
+                section_headers[major_num] = (section_name, idx)
+                logger.debug(f"   Found section header: {major_num}. {section_name}")
+                continue
+            
             # Look for "Section Name ... PageNumber" pattern
-            # Handle patterns like "5.4. Environment Audit Rules, 2025 29" or "Geography 45"
-            # Match: any text, then optional special chars/whitespace, then 1-3 digits at the end
-            # More flexible: allow special characters between name and page number
-            match = re.search(r'(.+?)[\s\x08\u200b\u200c\u200d\ufeff]*(\d{1,3})\s*$', line.strip())
+            # Handle patterns like "5.1. 10 Years of SDGs... 30" 
+            match = re.search(r'(.+?)[\s\x08\u200b\u200c\u200d\ufeff\.…�]+(\d{1,3})\s*$', line.strip())
             if match:
                 section_name = match.group(1).strip()
                 # Clean special characters from section name
-                section_name = re.sub(r'[\x08\u200b\u200c\u200d\ufeff]+', '', section_name).strip()
+                section_name = re.sub(r'[\x08\u200b\u200c\u200d\ufeff…�]+', '', section_name).strip()
+                # Remove trailing dots
+                section_name = section_name.rstrip('.')
                 page_num = int(match.group(2))
                 # Filter out lines that are just numbers or too short
-                if len(section_name) > 2 and not section_name.isdigit():
-                    all_sections.append((section_name, page_num))
+                if len(section_name) > 2 and not section_name.isdigit() and page_num > 0:
+                    all_sections.append((section_name, page_num, idx))
         
-        logger.debug(f"   Found {len(all_sections)} total sections in TOC")
+        logger.debug(f"   Found {len(all_sections)} sections with page numbers")
+        logger.debug(f"   Found {len(section_headers)} section headers")
         
-        # Find target sections (Environment, Geography) - flexible matching
+        # Find target sections - check both section headers and items
         target_sections = []
-        for section_name, page_num in all_sections:
-            section_lower = section_name.lower()
+        
+        # First, check section headers (e.g., "5. ENVIRONMENT")
+        for major_num, (header_name, header_idx) in section_headers.items():
+            header_lower = header_name.lower()
             for kw in keywords:
-                # Case-insensitive match - keyword can appear anywhere in section name
-                if kw.lower() in section_lower:
-                    target_sections.append((kw, page_num, section_name))
-                    logger.info(f"   ✅ Found '{kw}' section: '{section_name}' at page {page_num}")
+                if kw.lower() in header_lower:
+                    # Find the first sub-section under this header to get the page number
+                    # Look for items like "5.1. ..." 
+                    for section_name, page_num, sec_idx in all_sections:
+                        if section_name.startswith(f"{major_num}."):
+                            target_sections.append((kw, page_num, f"{major_num}. {header_name}"))
+                            logger.info(f"   ✅ Found '{kw}' section: '{major_num}. {header_name}' starting at page {page_num}")
+                            break
                     break
         
-        # Debug: show some sample sections if not found
-        if not target_sections and all_sections:
-            logger.debug(f"   Sample sections found: {all_sections[:10]}")
+        # Also check individual section items for keywords
+        for section_name, page_num, sec_idx in all_sections:
+            section_lower = section_name.lower()
+            for kw in keywords:
+                if kw.lower() in section_lower:
+                    # Avoid duplicates
+                    if not any(kw == t[0] and page_num == t[1] for t in target_sections):
+                        target_sections.append((kw, page_num, section_name))
+                        logger.info(f"   ✅ Found '{kw}' in section: '{section_name}' at page {page_num}")
+                    break
         
         if not target_sections:
             logger.warning(f"⚠️ No {' or '.join(keywords)} sections found in TOC")
@@ -87,6 +113,7 @@ def extract_relevant_sections(pdf_path: str, keywords: List[str] = None, output_
         
         # Step 3: Determine page ranges for each target section
         # Sort all sections by page number to find boundaries
+        # all_sections now has (name, page_num, idx) tuples
         all_sections_sorted = sorted(all_sections, key=lambda x: x[1])
         page_ranges = []
         
@@ -102,7 +129,7 @@ def extract_relevant_sections(pdf_path: str, keywords: List[str] = None, output_
             end_page = total_pages
             next_section = None
             
-            for name, page in all_sections_sorted:
+            for name, page, idx in all_sections_sorted:
                 if page > start_page:
                     # Check if this is a different major section
                     if current_major_num:
@@ -124,7 +151,7 @@ def extract_relevant_sections(pdf_path: str, keywords: List[str] = None, output_
             
             # If we didn't find a different major section, look for next section that's far enough away
             if end_page == total_pages:
-                for name, page in all_sections_sorted:
+                for name, page, idx in all_sections_sorted:
                     if page > start_page + 5:  # At least 5 pages away
                         end_page = page - 1
                         next_section = name
@@ -136,7 +163,7 @@ def extract_relevant_sections(pdf_path: str, keywords: List[str] = None, output_
             actual_start_page = start_page
             if current_major_num:
                 # Look for the first subsection of this major section
-                for name, page in all_sections_sorted:
+                for name, page, idx in all_sections_sorted:
                     name_match = re.match(r'^(\d+)\.', name)
                     if name_match:
                         section_major_num = int(name_match.group(1))

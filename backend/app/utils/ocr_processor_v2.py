@@ -1,6 +1,6 @@
 """
 ROI Processing Module
-Handles ROI extraction and Google Vision API OCR
+Handles ROI extraction and Google Vision API OCR (lazy-loaded)
 """
 import os
 os.environ['OMP_NUM_THREADS'] = '1'
@@ -11,12 +11,9 @@ import numpy as np
 import logging
 import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from PIL import Image
 from pathlib import Path
-
-# Google Vision API
-from google.cloud import vision
 
 # Load environment variables
 from ..core.env import load_env_vars
@@ -24,30 +21,49 @@ load_env_vars()
 
 logger = logging.getLogger(__name__)
 
-# Get Google Vision credentials path from environment or use default
-GOOGLE_CREDENTIALS_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-if not GOOGLE_CREDENTIALS_PATH:
-    # Try to find JSON file in project root
-    project_root = Path(__file__).resolve().parent.parent.parent.parent
-    default_cred_path = project_root / "upsc-answer-6cc707343a4d.json"
-    if default_cred_path.exists():
-        GOOGLE_CREDENTIALS_PATH = str(default_cred_path)
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = GOOGLE_CREDENTIALS_PATH
-        logger.info(f"✅ Found Google credentials at: {GOOGLE_CREDENTIALS_PATH}")
-    else:
-        logger.warning("⚠️ GOOGLE_APPLICATION_CREDENTIALS not set and default file not found")
-        logger.warning(f"   Looking for: {default_cred_path}")
-else:
-    logger.info(f"✅ Google credentials path from env: {GOOGLE_CREDENTIALS_PATH}")
+# Google Vision client (lazy-loaded when needed)
+_vision_client: Optional[Any] = None
 
-# Initialize Google Vision client
-try:
-    vision_client = vision.ImageAnnotatorClient()
-    logger.info("✅ Google Vision API client initialized successfully")
-except Exception as e:
-    logger.error(f"❌ Failed to initialize Google Vision client: {e}")
-    logger.error("   Make sure GOOGLE_APPLICATION_CREDENTIALS is set to your JSON file path")
-    vision_client = None
+
+def _get_vision_client():
+    """
+    Lazy-load Google Vision API client only when actually needed.
+    This avoids startup overhead if Gemini OCR is used instead.
+    """
+    global _vision_client
+    
+    if _vision_client is not None:
+        return _vision_client
+    
+    try:
+        # Import only when needed
+        from google.cloud import vision
+        
+        # Get Google Vision credentials path from environment or use default
+        GOOGLE_CREDENTIALS_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        if not GOOGLE_CREDENTIALS_PATH:
+            # Try to find JSON file in project root
+            project_root = Path(__file__).resolve().parent.parent.parent.parent
+            default_cred_path = project_root / "upsc-answer-6cc707343a4d.json"
+            if default_cred_path.exists():
+                GOOGLE_CREDENTIALS_PATH = str(default_cred_path)
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = GOOGLE_CREDENTIALS_PATH
+                logger.info(f"✅ Found Google credentials at: {GOOGLE_CREDENTIALS_PATH}")
+            else:
+                logger.warning("⚠️ GOOGLE_APPLICATION_CREDENTIALS not set and default file not found")
+                logger.warning(f"   Looking for: {default_cred_path}")
+        else:
+            logger.info(f"✅ Google credentials path from env: {GOOGLE_CREDENTIALS_PATH}")
+        
+        # Initialize Google Vision client
+        _vision_client = vision.ImageAnnotatorClient()
+        logger.info("✅ Google Vision API client initialized successfully (lazy-loaded)")
+        return _vision_client
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize Google Vision client: {e}")
+        logger.error("   Make sure GOOGLE_APPLICATION_CREDENTIALS is set to your JSON file path")
+        raise Exception(f"Google Vision client initialization failed: {e}")
 
 
 def vision_blocks_and_fulltext(roi_np: np.ndarray) -> Dict[str, Any]:
@@ -72,8 +88,8 @@ def vision_blocks_and_fulltext(roi_np: np.ndarray) -> Dict[str, Any]:
             "height": H
         }
     """
-    if vision_client is None:
-        raise Exception("Google Vision client not initialized. Check GOOGLE_APPLICATION_CREDENTIALS")
+    # Lazy-load vision client only when this function is called
+    vision_client = _get_vision_client()
     
     try:
         logger.info(f"      📸 Sending FULL ROI image to Google Vision")

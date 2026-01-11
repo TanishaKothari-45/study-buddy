@@ -14,9 +14,9 @@ from pathlib import Path
 
 # Default path (adjust if needed)
 # Path relative to this file: backend/app/utils/upsc_patterns/loader.py
-# JSON file is at: study-buddy/geography_prelims_pyq_patterns.json
+# JSON file is at: study-buddy/config/geography_prelims_pyq_patterns.json
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent
-DEFAULT_PATH = BASE_DIR / "geography_prelims_pyq_patterns.json"
+DEFAULT_PATH = BASE_DIR / "config" / "geography_prelims_pyq_patterns.json"
 
 def load_pattern_data(file_path: Optional[str] = None) -> Dict:
     """Load the entire pattern dataset from JSON."""

@@ -1,263 +1,462 @@
 """
-UPSC Mains Answer Generation endpoint
+mains_answer.py
+Main handler for mains answer generation using Gemini 2.5 Pro.
+
+Uses MCP current affairs server for latest news (not web_searcher).
+
+Usage:
+  from app.prompts.mains_prompt import assemble_mains_prompt
+  from mains_answer import generate_answer
+
+Config:
+  export GEMINI_API_KEY=...
 """
-from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+
 import os
+import sys
 import logging
-import time
-from openai import OpenAI, RateLimitError
+import re
+import json
+import redis.asyncio as redis
+from uuid import uuid4
+from typing import Optional, List, Dict, Any
+from pathlib import Path
+from fastapi import APIRouter, Request, HTTPException, Depends
+from ..models.mains import MainsAnswerRequest, MainsAnswerResponse
+from ..utils.error_handlers import clean_gemini_error
 
+logger = logging.getLogger("mains_answer")
+logging.basicConfig(level=logging.INFO)
+
+from ..prompts.mains_prompt import assemble_mains_prompt
+from ..utils.context_retriever import retrieve_context_for_question
+from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
+from ..utils.map_proxy import parse_and_generate_maps, check_map_service_health
+from ..utils.cache_manager import get_cache_manager
+from ..utils.answer_compressor import compress_answer
+from ..utils.user_api_key import get_gemini_api_key_for_request
 from ..core.config import settings
-from ..routes.query import deduplicate_chunks
+from ..core.deps import get_current_user
+from ..models.user import User
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
-logger = logging.getLogger(__name__)
+# Import Gemini client
+try:
+    from ..gemini_core.gemini_client import GeminiClient
+    from ..gemini_core import settings_gemini_key
+    GEMINI_API_KEY = settings_gemini_key.GEMINI_API_KEY
+except ImportError as e:
+    GeminiClient = None
+    GEMINI_API_KEY = None
+    logger.warning(f"Could not import Gemini client: {e}")
+
+# OpenAI API key for question parser
+OPENAI_API_KEY = settings.OPENAI_API_KEY
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
+# -- Utility small guards and postprocessors --
+def enforce_diagrams(answer: str, required: int = 1) -> str:
+    """
+    Ensure at least `required` Mermaid diagrams exist in the answer.
+    If not, insert a safe, minimal Mermaid diagram (flowchart)
+    in a stable location (after first sub-heading and before bullets).
+    """
+    # quick check: count existing mermaid fenced blocks
+    mermaid_count = answer.count("```mermaid")
+    if mermaid_count >= required:
+        return answer
+    
+    return answer
+
+def count_words_excluding_visuals(text: str) -> int:
+    """
+    Count words in text, EXCLUDING all visual content:
+    - Mermaid diagram blocks (```mermaid ... ```)
+    - Map JSON blocks (```map-json ... ```)
+    - Any code blocks (``` ... ```)
+    - Base64 images (![...](data:image/...))
+    - Inline base64 data
+    
+    This gives accurate word count for the actual prose content only.
+    """
+    cleaned_text = text
+    
+    # Remove ```mermaid ... ``` blocks
+    cleaned_text = re.sub(r'```mermaid[\s\S]*?```', '', cleaned_text)
+    
+    # Remove ```map-json ... ``` blocks
+    cleaned_text = re.sub(r'```map-json[\s\S]*?```', '', cleaned_text)
+    
+    # Remove any other code blocks
+    cleaned_text = re.sub(r'```[\s\S]*?```', '', cleaned_text)
+    
+    # Remove base64 images: ![alt](data:image/...) 
+    cleaned_text = re.sub(r'!\[[^\]]*\]\(data:image[^\)]+\)', '', cleaned_text)
+    
+    # Remove any remaining base64 data strings
+    cleaned_text = re.sub(r'data:image/[^;\s]+;base64,[A-Za-z0-9+/=]+', '', cleaned_text)
+    
+    # Count words in remaining prose
+    return len(cleaned_text.split())
+
+from ..utils.langsmith_tracer import trace_gemini
+
+@trace_gemini("mains_answer_generation")
+async def generate_answer(
+    question: str,
+    static_context: Optional[str] = None,
+    dynamic_context: Optional[str] = None,
+    word_count: int = 350,
+    gemini_client: Optional[Any] = None,
+    map_service_healthy: bool = True
+) -> dict:
+    """
+    Top-level function to generate a mains answer using Gemini 2.5 Pro.
+    
+    Args:
+        question: The mains question to answer
+        static_context: Retrieved context 
+        dynamic_context: Current affairs context
+        word_count: Target word count for the answer
+        gemini_client: GeminiClient instance (required)
+        map_service_healthy: Whether map service is available (default: True)
+    
+    Returns:
+        { "answer": str, "sources": list }
+    """
+    if not gemini_client:
+        raise RuntimeError("GeminiClient is required for answer generation")
+
+    # 1) Assemble prompt
+    prompt_pair = assemble_mains_prompt(
+        question=question,
+        context=static_context,
+        current_bullets=dynamic_context or "",  # Pass current affairs separately
+        word_count=word_count
+    )
+
+    # 2) Call Gemini 2.5 Pro with timeout protection
+    answer_text = ""
+    sources = []
+
+    try:
+        # Compose final messages (system + user)
+        system_msg = prompt_pair["system"]
+        user_msg = prompt_pair["user"]
+
+        logger.info(f"🤖 Calling Gemini 2.5 Pro for answer generation...")
+        
+        # Call Gemini with timeout protection (60 seconds)
+        import asyncio
+        try:
+            response = await asyncio.wait_for(
+                gemini_client.generate_response(
+                    user_prompt=user_msg,
+                    system_prompt=system_msg,
+                    temperature=0.15,  # Low temperature for consistency
+                    max_retries=2  # Retry only Gemini call, not the whole pipeline
+                ),
+                timeout=60.0  # 60 second timeout
+            )
+        except asyncio.TimeoutError:
+            logger.error("❌ Gemini call timed out after 60 seconds")
+            raise RuntimeError("Answer generation timed out after 60 seconds. The AI service is taking longer than expected. Please try again with a simpler question or try again later.")
+        
+        answer_text = response.strip()
+        logger.info(f"✅ Gemini response received: {len(answer_text)} chars")
+        
+    except RuntimeError:
+        # Re-raise RuntimeError (timeout or other runtime issues)
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"❌ Gemini call failed: {error_msg}")
+        # Clean error message for user display
+        clean_msg = clean_gemini_error(error_msg)
+        # Re-raise with cleaned message
+        raise RuntimeError(clean_msg)
+
+    # 3) Post-processing: ensure diagrams and word-count
+    answer_text = enforce_diagrams(answer_text, required=1)
+    
+    # 4) Process map-json blocks (only if map service is healthy)
+    if map_service_healthy:
+        logger.info("🗺️  Checking for map-json blocks in answer...")
+        try:
+            answer_text = await parse_and_generate_maps(answer_text)
+            logger.info("✅ Map processing completed")
+        except Exception as e:
+            logger.error(f"❌ Map processing failed: {str(e)}", exc_info=True)
+            # Continue with answer even if map generation fails
+    else:
+        # Map service unavailable - skip map generation
+        logger.warning("⚠️ Map service unavailable - skipping map generation")
+        # Replace map-json blocks with error message
+        import re
+        map_json_pattern = r'```map-json[\s\S]*?```'
+        if re.search(map_json_pattern, answer_text):
+            answer_text = re.sub(
+                map_json_pattern,
+                '\n\n*[Map generation unavailable - map service is currently down]*\n\n',
+                answer_text
+            )
+            logger.info("📝 Replaced map-json blocks with unavailability message")
+
+    # 5) Pack result
+    result = {
+        "answer": answer_text,
+        "sources": sources  # placeholder: can integrate actual source extraction later
+    }
+    return result
+
+# Routes
 router = APIRouter()
 
-class MainsAnswerRequest(BaseModel):
-    question: str
-    word_count: int = 500
-
-class MainsAnswerResponse(BaseModel):
-    question: str
-    answer: str
-    sources: List[Dict[str, Any]]
-    word_count_actual: int
-
-def generate_mains_answer_with_gpt(question: str, context: str, word_count: int, api_key: str, max_retries: int = 1) -> Dict[str, Any]:
-    """Generate UPSC Mains style answer using GPT with retry logic (only 1 retry to limit API calls)"""
-    wait_time = 1.0
-    
-    for attempt in range(max_retries + 1):  # max_retries=1 means 2 total attempts (initial + 1 retry)
-        try:
-            client = OpenAI(api_key=api_key)
-            
-            # Create system prompt for UPSC Mains style
-            system_prompt = f"""You are an expert UPSC Geography teacher, evaluator and answer-writing coach.
-
-Generate a high-quality UPSC Mains style answer with the following properties:
-
-STRUCTURE & FORMAT
-1) Follow IBC format strictly → Introduction → Body (multi-dimensions) → Conclusion (1 para).
-
-INTRODUCTION RULE:
-The introduction MUST be 2–3 lines and should NOT be generic. It should do one or more of the following explicitly:
-- define the concept clearly
-- cite a current report / scheme / data point
-- briefly describe the core problem or context
-Example formats permitted:
-• “According to NITI Aayog’s 2023 report, …”
-• “X refers to … In India, this is significant because …”
-• “Recently, [event/current affair] has highlighted …”
-The intro must instantly set intellectual context — avoid vague opening lines.
-
-2) Pay attention to directive words such as “Analyse”, “Discuss”, “Critically Examine”, “Evaluate” etc. Adjust structure, tone, argumentation based on directive.
-
-→ DIRECTIVE WORD INTERPRETATION (MANDATORY):
-Before writing the answer, interpret the directive and shape structure accordingly:
-- Comment = take a stance & justify (if critically → both sides)
-- Examine = probe deeper (causes / implications / way forward)
-- Critically examine = strengths + weaknesses separately, then implications
-- Discuss = broad overview → positives / negatives / causes / consequences
-- Discuss critically = same as discuss but more rigorous reasoning
-- Evaluate = assess worthiness → positives / negatives → give verdict
-- Critically evaluate = same as evaluate but explicitly bring value judgement
-- Analyse = break the topic into sub-parts and examine each dimension
-- Explain = clarify how/why something is
-- Elucidate = make clear using examples/data
-- Elaborate = expand the core idea by adding dimensions / layers / reasoning in detail
-- Substantiate = assert then support with evidence/reports/data
-- Note = concise summary of what/when/how/why
-- Justify = defend the given statement using evidence, data, logic.
-- Assess = judge importance/impact; like evaluate but magnitude-focused.
-- To what extent = assess degree (fully / partly / marginally) and give a balanced graded judgement.
-- Illustrate = give examples / mini case illustrations to clarify.
-
-
-3) Body must be arranged in sub-headings + bullet points. Use logical organisation (economic / social / political / environmental / geographic dimensions). Use inter-topic integration / inter-disciplinary linkage wherever relevant.
-
-4) Maintain clarity, precision, short sentences, and zero fluff. Avoid jargon unless necessary.
-
-CONTENT QUALITY
-5) Use provided context as primary — supplement with advanced knowledge.
-6) MUST Substantiate every major point with examples, case studies, gov data, NITI Aayog reports, NFHS statistics, IPCC, UN reports, or Geography-specific examples.
-7) Use MAXIMUM real Indian examples, named locations, regions, rivers, climatic zones, coal belts, ports, industrial corridors, etc. eg: Brahmaputra valley, Gondwana coal, Mediterranean → Spain / SW Australia / Chile etc.
-8) Must add human dimension even in physical geography answers (e.g. rainfall → cropping pattern, river regime → settlement, landforms → industrial location, Tribal displacement, Biodiversity loss, Pollutio ).
-9) Every answer MUST include AT LEAST ONE inline diagram suggestion — this is compulsory. If the answer body is long, include 2–3. These may be flowcharts, maps, pie charts, timelines, or comparative tables.
-10) Insert these diagram suggestions EXACTLY where they are relevant — inline — NOT at the end. Use short parenthetical suggestions, e.g. “(Suggested Diagram: India map showing monsoon onset dates)” or “(Suggested Diagram: Flowchart showing monsoon mechanism)”. They MUST appear embedded after introduction or inside the body section at appropriate points.
-
-CONCLUSION RULE:
-The conclusion must synthesise, not repeat. Prefer forward-looking outlook — policy suggestion, way forward, global best practice, SDG linkage.
-
-LENGTH
-~{word_count} words approx.
-
-OUTPUT FORMAT
-- crisp intro (2–3 lines)
-- structured sub-headings
-- bulletised content under each sub-heading
-- examples + data throughout
-- 1 para conclusion (forward looking / policy suggestion / synthesis)"""
-
-            user_prompt = f"""Question: {question}
-
-Reference Context from Study Materials:
-{context}
-
-Generate a comprehensive UPSC Mains answer following the UPSC structure instructions given in system prompt."""
-
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            
-            completion = client.chat.completions.create(
-                model=settings.LLM_MODEL,
-                messages=messages,
-                temperature=0.3,
-                max_tokens=2000  # Allow for longer responses
-            )
-            
-            answer = completion.choices[0].message.content
-            
-            # Return the answer if successful
-            if answer:
-                return {
-                    "answer": answer
-                }
-            else:
-                raise ValueError("Empty response from OpenAI API")
-
-        except RateLimitError as e:
-            logger.warning(f"⚠️ Rate limit hit on attempt {attempt + 1}")
-            if attempt < max_retries:
-                logger.info(f"   Retrying once after {wait_time}s...")
-                time.sleep(wait_time)
-                continue
-            else:
-                logger.warning("⚠️ Rate limit persists after retry, using fallback answer")
-                return {
-                    "answer": f"**UPSC Mains Answer**\n\n{context}\n\n*Note: This is a basic response due to API rate limits. Please try again later.*"
-                }
-                
-        except Exception as e:
-            logger.error(f"❌ Failed to generate mains answer on attempt {attempt + 1}: {e}")
-            if attempt < max_retries:
-                logger.info(f"   Retrying once after {wait_time}s...")
-                time.sleep(wait_time)
-                continue
-            else:
-                logger.warning("⚠️ All attempts failed, using fallback answer")
-                return {
-                    "answer": f"**UPSC Mains Answer**\n\n{context}\n\n*Note: This is a basic response due to technical limitations.*"
-                }
-    
-    # If loop completes without returning (shouldn't happen), return fallback
-    logger.warning("⚠️ Unexpected: loop completed without return, using fallback answer")
-    return {
-        "answer": f"**UPSC Mains Answer**\n\n{context}\n\n*Note: This is a basic response due to technical limitations.*"
-    }
-
-@router.post("/generate")
-async def generate_mains_answer(request: Request, mains_request: MainsAnswerRequest):
+# Helper for connection check
+async def check_connection(request: Request):
     """
-    Generate a comprehensive UPSC Mains style answer for Geography questions.
+    Check if client is still connected.
+    If disconnected, raise exception to stop processing.
     """
-    try:
-        logger.info(f"🚀 [MAINS] Received request: '{mains_request.question[:100]}...' (word_count={mains_request.word_count})")
-        
-        # Get Pinecone handler
-        pinecone_handler = request.app.state.vector_handler
-        
-        # Get retriever configured for mains mode
-        logger.info(f"🔧 [MAINS] Creating retriever for 'mains' mode...")
-        retriever = pinecone_handler.get_retriever_for_mode("mains", use_content_store=True)
-        
-        # Retrieve documents
-        logger.info(f"🔍 [MAINS] Retrieving documents...")
-        try:
-            if hasattr(retriever, 'invoke'):
-                docs = retriever.invoke(mains_request.question)
-            else:
-                docs = retriever.get_relevant_documents(mains_request.question)
-        except Exception as e:
-            logger.warning(f"⚠️ [MAINS] invoke() failed, trying get_relevant_documents(): {e}")
-            docs = retriever.get_relevant_documents(mains_request.question)
-        
-        if not docs:
-            logger.warning(f"⚠️ [MAINS] No documents retrieved")
-            return MainsAnswerResponse(
-                question=mains_request.question,
-                answer="No relevant information found in the uploaded documents for this question.",
-                sources=[],
-                word_count_actual=0
-            )
-        
-        logger.info(f"✅ [MAINS] Retrieved {len(docs)} documents")
-        
-        # Deduplicate overlapping text before combining
-        logger.info(f"📝 [MAINS] Removing overlapping text...")
-        original_context_length = sum(len(doc.page_content) for doc in docs)
-        context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
-        overlap_removed = original_context_length - len(context)
-        
-        if overlap_removed > 0:
-            estimated_tokens_saved = overlap_removed // 4
-            logger.info(f"   ✅ Removed {overlap_removed} chars (~{estimated_tokens_saved} tokens) of overlap")
-        else:
-            logger.info(f"   → No significant overlap detected")
-        
-        logger.info(f"   → Final context length: {len(context)} characters")
-        
-        # Prepare sources from document metadata
-        logger.info(f"📋 [MAINS] Extracting source metadata...")
-        sources = []
-        seen = set()
-        for doc in docs:
-            metadata = doc.metadata
-            filename = metadata.get("filename", "Unknown")
-            chapter = metadata.get("chapter", "Unknown")
-            section = metadata.get("section", "Unknown")
-            
-            # Create unique key based on available metadata
-            key = (filename, chapter, section)
-            
-            if key not in seen:
-                source_info = {
-                    "filename": filename,
-                    "chapter": chapter,
-                    "section": section
-                }
-                sources.append(source_info)
-                seen.add(key)
-
-        # Generate answer using GPT if available
-        logger.info(f"🤖 [MAINS] Generating answer using GPT...")
-        api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            result = generate_mains_answer_with_gpt(
-                mains_request.question, 
-                context, 
-                mains_request.word_count,
-                api_key
-            )
-            answer = result["answer"]
-            logger.info(f"✅ [MAINS] Answer generated: {len(answer)} characters")
-        else:
-            logger.warning(f"⚠️ [MAINS] No OpenAI API key - returning raw context")
-            answer = f"**UPSC Mains Answer**\n\n{context}\n\n*Note: OpenAI API key not available. This is a basic response.*"
-
-        # Calculate actual word count
-        word_count_actual = len(answer.split())
-
-        return MainsAnswerResponse(
-            question=mains_request.question,
-            answer=answer,
-            sources=sources,
-            word_count_actual=word_count_actual
+    if await request.is_disconnected():
+        logger.warning("⚠️ [CANCEL] Client disconnected, stopping generation")
+        raise HTTPException(
+            status_code=499, # Client Closed Request
+            detail="Client closed request"
         )
 
+@router.post("/generate")
+@limiter.limit("20/hour")
+async def generate_mains_answer(
+    request: Request,
+    mains_request: MainsAnswerRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Enqueue Mains Answer generation.
+    Returns job_id for polling.
+    """
+    try:
+        user_id = str(current_user.id) if current_user.id else current_user.email
+        
+        # 1. Check if we already have a specialized cached answer (fast return)
+        # However, for polling consistency, we might just let the worker handle cache too,
+        # OR we check cache here and return immediately if found?
+        # If we return immediate result, the frontend needs to handle {job_id: ...} OR {result: ...}
+        # To keep it simple, let's enqueue everything OR check cache and if hit, return a synthetic "completed" job?
+        # Let's check cache here for speed.
+        
+        cache = get_cache_manager()
+        model_version = "gemini-2.5-pro-v1"
+        cached_answer_data = cache.get_cached_answer(mains_request.question, mains_request.word_count, model_version)
+        
+        if cached_answer_data:
+             logger.info(f"⚡ [CACHE HIT] Immediate return for '{mains_request.question[:20]}...'")
+             # We need to return a structure that the frontend polling logic can digest.
+             # Or we return a "completed" status immediately?
+             # Let's say we return { "job_id": "cached", "status": "completed", "result": ... }
+             # But standard pattern is POST returns job_id, then GET status returns result.
+             # Let's simulate a job. 
+             job_id = f"cached-{uuid4()}"
+             
+             # We can write the result to Redis as if the job finished
+             # We can write the result to Redis as if the job finished
+             client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+             
+             # Reconstruct result object
+             result_obj = {
+                "question": cached_answer_data["question"],
+                "answer": cached_answer_data["answer"],
+                "compressed_answer": cached_answer_data.get("compressed_answer"),
+                "sources": cached_answer_data.get("sources", []),
+                "word_count_actual": cached_answer_data.get("word_count_actual", 0),
+                "word_count_compressed": cached_answer_data.get("word_count_compressed")
+             }
+             
+             await client.set(f"job_status:{job_id}", "completed", ex=3600)
+             await client.set(f"job_result:{job_id}", json.dumps(result_obj), ex=3600)
+             await client.close()
+             
+             return {
+                 "job_id": job_id,
+                 "status": "completed",
+                 "message": "Answer found in cache."
+             }
+
+        # 2. Get API Key
+        try:
+            gemini_api_key = get_gemini_api_key_for_request(current_user)
+            if not gemini_api_key or not gemini_api_key.strip():
+                gemini_api_key = GEMINI_API_KEY
+        except Exception:
+            gemini_api_key = GEMINI_API_KEY
+        
+        if not gemini_api_key or not gemini_api_key.strip():
+             raise HTTPException(400, "No Gemini API key available. Please configure an API key in Settings.")
+             
+        # 3. Enqueue Job
+        job_id = str(uuid4())
+        arq_pool = request.app.state.arq_pool
+        if not arq_pool:
+            raise HTTPException(500, "Job queue not initialized")
+            
+        await arq_pool.enqueue_job(
+            "generate_mains_answer_task",
+            _job_id=job_id,
+            job_id=job_id,
+            query=mains_request.question,
+            user_id=user_id,
+            word_count=mains_request.word_count,
+            gemini_api_key=gemini_api_key
+        )
+        
+        # 4. Set initial status
+        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        await client.set(f"job_status:{job_id}", "queued", ex=3600)
+        await client.close()
+        
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "message": "Answer generation started."
+        }
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"❌ Mains answer generation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Failed to enqueue mains answer: {e}")
+        raise HTTPException(500, str(e))
+
+@router.get("/status/{job_id}")
+async def get_generation_status(job_id: str):
+    """
+    Poll status of answer generation.
+    """
+    try:
+        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        
+        status = await client.get(f"job_status:{job_id}")
+        if not status:
+             status = "unknown"
+        
+        result = None
+        if status == "completed":
+            result_json = await client.get(f"job_result:{job_id}")
+            if result_json:
+                result = json.loads(result_json)
+        
+        error = None
+        if status == "failed":
+            error = await client.get(f"job_error:{job_id}")
+            
+        # Semantic logging for polling
+        logger.info(f"MAINS_GENERATION - {job_id[:8]}... : {status.upper()}")
+            
+        await client.close()
+        
+        return {
+            "job_id": job_id,
+            "status": status,
+            "result": result,
+            "error": error
+        }
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.post("/cancel/{job_id}")
+async def cancel_generation(job_id: str):
+    """
+    Cancel running generation.
+    """
+    try:
+        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        await client.set(f"cancel:{job_id}", "1", ex=3600)
+        await client.close()
+        return {"message": "Cancellation requested"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@router.get("/history")
+async def get_mains_answer_history(
+    limit: int = 20,
+    offset: int = 0,
+    search: str = "",
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get user's history of mains answers from Redis.
+    Returns list of {question, timestamp, word_count, id}.
+    """
+    try:
+        cache = get_cache_manager()
+        user_id = str(current_user.id) if current_user.id else current_user.email
+        
+        history, total, has_more = cache.get_user_history(user_id, limit=limit, offset=offset, search=search or None)
+        return {
+            "history": history,
+            "limit": limit,
+            "offset": offset,
+            "search": search or "",
+            "total": total,
+            "has_more": has_more
+        }
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch history: {e}")
+        return {
+            "history": [],
+            "limit": limit,
+            "offset": offset,
+            "search": search or "",
+            "total": 0,
+            "has_more": False
+        }
+
+
+@router.get("/history/answer", response_model=MainsAnswerResponse)
+async def get_cached_mains_answer(
+    question: str,
+    word_count: int = 500,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Return a cached mains answer (no regeneration).
+    Shows compressed answer if available to reduce payload size.
+    """
+    try:
+        cache = get_cache_manager()
+        model_version = "gemini-2.5-pro-v1"
+        cached = cache.get_cached_answer(question, word_count, model_version)
+
+        if not cached:
+            raise HTTPException(
+                status_code=404,
+                detail="No cached answer found for this question and word count. Please generate again."
+            )
+
+        answer = cached.get("answer", "")
+        compressed_answer = cached.get("compressed_answer")
+        word_count_actual = cached.get("word_count_actual") or count_words_excluding_visuals(answer)
+        word_count_compressed = cached.get("word_count_compressed")
+
+        return MainsAnswerResponse(
+            question=cached.get("question", question),
+            answer=answer,
+            compressed_answer=compressed_answer,
+            sources=cached.get("sources", []),
+            word_count_actual=word_count_actual,
+            word_count_compressed=word_count_compressed
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch cached answer: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch cached answer")
+
+# Quick test function
+if __name__ == "__main__":
+    q = "Discuss the causes and impacts of increasing forest fires in India and suggest mitigation measures."
+    res = generate_answer(q, static_context="Use NCERT and Vision IAS notes on forests", word_count=300)
+    print(res["answer"][:2000])

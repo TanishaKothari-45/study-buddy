@@ -1,470 +1,443 @@
 """
-Answer Evaluation endpoint for UPSC-style evaluation
+evaluate_answer.py
+
+Evaluation pipeline using Arq Queue + Gemini.
+
+Flow:
+  1) Upload answer (PDF/image) -> Save to disk -> Enqueue Job -> Return job_id
+  2) Worker processes job (OCR -> Retrieval -> Gemini)
+  3) User polls /status/{job_id}
+
+Usage:
+  POST /evaluate-answer/ -> {job_id: ...}
+  GET /evaluate-answer/status/{job_id} -> {status: ..., result: ...}
 """
-from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
-from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+
 import os
 import logging
-import time
-import tempfile
-from openai import OpenAI, RateLimitError
+import shutil
+import json
+from typing import Optional, List, Dict, Any
+from fastapi import APIRouter, Request, Form, File, UploadFile, HTTPException, Depends
+from pathlib import Path
+from uuid import uuid4
+import redis.asyncio as redis
 
 from ..core.config import settings
-from ..utils.pdf_reader import extract_text_from_pdf
-from ..utils.answer_evaluator import evaluate_reconstructed_answer, reconstruct_and_evaluate_from_ocr_blocks
-from ..routes.query import deduplicate_chunks
+from ..core.deps import get_current_user
+from ..models.user import User
+from ..utils.user_api_key import get_gemini_api_key_for_request
+from ..gemini_core import settings_gemini_key
 
 logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
-class EvaluateAnswerRequest(BaseModel):
-    question: Optional[str] = None  # Optional if OCR blocks are provided (question will be identified)
-    answer_text: Optional[str] = None
-    reconstructed_answer: Optional[str] = None  # Reconstructed answer (preferred over OCR blocks)
-    ocr_data: Optional[Dict[str, Any]] = None  # OCR blocks (deprecated - use reconstructed_answer instead)
-
-class EvaluateAnswerResponse(BaseModel):
-    question: str
-    score: int
-    max_score: int
-    strengths: List[str]
-    improvements: List[str]
-    suggestions: List[str]
-    model_answer_excerpt: Optional[str] = None
-    reconstructed_answer: Optional[str] = None  # Reconstructed answer
-    evaluation_details: Optional[Dict[str, Any]] = None  # Detailed evaluation breakdown
-    raw_evaluation_response: Optional[str] = None  # Exact raw response from LLM API
-
-def extract_text_from_uploaded_file(file: UploadFile) -> str:
-    """Extract text from uploaded PDF or text file"""
-    try:
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{file.filename.split('.')[-1]}") as tmp_file:
-            content = file.file.read()
-            tmp_file.write(content)
-            tmp_file_path = tmp_file.name
-        
-        # Extract text based on file type
-        if file.filename.lower().endswith('.pdf'):
-            pages_content = extract_text_from_pdf(tmp_file_path)
-            text = "\n".join(page["text"] for page in pages_content if page.get("text"))
-        else:  # Assume text file
-            with open(tmp_file_path, 'r', encoding='utf-8') as f:
-                text = f.read()
-        
-        # Clean up temporary file
-        os.unlink(tmp_file_path)
-        return text
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to extract text from uploaded file: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to extract text from file: {str(e)}")
-
-def evaluate_answer_with_gpt(question: str, answer: str, context: str, api_key: str, max_retries: int = 3) -> Dict[str, Any]:
-    """Evaluate answer using GPT with UPSC evaluation criteria"""
-    wait_time = 1.0
-    
-    for attempt in range(max_retries):
-        try:
-            client = OpenAI(api_key=api_key)
-            
-            system_prompt = """You are an expert UPSC Geography evaluator. Evaluate the student's answer based on UPSC Mains criteria:
-
-**Evaluation Criteria (20 marks total):**
-1. **Content Knowledge (8 marks)**: Accuracy, depth, and relevance of geographical concepts
-2. **Structure & Presentation (4 marks)**: Introduction, body, conclusion, logical flow
-3. **Analysis & Critical Thinking (4 marks)**: Analytical depth, cause-effect relationships
-4. **Examples & Case Studies (2 marks)**: Relevant examples, current affairs integration
-5. **Language & Expression (2 marks)**: Clarity, coherence, academic writing style
-
-**Provide evaluation in this format:**
-- Score: X/20
-- Strengths: [List 3-4 specific strengths]
-- Areas for Improvement: [List 3-4 specific areas]
-- Specific Suggestions: [List 3-4 actionable suggestions]
-- Model Answer Excerpt: [Provide a 2-3 sentence excerpt from a model answer]"""
-
-            user_prompt = f"""Question: {question}
-
-Student's Answer:
-{answer}
-
-Reference Context from Study Materials:
-{context}
-
-Evaluate this answer according to UPSC Mains standards and provide detailed feedback."""
-
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            
-            completion = client.chat.completions.create(
-                model=settings.LLM_MODEL,
-                messages=messages,
-                temperature=0.2,
-                max_tokens=1500
-            )
-            
-            evaluation_text = completion.choices[0].message.content
-            
-            # Parse the evaluation response
-            lines = evaluation_text.split('\n')
-            score = 0
-            max_score = 20
-            strengths = []
-            improvements = []
-            suggestions = []
-            model_answer_excerpt = ""
-            
-            current_section = None
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                    
-                if "Score:" in line or "score:" in line:
-                    try:
-                        score_part = line.split(":")[1].strip()
-                        if "/" in score_part:
-                            score = int(score_part.split("/")[0].strip())
-                    except:
-                        pass
-                elif "Strengths:" in line.lower():
-                    current_section = "strengths"
-                elif "Areas for Improvement:" in line.lower() or "Improvement:" in line.lower():
-                    current_section = "improvements"
-                elif "Suggestions:" in line.lower():
-                    current_section = "suggestions"
-                elif "Model Answer Excerpt:" in line.lower():
-                    current_section = "model"
-                elif line.startswith("-") or line.startswith("•"):
-                    content = line[1:].strip()
-                    if current_section == "strengths":
-                        strengths.append(content)
-                    elif current_section == "improvements":
-                        improvements.append(content)
-                    elif current_section == "suggestions":
-                        suggestions.append(content)
-                elif current_section == "model":
-                    model_answer_excerpt += line + " "
-                elif current_section and not line.startswith(("Score", "Strengths", "Areas", "Suggestions", "Model")):
-                    # Add to current section
-                    if current_section == "strengths":
-                        strengths.append(line)
-                    elif current_section == "improvements":
-                        improvements.append(line)
-                    elif current_section == "suggestions":
-                        suggestions.append(line)
-                    elif current_section == "model":
-                        model_answer_excerpt += line + " "
-            
-            # Ensure we have at least some content
-            if not strengths:
-                strengths = ["Good attempt at addressing the question"]
-            if not improvements:
-                improvements = ["Could benefit from more specific examples"]
-            if not suggestions:
-                suggestions = ["Try to include more current affairs and case studies"]
-            
-            return {
-                "score": score,
-                "max_score": max_score,
-                "strengths": strengths[:5],  # Limit to 5 items
-                "improvements": improvements[:5],
-                "suggestions": suggestions[:5],
-                "model_answer_excerpt": model_answer_excerpt.strip()
-            }
-
-        except RateLimitError as e:
-            if attempt < max_retries - 1:
-                logger.warning(f"⚠️ Rate limit hit, waiting {wait_time}s before retry...")
-                time.sleep(wait_time)
-                wait_time *= 2
-            else:
-                logger.warning("⚠️ Rate limit persists, using basic evaluation")
-                return {
-                    "score": 12,
-                    "max_score": 20,
-                    "strengths": ["Good attempt at addressing the question", "Shows understanding of basic concepts"],
-                    "improvements": ["Could benefit from more specific examples", "Structure could be improved"],
-                    "suggestions": ["Include more current affairs", "Add case studies", "Improve conclusion"],
-                    "model_answer_excerpt": "A model answer would include a clear introduction, well-structured main body with sub-points, relevant examples, and a concise conclusion."
-                }
-                
-        except Exception as e:
-            logger.error(f"❌ Failed to evaluate answer: {e}")
-            return {
-                "score": 10,
-                "max_score": 20,
-                "strengths": ["Attempted to answer the question"],
-                "improvements": ["Technical evaluation unavailable"],
-                "suggestions": ["Please try again later"],
-                "model_answer_excerpt": "Evaluation service temporarily unavailable."
-            }
-
-async def evaluate_extracted_answer(request: Request, question: str, answer_text: str) -> EvaluateAnswerResponse:
-    """Evaluate extracted answer text using the existing evaluation pipeline"""
-    try:
-        logger.info(f"🚀 [EVALUATE] Evaluating answer for question: '{question[:100]}...'")
-        
-        # Get Pinecone handler and use LangChain retriever
-        pinecone_handler = request.app.state.vector_handler
-        
-        # Get retriever configured for topic mode (similar to query route)
-        logger.info(f"🔧 [EVALUATE] Creating retriever for 'topic' mode...")
-        retriever = pinecone_handler.get_retriever_for_mode("topic", use_content_store=True)
-        
-        # Retrieve documents using LangChain
-        logger.info(f"🔍 [EVALUATE] Retrieving documents...")
-        try:
-            if hasattr(retriever, 'invoke'):
-                docs = retriever.invoke(question)
-            else:
-                docs = retriever.get_relevant_documents(question)
-        except Exception as e:
-            logger.warning(f"⚠️ [EVALUATE] invoke() failed, trying get_relevant_documents(): {e}")
-            docs = retriever.get_relevant_documents(question)
-        
-        if not docs:
-            logger.warning(f"⚠️ [EVALUATE] No documents retrieved")
-            context = "No reference material available."
-        else:
-            logger.info(f"✅ [EVALUATE] Retrieved {len(docs)} documents")
-            
-            # Deduplicate overlapping text before combining
-            logger.info(f"📝 [EVALUATE] Removing overlapping text...")
-            context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
-            logger.info(f"   → Final context length: {len(context)} characters")
-
-        # Evaluate answer using GPT if available
-        api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            evaluation = evaluate_answer_with_gpt(question, answer_text, context, api_key)
-        else:
-            # Basic evaluation without GPT
-            word_count = len(answer_text.split())
-            evaluation = {
-                "score": min(15, max(5, word_count // 20)),  # Basic scoring based on length
-                "max_score": 20,
-                "strengths": ["Answer provided", "Shows effort"],
-                "improvements": ["OpenAI API not available for detailed evaluation"],
-                "suggestions": ["Please ensure OpenAI API key is configured for detailed feedback"],
-                "model_answer_excerpt": "Detailed evaluation requires OpenAI API access."
-            }
-
-        return EvaluateAnswerResponse(
-            question=question,
-            score=evaluation["score"],
-            max_score=evaluation["max_score"],
-            strengths=evaluation["strengths"],
-            improvements=evaluation["improvements"],
-            suggestions=evaluation["suggestions"],
-            model_answer_excerpt=evaluation["model_answer_excerpt"]
-        )
-
-    except Exception as e:
-        logger.error(f"❌ Answer evaluation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# Global default (fallback)
+GEMINI_API_KEY_SYSTEM = settings_gemini_key.GEMINI_API_KEY
 
 @router.post("/")
-async def evaluate_answer(
+async def evaluate_answer_endpoint(
     request: Request,
-    question: Optional[str] = Form(None),
-    answer_text: Optional[str] = Form(None),
-    answer_file: Optional[UploadFile] = File(None),
-    reconstructed_answer: Optional[str] = Form(None),  # Reconstructed answer (preferred)
-    ocr_data_json: Optional[str] = Form(None)  # JSON string of OCR data (deprecated)
+    files: List[UploadFile] = File(...),
+    question: Optional[str] = Form(default=None),
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Evaluate a student's answer using UPSC Mains criteria.
-    
-    Three modes:
-    1. Reconstructed answer evaluation (PREFERRED): Provide question + reconstructed_answer
-    2. OCR-based evaluation (DEPRECATED): Provide ocr_data_json (question will be identified, answer reconstructed, then evaluated)
-    3. Text-based evaluation (legacy): Provide question + answer_text/answer_file
+    Enqueue answer evaluation task.
+    Saves files to backend/data/temp/{job_id}/ and enqueues job.
     """
     try:
-        import json
-        
-        # Initialize OpenAI client
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
-        
-        openai_client = OpenAI(api_key=api_key)
-        
-        # Mode 1: Reconstructed answer evaluation (PREFERRED - reconstructed answer provided, question optional)
-        if reconstructed_answer:
-            logger.info("📊 Using reconstructed answer evaluation (preferred mode)")
-            logger.info(f"   • Question provided: {bool(question)}")
-            logger.info(f"   • Reconstructed answer length: {len(reconstructed_answer)} chars")
-            
-            # Evaluate using reconstructed answer (no OCR blocks)
-            # Question is optional - will be identified from answer if not provided
-            evaluation_result = evaluate_reconstructed_answer(
-                question=question,  # Optional - can be None
-                reconstructed_answer=reconstructed_answer,
-                llm_client=openai_client,
-                model=settings.LLM_MODEL
-            )
-            
-            # Extract results
-            identified_question = evaluation_result.get("question", question or "")
-            eval_data = evaluation_result.get("evaluation", {})
-            raw_response = evaluation_result.get("raw_response", "")
-            
-            score = eval_data.get("score", 0)
-            max_score = eval_data.get("max_score", 20)
-            what_was_done_well = eval_data.get("what_was_done_well", [])
-            what_was_missing = eval_data.get("what_was_missing", [])
-            high_return_improvements = eval_data.get("high_return_improvements", [])
-            
-            # Convert to response format
-            strengths = what_was_done_well if what_was_done_well else ["Answer provided", "Shows understanding"]
-            improvements = what_was_missing if what_was_missing else ["Add more examples", "Strengthen conclusion"]
-            suggestions = high_return_improvements if high_return_improvements else ["Improve structure"]
-            
-            return EvaluateAnswerResponse(
-                question=identified_question,  # Use identified question (from LLM or provided)
-                score=score,
-                max_score=max_score,
-                strengths=strengths[:10],
-                improvements=improvements[:10],
-                suggestions=suggestions[:10],
-                model_answer_excerpt="Evaluation based on UPSC Mains criteria.",
-                reconstructed_answer=reconstructed_answer,
-                evaluation_details=eval_data,
-                raw_evaluation_response=raw_response  # Exact raw response from LLM
-            )
-        
-        # Mode 2: OCR-based reconstruction + evaluation (ONE LLM CALL - preferred for evaluation)
-        elif ocr_data_json:
-            logger.info("📊 Using OCR blocks for reconstruction + evaluation (ONE LLM call)")
-            
-            try:
-                ocr_data = json.loads(ocr_data_json)
-            except json.JSONDecodeError as e:
-                raise HTTPException(status_code=400, detail=f"Invalid OCR data JSON: {str(e)}")
-            
-            if not ocr_data.get("blocks") and not ocr_data.get("full_text"):
-                raise HTTPException(status_code=400, detail="OCR data must contain blocks or full_text")
-            
-            # Reconstruct AND evaluate using OCR blocks (all 3 tasks in ONE call)
-            evaluation_result = reconstruct_and_evaluate_from_ocr_blocks(
-                ocr_data=ocr_data,
-                llm_client=openai_client,
-                model=settings.LLM_MODEL
-            )
-            
-            # Extract results
-            identified_question = evaluation_result.get("question", question or "Question not identified")
-            reconstructed_answer = evaluation_result.get("reconstructed_answer", "")
-            eval_data = evaluation_result.get("evaluation", {})
-            raw_response = evaluation_result.get("raw_response", "")
-            
-            score = eval_data.get("score", 0)
-            max_score = eval_data.get("max_score", 20)
-            what_was_done_well = eval_data.get("what_was_done_well", [])
-            what_was_missing = eval_data.get("what_was_missing", [])
-            high_return_improvements = eval_data.get("high_return_improvements", [])
-            
-            # Convert to response format
-            strengths = what_was_done_well if what_was_done_well else ["Answer provided", "Shows understanding"]
-            improvements = what_was_missing if what_was_missing else ["Add more examples", "Strengthen conclusion"]
-            suggestions = high_return_improvements if high_return_improvements else ["Improve structure"]
-            
-            return EvaluateAnswerResponse(
-                question=identified_question,
-                score=score,
-                max_score=max_score,
-                strengths=strengths[:10],
-                improvements=improvements[:10],
-                suggestions=suggestions[:10],
-                model_answer_excerpt="Evaluation based on UPSC Mains criteria.",
-                reconstructed_answer=reconstructed_answer,
-                evaluation_details=eval_data,
-                raw_evaluation_response=raw_response  # Exact raw response from LLM
-            )
-        
-        # Mode 2: Text-based evaluation (legacy - backward compatibility)
-        else:
-            logger.info("📊 Using text-based evaluation (legacy mode)")
-            
-            if not question:
-                raise HTTPException(status_code=400, detail="question is required for text-based evaluation")
-            
-            # Extract answer text
-            if answer_file:
-                answer = extract_text_from_uploaded_file(answer_file)
-            elif answer_text:
-                answer = answer_text
-            else:
-                raise HTTPException(status_code=400, detail="Either answer_text or answer_file must be provided")
-            
-            if not answer.strip():
-                raise HTTPException(status_code=400, detail="Answer cannot be empty")
-            
-            logger.info(f"🚀 [EVALUATE] Evaluating answer for question: '{question[:100]}...'")
-            
-            # Get Pinecone handler and use LangChain retriever
-            pinecone_handler = request.app.state.vector_handler
-            
-            # Get retriever configured for topic mode (similar to query route)
-            logger.info(f"🔧 [EVALUATE] Creating retriever for 'topic' mode...")
-            retriever = pinecone_handler.get_retriever_for_mode("topic", use_content_store=True)
-            
-            # Retrieve documents using LangChain
-            logger.info(f"🔍 [EVALUATE] Retrieving documents...")
-            try:
-                if hasattr(retriever, 'invoke'):
-                    docs = retriever.invoke(question)
-                else:
-                    docs = retriever.get_relevant_documents(question)
-            except Exception as e:
-                logger.warning(f"⚠️ [EVALUATE] invoke() failed, trying get_relevant_documents(): {e}")
-                docs = retriever.get_relevant_documents(question)
-            
-            if not docs:
-                logger.warning(f"⚠️ [EVALUATE] No documents retrieved")
-                context = "No reference material available."
-            else:
-                logger.info(f"✅ [EVALUATE] Retrieved {len(docs)} documents")
-                
-                # Deduplicate overlapping text before combining
-                logger.info(f"📝 [EVALUATE] Removing overlapping text...")
-                context = deduplicate_chunks(docs, min_overlap_words=20, similarity_threshold=0.6)
-                logger.info(f"   → Final context length: {len(context)} characters")
+        # 1. Get Gemini Key
+        try:
+            gemini_api_key = get_gemini_api_key_for_request(current_user)
+            if not gemini_api_key or not gemini_api_key.strip():
+                gemini_api_key = GEMINI_API_KEY_SYSTEM
+        except Exception:
+            gemini_api_key = GEMINI_API_KEY_SYSTEM
 
-            # Evaluate answer using GPT if available
-            api_key = os.getenv("OPENAI_API_KEY")
-            if api_key:
-                evaluation = evaluate_answer_with_gpt(question, answer, context, api_key)
-            else:
-                # Basic evaluation without GPT
-                word_count = len(answer.split())
-                evaluation = {
-                    "score": min(15, max(5, word_count // 20)),  # Basic scoring based on length
-                    "max_score": 20,
-                    "strengths": ["Answer provided", "Shows effort"],
-                    "improvements": ["OpenAI API not available for detailed evaluation"],
-                    "suggestions": ["Please ensure OpenAI API key is configured for detailed feedback"],
-                    "model_answer_excerpt": "Detailed evaluation requires OpenAI API access."
-                }
-
-            return EvaluateAnswerResponse(
-                question=question,
-                score=evaluation["score"],
-                max_score=evaluation["max_score"],
-                strengths=evaluation["strengths"],
-                improvements=evaluation["improvements"],
-                suggestions=evaluation["suggestions"],
-                model_answer_excerpt=evaluation["model_answer_excerpt"]
-            )
+        if not gemini_api_key or not gemini_api_key.strip():
+             raise HTTPException(400, "No Gemini API key available. Please configure an API key in Settings.")
+            
+        # 2. Preparation
+        job_id = str(uuid4())
+        job_dir = settings.BASE_DIR / "data" / "temp" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        
+        saved_file_paths = []
+        
+        # 3. Save Files
+        for file in files:
+            file_ext = Path(file.filename).suffix.lower() if file.filename else '.pdf'
+            safe_filename = f"{uuid4()}{file_ext}"
+            file_path = job_dir / safe_filename
+            
+            content = await file.read()
+            with open(file_path, "wb") as f:
+                f.write(content)
+            
+            saved_file_paths.append(str(file_path))
+            
+        # 4. Enqueue Job
+        arq_pool = request.app.state.arq_pool
+        if not arq_pool:
+            # Cleanup if queue fails
+            shutil.rmtree(job_dir)
+            raise HTTPException(500, "Job queue not initialized")
+            
+        await arq_pool.enqueue_job(
+            "evaluate_answer_task",
+            _job_id=job_id,
+            job_id=job_id,
+            file_paths=saved_file_paths,
+            question=question or "",
+            user_id=str(current_user.id) if current_user else "anonymous",
+            gemini_api_key=gemini_api_key
+        )
+        
+        # 5. Set initial status in Redis
+        # We use a separate redis client connection for status (simple string)
+        # or we rely on the client knowing it's "queued".
+        # Let's set it explicitly so status endpoint works immediately.
+        # But we don't have a redis client handy in route unless we create one.
+        # Arq pool doesn't expose SET.
+        # We can spin up a quick client.
+        
+        try:
+            client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+            await client.set(f"job_status:{job_id}", "queued", ex=3600)
+            await client.close()
+        except:
+            pass # Non-critical
+        
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "message": "Evaluation started. Poll /evaluate-answer/status/{job_id}"
+        }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Answer evaluation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Failed to enqueue evaluation: {e}", exc_info=True)
+        raise HTTPException(500, str(e))
+
+
+@router.post("/batch")
+async def evaluate_batch_answers_endpoint(
+    request: Request,
+    file: UploadFile = File(...),
+    use_standard_format: bool = Form(default=False),  # Use UPSC standard format (2+3 pages)
+    question_file: Optional[UploadFile] = File(default=None),  # Optional question PDF/image
+    questions: Optional[str] = Form(default=None),  # Optional JSON array of question texts
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Enqueue batch answer evaluation task.
+    Accepts a PDF with multiple answers (up to 20), splits by regex patterns (Q1, Q2, etc.),
+    and evaluates each answer sequentially.
+    
+    Returns batch_job_id for polling progress.
+    """
+    try:
+        # 1. Validate file type
+        if not file.filename or not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(400, "Only PDF files are supported for batch evaluation")
+        
+        # 2. Get Gemini Key
+        try:
+            gemini_api_key = get_gemini_api_key_for_request(current_user)
+            if not gemini_api_key:
+                gemini_api_key = GEMINI_API_KEY_SYSTEM
+        except Exception:
+            gemini_api_key = GEMINI_API_KEY_SYSTEM
+
+        if not gemini_api_key:
+            raise HTTPException(400, "No Gemini API key available.")
+        
+        # 3. Save PDF and question file if provided
+        job_id = str(uuid4())
+        job_dir = settings.BASE_DIR / "data" / "temp" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        
+        pdf_path = job_dir / f"{uuid4()}.pdf"
+        content = await file.read()
+        with open(pdf_path, "wb") as f:
+            f.write(content)
+        
+        # Save question file if provided
+        question_file_path = None
+        if question_file:
+            # Validate question file type
+            if not question_file.filename:
+                raise HTTPException(400, "Question file must have a filename")
+            
+            allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png', '.webp']
+            file_ext = Path(question_file.filename).suffix.lower()
+            if file_ext not in allowed_extensions:
+                raise HTTPException(400, f"Question file must be PDF or image ({', '.join(allowed_extensions)})")
+            
+            question_file_path = job_dir / f"question_{uuid4()}{file_ext}"
+            question_content = await question_file.read()
+            with open(question_file_path, "wb") as f:
+                f.write(question_content)
+        
+        # Parse manual questions if provided
+        question_texts = None
+        if questions:
+            try:
+                question_texts = json.loads(questions)
+                if not isinstance(question_texts, list):
+                    raise ValueError("Questions must be a JSON array")
+                # Filter out empty questions
+                question_texts = [q.strip() for q in question_texts if q.strip()]
+            except (json.JSONDecodeError, ValueError) as e:
+                raise HTTPException(400, f"Invalid questions JSON format: {str(e)}")
+        
+        # 4. Enqueue Batch Job
+        arq_pool = request.app.state.arq_pool
+        if not arq_pool:
+            shutil.rmtree(job_dir)
+            raise HTTPException(500, "Job queue not initialized")
+        
+        await arq_pool.enqueue_job(
+            "evaluate_batch_answers_task",
+            _job_id=job_id,
+            job_id=job_id,
+            pdf_path=str(pdf_path),
+            user_id=str(current_user.id) if current_user else "anonymous",
+            gemini_api_key=gemini_api_key,
+            use_standard_format=use_standard_format,
+            question_file_path=str(question_file_path) if question_file_path else None,
+            question_texts=question_texts
+        )
+        
+        # 5. Set initial status
+        try:
+            client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+            await client.set(f"job_status:{job_id}", "queued", ex=7200)  # 2 hour TTL for batch jobs
+            await client.close()
+        except:
+            pass  # Non-critical
+        
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "message": "Batch evaluation started. Poll /evaluate-answer/status/{job_id} for progress"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to enqueue batch evaluation: {e}", exc_info=True)
+        raise HTTPException(500, str(e))
+
+
+@router.get("/status/{job_id}")
+async def get_evaluation_status(request: Request, job_id: str):
+    """
+    Poll status of evaluation job (single or batch).
+    
+    For batch jobs, returns:
+    {
+        "job_id": "...",
+        "status": "processing" | "completed" | "partial_failed" | "cancelled" | "failed",
+        "batch_data": {
+            "total_answers": 20,
+            "completed_answers": 15,
+            "failed_answers": 2,
+            "answers": [
+                {
+                    "answer_id": "a1",
+                    "question_number": 1,
+                    "status": "completed" | "failed" | "processing",
+                    "evaluation": {...} | null,
+                    "error": "..." | null
+                },
+                ...
+            ]
+        },
+        "result": {...},  # Only for single answer jobs
+        "error": "..."  # Only if status is "failed" or "cancelled"
+    }
+    """
+    try:
+        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        
+        status = await client.get(f"job_status:{job_id}")
+        if not status:
+            status = "unknown"
+        
+        # Check if this is a batch job (has batch_data)
+        batch_data_json = await client.get(f"job_batch_data:{job_id}")
+        is_batch = batch_data_json is not None
+        
+        result = None
+        batch_data = None
+        
+        if is_batch:
+            # Batch job - return batch progress
+            batch_data = json.loads(batch_data_json) if batch_data_json else None
+            
+            # Also check for final result
+            if status in ["completed", "partial_failed"]:
+                result_json = await client.get(f"job_result:{job_id}")
+                if result_json:
+                    result = json.loads(result_json)
+                    # Use result batch_data if available (more up-to-date)
+                    if result and "answers" in result:
+                        batch_data = result
+        else:
+            # Single answer job
+            if status == "completed":
+                result_json = await client.get(f"job_result:{job_id}")
+                if result_json:
+                    result = json.loads(result_json)
+        
+        error = None
+        if status in ["failed", "cancelled"]:
+            error = await client.get(f"job_error:{job_id}")
+
+        # Semantic logging for polling
+        logger.info(f"EVALUATION_STATUS - {job_id[:8]}... : {status.upper()}")
+
+        await client.close()
+        
+        response = {
+            "job_id": job_id,
+            "status": status,
+        }
+        
+        if is_batch:
+            response["batch_data"] = batch_data
+        else:
+            response["result"] = result
+        
+        if error:
+            response["error"] = error
+            
+        return response
+
+    except Exception as e:
+        logger.error(f"❌ Status check failed: {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.post("/cancel/{job_id}")
+async def cancel_evaluation(job_id: str):
+    """
+    Cancel a running evaluation job.
+    """
+    try:
+        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        await client.set(f"cancel:{job_id}", "1", ex=3600)
+        await client.close()
+        return {"message": "Cancellation requested"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@router.post("/generate-improved")
+async def generate_improved_answer_endpoint(
+    request: Request,
+    question: str = Form(...),
+    feedback: str = Form(...),  # JSON string
+    paper_and_subject_identification: Optional[str] = Form(default=None), # JSON string
+    student_answer: Optional[str] = Form(default=None),
+    word_count: Optional[int] = Form(default=250),
+    files: Optional[List[UploadFile]] = File(default=None),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Enqueue improved answer generation task.
+    Takes question, feedback (from evaluation), and optionally student answer files/text.
+    """
+    try:
+        # 1. Get Gemini Key
+        try:
+            gemini_api_key = get_gemini_api_key_for_request(current_user)
+            if not gemini_api_key:
+                gemini_api_key = GEMINI_API_KEY_SYSTEM
+        except Exception:
+            gemini_api_key = GEMINI_API_KEY_SYSTEM
+
+        if not gemini_api_key:
+             raise HTTPException(400, "No Gemini API key available.")
+        
+        # 2. Parse feedback JSON
+        try:
+            feedback_dict = json.loads(feedback)
+        except json.JSONDecodeError:
+            raise HTTPException(400, "Invalid feedback JSON format")
+            
+        # Parse paper identification if provided
+        paper_id_dict = None
+        if paper_and_subject_identification:
+            try:
+                paper_id_dict = json.loads(paper_and_subject_identification)
+            except json.JSONDecodeError:
+                logger.warning("Invalid paper_and_subject_identification JSON")
+        
+        # 3. Preparation
+        job_id = str(uuid4())
+        saved_file_paths = None
+        
+        # 4. Save Files if provided
+        if files and len(files) > 0:
+            job_dir = settings.BASE_DIR / "data" / "temp" / job_id
+            job_dir.mkdir(parents=True, exist_ok=True)
+            saved_file_paths = []
+            
+            for file in files:
+                file_ext = Path(file.filename).suffix.lower() if file.filename else '.pdf'
+                safe_filename = f"{uuid4()}{file_ext}"
+                file_path = job_dir / safe_filename
+                
+                content = await file.read()
+                with open(file_path, "wb") as f:
+                    f.write(content)
+                
+                saved_file_paths.append(str(file_path))
+        
+        # 5. Enqueue Job
+        arq_pool = request.app.state.arq_pool
+        if not arq_pool:
+            # Cleanup if queue fails
+            if saved_file_paths:
+                import shutil
+                shutil.rmtree(Path(saved_file_paths[0]).parent)
+            raise HTTPException(500, "Job queue not initialized")
+        
+        await arq_pool.enqueue_job(
+            "generate_improved_answer_task",
+            _job_id=job_id,
+            job_id=job_id,
+            question=question,
+            student_answer=student_answer,
+            file_paths=saved_file_paths,
+            feedback=feedback_dict,
+            paper_and_subject_identification=paper_id_dict,
+            user_id=str(current_user.id) if current_user else "anonymous",
+            gemini_api_key=gemini_api_key,
+            word_count=word_count
+        )
+        
+        # 6. Set initial status in Redis
+        try:
+            client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+            await client.set(f"job_status:{job_id}", "queued", ex=3600)
+            await client.close()
+        except:
+            pass  # Non-critical
+        
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "message": "Improved answer generation started. Poll /evaluate-answer/status/{job_id}"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to enqueue improved answer generation: {e}", exc_info=True)
+        raise HTTPException(500, str(e))

@@ -1,19 +1,24 @@
 """
 Mock test generation endpoint
 """
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, Tuple
 import os
 import random
 import logging
 import time
+import asyncio
+import math
+from uuid import uuid4
+from datetime import datetime
+from collections import defaultdict
 from openai import OpenAI, RateLimitError
 
 from ..core.config import settings
 from ..utils.upsc_patterns.loader import get_examples, format_fewshot, get_all_patterns
 from ..utils.metadata_enricher import GEOGRAPHY_TOPICS, GEOGRAPHY_DOMAINS
-from ..routes.query import deduplicate_chunks
+from ..utils.context_retriever import deduplicate_chunks
 from ..utils.mm_utils import enforce_source_diversity
 from ..utils.mock_test_prompting import assemble_upsc_prompt
 from ..utils.query_builder import build_query_text, build_current_affairs_query
@@ -25,6 +30,12 @@ from ..utils.memory_manager import (
     record_feedback,
     get_high_quality_examples
 )
+
+# Phase 1: New imports for scaled generation
+from ..utils.question_provenance import QuestionProvenance, get_question_bank
+from ..utils.job_tracker import get_job_store, JobStatus
+from ..utils.batch_validator import validate_batch, calculate_quality_score
+from ..utils.semantic_dedup import semantic_deduplicate, hash_based_deduplicate
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -224,6 +235,9 @@ def generate_fewshot_examples(
         logger.error(f"❌ Failed to generate few-shot examples: {str(e)}")
         return "", ""
 
+from ..utils.langsmith_tracer import trace_llm
+
+@trace_llm("mock_test_generation")
 def generate_question_paper(pyq_chunks: List[Dict], content_chunks: List[Dict], 
                             request: MockTestRequest, api_key: str, app_state=None) -> MockTestResponse:
     """
@@ -617,19 +631,22 @@ def hybrid_retrieve_for_mock_test(
     # Build adaptive, semantically rich query using query builder
     query = build_query_text(major_domain, sub_domain, difficulty)
     
-    # Set retrieval parameters based on domain granularity
+    # Set retrieval parameters based on domain granularity AND question count
+    # Phase 1: Scale retrieval based on num_questions (1 chunk per 2 questions)
+    base_chunks_needed = max(10, num_questions // 2)
+    
     if sub_domain:
-        k_target = 10  # Focused, fewer chunks needed
+        k_target = base_chunks_needed  # Focused retrieval
         lambda_mult = 0.65
-        logger.info(f"   🎯 Sub-domain mode: focusing on micro-topics within {sub_domain} (k_target={k_target})")
+        logger.info(f"   🎯 Sub-domain mode: {k_target} chunks for {num_questions} questions in {sub_domain}")
     elif major_domain:
-        k_target = 12  # Moderate diversity
+        k_target = base_chunks_needed + 2  # Slightly more for domain diversity
         lambda_mult = 0.65
-        logger.info(f"   🎯 Major-domain mode: diversifying across sub-domains in {major_domain} (k_target={k_target})")
+        logger.info(f"   🎯 Major-domain mode: {k_target} chunks for {num_questions} questions")
     else:
-        k_target = 15  # Broader coverage needed
+        k_target = base_chunks_needed + 5  # Even more for general coverage
         lambda_mult = 0.6
-        logger.info(f"   🎯 General mode: broad coverage (k_target={k_target})")
+        logger.info(f"   🎯 General mode: {k_target} chunks for {num_questions} questions (broad coverage)")
     
     logger.info(f"   📝 Generated query: {query[:150]}...")
     
@@ -704,7 +721,7 @@ def hybrid_retrieve_for_mock_test(
             fetch_k=18,  # Fetch more candidates for MMR diversity (6 * 3)
             k=6,  # Fixed for style learning
             lambda_mult=0.6,  # Moderate diversity for PYQ style examples
-            filter_metadata={"source_type": "pyq"}
+            filter_metadata={"source_type": "pyq", "source_subtype": "prelims"}
         )
         # Enrich with full content from content store (query_documents_mmr doesn't support use_content_store)
         if pyq_chunks:
@@ -1003,3 +1020,630 @@ def is_actual_question_chunk(chunk: Dict[str, Any]) -> bool:
     return matches >= 2
 
 
+
+# ============================================================================
+# PHASE 1: MICRO-BATCH GENERATION FUNCTIONS
+# ============================================================================
+
+
+async def generate_single_batch(
+    batch_num: int,
+    chunks: List[Dict],
+    num_questions: int,
+    difficulty: str,
+    topics: List[str],
+    api_key: str,
+    job_id: str
+) -> Tuple[List[Dict], int, int]:
+    """
+    Generate a single batch of questions with validation and provenance tracking
+    
+    Returns:
+        Tuple of (valid_questions, prompt_tokens, completion_tokens)
+    """
+    batch_id = f"{job_id}_batch_{batch_num}"
+    logger.info(f"🔨 Generating batch {batch_num}: {num_questions} questions")
+    
+    try:
+        # Get PYQ examples for style learning
+        fewshot_examples, pattern_summary = generate_fewshot_examples(
+            num_questions=num_questions,
+            topics=topics,
+            difficulty=difficulty,
+            pyq_chunks=[]  # PYQ chunks already in main retrieval
+        )
+        
+        # Prepare content from chunks
+        from langchain_core.documents import Document
+        content_docs = [Document(page_content=chunk['content'], metadata=chunk.get('metadata', {})) 
+                       for chunk in chunks]
+        
+        # Extract text for deduplication (deduplicate_chunks expects List[str])
+        doc_texts = [d.page_content for d in content_docs]
+        content_text = deduplicate_chunks(doc_texts, min_overlap_words=20, similarity_threshold=0.6)
+        
+        # Assemble prompt
+        topic = topics[0] if topics else "Geography"
+        user_prompt = assemble_upsc_prompt(
+            topic=topic,
+            difficulty=difficulty,
+            num_questions=num_questions,
+            retrieved_static_text=content_text,
+            retrieved_current_affairs="",
+            pyq_examples=fewshot_examples
+        )
+        
+        # Call LLM
+        client = OpenAI(api_key=api_key)
+        
+        # Model selection based on difficulty (cost optimization)
+        if difficulty == "hard":
+            model = settings.LLM_MODEL_LARGE  # GPT-4o for hard questions
+        else:
+            model = "gpt-4o-mini"  # Cheaper for easy/medium
+        
+        logger.info(f"   🤖 Using model: {model}")
+        
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": user_prompt}],
+            temperature=0.85 if difficulty == "hard" else 0.7,
+            max_tokens=min(4000, 500 * num_questions),
+            response_format={"type": "json_object"}
+        )
+        
+        response_text = completion.choices[0].message.content
+        prompt_tokens = completion.usage.prompt_tokens
+        completion_tokens = completion.usage.completion_tokens
+        
+        # Parse JSON response
+        import json
+        try:
+            response_data = json.loads(response_text)
+            questions_data = response_data.get("questions", [])
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Batch {batch_num}: JSON parse error: {e}")
+            questions_data = []
+        
+        # Validate batch
+        valid_questions, errors = validate_batch(questions_data)
+        
+        if errors:
+            logger.warning(f"⚠️ Batch {batch_num}: {len(errors)} validation errors")
+        
+        # Store in question bank with provenance
+        question_bank = get_question_bank()
+        for i, q in enumerate(valid_questions):
+            # Calculate quality score
+            quality_score = calculate_quality_score(q)
+            
+            # Create provenance record
+            provenance = QuestionProvenance(
+                question_id=f"{batch_id}_q{i+1}",
+                question_text=q.get("question", ""),
+                options=q.get("options", []),
+                correct_answer=q.get("correct_answer", "A"),
+                explanation=q.get("explanation", ""),
+                generated_at=datetime.now().isoformat(),
+                model_used=model,
+                prompt_tokens=prompt_tokens // max(len(valid_questions), 1),  # Approximate
+                completion_tokens=completion_tokens // max(len(valid_questions), 1),
+                total_cost=(prompt_tokens * 0.0000025 + completion_tokens * 0.00001) / max(len(valid_questions), 1),
+                source_chunks=[{"content": c["content"][:200]} for c in chunks[:3]],
+                source_domains=list(set(c.get("metadata", {}).get("major_domain", "General") for c in chunks)),
+                pyq_examples_used=[],
+                validation_passed=True,
+                quality_score=quality_score,
+                batch_id=batch_id,
+                job_id=job_id,
+                difficulty=difficulty,
+                topics_requested=topics
+            )
+            
+            question_bank.store_question(provenance)
+        
+        logger.info(f"✅ Batch {batch_num}: Generated {len(valid_questions)} valid questions")
+        return valid_questions, prompt_tokens, completion_tokens
+    
+    except Exception as e:
+        logger.error(f"❌ Batch {batch_num} failed: {e}")
+        return [], 0, 0
+
+
+async def generate_micro_batches(
+    all_chunks: List[Dict],
+    num_questions: int,
+    difficulty: str,
+    topics: List[str],
+    api_key: str,
+    job_id: str,
+    job_store
+) -> List[Dict]:
+    """
+    Generate questions in micro-batches with parallel execution
+    
+    Returns:
+        List of all generated questions (before deduplication)
+    """
+    # Calculate batches with 10% buffer
+    buffer_factor = 1.1
+    target_questions = int(num_questions * buffer_factor)
+    questions_per_batch = 10
+    num_batches = math.ceil(target_questions / questions_per_batch)
+    
+    logger.info(f"📦 Micro-batch plan: {num_batches} batches × {questions_per_batch} questions = {target_questions} total (target: {num_questions})")
+    
+    # Partition chunks by domain for diversity
+    domain_chunks = defaultdict(list)
+    for chunk in all_chunks:
+        domain = chunk.get("metadata", {}).get("major_domain", "General")
+        domain_chunks[domain].append(chunk)
+    
+    logger.info(f"   📊 Content distribution: {dict((d, len(c)) for d, c in domain_chunks.items())}")
+    
+    # Distribute chunks across batches (round-robin for diversity)
+    batch_chunks = [[] for _ in range(num_batches)]
+    chunk_index = 0
+    for domain, chunks in domain_chunks.items():
+        for chunk in chunks:
+            batch_chunks[chunk_index % num_batches].append(chunk)
+            chunk_index += 1
+    
+    # Update job with total batches
+    job = job_store.get_job(job_id)
+    if job:
+        job.total_batches = num_batches
+    
+    # Generate batches in parallel with semaphore (limit concurrency)
+    semaphore = asyncio.Semaphore(3)  # Max 3 concurrent API calls
+    all_questions = []
+    
+    async def generate_with_semaphore(batch_num, chunks):
+        async with semaphore:
+            questions, pt, ct = await generate_single_batch(
+                batch_num=batch_num,
+                chunks=chunks,
+                num_questions=questions_per_batch,
+                difficulty=difficulty,
+                topics=topics,
+                api_key=api_key,
+                job_id=job_id
+            )
+            
+            # Update job progress
+            job = job_store.get_job(job_id)
+            if job:
+                job.update_progress(
+                    batches_completed=batch_num,
+                    questions_generated=len(all_questions) + len(questions)
+                )
+                job_store.update_job(
+                    job_id,
+                    batches_completed=job.batches_completed,
+                    questions_generated=job.questions_generated,
+                    progress=job.progress
+                )
+            
+            return questions
+    
+    # Run all batches
+    tasks = [
+        generate_with_semaphore(i+1, batch_chunks[i])
+        for i in range(num_batches)
+    ]
+    
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Collect results
+    for result in results:
+        if isinstance(result, Exception):
+            logger.error(f"❌ Batch failed: {result}")
+        elif isinstance(result, list):
+            all_questions.extend(result)
+    
+    logger.info(f"📦 All batches complete: {len(all_questions)} questions generated")
+    return all_questions
+
+
+async def fill_gaps_targeted(
+    current_questions: List[Dict],
+    target: int,
+    difficulty: str,
+    topics: List[str],
+    api_key: str,
+    job_id: str,
+    pinecone_handler
+) -> List[Dict]:
+    """
+    Targeted gap-fill generation for missing questions
+    """
+    gap = target - len(current_questions)
+    if gap <= 0:
+        return []
+    
+    logger.info(f"🔧 Gap-fill needed: {gap} questions short of {target}")
+    
+    # Analyze domain distribution
+    current_distribution = defaultdict(int)
+    for q in current_questions:
+        domain = q.get("source", {}).get("domain", "General")
+        current_distribution[domain] += 1
+    
+    logger.info(f"   📊 Current distribution: {dict(current_distribution)}")
+    
+    # Identify underrepresented domain
+    if current_distribution:
+        min_domain = min(current_distribution, key=current_distribution.get)
+        logger.info(f"   🎯 Targeting underrepresented domain: {min_domain}")
+        
+        # Retrieve chunks for this domain
+        query = build_query_text(min_domain, None, difficulty)
+        gap_chunks = pinecone_handler.query_documents(
+            query_text=query,
+            k=max(5, gap // 2),
+            filter_metadata={"major_domain": min_domain}
+        )
+    else:
+        # No distribution info, use general retrieval
+        gap_chunks = pinecone_handler.query_documents(
+            query_text=build_query_text(None, None, difficulty),
+            k=max(5, gap // 2)
+        )
+    
+    # Generate gap-fill questions
+    gap_questions, _, _ = await generate_single_batch(
+        batch_num=999,  # Special batch number for gap-fill
+        chunks=gap_chunks,
+        num_questions=gap,
+        difficulty=difficulty,
+        topics=topics,
+        api_key=api_key,
+        job_id=job_id
+    )
+    
+    logger.info(f"   ✅ Generated {len(gap_questions)} gap-fill questions")
+    return gap_questions
+
+
+
+
+async def _run_pipeline_with_error_handling(
+    job_id: str,
+    num_questions: int,
+    topics: List[str],
+    difficulty: str,
+    pinecone_handler,
+    embedder,
+    api_key: str
+):
+    """
+    Wrapper for generate_async_pipeline that catches and logs ALL exceptions
+    """
+    job_store = get_job_store()
+    
+    try:
+        logger.info(f"🎬 [JOB {job_id[:8]}] Background task started")
+        
+        await generate_async_pipeline(
+            job_id=job_id,
+            num_questions=num_questions,
+            topics=topics,
+            difficulty=difficulty,
+            pinecone_handler=pinecone_handler,
+            embedder=embedder,
+            api_key=api_key
+        )
+        
+        logger.info(f"🎬 [JOB {job_id[:8]}] Background task completed successfully")
+        
+    except Exception as e:
+        logger.error(f"💥 [JOB {job_id[:8]}] FATAL ERROR in background task: {type(e).__name__}: {str(e)}", exc_info=True)
+        
+        # Mark job as failed in database
+        try:
+            job = job_store.get_job(job_id)
+            if job:
+                job.mark_failed(f"{type(e).__name__}: {str(e)}")
+                job_store.update_job(
+                    job_id,
+                    status=job.status,
+                    error=job.error,
+                    completed_at=job.completed_at
+                )
+                logger.info(f"📝 [JOB {job_id[:8]}] Marked job as failed in database")
+        except Exception as update_error:
+            logger.error(f"💥 Failed to update job status: {update_error}")
+
+
+async def generate_async_pipeline(
+    job_id: str,
+    num_questions: int,
+    topics: List[str],
+    difficulty: str,
+    pinecone_handler,
+    embedder,
+    api_key: str
+):
+    """
+    Full async generation pipeline for large tests
+    """
+    job_store = get_job_store()
+    job = job_store.get_job(job_id)
+    
+    if not job:
+        logger.error(f"❌ Job {job_id} not found")
+        return
+    
+    try:
+        logger.info(f"🚀 [JOB {job_id[:8]}] Starting async pipeline")
+        
+        # Mark as started
+        logger.info(f"📝 [JOB {job_id[:8]}] Calling job.mark_started()...")
+        job.mark_started()
+        logger.info(f"📝 [JOB {job_id[:8]}] Calling job_store.update_job()...")
+        job_store.update_job(job_id, status=job.status, started_at=job.started_at, progress=job.progress)
+        logger.info(f"✅ [JOB {job_id[:8]}] Marked as started in database")
+        
+        # Step 1: Retrieve chunks (scaled)
+        logger.info(f"📚 [JOB {job_id[:8]}] Step 1: Retrieving content chunks")
+        try:
+            pyq_chunks, content_chunks = hybrid_retrieve_for_mock_test(
+                pinecone_handler=pinecone_handler,
+                topics=topics,
+                num_questions=num_questions,
+                difficulty=difficulty
+            )
+            logger.info(f"✅ [JOB {job_id[:8]}] Retrieved {len(content_chunks)} content chunks, {len(pyq_chunks)} PYQ chunks")
+        except Exception as e:
+            logger.error(f"💥 [JOB {job_id[:8]}] Retrieval failed: {e}", exc_info=True)
+            raise
+        
+        all_chunks = content_chunks  # Use content chunks for generation
+        
+        if len(all_chunks) < 10:
+            raise Exception(f"Insufficient content: only {len(all_chunks)} chunks retrieved")
+        
+        # Step 2: Generate micro-batches
+        logger.info(f"🔨 [JOB {job_id[:8]}] Step 2: Generating micro-batches")
+        try:
+            all_questions = await generate_micro_batches(
+                all_chunks=all_chunks,
+                num_questions=num_questions,
+                difficulty=difficulty,
+                topics=topics,
+                api_key=api_key,
+                job_id=job_id,
+                job_store=job_store
+            )
+            logger.info(f"✅ [JOB {job_id[:8]}] Generated {len(all_questions)} total questions")
+        except Exception as e:
+            logger.error(f"💥 [JOB {job_id[:8]}] Batch generation failed: {e}", exc_info=True)
+            raise
+        
+        # Step 3: Semantic deduplication
+        logger.info(f"🔍 [JOB {job_id[:8]}] Step 3: Semantic deduplication")
+        try:
+            unique_questions = await semantic_deduplicate(
+                questions=all_questions,
+                embedder=embedder,
+                threshold=0.88
+            )
+            logger.info(f"✅ [JOB {job_id[:8]}] After deduplication: {len(unique_questions)} unique questions")
+        except Exception as e:
+            logger.error(f"💥 [JOB {job_id[:8]}] Deduplication failed: {e}", exc_info=True)
+            raise
+        
+        # Step 4: Gap-fill if needed
+        if len(unique_questions) < num_questions:
+            logger.info(f"🔧 [JOB {job_id[:8]}] Step 4: Gap-filling ({len(unique_questions)}/{num_questions})")
+            try:
+                gap_fill = await fill_gaps_targeted(
+                    current_questions=unique_questions,
+                    target=num_questions,
+                    difficulty=difficulty,
+                    topics=topics,
+                    api_key=api_key,
+                    job_id=job_id,
+                    pinecone_handler=pinecone_handler
+                )
+                unique_questions.extend(gap_fill)
+                logger.info(f"✅ [JOB {job_id[:8]}] After gap-fill: {len(unique_questions)} questions")
+            except Exception as e:
+                logger.error(f"💥 [JOB {job_id[:8]}] Gap-fill failed: {e}", exc_info=True)
+                raise
+        
+        # Step 5: Final selection and shuffle
+        logger.info(f"🎲 [JOB {job_id[:8]}] Step 5: Final selection and shuffle")
+        if len(unique_questions) > num_questions:
+            # Simple random selection (Phase 2 will add sophisticated reranking)
+            unique_questions = random.sample(unique_questions, num_questions)
+        
+        random.shuffle(unique_questions)
+        
+        # Convert to MockTestQuestion format
+        final_questions = []
+        for i, q in enumerate(unique_questions):
+            final_questions.append({
+                "question": q.get("question", ""),
+                "options": q.get("options", []),
+                "correct_answer": q.get("correct_answer", "A"),
+                "explanation": q.get("explanation", ""),
+                "source": {
+                    "filename": "Generated",
+                    "chapter": "Mock Test",
+                    "section": f"Question {i+1}",
+                    "question_id": f"{job_id}_q{i+1}",
+                    "topics": topics,
+                    "difficulty": difficulty
+                }
+            })
+        
+        # Mark job as completed
+        logger.info(f"💾 [JOB {job_id[:8]}] Marking job as completed")
+        job.mark_completed(final_questions)
+        job_store.update_job(
+            job_id, 
+            status=job.status, 
+            progress=job.progress, 
+            questions=job.questions,
+            completed_at=job.completed_at
+        )
+        logger.info(f"✅ [JOB {job_id[:8]}] Job completed: {len(final_questions)} questions")
+    
+    except Exception as e:
+        logger.error(f"❌ [JOB {job_id[:8]}] Pipeline failed: {type(e).__name__}: {str(e)}", exc_info=True)
+        job.mark_failed(str(e))
+        job_store.update_job(job_id, status=job.status, error=job.error, completed_at=job.completed_at)
+        raise
+
+
+
+# ============================================================================
+# NEW API ENDPOINTS
+# ============================================================================
+
+@router.post("/generate-async")
+async def generate_async(
+    request: Request,
+    test_request: MockTestRequest
+):
+    """
+    Start async mock test generation (for large tests)
+    Returns job_id immediately, user polls /status/{job_id}
+    """
+    import redis.asyncio as redis_async
+    
+    try:
+        # Validate request
+        if test_request.num_questions > 200:
+            raise HTTPException(400, "Maximum 200 questions allowed")
+        
+        # Create job ID
+        job_id = str(uuid4())
+        
+        # Get Arq pool
+        arq_pool = request.app.state.arq_pool
+        if not arq_pool:
+            raise HTTPException(500, "Job queue not initialized")
+            
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise HTTPException(400, "OpenAI API key not configured")
+        
+        # Set initial status in Redis
+        try:
+            client = redis_async.Redis(host="localhost", port=6379, decode_responses=True)
+            await client.set(f"job_status:{job_id}", "queued", ex=3600)
+            await client.set(f"job_num_questions:{job_id}", str(test_request.num_questions), ex=3600)
+            await client.set(f"job_topics:{job_id}", ",".join(test_request.topics), ex=3600)
+            await client.set(f"job_difficulty:{job_id}", test_request.difficulty, ex=3600)
+            await client.close()
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to set initial Redis status: {e}")
+        
+        # Enqueue job via Arq
+        await arq_pool.enqueue_job(
+            "generate_mock_test_task",
+            job_id=job_id,
+            num_questions=test_request.num_questions,
+            topics=test_request.topics,
+            difficulty=test_request.difficulty,
+            api_key=api_key
+        )
+        
+        # Log task creation
+        logger.info(f"🎬 Enqueued job {job_id[:8]} to Arq worker")
+        
+        # Estimate time
+        estimated_seconds = math.ceil(test_request.num_questions / 40) * 60  # ~60s per 40 questions
+        
+        logger.info(f"📋 Created async job {job_id} for {test_request.num_questions} questions")
+        
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "estimated_time_seconds": estimated_seconds,
+            "message": f"Generating {test_request.num_questions} questions. Poll /mock-test/status/{job_id} for progress."
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to start async generation: {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.get("/status/{job_id}")
+async def get_status(job_id: str):
+    """
+    Get status of async mock test generation (Redis-based)
+    """
+    import redis.asyncio as redis_async
+    import json
+    
+    try:
+        client = redis_async.Redis(host="localhost", port=6379, decode_responses=True)
+        
+        status = await client.get(f"job_status:{job_id}")
+        if not status:
+            await client.close()
+            raise HTTPException(404, f"Job {job_id} not found")
+        
+        # Build response
+        response = {
+            "job_id": job_id,
+            "status": status
+        }
+        
+        # Get metadata
+        num_questions = await client.get(f"job_num_questions:{job_id}")
+        
+        # Semantic logging for polling
+        logger.info(f"MOCK_TEST_STATUS - {job_id[:8]}... : {status.upper()}")
+
+        topics = await client.get(f"job_topics:{job_id}")
+        difficulty = await client.get(f"job_difficulty:{job_id}")
+        
+        if num_questions:
+            response["num_questions"] = int(num_questions)
+        if topics:
+            response["topics"] = topics.split(",") if topics else []
+        if difficulty:
+            response["difficulty"] = difficulty
+        
+        # Get result if completed
+        if status == "completed":
+            result_json = await client.get(f"job_result:{job_id}")
+            if result_json:
+                response["result"] = json.loads(result_json)
+        
+        # Get error if failed
+        if status == "failed":
+            error = await client.get(f"job_error:{job_id}")
+            if error:
+                response["error"] = error
+        
+        await client.close()
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Status check failed: {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.post("/cancel/{job_id}")
+async def cancel_mock_test(job_id: str):
+    """
+    Cancel a running mock test generation job.
+    """
+    import redis.asyncio as redis_async
+
+    try:
+        client = redis_async.Redis(host="localhost", port=6379, decode_responses=True)
+        await client.set(f"cancel:{job_id}", "1", ex=3600)
+        await client.close()
+        return {"message": "Cancellation requested"}
+    except Exception as e:
+        raise HTTPException(500, str(e))

@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "current-affairs": {
+      "command": "python",
+      "args": [
+        "-m",
+        "mcp_current_affairs.mcp_current_affairs_server"
+      ],
+      "env": {
+        "PYTHONPATH": "/Users/tanishakothari/Documents/Personal/study-buddy/backend",
+        "GNEWS_API_KEY": "${GNEWS_API_KEY}",
+        "NEWSDATA_API_KEY": "${NEWSDATA_API_KEY}",
+        "THENEWSAPI_KEY": "${THENEWSAPI_KEY}",
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "6379"
+      }
+    }
+  }
+}

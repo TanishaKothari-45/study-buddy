@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Job Label (unique identifier) -->
+    <key>Label</key>
+    <string>com.studybuddy.currentaffairs</string>
+    
+    <!-- Program to run -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/tanishakothari/Documents/Personal/study-buddy/scripts/run_current_affairs_downloader.sh</string>
+    </array>
+    
+    <!-- Working Directory -->
+    <key>WorkingDirectory</key>
+    <string>/Users/tanishakothari/Documents/Personal/study-buddy</string>
+    
+    <!-- Schedule: Run on 3rd of every month at 1:00 PM (13:00) -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Day</key>
+        <integer>3</integer>
+        <key>Hour</key>
+        <integer>13</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    
+    <!-- Standard Output Log -->
+    <key>StandardOutPath</key>
+    <string>/Users/tanishakothari/Documents/Personal/study-buddy/logs/launchd_stdout.log</string>
+    
+    <!-- Standard Error Log -->
+    <key>StandardErrorPath</key>
+    <string>/Users/tanishakothari/Documents/Personal/study-buddy/logs/launchd_stderr.log</string>
+    
+    <!-- Run even when user is not logged in (optional) -->
+    <key>RunAtLoad</key>
+    <false/>
+    
+    <!-- Environment Variables (if needed) -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
