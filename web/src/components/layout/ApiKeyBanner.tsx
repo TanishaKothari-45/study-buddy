@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Key, ExternalLink, AlertCircle, CheckCircle2, Eye, EyeOff, FileText } from "lucide-react";
+import { X, Key, ExternalLink, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "next-themes";
-import { authFetch, showToast } from "@/lib/authHandler";
+import { showToast } from "@/lib/authHandler";
 
 interface ApiKeyBannerProps {
     onKeySet?: () => void;
@@ -13,8 +13,8 @@ interface ApiKeyBannerProps {
 }
 
 export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBannerProps) {
-    const { token, isApiKeyValid, setIsApiKeyValid } = useAuth();
-    const { theme, resolvedTheme } = useTheme();
+    const { session, getToken, isApiKeyValid, setIsApiKeyValid } = useAuth();
+    const { theme } = useTheme();
     const [hasApiKey, setHasApiKey] = useState<boolean>(false);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -44,18 +44,14 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
         prevShowBannerRef.current = showBanner;
     }, [showBanner, bannerDismissed]);
 
-    // Debug: log theme
-    useEffect(() => {
-        console.log('🎨 ApiKeyBanner Theme:', { theme, resolvedTheme, isDark: document.documentElement.classList.contains('dark') });
-    }, [theme, resolvedTheme]);
-
-    // Load API key status - memoize to prevent unnecessary re-fetches
+    // Load API key status
     useEffect(() => {
         let isMounted = true;
 
         const loadStatus = async () => {
             try {
-                const response = await authFetch(`${API_URL}/api-key/status`, {
+                const token = await getToken();
+                const response = await fetch(`${API_URL}/api-key/status`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
 
@@ -88,7 +84,7 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
         return () => {
             isMounted = false;
         };
-    }, [token]); // Only depend on token, not onKeySet which changes every render
+    }, [session, getToken]); // Depend on session instead of token
 
     // Success banner auto-hide - show message for 3 seconds before fading
     useEffect(() => {
@@ -121,6 +117,12 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
         setSuccess(null);
 
         try {
+            const token = await getToken();
+            if (!token) {
+                setError("Please log in to save your API key");
+                return;
+            }
+
             const response = await fetch(`${API_URL}/api-key/set`, {
                 method: "POST",
                 headers: {

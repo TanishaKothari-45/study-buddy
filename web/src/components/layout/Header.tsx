@@ -1,19 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { User, LogOut, Key } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { AuthModal } from "@/components/layout/AuthModal";
 import { ApiKeyModal } from "@/components/layout/ApiKeyModal";
 import { useAuth } from "@/context/AuthContext";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 
 export function Header() {
-    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
     const [selectValue, setSelectValue] = useState<string>("");
     const { user, logout, isLoading } = useAuth();
+    const router = useRouter();
 
     const handleProfileAction = (value: string) => {
         if (value === "api-key") {
@@ -23,6 +23,10 @@ export function Header() {
         } else if (value === "logout") {
             logout();
         }
+    };
+
+    const handleLoginClick = () => {
+        router.push("/login");
     };
 
     return (
@@ -74,7 +78,7 @@ export function Header() {
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => setIsAuthModalOpen(true)}
+                                    onClick={handleLoginClick}
                                     title="Login / Sign up"
                                 >
                                     <User className="h-5 w-5" />
@@ -85,11 +89,6 @@ export function Header() {
                     )}
                 </div>
             </header>
-
-            <AuthModal
-                isOpen={isAuthModalOpen}
-                onClose={() => setIsAuthModalOpen(false)}
-            />
             
             <ApiKeyModal
                 isOpen={isApiKeyModalOpen}
