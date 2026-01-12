@@ -1,8 +1,17 @@
 """
-Authentication Dependencies for FastAPI
+Supabase JWT Token Verification for FastAPI
 
-Provides dependency functions for authenticating users via Supabase JWT tokens.
-User profile data is stored in Supabase's user_profiles table.
+This module provides dependency functions to verify Supabase JWT tokens
+for protecting API endpoints. Users authenticate via Supabase on the frontend,
+and this backend verifies those tokens using Supabase's JWKS public keys (ES256)
+or the JWT secret (HS256).
+
+Usage:
+    from app.core.supabase_auth import verify_supabase_token, get_supabase_user_optional
+    
+    @router.get("/protected")
+    async def protected_route(user_id: str = Depends(verify_supabase_token)):
+        return {"user_id": user_id}
 """
 
 from fastapi import Depends, HTTPException, status
@@ -12,22 +21,25 @@ from typing import Optional, Dict, Any
 import logging
 import httpx
 import time
+from pydantic import BaseModel
 from .config import settings
-from .user_profile import UserProfile, get_or_create_user_profile
 
 logger = logging.getLogger(__name__)
 
-# Use HTTPBearer for Supabase token authentication
+# Use HTTPBearer instead of OAuth2PasswordBearer for cleaner Supabase integration
 security = HTTPBearer(auto_error=False)
 
-# Supabase JWT verification - supports both HS256 and ES256
-# ES256 requires fetching public keys from JWKS endpoint
-SUPABASE_ALGORITHMS = ["ES256", "HS256", "HS384", "HS512", "RS256"]
-
-# Cache for JWKS keys (to avoid fetching on every request)
+# Cache for JWKS keys
 _jwks_cache: Dict[str, Any] = {}
 _jwks_cache_expiry: float = 0
-JWKS_CACHE_TTL = 3600  # Cache JWKS for 1 hour
+JWKS_CACHE_TTL = 3600
+
+
+class SupabaseUser(BaseModel):
+    """Supabase user info extracted from JWT token"""
+    id: str  # Supabase user UUID (from 'sub' claim)
+    email: Optional[str] = None
+    role: Optional[str] = None
 
 
 def _get_jwks_url() -> str:
@@ -43,69 +55,50 @@ def _fetch_jwks() -> Dict[str, Any]:
     global _jwks_cache, _jwks_cache_expiry
     
     current_time = time.time()
-    
-    # Return cached keys if still valid
     if _jwks_cache and current_time < _jwks_cache_expiry:
         return _jwks_cache
     
     try:
         jwks_url = _get_jwks_url()
-        logger.info(f"Fetching JWKS from: {jwks_url}")
-        
         with httpx.Client(timeout=10.0) as client:
             response = client.get(jwks_url)
             response.raise_for_status()
             _jwks_cache = response.json()
             _jwks_cache_expiry = current_time + JWKS_CACHE_TTL
-            logger.info(f"JWKS fetched successfully, {len(_jwks_cache.get('keys', []))} keys found")
             return _jwks_cache
     except Exception as e:
         logger.error(f"Failed to fetch JWKS: {e}")
         if _jwks_cache:
-            logger.warning("Using expired JWKS cache as fallback")
             return _jwks_cache
         raise
 
 
-def _get_signing_key(token: str) -> Any:
-    """Get the signing key for the given token from JWKS."""
+def _get_signing_key_local(token: str) -> Any:
+    """Get the signing key for the given token."""
     try:
         header = jwt.get_unverified_header(token)
         kid = header.get("kid")
         alg = header.get("alg")
         
-        logger.debug(f"Token algorithm: {alg}, kid: {kid}")
-        
-        # For HS256/HS384/HS512, use the shared secret
         if alg in ["HS256", "HS384", "HS512"]:
             return settings.SUPABASE_JWT_SECRET
         
-        # For ES256/RS256, fetch from JWKS
         if alg in ["ES256", "RS256"]:
             jwks = _fetch_jwks()
             for key in jwks.get("keys", []):
                 if key.get("kid") == kid:
                     return jwk.construct(key)
-            
-            logger.error(f"No matching key found for kid: {kid}")
             raise ValueError(f"No matching key found for kid: {kid}")
         
         raise ValueError(f"Unsupported algorithm: {alg}")
-        
     except Exception as e:
         logger.error(f"Failed to get signing key: {e}")
         raise
 
 
-def _verify_token(token: str) -> tuple[str, Optional[str]]:
+def _decode_supabase_token(token: str) -> dict:
     """
-    Verify a Supabase JWT token and extract user info.
-    
-    Returns:
-        Tuple of (user_id, email)
-        
-    Raises:
-        HTTPException: If token is invalid
+    Decode and verify a Supabase JWT token.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -114,35 +107,17 @@ def _verify_token(token: str) -> tuple[str, Optional[str]]:
     )
     
     try:
-        # Get the appropriate signing key based on token algorithm
-        signing_key = _get_signing_key(token)
-        
-        # Get the algorithm from the token header
+        signing_key = _get_signing_key_local(token)
         header = jwt.get_unverified_header(token)
         algorithm = header.get("alg", "HS256")
         
-        logger.debug(f"Verifying token with algorithm: {algorithm}")
-        
-        # Verify the token
         payload = jwt.decode(
             token,
             signing_key,
             algorithms=[algorithm],
-            options={
-                "verify_aud": False,  # Don't require audience claim
-            }
+            options={"verify_aud": False}
         )
-        
-        # Supabase uses 'sub' for user UUID
-        user_id: str = payload.get("sub")
-        email: Optional[str] = payload.get("email")
-        
-        if user_id is None:
-            logger.warning("JWT missing 'sub' claim")
-            raise credentials_exception
-        
-        return user_id, email
-            
+        return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -157,17 +132,11 @@ def _verify_token(token: str) -> tuple[str, Optional[str]]:
         raise credentials_exception
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> UserProfile:
+async def verify_supabase_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> str:
     """
-    Authenticate user via Supabase JWT token.
-    
-    Verifies the token and returns the user's profile from Supabase.
-    Creates a profile record if one doesn't exist.
-    
-    Returns:
-        UserProfile: User profile from Supabase user_profiles table
+    Dependency that verifies the Supabase JWT token and returns the user_id.
     """
     if credentials is None:
         raise HTTPException(
@@ -176,27 +145,63 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    user_id, email = _verify_token(credentials.credentials)
+    token = credentials.credentials
+    payload = _decode_supabase_token(token)
     
-    # Get or create user profile in Supabase
-    profile = get_or_create_user_profile(user_id, email)
-    return profile
+    user_id: str = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: missing user identifier",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    return user_id
 
 
-async def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-) -> Optional[UserProfile]:
+async def get_supabase_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> SupabaseUser:
     """
-    Optional authentication dependency - returns None for unauthenticated requests.
+    Dependency that verifies the token and returns full user info.
+    """
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header missing",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     
-    Use this for endpoints that work for both authenticated and unauthenticated users.
+    token = credentials.credentials
+    payload = _decode_supabase_token(token)
+    
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: missing user identifier",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    return SupabaseUser(
+        id=user_id,
+        email=payload.get("email"),
+        role=payload.get("role"),
+    )
+
+
+async def get_supabase_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> Optional[str]:
+    """
+    Optional authentication - returns user_id if authenticated, None otherwise.
     """
     if credentials is None:
         return None
     
     try:
-        user_id, email = _verify_token(credentials.credentials)
-        profile = get_or_create_user_profile(user_id, email)
-        return profile
+        token = credentials.credentials
+        payload = _decode_supabase_token(token)
+        return payload.get("sub")
     except HTTPException:
         return None

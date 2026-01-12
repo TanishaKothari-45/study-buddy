@@ -23,9 +23,9 @@ from ...routes import (
     training_data,
     feedback,
     auth,
-    auth,
     api_key,
     jobs,
+    protected,
 )
 
 router = APIRouter()
@@ -97,4 +97,9 @@ router.include_router(
     jobs.router,
     prefix="/jobs",
     tags=["Jobs"]
+)
+
+router.include_router(
+    protected.router,
+    tags=["Protected (Supabase Auth)"]
 )

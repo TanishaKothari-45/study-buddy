@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 2880  # 2 days (48 hours)
     
+    # Supabase Authentication Settings
+    # Get these from: Supabase Dashboard > Settings > API
+    SUPABASE_JWT_SECRET: str = Field(..., min_length=32)  # JWT Secret
+    SUPABASE_URL: str = Field(..., min_length=10)  # Project URL (e.g., https://xxx.supabase.co)
+    SUPABASE_SERVICE_ROLE_KEY: str = Field(..., min_length=32)  # Service Role Key (for backend operations)
+    SUPABASE_ANON_KEY: Optional[str] = None  # Anon Key (optional, for RLS-respecting operations)
+    
     # API Key Encryption (for user-specific Gemini keys)
     ENCRYPTION_KEY: Optional[str] = Field(None, min_length=32)
     
@@ -50,6 +57,7 @@ class Settings(BaseSettings):
         env_file = str(Path(__file__).resolve().parent.parent.parent / ".env")
         env_file_encoding = "utf-8"
         case_sensitive = True
+        extra = "ignore"  # Allow extra env vars not defined in Settings
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
     DB_DIR: Path = BASE_DIR / "data" / "databases"
     
