@@ -12,6 +12,7 @@
 
 import { storeReturnUrl } from './authHandler';
 import { API_URL } from './api';  // Import the versioned API_URL from api.ts
+import { getSessionToken } from './supabase';
 
 // Global toast handler (set by ToastProvider)
 let globalToastHandler: ((message: string, type?: 'info' | 'success' | 'warning' | 'error') => void) | null = null;
@@ -237,8 +238,8 @@ async function handle401Error(url: string, response?: Response) {
         globalToastHandler('Your session has expired. Redirecting to login...', 'warning');
     }
 
-    // Clear token
-    localStorage.removeItem('token');
+    // Note: With Supabase, session clearing is handled by signOut()
+    // The redirect will take user to login page
 
     // Redirect after 3 seconds
     setTimeout(() => {
@@ -249,11 +250,12 @@ async function handle401Error(url: string, response?: Response) {
 }
 
 /**
- * Get authentication token from localStorage
+ * Get authentication token from Supabase session
+ * Note: This is async because Supabase session retrieval is async
  */
-function getAuthToken(): string | null {
+async function getAuthToken(): Promise<string | null> {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem('token');
+    return getSessionToken();
 }
 
 /**
@@ -325,7 +327,7 @@ export async function apiClient<T = unknown>(
 
     // Add authentication token
     if (!skipAuth) {
-        const token = getAuthToken();
+        const token = await getAuthToken();
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
