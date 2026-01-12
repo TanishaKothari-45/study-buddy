@@ -97,12 +97,12 @@ def _get_signing_key(token: str) -> Any:
         raise
 
 
-def _verify_token(token: str) -> tuple[str, Optional[str]]:
+def _verify_token(token: str) -> tuple[str, Optional[str], Optional[str]]:
     """
     Verify a Supabase JWT token and extract user info.
     
     Returns:
-        Tuple of (user_id, email)
+        Tuple of (user_id, email, full_name)
         
     Raises:
         HTTPException: If token is invalid
@@ -137,11 +137,15 @@ def _verify_token(token: str) -> tuple[str, Optional[str]]:
         user_id: str = payload.get("sub")
         email: Optional[str] = payload.get("email")
         
+        # Extract full_name from user_metadata (set during signup)
+        user_metadata = payload.get("user_metadata", {})
+        full_name: Optional[str] = user_metadata.get("full_name") if user_metadata else None
+        
         if user_id is None:
             logger.warning("JWT missing 'sub' claim")
             raise credentials_exception
         
-        return user_id, email
+        return user_id, email, full_name
             
     except jwt.ExpiredSignatureError:
         raise HTTPException(
@@ -176,10 +180,10 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    user_id, email = _verify_token(credentials.credentials)
+    user_id, email, full_name = _verify_token(credentials.credentials)
     
     # Get or create user profile in Supabase
-    profile = get_or_create_user_profile(user_id, email)
+    profile = get_or_create_user_profile(user_id, email, full_name)
     return profile
 
 
@@ -195,8 +199,8 @@ async def get_current_user_optional(
         return None
     
     try:
-        user_id, email = _verify_token(credentials.credentials)
-        profile = get_or_create_user_profile(user_id, email)
+        user_id, email, full_name = _verify_token(credentials.credentials)
+        profile = get_or_create_user_profile(user_id, email, full_name)
         return profile
     except HTTPException:
         return None

@@ -58,13 +58,18 @@ def get_user_profile(user_id: str) -> Optional[UserProfile]:
         return None
 
 
-def get_or_create_user_profile(user_id: str, email: Optional[str] = None) -> UserProfile:
+def get_or_create_user_profile(
+    user_id: str, 
+    email: Optional[str] = None,
+    full_name: Optional[str] = None
+) -> UserProfile:
     """
     Get existing user profile or create a new one.
     
     Args:
         user_id: Supabase user UUID
         email: User's email (for logging purposes)
+        full_name: User's full name from JWT user_metadata (used when creating new profile)
         
     Returns:
         UserProfile (existing or newly created)
@@ -80,12 +85,12 @@ def get_or_create_user_profile(user_id: str, email: Optional[str] = None) -> Use
         supabase = get_supabase_client()
         result = supabase.table("user_profiles").insert({
             "id": user_id,
-            "full_name": None,
+            "full_name": full_name,
             "encrypted_gemini_api_key": None,
         }).execute()
         
         if result.data and len(result.data) > 0:
-            logger.info(f"✅ Created new user profile for {email or user_id}")
+            logger.info(f"✅ Created new user profile for {email or user_id} with name: {full_name}")
             profile_data = result.data[0]
             return UserProfile(
                 id=profile_data["id"],
@@ -99,7 +104,7 @@ def get_or_create_user_profile(user_id: str, email: Optional[str] = None) -> Use
         logger.error(f"Error creating user profile for {user_id}: {e}")
     
     # Return a minimal profile even if creation fails
-    return UserProfile(id=user_id, email=email)
+    return UserProfile(id=user_id, email=email, full_name=full_name)
 
 
 def update_user_profile(
