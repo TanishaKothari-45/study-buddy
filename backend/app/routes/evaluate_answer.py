@@ -25,7 +25,7 @@ import redis.asyncio as redis
 
 from ..core.config import settings
 from ..core.deps import get_current_user
-from ..models.user import User
+from ..core.user_profile import UserProfile
 from ..utils.user_api_key import get_gemini_api_key_for_request
 from ..gemini_core import settings_gemini_key
 
@@ -41,7 +41,7 @@ async def evaluate_answer_endpoint(
     request: Request,
     files: List[UploadFile] = File(...),
     question: Optional[str] = Form(default=None),
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Enqueue answer evaluation task.
@@ -130,7 +130,7 @@ async def evaluate_batch_answers_endpoint(
     use_standard_format: bool = Form(default=False),  # Use UPSC standard format (2+3 pages)
     question_file: Optional[UploadFile] = File(default=None),  # Optional question PDF/image
     questions: Optional[str] = Form(default=None),  # Optional JSON array of question texts
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Enqueue batch answer evaluation task.
@@ -346,7 +346,7 @@ async def generate_improved_answer_endpoint(
     student_answer: Optional[str] = Form(default=None),
     word_count: Optional[int] = Form(default=250),
     files: Optional[List[UploadFile]] = File(default=None),
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Enqueue improved answer generation task.

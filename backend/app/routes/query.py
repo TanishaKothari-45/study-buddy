@@ -23,7 +23,7 @@ from ..gemini_core import settings_gemini_key
 GEMINI_API_KEY_SYSTEM = settings_gemini_key.GEMINI_API_KEY
 
 from ..core.deps import get_current_user
-from ..models.user import User
+from ..core.user_profile import UserProfile
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ router = APIRouter()
 async def generate_answer(
     request: Request,
     query_request: QueryRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Enqueue Mains Answer generation.
