@@ -37,7 +37,7 @@ from ..utils.answer_compressor import compress_answer
 from ..utils.user_api_key import get_gemini_api_key_for_request
 from ..core.config import settings
 from ..core.deps import get_current_user
-from ..models.user import User
+from ..core.user_profile import UserProfile
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -233,7 +233,7 @@ async def check_connection(request: Request):
 async def generate_mains_answer(
     request: Request,
     mains_request: MainsAnswerRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Enqueue Mains Answer generation.
@@ -384,7 +384,7 @@ async def get_mains_answer_history(
     limit: int = 20,
     offset: int = 0,
     search: str = "",
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Get user's history of mains answers from Redis.
@@ -419,7 +419,7 @@ async def get_mains_answer_history(
 async def get_cached_mains_answer(
     question: str,
     word_count: int = 500,
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Return a cached mains answer (no regeneration).
