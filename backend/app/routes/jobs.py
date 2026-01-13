@@ -7,7 +7,7 @@ import redis.asyncio as redis
 import logging
 
 from ..core.deps import get_current_user, get_redis_client
-from ..models.user import User
+from ..core.user_profile import UserProfile
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -16,7 +16,7 @@ router = APIRouter()
 async def cancel_job(
     job_id: str,
     request: Request,
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Cancel an ongoing background job.

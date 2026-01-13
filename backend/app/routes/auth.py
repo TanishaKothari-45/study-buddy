@@ -1,73 +1,77 @@
+"""
+Authentication Routes
+
+Handles user authentication via Supabase.
+User profile data is stored in Supabase's user_profiles table.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from ..core.database import get_db
-from ..core.security import verify_password, get_password_hash, create_access_token
+from pydantic import BaseModel, EmailStr
+from typing import Optional
+
 from ..core.deps import get_current_user
-from ..models.user import User
-from ..schemas.user import UserCreate, UserLogin, Token, User as UserSchema, PasswordResetRequest, PasswordReset, PasswordResetResponse
+from ..core.supabase_auth import get_supabase_user, SupabaseUser
+from ..core.user_profile import UserProfile, get_user_profile, update_user_profile
 
 router = APIRouter()
 
-@router.post("/signup", response_model=UserSchema)
-def signup(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.email == user.email).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    hashed_password = get_password_hash(user.password)
-    new_user = User(
-        email=user.email,
-        hashed_password=hashed_password,
-        full_name=user.full_name
+
+class UserMeResponse(BaseModel):
+    """Response schema for /me endpoint"""
+    id: str  # Supabase UUID
+    email: str
+    full_name: Optional[str] = None
+    has_gemini_api_key: bool = False
+
+
+class UpdateProfileRequest(BaseModel):
+    """Request to update user profile"""
+    full_name: Optional[str] = None
+
+
+class UpdateProfileResponse(BaseModel):
+    """Response after updating profile"""
+    success: bool
+    message: str
+
+
+@router.get("/me", response_model=UserMeResponse)
+async def read_users_me(
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """
+    Get current user profile.
+
+    Verifies the Supabase JWT token and returns user info from the user_profiles table.
+    """
+    return UserMeResponse(
+        id=current_user.id,
+        email=current_user.email or "",
+        full_name=current_user.full_name,
+        has_gemini_api_key=current_user.encrypted_gemini_api_key is not None,
     )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
 
-@router.post("/login", response_model=Token)
-def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == user_credentials.email).first()
-    if not user or not verify_password(user_credentials.password, user.hashed_password):
+
+@router.put("/profile", response_model=UpdateProfileResponse)
+async def update_profile(
+    request: UpdateProfileRequest,
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """
+    Update user profile information.
+    """
+    success = update_user_profile(
+        user_id=current_user.id,
+        full_name=request.full_name,
+    )
+
+    if success:
+        return {
+            "success": True,
+            "message": "Profile updated successfully"
+        }
+    else:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update profile"
         )
-    
-    access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
-
-@router.get("/me", response_model=UserSchema)
-def read_users_me(current_user: User = Depends(get_current_user)):
-    # Add has_gemini_api_key flag to response
-    response_data = UserSchema.model_validate(current_user)
-    response_data.has_gemini_api_key = current_user.encrypted_gemini_api_key is not None
-    return response_data
-
-@router.post("/forgot-password", response_model=PasswordResetResponse)
-def forgot_password(request: PasswordResetRequest, db: Session = Depends(get_db)):
-    """Check if email exists for password reset"""
-    user = db.query(User).filter(User.email == request.email).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No account found with this email"
-        )
-    # In a production app, you would send an email with a reset token
-    # For simplicity, we just confirm the email exists
-    return {"message": "Email verified. You can now reset your password."}
-
-@router.post("/reset-password", response_model=PasswordResetResponse)
-def reset_password(request: PasswordReset, db: Session = Depends(get_db)):
-    """Reset password for a user"""
-    user = db.query(User).filter(User.email == request.email).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No account found with this email"
-        )
-    
-    user.hashed_password = get_password_hash(request.new_password)
-    db.commit()
-    return {"message": "Password reset successfully. You can now login with your new password."}

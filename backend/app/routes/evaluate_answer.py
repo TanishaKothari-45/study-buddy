@@ -25,7 +25,7 @@ import redis.asyncio as redis
 
 from ..core.config import settings
 from ..core.deps import get_current_user, get_redis_client
-from ..models.user import User
+from ..core.user_profile import UserProfile
 from ..utils.user_api_key import get_gemini_api_key_for_request
 from ..utils.storage_handler import get_storage_handler
 from ..gemini_core import settings_gemini_key
@@ -42,7 +42,7 @@ async def evaluate_answer_endpoint(
     request: Request,
     files: List[UploadFile] = File(...),
     question: Optional[str] = Form(default=None),
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Enqueue answer evaluation task.
@@ -59,26 +59,26 @@ async def evaluate_answer_endpoint(
 
         if not gemini_api_key or not gemini_api_key.strip():
              raise HTTPException(400, "No Gemini API key available. Please configure an API key in Settings.")
-            
+
         # 2. Preparation
         job_id = str(uuid4())
         job_dir = settings.BASE_DIR / "data" / "temp" / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
-        
+
         saved_file_paths = []
-        
+
         # 3. Save Files
         for file in files:
             file_ext = Path(file.filename).suffix.lower() if file.filename else '.pdf'
             safe_filename = f"{uuid4()}{file_ext}"
             file_path = job_dir / safe_filename
-            
+
             content = await file.read()
             with open(file_path, "wb") as f:
                 f.write(content)
-            
+
             saved_file_paths.append(str(file_path))
-            
+
         # 4. Enqueue Job
         arq_pool = request.app.state.arq_pool
         if not arq_pool:
@@ -95,7 +95,7 @@ async def evaluate_answer_endpoint(
             user_id=str(current_user.id) if current_user else "anonymous",
             gemini_api_key=gemini_api_key
         )
-        
+
         # 5. Set initial status in Redis
         # We use a separate redis client connection for status (simple string)
         # or we rely on the client knowing it's "queued".
@@ -103,14 +103,14 @@ async def evaluate_answer_endpoint(
         # But we don't have a redis client handy in route unless we create one.
         # Arq pool doesn't expose SET.
         # We can spin up a quick client.
-        
+
         try:
-            client = get_redis_client()
+            client = redis.Redis(host="localhost", port=6379, decode_responses=True)
             await client.set(f"job_status:{job_id}", "queued", ex=3600)
             await client.close()
         except:
             pass # Non-critical
-        
+
         return {
             "job_id": job_id,
             "status": "queued",
@@ -131,16 +131,14 @@ async def evaluate_batch_answers_endpoint(
     use_standard_format: bool = Form(default=False),  # Use UPSC standard format (2+3 pages)
     question_file: Optional[UploadFile] = File(default=None),  # Optional question PDF/image
     questions: Optional[str] = Form(default=None),  # Optional JSON array of question texts
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Enqueue batch answer evaluation task.
     Accepts a PDF with multiple answers (up to 20), splits by regex patterns (Q1, Q2, etc.),
     and evaluates each answer sequentially.
-    
+
     Returns batch_job_id for polling progress.
-    
-    In Cloud Run, files are uploaded to GCS for worker access.
     """
     try:
         # 1. Validate file type
@@ -157,32 +155,34 @@ async def evaluate_batch_answers_endpoint(
 
         if not gemini_api_key:
             raise HTTPException(400, "No Gemini API key available.")
-        
-        # 3. Get storage handler (GCS in Cloud Run, local filesystem otherwise)
-        storage = get_storage_handler()
+
+        # 3. Save PDF and question file if provided
         job_id = str(uuid4())
-        
-        # 4. Save PDF to storage
-        pdf_filename = f"{uuid4()}.pdf"
-        pdf_content = await file.read()
-        pdf_storage_path = await storage.save_bytes(pdf_content, pdf_filename, job_id)
-        
+        job_dir = settings.BASE_DIR / "data" / "temp" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        pdf_path = job_dir / f"{uuid4()}.pdf"
+        content = await file.read()
+        with open(pdf_path, "wb") as f:
+            f.write(content)
+
         # Save question file if provided
-        question_storage_path = None
+        question_file_path = None
         if question_file:
             # Validate question file type
             if not question_file.filename:
                 raise HTTPException(400, "Question file must have a filename")
-            
+
             allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png', '.webp']
             file_ext = Path(question_file.filename).suffix.lower()
             if file_ext not in allowed_extensions:
                 raise HTTPException(400, f"Question file must be PDF or image ({', '.join(allowed_extensions)})")
-            
-            question_filename = f"question_{uuid4()}{file_ext}"
+
+            question_file_path = job_dir / f"question_{uuid4()}{file_ext}"
             question_content = await question_file.read()
-            question_storage_path = await storage.save_bytes(question_content, question_filename, job_id)
-        
+            with open(question_file_path, "wb") as f:
+                f.write(question_content)
+
         # Parse manual questions if provided
         question_texts = None
         if questions:
@@ -194,39 +194,39 @@ async def evaluate_batch_answers_endpoint(
                 question_texts = [q.strip() for q in question_texts if q.strip()]
             except (json.JSONDecodeError, ValueError) as e:
                 raise HTTPException(400, f"Invalid questions JSON format: {str(e)}")
-        
-        # 5. Enqueue Batch Job
+
+        # 4. Enqueue Batch Job
         arq_pool = request.app.state.arq_pool
         if not arq_pool:
-            await storage.cleanup_job(job_id)
+            shutil.rmtree(job_dir)
             raise HTTPException(500, "Job queue not initialized")
-        
+
         await arq_pool.enqueue_job(
             "evaluate_batch_answers_task",
             _job_id=job_id,
             job_id=job_id,
-            pdf_path=pdf_storage_path,  # Can be local path or GCS URI
+            pdf_path=str(pdf_path),
             user_id=str(current_user.id) if current_user else "anonymous",
             gemini_api_key=gemini_api_key,
             use_standard_format=use_standard_format,
-            question_file_path=question_storage_path,  # Can be None, local path, or GCS URI
+            question_file_path=str(question_file_path) if question_file_path else None,
             question_texts=question_texts
         )
-        
-        # 6. Set initial status
+
+        # 5. Set initial status
         try:
-            client = get_redis_client()
+            client = redis.Redis(host="localhost", port=6379, decode_responses=True)
             await client.set(f"job_status:{job_id}", "queued", ex=7200)  # 2 hour TTL for batch jobs
             await client.close()
         except:
             pass  # Non-critical
-        
+
         return {
             "job_id": job_id,
             "status": "queued",
             "message": "Batch evaluation started. Poll /evaluate-answer/status/{job_id} for progress"
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -238,7 +238,7 @@ async def evaluate_batch_answers_endpoint(
 async def get_evaluation_status(request: Request, job_id: str):
     """
     Poll status of evaluation job (single or batch).
-    
+
     For batch jobs, returns:
     {
         "job_id": "...",
@@ -263,23 +263,23 @@ async def get_evaluation_status(request: Request, job_id: str):
     }
     """
     try:
-        client = get_redis_client()
+        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
         
         status = await client.get(f"job_status:{job_id}")
         if not status:
             status = "unknown"
-        
+
         # Check if this is a batch job (has batch_data)
         batch_data_json = await client.get(f"job_batch_data:{job_id}")
         is_batch = batch_data_json is not None
-        
+
         result = None
         batch_data = None
-        
+
         if is_batch:
             # Batch job - return batch progress
             batch_data = json.loads(batch_data_json) if batch_data_json else None
-            
+
             # Also check for final result
             if status in ["completed", "partial_failed"]:
                 result_json = await client.get(f"job_result:{job_id}")
@@ -294,7 +294,7 @@ async def get_evaluation_status(request: Request, job_id: str):
                 result_json = await client.get(f"job_result:{job_id}")
                 if result_json:
                     result = json.loads(result_json)
-        
+
         error = None
         if status in ["failed", "cancelled"]:
             error = await client.get(f"job_error:{job_id}")
@@ -303,20 +303,20 @@ async def get_evaluation_status(request: Request, job_id: str):
         logger.info(f"EVALUATION_STATUS - {job_id[:8]}... : {status.upper()}")
 
         await client.close()
-        
+
         response = {
             "job_id": job_id,
             "status": status,
         }
-        
+
         if is_batch:
             response["batch_data"] = batch_data
         else:
             response["result"] = result
-        
+
         if error:
             response["error"] = error
-            
+
         return response
 
     except Exception as e:
@@ -347,7 +347,7 @@ async def generate_improved_answer_endpoint(
     student_answer: Optional[str] = Form(default=None),
     word_count: Optional[int] = Form(default=250),
     files: Optional[List[UploadFile]] = File(default=None),
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Enqueue improved answer generation task.
@@ -364,13 +364,13 @@ async def generate_improved_answer_endpoint(
 
         if not gemini_api_key:
              raise HTTPException(400, "No Gemini API key available.")
-        
+
         # 2. Parse feedback JSON
         try:
             feedback_dict = json.loads(feedback)
         except json.JSONDecodeError:
             raise HTTPException(400, "Invalid feedback JSON format")
-            
+
         # Parse paper identification if provided
         paper_id_dict = None
         if paper_and_subject_identification:
@@ -378,11 +378,11 @@ async def generate_improved_answer_endpoint(
                 paper_id_dict = json.loads(paper_and_subject_identification)
             except json.JSONDecodeError:
                 logger.warning("Invalid paper_and_subject_identification JSON")
-        
+
         # 3. Preparation
         job_id = str(uuid4())
         saved_file_paths = None
-        
+
         # 4. Save Files if provided
         if files and len(files) > 0:
             job_dir = settings.BASE_DIR / "data" / "temp" / job_id
@@ -397,9 +397,9 @@ async def generate_improved_answer_endpoint(
                 content = await file.read()
                 with open(file_path, "wb") as f:
                     f.write(content)
-                
+
                 saved_file_paths.append(str(file_path))
-        
+
         # 5. Enqueue Job
         arq_pool = request.app.state.arq_pool
         if not arq_pool:
@@ -408,7 +408,7 @@ async def generate_improved_answer_endpoint(
                 import shutil
                 shutil.rmtree(Path(saved_file_paths[0]).parent)
             raise HTTPException(500, "Job queue not initialized")
-        
+
         await arq_pool.enqueue_job(
             "generate_improved_answer_task",
             _job_id=job_id,
@@ -422,7 +422,7 @@ async def generate_improved_answer_endpoint(
             gemini_api_key=gemini_api_key,
             word_count=word_count
         )
-        
+
         # 6. Set initial status in Redis
         try:
             client = get_redis_client()
@@ -430,7 +430,7 @@ async def generate_improved_answer_endpoint(
             await client.close()
         except:
             pass  # Non-critical
-        
+
         return {
             "job_id": job_id,
             "status": "queued",

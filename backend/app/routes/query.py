@@ -23,7 +23,7 @@ from ..gemini_core import settings_gemini_key
 GEMINI_API_KEY_SYSTEM = settings_gemini_key.GEMINI_API_KEY
 
 from ..core.deps import get_current_user, get_redis_client
-from ..models.user import User
+from ..core.user_profile import UserProfile
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ router = APIRouter()
 async def generate_answer(
     request: Request,
     query_request: QueryRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Enqueue Mains Answer generation.
@@ -42,7 +42,7 @@ async def generate_answer(
     """
     try:
         user_id = str(current_user.id) if current_user else "anonymous"
-        
+
         # 1. Get Gemini Key
         try:
             gemini_api_key = get_gemini_api_key_for_request(current_user)
@@ -59,7 +59,7 @@ async def generate_answer(
         arq_pool = request.app.state.arq_pool
         if not arq_pool:
             raise HTTPException(500, "Job queue not initialized")
-            
+
         # Enqueue job
         await arq_pool.enqueue_job(
             "generate_mains_answer_task",
@@ -97,7 +97,7 @@ async def get_query_status(job_id: str):
         status = await client.get(f"job_status:{job_id}")
         if not status:
              status = "unknown"
-             
+
         result = None
         if status == "completed":
             result_json = await client.get(f"job_result:{job_id}")
@@ -109,7 +109,7 @@ async def get_query_status(job_id: str):
             error = await client.get(f"job_error:{job_id}")
 
         await client.close()
-            
+
         return {
             "job_id": job_id,
             "status": status,

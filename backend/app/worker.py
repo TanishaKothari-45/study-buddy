@@ -65,14 +65,14 @@ async def startup(ctx):
     """Initialize resources for the worker"""
     logger.info("🚀 Worker starting up...")
     logger.info(f"🔌 Environment: {'Cloud Run' if IS_CLOUD_RUN else 'Local'}")
-    
+
     # Initialize Redis client for locking/cancellation/status (using config settings)
     ctx["redis"] = Redis(
         host=settings.redis_host,
         port=settings.redis_port_from_url,
         decode_responses=True
     )
-    
+
     # Initialize Pinecone handler (shared for all tasks)
     if settings.USE_PINECONE:
         ctx["pinecone_handler"] = PineconeHandler()
@@ -1119,7 +1119,7 @@ async def evaluate_batch_answers_task(
     logger.info(f"📦 [BATCH JOB {job_id}] Starting batch evaluation for user {user_id}")
     redis = ctx["redis"]
     storage = get_storage_handler()
-    
+
     # Initialize batch status
     batch_data = {
         "total_answers": 0,
@@ -1133,7 +1133,7 @@ async def evaluate_batch_answers_task(
     # Track local file path for cleanup
     local_pdf_path = pdf_path
     local_question_file_path = question_file_path
-    
+
     try:
         await check_cancellation(ctx, job_id)
         
@@ -1144,12 +1144,12 @@ async def evaluate_batch_answers_task(
             logger.info(f"☁️ [BATCH JOB {job_id}] Downloading PDF from GCS...")
             local_pdf_path = await storage.download_file(pdf_path)
             logger.info(f"✅ [BATCH JOB {job_id}] Downloaded to: {local_pdf_path}")
-        
+
         if question_file_path and question_file_path.startswith("gs://"):
             logger.info(f"☁️ [BATCH JOB {job_id}] Downloading question file from GCS...")
             local_question_file_path = await storage.download_file(question_file_path)
             logger.info(f"✅ [BATCH JOB {job_id}] Downloaded question file to: {local_question_file_path}")
-        
+
         # Initialize Gemini Client (using cached factory)
         gemini_client = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_PRO)
         
@@ -1374,24 +1374,23 @@ Return the result in the exact JSON format specified in the system prompt."""
             if 'temp_dir' in locals() and temp_dir.exists():
                 shutil.rmtree(temp_dir)
                 logger.info(f"🧹 [BATCH JOB {job_id}] Cleaned up temporary segments")
-            
+
             # Cleanup local PDF (downloaded from GCS or temp)
             if 'local_pdf_path' in locals() and os.path.exists(local_pdf_path):
                 os.remove(local_pdf_path)
                 logger.info(f"🧹 [BATCH JOB {job_id}] Cleaned up local PDF")
-            
+
             # Cleanup local question file if downloaded from GCS
             if 'local_question_file_path' in locals() and local_question_file_path and os.path.exists(local_question_file_path):
                 os.remove(local_question_file_path)
                 logger.info(f"🧹 [BATCH JOB {job_id}] Cleaned up local question file")
-            
+
             # Cleanup GCS files if using cloud storage
             if pdf_path.startswith("gs://"):
                 await storage.cleanup_job(job_id)
                 logger.info(f"☁️ [BATCH JOB {job_id}] Cleaned up GCS files")
-                
+
         except Exception as e:
-            logger.warning(f"⚠️ [BATCH JOB {job_id}] Failed to cleanup: {e}")
         
         await redis.delete(f"cancel:{job_id}")
 

@@ -14,4 +14,5 @@ from . import (
     auth,
     api_key,
     jobs,
+    protected,
 )

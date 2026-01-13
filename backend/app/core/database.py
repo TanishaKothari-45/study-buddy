@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 if IS_CLOUD_RUN and settings.DATABASE_URL:
     # Cloud Run: Use PostgreSQL via Cloud SQL
     SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
-    
+
     # Cloud SQL connection configuration
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL,
@@ -31,9 +31,9 @@ if IS_CLOUD_RUN and settings.DATABASE_URL:
 else:
     # Local development: Use SQLite
     SQLALCHEMY_DATABASE_URL = f"sqlite:///{settings.DB_DIR}/sql_app.db"
-    
+
     engine = create_engine(
-        SQLALCHEMY_DATABASE_URL, 
+        SQLALCHEMY_DATABASE_URL,
         connect_args={"check_same_thread": False}  # SQLite-specific
     )
     logger.info("✅ Using SQLite for database (local development)")

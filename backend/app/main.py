@@ -21,8 +21,7 @@ from .core.langsmith_config import configure_langsmith
 configure_langsmith()
 
 from .core.config import settings
-from .core.database import init_db
-from .models import User  # Import User model before create_all
+from .core.database import engine, Base
 from .api.v1 import router as api_v1_router
 from .utils.memory_manager import init_memory_db
 
@@ -31,12 +30,12 @@ logger = logging.getLogger(__name__)
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
+# Create database tables
+Base.metadata.create_all(bind=engine)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize resources on startup"""
-    # Initialize database tables (handles concurrent workers gracefully)
-    init_db()
-    
     # Initialize memory database
     init_memory_db()
     
@@ -44,7 +43,7 @@ async def lifespan(app: FastAPI):
     from .utils.job_tracker import get_job_store
     job_store = get_job_store()
     job_store.cleanup_stale_jobs()
-    
+
     # Initialize vector store handler (Pinecone or ChromaDB based on config)
     if settings.USE_PINECONE:
         from .utils.pinecone_handler import PineconeHandler
@@ -61,7 +60,7 @@ async def lifespan(app: FastAPI):
     # Initialize Arq Redis pool
     from arq import create_pool
     from arq.connections import RedisSettings
-    
+
     try:
         # Use Redis URL from settings (supports both local and Cloud Run)
         redis_host = settings.redis_host
@@ -73,12 +72,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️ Failed to initialize Arq pool: {e}")
         app.state.arq_pool = None
-    
+
     yield
     # Clean up on shutdown
     if hasattr(app.state, "arq_pool") and app.state.arq_pool:
         await app.state.arq_pool.close()
-    
+
     app.state.vector_handler = None
     app.state.chroma_handler = None
 

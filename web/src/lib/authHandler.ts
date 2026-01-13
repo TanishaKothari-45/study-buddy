@@ -3,7 +3,11 @@
  * 
  * Provides centralized 401 error handling with automatic redirect to login.
  * Includes sessionStorage management for return URL with 30-minute expiry.
+ *
+ * Updated to work with Supabase Auth - uses getSessionToken() from supabase.ts
  */
+
+import { getSessionToken } from "./supabase";
 
 const RETURN_URL_KEY = "returnUrl";
 const RETURN_URL_TIMESTAMP_KEY = "returnUrlTimestamp";
@@ -73,11 +77,6 @@ export function clearReturnUrl() {
  * Shows toast notification and redirects to login after 3 seconds
  * Only triggers once to prevent multiple toast notifications
  */
-/**
- * Handle 401 Unauthorized responses
- * Shows toast notification and redirects to login after 3 seconds
- * Only triggers once to prevent multiple toast notifications
- */
 export async function handle401Error(url: string, response?: Response) {
   // Prevent multiple redirects/notifications
   if (isRedirecting) {
@@ -131,9 +130,6 @@ export async function handle401Error(url: string, response?: Response) {
     console.warn("Session expired, redirecting to login...");
   }
 
-  // Clear token
-  localStorage.removeItem("token");
-
   // Redirect after 3 seconds
   setTimeout(() => {
     window.location.href = "/login";
@@ -143,14 +139,14 @@ export async function handle401Error(url: string, response?: Response) {
 
 /**
  * Custom fetch wrapper that automatically handles 401 responses
- * and automatically injects the Authorization header if a token exists.
+ * and automatically injects the Authorization header using Supabase session token.
  * Use this instead of regular fetch for authenticated API calls.
  */
 export async function authFetch(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
-  const token = localStorage.getItem("token");
+  const token = await getSessionToken();
   const authenticatedInit = { ...init };
 
   if (token) {
@@ -182,20 +178,19 @@ export async function authFetch(
 }
 
 /**
- * Check if user is authenticated by validating token exists
+ * Check if user is authenticated by checking for Supabase session token
  * Does not validate token correctness - that's done server-side
  */
-export function isAuthenticated(): boolean {
-  const token = localStorage.getItem("token");
+export async function isAuthenticated(): Promise<boolean> {
+  const token = await getSessionToken();
   return !!token;
 }
 
 /**
  * Clear authentication state (used on logout)
+ * Note: With Supabase, session clearing is handled by supabase.auth.signOut()
  */
 export function clearAuthState() {
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
   clearReturnUrl();
   isRedirecting = false; // Reset redirect flag
 }

@@ -13,7 +13,7 @@ interface DeleteApiKeyModalProps {
 }
 
 export function DeleteApiKeyModal({ isOpen, onClose, onSuccess }: DeleteApiKeyModalProps) {
-    const { token } = useAuth();
+    const { getToken } = useAuth();
     const [isDeleting, setIsDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -24,6 +24,12 @@ export function DeleteApiKeyModal({ isOpen, onClose, onSuccess }: DeleteApiKeyMo
         setError(null);
 
         try {
+            const token = await getToken();
+            if (!token) {
+                setError("Please log in to delete your API key");
+                return;
+            }
+
             const response = await fetch(`${API_URL}/api-key/delete`, {
                 method: "DELETE",
                 headers: {

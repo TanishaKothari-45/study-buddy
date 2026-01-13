@@ -19,7 +19,7 @@ interface ApiKeyModalProps {
 }
 
 export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProps) {
-    const { token, isApiKeyValid, setIsApiKeyValid, verifyApiKey, refreshUser } = useAuth();
+    const { getToken, isApiKeyValid, setIsApiKeyValid, refreshUser } = useAuth();
     const [isUpdating, setIsUpdating] = useState(false);
     const [hasApiKey, setHasApiKey] = useState(false);
     const [apiKey, setApiKey] = useState("");
@@ -31,6 +31,9 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
 
     const checkApiKeyStatus = React.useCallback(async () => {
         try {
+            const token = await getToken();
+            if (!token) return;
+
             const response = await fetch(`${API_URL}/api-key/status`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
@@ -42,7 +45,7 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
         } catch {
             showToast("Failed to check API key status", "error");
         }
-    }, [token]);
+    }, [getToken]);
 
     useEffect(() => {
         if (isOpen) {
@@ -66,6 +69,12 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
         setSuccess(null);
 
         try {
+            const token = await getToken();
+            if (!token) {
+                setError("Please log in to save your API key");
+                return;
+            }
+
             const response = await fetch(`${API_URL}/api-key/set`, {
                 method: "POST",
                 headers: {
@@ -105,6 +114,12 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
         setError(null);
 
         try {
+            const token = await getToken();
+            if (!token) {
+                setError("Please log in to delete your API key");
+                return;
+            }
+
             const response = await fetch(`${API_URL}/api-key/delete`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
@@ -193,6 +208,13 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
                                             </button>
                                         </div>
                                     </div>
+
+                                    {error && (
+                                        <div className="flex items-center gap-2 text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-900/30">
+                                            <AlertCircle className="h-4 w-4 shrink-0" />
+                                            <span>{error}</span>
+                                        </div>
+                                    )}
 
                                     <div className="flex gap-3">
                                         <button

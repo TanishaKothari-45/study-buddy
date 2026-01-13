@@ -3,18 +3,21 @@ API Key Management Routes
 
 Handles user-specific Gemini API key CRUD operations with encryption.
 Users can set, check, and delete their own API keys.
+
+Uses Supabase user_profiles table for storage.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Optional
 import logging
 
-from ..core.database import get_db
 from ..core.deps import get_current_user, get_current_user_optional
 from ..core.encryption import get_api_key_encryptor
-from ..models.user import User
-
+from ..core.user_profile import (
+    UserProfile,
+    set_user_gemini_api_key,
+    delete_user_gemini_api_key,
+)
 from ..gemini_core.gemini_client import GeminiClient
 
 logger = logging.getLogger(__name__)
@@ -59,8 +62,7 @@ def validate_gemini_key(api_key: str) -> bool:
 
 @router.get("/status", response_model=ApiKeyStatusResponse)
 def get_api_key_status(
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db)
+    current_user: Optional[UserProfile] = Depends(get_current_user_optional),
 ):
     """
     Check if user has set their Gemini API key (without exposing the actual key)
@@ -93,8 +95,7 @@ def get_api_key_status(
 @router.post("/set", response_model=ApiKeySetResponse)
 def set_api_key(
     request: ApiKeySetRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserProfile = Depends(get_current_user),
 ):
     """
     Set or update user's Gemini API key (encrypted before storage)
@@ -124,10 +125,15 @@ def set_api_key(
         encryptor = get_api_key_encryptor()
         encrypted_key = encryptor.encrypt_api_key(api_key)
         
-        # Store encrypted key in database
-        current_user.encrypted_gemini_api_key = encrypted_key
-        db.commit()
-        
+        # Store encrypted key in Supabase
+        success = set_user_gemini_api_key(current_user.id, encrypted_key)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save API key. Please try again."
+            )
+
         # Generate masked version for response
         masked_key = encryptor.mask_api_key(api_key, visible_chars=4)
         
@@ -149,7 +155,6 @@ def set_api_key(
         )
     except Exception as e:
         logger.error(f"Error setting API key for user {current_user.email}: {e}")
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to save API key: {str(e)}"
@@ -157,8 +162,7 @@ def set_api_key(
 
 @router.delete("/delete", response_model=ApiKeyDeleteResponse)
 def delete_api_key(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserProfile = Depends(get_current_user),
 ):
     """
     Delete user's Gemini API key
@@ -170,10 +174,15 @@ def delete_api_key(
                 detail="No API key found to delete"
             )
         
-        # Remove encrypted key from database
-        current_user.encrypted_gemini_api_key = None
-        db.commit()
-        
+        # Remove encrypted key from Supabase
+        success = delete_user_gemini_api_key(current_user.id)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete API key. Please try again."
+            )
+
         logger.info(f"✅ User {current_user.email} deleted their Gemini API key")
         
         return {
@@ -185,7 +194,6 @@ def delete_api_key(
         raise
     except Exception as e:
         logger.error(f"Error deleting API key for user {current_user.email}: {e}")
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete API key: {str(e)}"
@@ -194,7 +202,7 @@ def delete_api_key(
 @router.post("/validate", response_model=ApiKeySetResponse)
 def validate_key_only(
     request: ApiKeySetRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Validate a Gemini API key without saving it.
@@ -220,7 +228,7 @@ def validate_key_only(
 
 @router.get("/verify", response_model=ApiKeySetResponse)
 def verify_current_key(
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Verify the user's currently stored Gemini API key.
