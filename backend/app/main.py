@@ -2,23 +2,27 @@
 Main FastAPI application
 """
 import logging
+import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from .core.env import load_env_vars
 
-# Load environment variables at startup
-load_env_vars()
+# Load environment variables at startup (only for local development)
+# Cloud Run provides env vars via Secret Manager, so skip .env loading there
+if not os.getenv("K_SERVICE"):
+    from .core.env import load_env_vars
+    load_env_vars()
 
 # Configure LangSmith tracing (must be before other imports)
 from .core.langsmith_config import configure_langsmith
 configure_langsmith()
 
 from .core.config import settings
-from .core.database import engine, Base
+from .core.database import init_db
+from .models import User  # Import User model before create_all
 from .api.v1 import router as api_v1_router
 from .utils.memory_manager import init_memory_db
 
@@ -27,12 +31,12 @@ logger = logging.getLogger(__name__)
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize resources on startup"""
+    # Initialize database tables (handles concurrent workers gracefully)
+    init_db()
+    
     # Initialize memory database
     init_memory_db()
     
@@ -59,10 +63,13 @@ async def lifespan(app: FastAPI):
     from arq.connections import RedisSettings
     
     try:
+        # Use Redis URL from settings (supports both local and Cloud Run)
+        redis_host = settings.redis_host
+        redis_port = settings.redis_port_from_url
         app.state.arq_pool = await create_pool(
-            RedisSettings(host="localhost", port=6379)
+            RedisSettings(host=redis_host, port=redis_port)
         )
-        logger.info("✅ Arq Redis pool initialized")
+        logger.info(f"✅ Arq Redis pool initialized: {redis_host}:{redis_port}")
     except Exception as e:
         logger.warning(f"⚠️ Failed to initialize Arq pool: {e}")
         app.state.arq_pool = None

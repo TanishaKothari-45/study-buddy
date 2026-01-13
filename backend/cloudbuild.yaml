@@ -1,0 +1,126 @@
+# ===========================================
+# Cloud Build CI/CD Pipeline for Study Buddy
+# Builds and deploys BOTH API and Worker to Cloud Run
+# ===========================================
+
+steps:
+  # ===========================================
+  # Step 1: Build the container image (shared by API and Worker)
+  # ===========================================
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:${BUILD_ID}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:latest'
+      - '-f'
+      - 'Dockerfile'
+      - '.'
+    dir: 'backend'
+
+  # ===========================================
+  # Step 2: Push the container image
+  # ===========================================
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend'
+    waitFor:
+      - 'build-image'
+
+  # ===========================================
+  # Step 3: Deploy API Service to Cloud Run
+  # ===========================================
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-api'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'study-buddy-api'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:${BUILD_ID}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_SERVICE_ACCOUNT}'
+      - '--vpc-connector=${_VPC_CONNECTOR}'
+      - '--add-cloudsql-instances=${_SQL_CONNECTION}'
+      - '--set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,PINECONE_API_KEY=PINECONE_API_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,ENCRYPTION_KEY=ENCRYPTION_KEY:latest'
+      - '--set-env-vars=ENVIRONMENT=production,PINECONE_INDEX_NAME=study-buddy,GCS_BUCKET_NAME=${_GCS_BUCKET}'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--timeout=300'
+      - '--concurrency=80'
+      - '--min-instances=0'
+      - '--max-instances=10'
+      - '--allow-unauthenticated'
+    waitFor:
+      - 'push-image'
+
+  # ===========================================
+  # Step 4: Deploy Worker Service to Cloud Run
+  # ===========================================
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-worker'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'study-buddy-worker'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:${BUILD_ID}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--service-account=${_SERVICE_ACCOUNT}'
+      - '--vpc-connector=${_VPC_CONNECTOR}'
+      - '--add-cloudsql-instances=${_SQL_CONNECTION}'
+      - '--set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,PINECONE_API_KEY=PINECONE_API_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,ENCRYPTION_KEY=ENCRYPTION_KEY:latest'
+      - '--set-env-vars=ENVIRONMENT=production,PINECONE_INDEX_NAME=study-buddy,GCS_BUCKET_NAME=${_GCS_BUCKET}'
+      # Override the default CMD to run the Arq worker with health check endpoint
+      - '--command=python'
+      - '--args=-m,app.worker_entrypoint'
+      - '--memory=2Gi'
+      - '--cpu=2'
+      - '--timeout=900'
+      # Worker needs min 1 instance to always be ready to process jobs
+      - '--min-instances=1'
+      - '--max-instances=3'
+      # No HTTP traffic - worker only processes Redis jobs
+      - '--no-allow-unauthenticated'
+      # No CPU throttling when not receiving requests (worker is always working)
+      - '--cpu-boost'
+      - '--no-cpu-throttling'
+    waitFor:
+      - 'push-image'
+
+# ===========================================
+# Substitution Variables (Override via CLI or Trigger)
+# ===========================================
+substitutions:
+  _REGION: 'asia-south1'
+  _REPO: 'study-buddy'
+  _SERVICE_ACCOUNT: 'study-buddy-backend@${PROJECT_ID}.iam.gserviceaccount.com'
+  _VPC_CONNECTOR: 'projects/${PROJECT_ID}/locations/asia-south1/connectors/study-buddy-connector'
+  _SQL_CONNECTION: '${PROJECT_ID}:asia-south1:study-buddy-db'
+  _GCS_BUCKET: 'study-buddy-uploads'  # GCS bucket for file uploads (API <-> Worker)
+
+# ===========================================
+# Build Options
+# ===========================================
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'  # Faster builds
+
+# ===========================================
+# Images to store in Artifact Registry
+# ===========================================
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:${BUILD_ID}'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:latest'
+
+# ===========================================
+# Build Timeout (25 minutes for dual deploy)
+# ===========================================
+timeout: '1500s'

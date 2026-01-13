@@ -16,6 +16,7 @@ from collections import defaultdict
 from openai import OpenAI, RateLimitError
 
 from ..core.config import settings
+from ..core.deps import get_redis_client
 from ..utils.upsc_patterns.loader import get_examples, format_fewshot, get_all_patterns
 from ..utils.metadata_enricher import GEOGRAPHY_TOPICS, GEOGRAPHY_DOMAINS
 from ..utils.context_retriever import deduplicate_chunks
@@ -1532,7 +1533,7 @@ async def generate_async(
         
         # Set initial status in Redis
         try:
-            client = redis_async.Redis(host="localhost", port=6379, decode_responses=True)
+            client = get_redis_client()
             await client.set(f"job_status:{job_id}", "queued", ex=3600)
             await client.set(f"job_num_questions:{job_id}", str(test_request.num_questions), ex=3600)
             await client.set(f"job_topics:{job_id}", ",".join(test_request.topics), ex=3600)
@@ -1582,7 +1583,7 @@ async def get_status(job_id: str):
     import json
     
     try:
-        client = redis_async.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         
         status = await client.get(f"job_status:{job_id}")
         if not status:
@@ -1641,7 +1642,7 @@ async def cancel_mock_test(job_id: str):
     import redis.asyncio as redis_async
 
     try:
-        client = redis_async.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         await client.set(f"cancel:{job_id}", "1", ex=3600)
         await client.close()
         return {"message": "Cancellation requested"}

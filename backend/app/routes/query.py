@@ -22,7 +22,7 @@ from ..gemini_core import settings_gemini_key
 # Global default (fallback)
 GEMINI_API_KEY_SYSTEM = settings_gemini_key.GEMINI_API_KEY
 
-from ..core.deps import get_current_user
+from ..core.deps import get_current_user, get_redis_client
 from ..models.user import User
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ async def generate_answer(
         
         # Set initial status
         try:
-            client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+            client = get_redis_client()
             await client.set(f"job_status:{job_id}", "queued", ex=3600)
             await client.close()
         except:
@@ -92,7 +92,7 @@ async def get_query_status(job_id: str):
     Poll status of answer generation job.
     """
     try:
-        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         
         status = await client.get(f"job_status:{job_id}")
         if not status:
@@ -127,7 +127,7 @@ async def cancel_query(job_id: str):
     Cancel a running query job.
     """
     try:
-        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         await client.set(f"cancel:{job_id}", "1", ex=3600)
         await client.close()
         return {"message": "Cancellation requested"}

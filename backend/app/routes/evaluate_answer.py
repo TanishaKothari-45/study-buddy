@@ -24,9 +24,10 @@ from uuid import uuid4
 import redis.asyncio as redis
 
 from ..core.config import settings
-from ..core.deps import get_current_user
+from ..core.deps import get_current_user, get_redis_client
 from ..models.user import User
 from ..utils.user_api_key import get_gemini_api_key_for_request
+from ..utils.storage_handler import get_storage_handler
 from ..gemini_core import settings_gemini_key
 
 logger = logging.getLogger(__name__)
@@ -104,7 +105,7 @@ async def evaluate_answer_endpoint(
         # We can spin up a quick client.
         
         try:
-            client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+            client = get_redis_client()
             await client.set(f"job_status:{job_id}", "queued", ex=3600)
             await client.close()
         except:
@@ -138,6 +139,8 @@ async def evaluate_batch_answers_endpoint(
     and evaluates each answer sequentially.
     
     Returns batch_job_id for polling progress.
+    
+    In Cloud Run, files are uploaded to GCS for worker access.
     """
     try:
         # 1. Validate file type
@@ -155,18 +158,17 @@ async def evaluate_batch_answers_endpoint(
         if not gemini_api_key:
             raise HTTPException(400, "No Gemini API key available.")
         
-        # 3. Save PDF and question file if provided
+        # 3. Get storage handler (GCS in Cloud Run, local filesystem otherwise)
+        storage = get_storage_handler()
         job_id = str(uuid4())
-        job_dir = settings.BASE_DIR / "data" / "temp" / job_id
-        job_dir.mkdir(parents=True, exist_ok=True)
         
-        pdf_path = job_dir / f"{uuid4()}.pdf"
-        content = await file.read()
-        with open(pdf_path, "wb") as f:
-            f.write(content)
+        # 4. Save PDF to storage
+        pdf_filename = f"{uuid4()}.pdf"
+        pdf_content = await file.read()
+        pdf_storage_path = await storage.save_bytes(pdf_content, pdf_filename, job_id)
         
         # Save question file if provided
-        question_file_path = None
+        question_storage_path = None
         if question_file:
             # Validate question file type
             if not question_file.filename:
@@ -177,10 +179,9 @@ async def evaluate_batch_answers_endpoint(
             if file_ext not in allowed_extensions:
                 raise HTTPException(400, f"Question file must be PDF or image ({', '.join(allowed_extensions)})")
             
-            question_file_path = job_dir / f"question_{uuid4()}{file_ext}"
+            question_filename = f"question_{uuid4()}{file_ext}"
             question_content = await question_file.read()
-            with open(question_file_path, "wb") as f:
-                f.write(question_content)
+            question_storage_path = await storage.save_bytes(question_content, question_filename, job_id)
         
         # Parse manual questions if provided
         question_texts = None
@@ -194,27 +195,27 @@ async def evaluate_batch_answers_endpoint(
             except (json.JSONDecodeError, ValueError) as e:
                 raise HTTPException(400, f"Invalid questions JSON format: {str(e)}")
         
-        # 4. Enqueue Batch Job
+        # 5. Enqueue Batch Job
         arq_pool = request.app.state.arq_pool
         if not arq_pool:
-            shutil.rmtree(job_dir)
+            await storage.cleanup_job(job_id)
             raise HTTPException(500, "Job queue not initialized")
         
         await arq_pool.enqueue_job(
             "evaluate_batch_answers_task",
             _job_id=job_id,
             job_id=job_id,
-            pdf_path=str(pdf_path),
+            pdf_path=pdf_storage_path,  # Can be local path or GCS URI
             user_id=str(current_user.id) if current_user else "anonymous",
             gemini_api_key=gemini_api_key,
             use_standard_format=use_standard_format,
-            question_file_path=str(question_file_path) if question_file_path else None,
+            question_file_path=question_storage_path,  # Can be None, local path, or GCS URI
             question_texts=question_texts
         )
         
-        # 5. Set initial status
+        # 6. Set initial status
         try:
-            client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+            client = get_redis_client()
             await client.set(f"job_status:{job_id}", "queued", ex=7200)  # 2 hour TTL for batch jobs
             await client.close()
         except:
@@ -262,7 +263,7 @@ async def get_evaluation_status(request: Request, job_id: str):
     }
     """
     try:
-        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         
         status = await client.get(f"job_status:{job_id}")
         if not status:
@@ -329,7 +330,7 @@ async def cancel_evaluation(job_id: str):
     Cancel a running evaluation job.
     """
     try:
-        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         await client.set(f"cancel:{job_id}", "1", ex=3600)
         await client.close()
         return {"message": "Cancellation requested"}
@@ -424,7 +425,7 @@ async def generate_improved_answer_endpoint(
         
         # 6. Set initial status in Redis
         try:
-            client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+            client = get_redis_client()
             await client.set(f"job_status:{job_id}", "queued", ex=3600)
             await client.close()
         except:

@@ -23,7 +23,6 @@ from ...routes import (
     training_data,
     feedback,
     auth,
-    auth,
     api_key,
     jobs,
 )

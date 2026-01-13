@@ -1,5 +1,7 @@
 """
 Application configuration with environment variable validation
+
+Supports both local development (.env) and Cloud Run (Secret Manager).
 """
 from pydantic_settings import BaseSettings
 from pydantic import Field, validator, ValidationError
@@ -7,10 +9,18 @@ from pathlib import Path
 from typing import Optional
 import secrets
 import sys
-from .env import load_env_vars
+import os
 
-# Load environment variables first
-load_env_vars()
+# ===========================================
+# Cloud Run Detection
+# ===========================================
+IS_CLOUD_RUN = os.getenv("K_SERVICE") is not None
+ENVIRONMENT = os.getenv("ENVIRONMENT", "local")
+
+# Only load .env file for local development
+if not IS_CLOUD_RUN:
+    from .env import load_env_vars
+    load_env_vars()
 
 class Settings(BaseSettings):
     # API Settings
@@ -92,14 +102,46 @@ class Settings(BaseSettings):
     # RAG Settings
     TOP_K_CHUNKS: int = 8  # Increased to get more context
     
-    # Redis Settings
-    REDIS_URL: str = "redis://localhost:6379"
+    # Redis Settings (populated from REDIS_URL env var in Cloud Run)
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
     REDIS_PORT: int = 6379
     
+    # ===========================================
+    # Cloud Run / GCP Settings
+    # ===========================================
+    
+    # Database URL (PostgreSQL in Cloud Run, SQLite locally)
+    DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL", None)
+    
+    # Cloud Storage bucket for uploads (in Cloud Run)
+    GCS_BUCKET_NAME: Optional[str] = os.getenv("GCS_BUCKET_NAME", None)
+    
+    # Cloud Run specific
+    IS_CLOUD_RUN: bool = IS_CLOUD_RUN
+    ENVIRONMENT: str = ENVIRONMENT
+    
+    # Port (Cloud Run uses PORT env var)
+    PORT: int = int(os.getenv("PORT", "8000"))
+    
     def setup_directories(self):
-        """Create necessary directories"""
-        self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-        self.DB_DIR.mkdir(parents=True, exist_ok=True)
+        """Create necessary directories (only for local development)"""
+        if not IS_CLOUD_RUN:
+            self.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+            self.DB_DIR.mkdir(parents=True, exist_ok=True)
+    
+    @property
+    def redis_host(self) -> str:
+        """Extract Redis host from REDIS_URL"""
+        from urllib.parse import urlparse
+        parsed = urlparse(self.REDIS_URL)
+        return parsed.hostname or "localhost"
+    
+    @property
+    def redis_port_from_url(self) -> int:
+        """Extract Redis port from REDIS_URL"""
+        from urllib.parse import urlparse
+        parsed = urlparse(self.REDIS_URL)
+        return parsed.port or 6379
 
 settings = Settings()
 settings.setup_directories()

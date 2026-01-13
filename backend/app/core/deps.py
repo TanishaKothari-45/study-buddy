@@ -3,8 +3,10 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 from typing import Optional
+import redis.asyncio as redis_async
 from .database import get_db
 from .security import SECRET_KEY, ALGORITHM
+from .config import settings
 from ..models.user import User
 from ..schemas.user import TokenData
 
@@ -53,3 +55,23 @@ async def get_current_user_optional(
     
     user = db.query(User).filter(User.email == token_data.email).first()
     return user
+
+
+# ===========================================
+# Redis Client Helper (uses settings for host/port)
+# ===========================================
+
+def get_redis_client() -> redis_async.Redis:
+    """
+    Get async Redis client using settings.
+    Uses REDIS_URL from environment (supports Docker and Cloud Run).
+    
+    Usage:
+        client = get_redis_client()
+        await client.set("key", "value")
+    """
+    return redis_async.Redis(
+        host=settings.redis_host,
+        port=settings.redis_port_from_url,
+        decode_responses=True
+    )

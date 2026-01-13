@@ -36,7 +36,7 @@ from ..utils.cache_manager import get_cache_manager
 from ..utils.answer_compressor import compress_answer
 from ..utils.user_api_key import get_gemini_api_key_for_request
 from ..core.config import settings
-from ..core.deps import get_current_user
+from ..core.deps import get_current_user, get_redis_client
 from ..models.user import User
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -264,7 +264,7 @@ async def generate_mains_answer(
              
              # We can write the result to Redis as if the job finished
              # We can write the result to Redis as if the job finished
-             client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+             client = get_redis_client()
              
              # Reconstruct result object
              result_obj = {
@@ -314,7 +314,7 @@ async def generate_mains_answer(
         )
         
         # 4. Set initial status
-        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         await client.set(f"job_status:{job_id}", "queued", ex=3600)
         await client.close()
         
@@ -336,7 +336,7 @@ async def get_generation_status(job_id: str):
     Poll status of answer generation.
     """
     try:
-        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         
         status = await client.get(f"job_status:{job_id}")
         if not status:
@@ -372,7 +372,7 @@ async def cancel_generation(job_id: str):
     Cancel running generation.
     """
     try:
-        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         await client.set(f"cancel:{job_id}", "1", ex=3600)
         await client.close()
         return {"message": "Cancellation requested"}
