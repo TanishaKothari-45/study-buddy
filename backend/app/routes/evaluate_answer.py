@@ -105,7 +105,7 @@ async def evaluate_answer_endpoint(
         # We can spin up a quick client.
 
         try:
-            client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+            client = get_redis_client()
             await client.set(f"job_status:{job_id}", "queued", ex=3600)
             await client.close()
         except:
@@ -215,7 +215,7 @@ async def evaluate_batch_answers_endpoint(
 
         # 5. Set initial status
         try:
-            client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+            client = get_redis_client()
             await client.set(f"job_status:{job_id}", "queued", ex=7200)  # 2 hour TTL for batch jobs
             await client.close()
         except:
@@ -263,7 +263,7 @@ async def get_evaluation_status(request: Request, job_id: str):
     }
     """
     try:
-        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         
         status = await client.get(f"job_status:{job_id}")
         if not status:
