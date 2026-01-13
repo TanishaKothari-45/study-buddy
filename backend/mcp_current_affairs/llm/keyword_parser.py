@@ -9,7 +9,9 @@ import json
 import asyncio
 from pydantic import BaseModel, Field
 from typing import List
-from ..config import KEYWORD_CACHE_TTL, REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD, REDIS_PREFIX
+
+from backend.app.core.deps import get_redis_client
+from ..config import KEYWORD_CACHE_TTL, REDIS_PREFIX
 from .prompts import KEYWORD_EXTRACTION_PROMPT
 
 # Pydantic model for structured output
@@ -35,14 +37,7 @@ def _get_openai_client():
 def _get_redis_client():
     global _redis_client
     if _redis_client is None:
-        import redis
-        _redis_client = redis.Redis(
-            host=REDIS_HOST, 
-            port=REDIS_PORT, 
-            db=REDIS_DB, 
-            password=REDIS_PASSWORD, 
-            decode_responses=True
-        )
+        _redis_client = get_redis_client()
     return _redis_client
 
 
