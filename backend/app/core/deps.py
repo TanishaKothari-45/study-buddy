@@ -14,6 +14,8 @@ import httpx
 import time
 from .config import settings
 from .user_profile import UserProfile, get_or_create_user_profile
+import redis.asyncio as redis_async
+from redis.asyncio import Redis
 
 logger = logging.getLogger(__name__)
 

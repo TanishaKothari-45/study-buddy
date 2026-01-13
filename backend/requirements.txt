@@ -59,6 +59,7 @@ passlib[bcrypt]==1.7.4
 bcrypt==3.2.2
 python-jose[cryptography]==3.5.0
 email-validator==2.3.0
+supabase>=2.0.0  # Supabase Python client for authentication
 
 slowapi==0.1.9
 redis==7.1.0

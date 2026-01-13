@@ -47,8 +47,7 @@ steps:
       - '--platform=managed'
       - '--service-account=${_SERVICE_ACCOUNT}'
       - '--vpc-connector=${_VPC_CONNECTOR}'
-      - '--add-cloudsql-instances=${_SQL_CONNECTION}'
-      - '--set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,PINECONE_API_KEY=PINECONE_API_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,ENCRYPTION_KEY=ENCRYPTION_KEY:latest'
+      - '--set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,PINECONE_API_KEY=PINECONE_API_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,REDIS_URL=REDIS_URL:latest,ENCRYPTION_KEY=ENCRYPTION_KEY:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_JWT_SECRET=SUPABASE_JWT_SECRET:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest'
       - '--set-env-vars=ENVIRONMENT=production,PINECONE_INDEX_NAME=study-buddy,GCS_BUCKET_NAME=${_GCS_BUCKET}'
       - '--memory=2Gi'
       - '--cpu=2'
@@ -75,8 +74,7 @@ steps:
       - '--platform=managed'
       - '--service-account=${_SERVICE_ACCOUNT}'
       - '--vpc-connector=${_VPC_CONNECTOR}'
-      - '--add-cloudsql-instances=${_SQL_CONNECTION}'
-      - '--set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,PINECONE_API_KEY=PINECONE_API_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,ENCRYPTION_KEY=ENCRYPTION_KEY:latest'
+      - '--set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,PINECONE_API_KEY=PINECONE_API_KEY:latest,JWT_SECRET_KEY=JWT_SECRET_KEY:latest,REDIS_URL=REDIS_URL:latest,ENCRYPTION_KEY=ENCRYPTION_KEY:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_JWT_SECRET=SUPABASE_JWT_SECRET:latest,SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest'
       - '--set-env-vars=ENVIRONMENT=production,PINECONE_INDEX_NAME=study-buddy,GCS_BUCKET_NAME=${_GCS_BUCKET}'
       # Override the default CMD to run the Arq worker with health check endpoint
       - '--command=python'
@@ -103,7 +101,6 @@ substitutions:
   _REPO: 'study-buddy'
   _SERVICE_ACCOUNT: 'study-buddy-backend@${PROJECT_ID}.iam.gserviceaccount.com'
   _VPC_CONNECTOR: 'projects/${PROJECT_ID}/locations/asia-south1/connectors/study-buddy-connector'
-  _SQL_CONNECTION: '${PROJECT_ID}:asia-south1:study-buddy-db'
   _GCS_BUCKET: 'study-buddy-uploads'  # GCS bucket for file uploads (API <-> Worker)
 
 # ===========================================
