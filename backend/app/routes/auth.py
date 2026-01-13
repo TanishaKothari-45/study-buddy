@@ -41,7 +41,7 @@ async def read_users_me(
 ):
     """
     Get current user profile.
-    
+
     Verifies the Supabase JWT token and returns user info from the user_profiles table.
     """
     return UserMeResponse(
@@ -64,7 +64,7 @@ async def update_profile(
         user_id=current_user.id,
         full_name=request.full_name,
     )
-    
+
     if success:
         return {
             "success": True,

@@ -6,7 +6,7 @@ from arq.jobs import Job, JobStatus
 import redis.asyncio as redis
 import logging
 
-from ..core.deps import get_current_user
+from ..core.deps import get_current_user, get_redis_client
 from ..core.user_profile import UserProfile
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ async def cancel_job(
 
     try:
         # 1. Always set cancellation flag in Redis (for non-Arq jobs or polling checks)
-        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         await client.set(f"cancel:{job_id}", "1", ex=3600)
         await client.close()
         

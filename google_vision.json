@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "upsc-answer",
+  "private_key_id": "6cc707343a4d77ecc6540a214e03000282cfb75b",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCOk9qlpe0oVGTH\nYYZK/rcQfQBR7BE7WVJsjKsXnp/3BUx83maQWuZcZ6AaadptlWnjGqFtYvUQYXxl\nuDdI2YKbV4lIjIkz1H7z3HNa1P1RHrM6I20cFBr1Il1YV15pRJNkFajWakBNyfPH\na1taFGjIVXYR5AtYxajcp72BkUmE9WRmB4vmzC2vQ1ejRvobGr8WY6ELEKCI66Hc\nzVh7VL4qn9E0S4ZeHxbLGuz2sSt0tYso/IgUagQQy+8Y1GD2jo3h7BJ9tx1m5itZ\nwqvGK0uTnd2BaUzqPVStiRXaKfBAqXaxAdRXs9nYmrlWXpWGBqnpdjHr51Bgr9tX\nZk/iyp5VAgMBAAECggEAK+537RmK0SXr5ZlxuTLx8lUp35Q3HQvhP0w6vazlSkZq\nMoGOpcU0fN17MhhSsvhaZ51Bh0R6EWGQZIFWG47V1QqsZNvUvNEpivdu3dqJ8VBd\n1jirOn8hbU346CsHjrUQG0MnQmX7yVxETrqQK9nlDXFzz4BuVJyW8uKGnGFJf3tt\nek5/1MQsTBMxX9aiUWDhvPrWaeobXa25qc4O0+OAf4m4Y5+sGJ1PS6iOyL7My8sX\ne9HUu/CM+FmLe7jORHlQosH90Yvs30oLbu7RPjrk9bdLbJXAXvGXO04KyrgNPZJ1\njnPi5TNrhOUiQw/Wxed7IXavFHI/3CZWEcitMPDAUwKBgQDEv0WL42MVJbTIATEC\nwwcuu+kuhUYpj/tvNIW7zgwSQ73hca7QOSy/SdeKwkpIQinYYrBhH71gQdA4yvZd\nFh3BtAhH2LZdmYssHCIM8/rWZzCJKR6wc0l4D2IrOBVHuSp9ttB2VczYz1DwWBZH\n1xVFAU6jwAGgxZBWD+RtNiHfwwKBgQC5hDzZH0gYjZ6+jTZi8v9V8B7pc7M1/1U0\n5p4m+Yiv64uI98lYfJ43UUtDaFcFcbFnUfW2BCS6KPKmYmagWYO61FKfUBmCVVVv\naQGRc8Kk5WFHIvmCKBzWznl+3BTf1SemPV7ueJVsKyXBDgbDf0kbuKLFs/Phdf0a\n7XNiBFSABwKBgQCVEvxmHxe/OT++X7C8D/wMPBNVzWO5MEBqJVjDUT8yQ6PHAzVa\nzkeKdS/dEpPoJkHAlB5iqQL7wUI9FgQPyicn0vqHPbwINcQO2w4t1FuWQr+y3bZE\nKkZbswRGDQuKudFpSbCwSRiampMQWR4gtuaFz5S/XEefgrJ3kzkYSvDlswKBgAVQ\nMUHysGjrnXFNsBITbZazgt8izi4suu8B7+Oj3/NR5rQsjJq5LvrcnDA5C8z/HZqc\n8VGeOsMOKyzywoezKJ+wNxGTBLgD46eGNWJKE3gPjcKw0L6WkYThcv9cJEjo3PLY\n7SAdWgI4FiO6WB0/RwPBPQA2kDST4YTk6hoTj6v/AoGAYvu9ixLqvjY5WddZh51s\nJTw0ugQ7Yf/4NRJy97hKZ7w8jxJYUN1X6uxhWb5s1Z61qCblTyeqVzT1rFy4L+3V\nLAZzjT0wqJ8/fKuKj8PQaXgz64H9zt6wc8Ef5wo1a/pxEGBV8MfhfIm2WrKy7sb1\n2F7jEXxKCelTneG5i6daVTU=\n-----END PRIVATE KEY-----\n",
+  "client_email": "upsc-sheet@upsc-answer.iam.gserviceaccount.com",
+  "client_id": "109686789115864170064",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/upsc-sheet%40upsc-answer.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

@@ -3,7 +3,7 @@
  * 
  * Provides centralized 401 error handling with automatic redirect to login.
  * Includes sessionStorage management for return URL with 30-minute expiry.
- * 
+ *
  * Updated to work with Supabase Auth - uses getSessionToken() from supabase.ts
  */
 

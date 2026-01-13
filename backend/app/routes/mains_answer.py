@@ -1,29 +1,13 @@
 """
-mains_answer.py
-Main handler for mains answer generation using Gemini 2.5 Pro.
-
-Uses MCP current affairs server for latest news (not web_searcher).
-
-Usage:
-  from app.prompts.mains_prompt import assemble_mains_prompt
-  from mains_answer import generate_answer
-
-Config:
-  export GEMINI_API_KEY=...
+UPSC Mains Answer Generation endpoint
 """
-
+from fastapi import APIRouter, Request, HTTPException
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional
 import os
-import sys
 import logging
-import re
-import json
-import redis.asyncio as redis
-from uuid import uuid4
-from typing import Optional, List, Dict, Any
-from pathlib import Path
-from fastapi import APIRouter, Request, HTTPException, Depends
-from ..models.mains import MainsAnswerRequest, MainsAnswerResponse
-from ..utils.error_handlers import clean_gemini_error
+import time
+from openai import OpenAI, RateLimitError
 
 logger = logging.getLogger("mains_answer")
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +20,7 @@ from ..utils.cache_manager import get_cache_manager
 from ..utils.answer_compressor import compress_answer
 from ..utils.user_api_key import get_gemini_api_key_for_request
 from ..core.config import settings
-from ..core.deps import get_current_user
+from ..core.deps import get_current_user, get_redis_client
 from ..core.user_profile import UserProfile
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -68,7 +52,7 @@ def enforce_diagrams(answer: str, required: int = 1) -> str:
     mermaid_count = answer.count("```mermaid")
     if mermaid_count >= required:
         return answer
-    
+
     return answer
 
 def count_words_excluding_visuals(text: str) -> int:
@@ -79,26 +63,26 @@ def count_words_excluding_visuals(text: str) -> int:
     - Any code blocks (``` ... ```)
     - Base64 images (![...](data:image/...))
     - Inline base64 data
-    
+
     This gives accurate word count for the actual prose content only.
     """
     cleaned_text = text
-    
+
     # Remove ```mermaid ... ``` blocks
     cleaned_text = re.sub(r'```mermaid[\s\S]*?```', '', cleaned_text)
-    
+
     # Remove ```map-json ... ``` blocks
     cleaned_text = re.sub(r'```map-json[\s\S]*?```', '', cleaned_text)
-    
+
     # Remove any other code blocks
     cleaned_text = re.sub(r'```[\s\S]*?```', '', cleaned_text)
-    
-    # Remove base64 images: ![alt](data:image/...) 
+
+    # Remove base64 images: ![alt](data:image/...)
     cleaned_text = re.sub(r'!\[[^\]]*\]\(data:image[^\)]+\)', '', cleaned_text)
-    
+
     # Remove any remaining base64 data strings
     cleaned_text = re.sub(r'data:image/[^;\s]+;base64,[A-Za-z0-9+/=]+', '', cleaned_text)
-    
+
     # Count words in remaining prose
     return len(cleaned_text.split())
 
@@ -115,15 +99,15 @@ async def generate_answer(
 ) -> dict:
     """
     Top-level function to generate a mains answer using Gemini 2.5 Pro.
-    
+
     Args:
         question: The mains question to answer
-        static_context: Retrieved context 
+        static_context: Retrieved context
         dynamic_context: Current affairs context
         word_count: Target word count for the answer
         gemini_client: GeminiClient instance (required)
         map_service_healthy: Whether map service is available (default: True)
-    
+
     Returns:
         { "answer": str, "sources": list }
     """
@@ -148,7 +132,7 @@ async def generate_answer(
         user_msg = prompt_pair["user"]
 
         logger.info(f"🤖 Calling Gemini 2.5 Pro for answer generation...")
-        
+
         # Call Gemini with timeout protection (60 seconds)
         import asyncio
         try:
@@ -164,10 +148,10 @@ async def generate_answer(
         except asyncio.TimeoutError:
             logger.error("❌ Gemini call timed out after 60 seconds")
             raise RuntimeError("Answer generation timed out after 60 seconds. The AI service is taking longer than expected. Please try again with a simpler question or try again later.")
-        
+
         answer_text = response.strip()
         logger.info(f"✅ Gemini response received: {len(answer_text)} chars")
-        
+
     except RuntimeError:
         # Re-raise RuntimeError (timeout or other runtime issues)
         raise
@@ -181,7 +165,7 @@ async def generate_answer(
 
     # 3) Post-processing: ensure diagrams and word-count
     answer_text = enforce_diagrams(answer_text, required=1)
-    
+
     # 4) Process map-json blocks (only if map service is healthy)
     if map_service_healthy:
         logger.info("🗺️  Checking for map-json blocks in answer...")
@@ -233,7 +217,7 @@ async def check_connection(request: Request):
 async def generate_mains_answer(
     request: Request,
     mains_request: MainsAnswerRequest,
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Enqueue Mains Answer generation.
@@ -241,31 +225,31 @@ async def generate_mains_answer(
     """
     try:
         user_id = str(current_user.id) if current_user.id else current_user.email
-        
+
         # 1. Check if we already have a specialized cached answer (fast return)
         # However, for polling consistency, we might just let the worker handle cache too,
         # OR we check cache here and return immediately if found?
         # If we return immediate result, the frontend needs to handle {job_id: ...} OR {result: ...}
         # To keep it simple, let's enqueue everything OR check cache and if hit, return a synthetic "completed" job?
         # Let's check cache here for speed.
-        
+
         cache = get_cache_manager()
         model_version = "gemini-2.5-pro-v1"
         cached_answer_data = cache.get_cached_answer(mains_request.question, mains_request.word_count, model_version)
-        
+
         if cached_answer_data:
              logger.info(f"⚡ [CACHE HIT] Immediate return for '{mains_request.question[:20]}...'")
              # We need to return a structure that the frontend polling logic can digest.
              # Or we return a "completed" status immediately?
              # Let's say we return { "job_id": "cached", "status": "completed", "result": ... }
              # But standard pattern is POST returns job_id, then GET status returns result.
-             # Let's simulate a job. 
+             # Let's simulate a job.
              job_id = f"cached-{uuid4()}"
-             
+
              # We can write the result to Redis as if the job finished
              # We can write the result to Redis as if the job finished
-             client = redis.Redis(host="localhost", port=6379, decode_responses=True)
-             
+             client = get_redis_client()
+
              # Reconstruct result object
              result_obj = {
                 "question": cached_answer_data["question"],
@@ -275,11 +259,11 @@ async def generate_mains_answer(
                 "word_count_actual": cached_answer_data.get("word_count_actual", 0),
                 "word_count_compressed": cached_answer_data.get("word_count_compressed")
              }
-             
+
              await client.set(f"job_status:{job_id}", "completed", ex=3600)
              await client.set(f"job_result:{job_id}", json.dumps(result_obj), ex=3600)
              await client.close()
-             
+
              return {
                  "job_id": job_id,
                  "status": "completed",
@@ -293,16 +277,16 @@ async def generate_mains_answer(
                 gemini_api_key = GEMINI_API_KEY
         except Exception:
             gemini_api_key = GEMINI_API_KEY
-        
+
         if not gemini_api_key or not gemini_api_key.strip():
              raise HTTPException(400, "No Gemini API key available. Please configure an API key in Settings.")
-             
+
         # 3. Enqueue Job
         job_id = str(uuid4())
         arq_pool = request.app.state.arq_pool
         if not arq_pool:
             raise HTTPException(500, "Job queue not initialized")
-            
+
         await arq_pool.enqueue_job(
             "generate_mains_answer_task",
             _job_id=job_id,
@@ -312,18 +296,18 @@ async def generate_mains_answer(
             word_count=mains_request.word_count,
             gemini_api_key=gemini_api_key
         )
-        
+
         # 4. Set initial status
-        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         await client.set(f"job_status:{job_id}", "queued", ex=3600)
         await client.close()
-        
+
         return {
             "job_id": job_id,
             "status": "queued",
             "message": "Answer generation started."
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -336,27 +320,27 @@ async def get_generation_status(job_id: str):
     Poll status of answer generation.
     """
     try:
-        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
-        
+        client = get_redis_client()
+
         status = await client.get(f"job_status:{job_id}")
         if not status:
              status = "unknown"
-        
+
         result = None
         if status == "completed":
             result_json = await client.get(f"job_result:{job_id}")
             if result_json:
                 result = json.loads(result_json)
-        
+
         error = None
         if status == "failed":
             error = await client.get(f"job_error:{job_id}")
-            
+
         # Semantic logging for polling
         logger.info(f"MAINS_GENERATION - {job_id[:8]}... : {status.upper()}")
-            
+
         await client.close()
-        
+
         return {
             "job_id": job_id,
             "status": status,
@@ -372,7 +356,7 @@ async def cancel_generation(job_id: str):
     Cancel running generation.
     """
     try:
-        client = redis.Redis(host="localhost", port=6379, decode_responses=True)
+        client = get_redis_client()
         await client.set(f"cancel:{job_id}", "1", ex=3600)
         await client.close()
         return {"message": "Cancellation requested"}
@@ -384,7 +368,7 @@ async def get_mains_answer_history(
     limit: int = 20,
     offset: int = 0,
     search: str = "",
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get user's history of mains answers from Redis.
@@ -393,7 +377,7 @@ async def get_mains_answer_history(
     try:
         cache = get_cache_manager()
         user_id = str(current_user.id) if current_user.id else current_user.email
-        
+
         history, total, has_more = cache.get_user_history(user_id, limit=limit, offset=offset, search=search or None)
         return {
             "history": history,
@@ -419,7 +403,7 @@ async def get_mains_answer_history(
 async def get_cached_mains_answer(
     question: str,
     word_count: int = 500,
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Return a cached mains answer (no regeneration).

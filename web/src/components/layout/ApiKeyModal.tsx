@@ -33,7 +33,7 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
         try {
             const token = await getToken();
             if (!token) return;
-            
+
             const response = await fetch(`${API_URL}/api-key/status`, {
                 headers: { Authorization: `Bearer ${token}` },
             });

@@ -63,21 +63,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             async (event, newSession) => {
                 console.log("Auth state changed:", event);
                 setSession(newSession);
-                
+
                 if (event === 'SIGNED_IN' && newSession) {
                     await fetchUserProfile(newSession.user, newSession.access_token);
-                    
+
                     // Get return URL and redirect
                     const returnUrl = getReturnUrl();
                     clearReturnUrl();
-                    
+
                     // Clear stores on new login
                     useMainsAnswerStore.getState().clear();
                     useMainsAnswerStore.getState().clearHistory?.();
                     useChatStore.getState().startNewChat();
                     useMockTestStore.getState().resetTest();
                     useEvaluateAnswerStore.getState().reset();
-                    
+
                     router.push(returnUrl);
                 } else if (event === 'SIGNED_OUT') {
                     setUser(null);
@@ -218,7 +218,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const verifyApiKey = async (): Promise<boolean> => {
         const token = await getSessionToken();
         if (!token) return false;
-        
+
         try {
             const response = await fetch(`${API_URL}/api-key/verify`, {
                 headers: {
@@ -244,17 +244,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ 
-            user, 
+        <AuthContext.Provider value={{
+            user,
             session,
-            login, 
+            login,
             loginWithGoogle,
             signup,
-            logout, 
-            isLoading, 
-            refreshUser, 
-            verifyApiKey, 
-            isApiKeyValid, 
+            logout,
+            isLoading,
+            refreshUser,
+            verifyApiKey,
+            isApiKeyValid,
             setIsApiKeyValid,
             getToken,
         }}>

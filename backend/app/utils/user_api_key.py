@@ -18,7 +18,7 @@ def get_user_gemini_api_key(user: Optional[UserProfile]) -> Optional[str]:
     
     Args:
         user: Current user profile (can be None for public endpoints)
-    
+
     Returns:
         Decrypted Gemini API key or None
     """
@@ -44,7 +44,7 @@ def get_gemini_api_key_for_request(user: Optional[UserProfile]) -> str:
     
     Args:
         user: Current user profile (can be None for public endpoints)
-    
+
     Returns:
         Gemini API key to use (user's or system default)
     

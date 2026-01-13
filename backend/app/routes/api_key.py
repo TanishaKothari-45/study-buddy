@@ -127,13 +127,13 @@ def set_api_key(
         
         # Store encrypted key in Supabase
         success = set_user_gemini_api_key(current_user.id, encrypted_key)
-        
+
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to save API key. Please try again."
             )
-        
+
         # Generate masked version for response
         masked_key = encryptor.mask_api_key(api_key, visible_chars=4)
         
@@ -176,13 +176,13 @@ def delete_api_key(
         
         # Remove encrypted key from Supabase
         success = delete_user_gemini_api_key(current_user.id)
-        
+
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to delete API key. Please try again."
             )
-        
+
         logger.info(f"✅ User {current_user.email} deleted their Gemini API key")
         
         return {
