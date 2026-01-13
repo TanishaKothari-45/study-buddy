@@ -1391,6 +1391,7 @@ Return the result in the exact JSON format specified in the system prompt."""
                 logger.info(f"☁️ [BATCH JOB {job_id}] Cleaned up GCS files")
 
         except Exception as e:
+            logger.warning(f"🧹 [BATCH JOB {job_id}] Cleanup warning: {e}")
         
         await redis.delete(f"cancel:{job_id}")
 

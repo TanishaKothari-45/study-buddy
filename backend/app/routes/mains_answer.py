@@ -1,13 +1,20 @@
 """
 UPSC Mains Answer Generation endpoint
 """
-from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+
 import os
+import sys
 import logging
-import time
-from openai import OpenAI, RateLimitError
+import re
+import json
+import redis.asyncio as redis
+from uuid import uuid4
+from typing import Optional, List, Dict, Any
+from pathlib import Path
+from fastapi import APIRouter, Request, HTTPException, Depends
+from pydantic import BaseModel
+from ..models.mains import MainsAnswerRequest, MainsAnswerResponse
+from ..utils.error_handlers import clean_gemini_error
 
 logger = logging.getLogger("mains_answer")
 logging.basicConfig(level=logging.INFO)
@@ -217,7 +224,7 @@ async def check_connection(request: Request):
 async def generate_mains_answer(
     request: Request,
     mains_request: MainsAnswerRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Enqueue Mains Answer generation.
@@ -368,7 +375,7 @@ async def get_mains_answer_history(
     limit: int = 20,
     offset: int = 0,
     search: str = "",
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Get user's history of mains answers from Redis.
@@ -403,7 +410,7 @@ async def get_mains_answer_history(
 async def get_cached_mains_answer(
     question: str,
     word_count: int = 500,
-    current_user: User = Depends(get_current_user)
+    current_user: UserProfile = Depends(get_current_user)
 ):
     """
     Return a cached mains answer (no regeneration).
