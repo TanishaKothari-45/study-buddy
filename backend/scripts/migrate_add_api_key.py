@@ -13,7 +13,6 @@ if str(backend_dir) not in sys.path:
 
 from sqlalchemy import text
 from app.core.database import engine, SessionLocal
-from app.models.user import User
 import logging
 
 logging.basicConfig(level=logging.INFO)
