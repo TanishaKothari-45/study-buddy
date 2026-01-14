@@ -74,9 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     // (happens on tab focus due to Supabase's visibility detection)
                     const isAlreadyHandled = handledUserIdRef.current === newSession.user.id;
                     
-                    if (isAlreadyHandled) {
-                        return;
-                    }
+                    if (isAlreadyHandled) return;
                     
                     // Mark this user as handled
                     handledUserIdRef.current = newSession.user.id;
