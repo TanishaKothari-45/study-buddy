@@ -67,8 +67,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Listen for auth state changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, newSession) => {
-                setSession(newSession);
-
                 if (event === 'SIGNED_IN' && newSession) {
                     // Check if this is a duplicate SIGNED_IN event for the same user
                     // (happens on tab focus due to Supabase's visibility detection)
@@ -101,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     // Reset the handled user so next sign-in is processed
                     handledUserIdRef.current = null;
                 }
+                setSession(newSession);
             }
         );
 
