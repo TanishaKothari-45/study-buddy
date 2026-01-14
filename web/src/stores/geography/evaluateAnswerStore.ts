@@ -6,6 +6,8 @@ interface EvaluateAnswerState {
     // Form State
     question: string;
     setQuestion: (q: string) => void;
+    evaluationMode: "single" | "batch";
+    setEvaluationMode: (mode: "single" | "batch") => void;
 
     // Evaluation Job State
     jobId: string | null;
@@ -41,6 +43,8 @@ export const useEvaluateAnswerStore = create<EvaluateAnswerState>()(
             (set, get) => ({
                 question: '',
                 setQuestion: (question) => set({ question }),
+                evaluationMode: 'single',
+                setEvaluationMode: (evaluationMode) => set({ evaluationMode }),
 
                 jobId: null,
                 jobStatus: 'idle',
@@ -70,17 +74,17 @@ export const useEvaluateAnswerStore = create<EvaluateAnswerState>()(
                     try {
                         // Import API client dynamically
                         const { apiClient } = await import('../../lib/apiClient');
-                        
+
                         // Create FormData
                         const formData = new FormData();
                         formData.append('question', question);
                         formData.append('feedback', JSON.stringify(feedback));
                         formData.append('word_count', wordCount.toString());
-                        
+
                         if (studentAnswer) {
                             formData.append('student_answer', studentAnswer);
                         }
-                        
+
                         if (files && files.length > 0) {
                             files.forEach((file) => {
                                 formData.append('files', file);
@@ -97,13 +101,13 @@ export const useEvaluateAnswerStore = create<EvaluateAnswerState>()(
                             }
                         );
 
-                        set({ 
+                        set({
                             improvedAnswerJobId: response.job_id,
                             improvedAnswerStatus: 'queued'
                         });
                     } catch (error: any) {
                         console.error('Failed to generate improved answer:', error);
-                        set({ 
+                        set({
                             improvedAnswerError: error.message || 'Failed to generate improved answer',
                             improvedAnswerStatus: 'failed'
                         });
@@ -112,6 +116,7 @@ export const useEvaluateAnswerStore = create<EvaluateAnswerState>()(
 
                 reset: () => set({
                     question: '',
+                    evaluationMode: 'single',
                     jobId: null,
                     jobStatus: 'idle',
                     result: null,
@@ -136,6 +141,7 @@ export const useEvaluateAnswerStore = create<EvaluateAnswerState>()(
                 partialize: (state) => ({
                     // Persist everything needed to resume/show result
                     question: state.question,
+                    evaluationMode: state.evaluationMode,
                     jobId: state.jobId,
                     jobStatus: state.jobStatus,
                     result: state.result,
