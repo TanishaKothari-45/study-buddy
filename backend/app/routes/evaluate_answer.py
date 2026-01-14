@@ -46,7 +46,7 @@ async def evaluate_answer_endpoint(
 ):
     """
     Enqueue answer evaluation task.
-    Saves files to backend/data/temp/{job_id}/ and enqueues job.
+    Saves files to storage (GCS in Cloud Run, local in dev) and enqueues job.
     """
     try:
         # 1. Get Gemini Key
@@ -62,12 +62,18 @@ async def evaluate_answer_endpoint(
 
         # 2. Preparation
         job_id = str(uuid4())
-        job_dir = settings.BASE_DIR / "data" / "temp" / job_id
-        job_dir.mkdir(parents=True, exist_ok=True)
+        storage = get_storage_handler()
+        
+        # For local storage, get job directory; for GCS, use temp directory
+        if hasattr(storage, 'get_job_dir'):
+            job_dir = storage.get_job_dir(job_id)
+        else:
+            job_dir = settings.BASE_DIR / "data" / "temp" / job_id
+            job_dir.mkdir(parents=True, exist_ok=True)
 
         saved_file_paths = []
 
-        # 3. Save Files
+        # 3. Save Files and Upload to Storage
         for file in files:
             file_ext = Path(file.filename).suffix.lower() if file.filename else '.pdf'
             safe_filename = f"{uuid4()}{file_ext}"
@@ -77,13 +83,15 @@ async def evaluate_answer_endpoint(
             with open(file_path, "wb") as f:
                 f.write(content)
 
-            saved_file_paths.append(str(file_path))
+            # Upload to storage (GCS in Cloud Run, returns local path in dev)
+            storage_path = await storage.upload_file(str(file_path), job_id)
+            saved_file_paths.append(storage_path)
 
         # 4. Enqueue Job
         arq_pool = request.app.state.arq_pool
         if not arq_pool:
             # Cleanup if queue fails
-            shutil.rmtree(job_dir)
+            await storage.cleanup_job(job_id)
             raise HTTPException(500, "Job queue not initialized")
             
         await arq_pool.enqueue_job(
@@ -158,16 +166,25 @@ async def evaluate_batch_answers_endpoint(
 
         # 3. Save PDF and question file if provided
         job_id = str(uuid4())
-        job_dir = settings.BASE_DIR / "data" / "temp" / job_id
-        job_dir.mkdir(parents=True, exist_ok=True)
+        storage = get_storage_handler()
+        
+        # For local storage, get job directory; for GCS, use temp directory
+        if hasattr(storage, 'get_job_dir'):
+            job_dir = storage.get_job_dir(job_id)
+        else:
+            job_dir = settings.BASE_DIR / "data" / "temp" / job_id
+            job_dir.mkdir(parents=True, exist_ok=True)
 
-        pdf_path = job_dir / f"{uuid4()}.pdf"
+        pdf_local_path = job_dir / f"{uuid4()}.pdf"
         content = await file.read()
-        with open(pdf_path, "wb") as f:
+        with open(pdf_local_path, "wb") as f:
             f.write(content)
 
-        # Save question file if provided
-        question_file_path = None
+        # Upload PDF to storage (GCS in Cloud Run, returns local path in dev)
+        pdf_storage_path = await storage.upload_file(str(pdf_local_path), job_id)
+
+        # Save and upload question file if provided
+        question_file_storage_path = None
         if question_file:
             # Validate question file type
             if not question_file.filename:
@@ -178,10 +195,13 @@ async def evaluate_batch_answers_endpoint(
             if file_ext not in allowed_extensions:
                 raise HTTPException(400, f"Question file must be PDF or image ({', '.join(allowed_extensions)})")
 
-            question_file_path = job_dir / f"question_{uuid4()}{file_ext}"
+            question_local_path = job_dir / f"question_{uuid4()}{file_ext}"
             question_content = await question_file.read()
-            with open(question_file_path, "wb") as f:
+            with open(question_local_path, "wb") as f:
                 f.write(question_content)
+            
+            # Upload question file to storage
+            question_file_storage_path = await storage.upload_file(str(question_local_path), job_id)
 
         # Parse manual questions if provided
         question_texts = None
@@ -198,18 +218,18 @@ async def evaluate_batch_answers_endpoint(
         # 4. Enqueue Batch Job
         arq_pool = request.app.state.arq_pool
         if not arq_pool:
-            shutil.rmtree(job_dir)
+            await storage.cleanup_job(job_id)
             raise HTTPException(500, "Job queue not initialized")
 
         await arq_pool.enqueue_job(
             "evaluate_batch_answers_task",
             _job_id=job_id,
             job_id=job_id,
-            pdf_path=str(pdf_path),
+            pdf_path=pdf_storage_path,
             user_id=str(current_user.id) if current_user else "anonymous",
             gemini_api_key=gemini_api_key,
             use_standard_format=use_standard_format,
-            question_file_path=str(question_file_path) if question_file_path else None,
+            question_file_path=question_file_storage_path,
             question_texts=question_texts
         )
 
@@ -381,12 +401,18 @@ async def generate_improved_answer_endpoint(
 
         # 3. Preparation
         job_id = str(uuid4())
+        storage = get_storage_handler()
         saved_file_paths = None
 
-        # 4. Save Files if provided
+        # 4. Save Files if provided and upload to storage
         if files and len(files) > 0:
-            job_dir = settings.BASE_DIR / "data" / "temp" / job_id
-            job_dir.mkdir(parents=True, exist_ok=True)
+            # For local storage, get job directory; for GCS, use temp directory
+            if hasattr(storage, 'get_job_dir'):
+                job_dir = storage.get_job_dir(job_id)
+            else:
+                job_dir = settings.BASE_DIR / "data" / "temp" / job_id
+                job_dir.mkdir(parents=True, exist_ok=True)
+            
             saved_file_paths = []
             
             for file in files:
@@ -398,15 +424,16 @@ async def generate_improved_answer_endpoint(
                 with open(file_path, "wb") as f:
                     f.write(content)
 
-                saved_file_paths.append(str(file_path))
+                # Upload to storage (GCS in Cloud Run, returns local path in dev)
+                storage_path = await storage.upload_file(str(file_path), job_id)
+                saved_file_paths.append(storage_path)
 
         # 5. Enqueue Job
         arq_pool = request.app.state.arq_pool
         if not arq_pool:
             # Cleanup if queue fails
             if saved_file_paths:
-                import shutil
-                shutil.rmtree(Path(saved_file_paths[0]).parent)
+                await storage.cleanup_job(job_id)
             raise HTTPException(500, "Job queue not initialized")
 
         await arq_pool.enqueue_job(

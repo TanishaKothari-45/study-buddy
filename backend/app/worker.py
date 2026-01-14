@@ -551,8 +551,12 @@ async def evaluate_answer_task(
     """
     logger.info(f"📝 [JOB {job_id}] Starting evaluation for user {user_id}")
     redis = ctx["redis"]
+    storage = get_storage_handler()
     status_key = f"job_status:{job_id}"
     await redis.set(status_key, "processing")
+    
+    # Track local file paths for cleanup (may differ from input if downloaded from GCS)
+    local_file_paths = []
     
     try:
         await check_cancellation(ctx, job_id)
@@ -560,6 +564,18 @@ async def evaluate_answer_task(
         # Validate API key before proceeding
         if not gemini_api_key or not gemini_api_key.strip():
             raise Exception("Invalid API key: API key is empty or not provided. Please check your API key in Settings.")
+        
+        # ============================================================
+        # STEP 0: Download files from GCS if necessary (Cloud Run)
+        # ============================================================
+        for file_path in file_paths:
+            if file_path.startswith("gs://"):
+                logger.info(f"☁️ [JOB {job_id}] Downloading file from GCS: {file_path}")
+                local_path = await storage.download_file(file_path)
+                local_file_paths.append(local_path)
+                logger.info(f"✅ [JOB {job_id}] Downloaded to: {local_path}")
+            else:
+                local_file_paths.append(file_path)
         
         # Initialize Gemini Client (using cached factory)
         gemini_client = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_PRO)
@@ -572,9 +588,9 @@ async def evaluate_answer_task(
              logger.warning("⚠️ Using fallback generic system prompt")
              system_prompt = "You are an expert evaluator. Provide detailed feedback on the student's answer."
 
-        # File type check
-        all_is_pdf = all(f.lower().endswith('.pdf') for f in file_paths)
-        all_is_image = all(f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')) for f in file_paths)
+        # File type check (use local paths for type checking)
+        all_is_pdf = all(f.lower().endswith('.pdf') for f in local_file_paths)
+        all_is_image = all(f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')) for f in local_file_paths)
 
         # Default values (will be extracted from response)
         identified_question = question or ""  # Use provided question if available, otherwise will be extracted
@@ -618,12 +634,12 @@ async def evaluate_answer_task(
             logger.info(f"🔐 [JOB {job_id}] Lock acquired, calling Gemini...")
             await check_cancellation(ctx, job_id)
             
-            # Call Gemini with files
+            # Call Gemini with files (use local_file_paths after GCS download)
             if all_is_pdf:
                 response_text = await gemini_client.generate_response(
                     user_prompt=user_prompt,
                     system_prompt=system_prompt,
-                    pdf_path=file_paths,
+                    pdf_path=local_file_paths,
                     temperature=0.1,
                     max_retries=3
                 )
@@ -631,28 +647,28 @@ async def evaluate_answer_task(
                 response_text = await gemini_client.generate_response(
                     user_prompt=user_prompt,
                     system_prompt=system_prompt,
-                    image_path=file_paths,
+                    image_path=local_file_paths,
                     temperature=0.1,
                     max_retries=3
                 )
             else:
                 # Mixed types - use first file
-                    if file_paths[0].lower().endswith('.pdf'):
-                        response_text = await gemini_client.generate_response(
-                            user_prompt=user_prompt,
-                            system_prompt=system_prompt,
-                            pdf_path=file_paths[0],
-                            temperature=0.1,
-                            max_retries=3
-                        )
-                    else:
-                        response_text = await gemini_client.generate_response(
-                            user_prompt=user_prompt,
-                            system_prompt=system_prompt,
-                            image_path=file_paths[0],
-                            temperature=0.1,
-                            max_retries=3
-                        )
+                if local_file_paths[0].lower().endswith('.pdf'):
+                    response_text = await gemini_client.generate_response(
+                        user_prompt=user_prompt,
+                        system_prompt=system_prompt,
+                        pdf_path=local_file_paths[0],
+                        temperature=0.1,
+                        max_retries=3
+                    )
+                else:
+                    response_text = await gemini_client.generate_response(
+                        user_prompt=user_prompt,
+                        system_prompt=system_prompt,
+                        image_path=local_file_paths[0],
+                        temperature=0.1,
+                        max_retries=3
+                    )
             
             logger.info(f"✅ [JOB {job_id}] Received response: {len(response_text)} chars")
         
@@ -702,19 +718,28 @@ async def evaluate_answer_task(
         logger.error(f"❌ [JOB {job_id}] Failed: {e}", exc_info=True)
         await set_job_error(redis, job_id, error_handlers.clean_gemini_error(str(e)))
     finally:
-        # Cleanup files
-        for path in file_paths:
+        # Cleanup local files (downloaded from GCS or original local files)
+        for path in local_file_paths:
             try:
                 if os.path.exists(path):
                     os.remove(path)
+                    logger.debug(f"🧹 Cleaned up local file: {path}")
             except:
                 pass
-        # Cleanup directory
-        if file_paths:
+        # Cleanup local directory
+        if local_file_paths:
             try:
-                os.rmdir(Path(file_paths[0]).parent)
+                os.rmdir(Path(local_file_paths[0]).parent)
             except:
                 pass
+        
+        # Cleanup GCS files if any were uploaded
+        if file_paths and file_paths[0].startswith("gs://"):
+            try:
+                await storage.cleanup_job(job_id)
+                logger.info(f"☁️ [JOB {job_id}] Cleaned up GCS files")
+            except Exception as e:
+                logger.warning(f"🧹 [JOB {job_id}] GCS cleanup warning: {e}")
         
         await redis.delete(f"cancel:{job_id}")
 
@@ -1426,11 +1451,28 @@ async def generate_improved_answer_task(
     """
     logger.info(f"✍️ [JOB {job_id}] Starting improved answer generation for user {user_id}")
     redis = ctx["redis"]
+    storage = get_storage_handler()
     status_key = f"job_status:{job_id}"
     await redis.set(status_key, "processing")
     
+    # Track local file paths for cleanup (may differ from input if downloaded from GCS)
+    local_file_paths = []
+    
     try:
         await check_cancellation(ctx, job_id)
+        
+        # ============================================================
+        # STEP 0: Download files from GCS if necessary (Cloud Run)
+        # ============================================================
+        if file_paths:
+            for file_path in file_paths:
+                if file_path.startswith("gs://"):
+                    logger.info(f"☁️ [JOB {job_id}] Downloading file from GCS: {file_path}")
+                    local_path = await storage.download_file(file_path)
+                    local_file_paths.append(local_path)
+                    logger.info(f"✅ [JOB {job_id}] Downloaded to: {local_path}")
+                else:
+                    local_file_paths.append(file_path)
         
         # Initialize Gemini Client (using cached factory)
         gemini_client = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_PRO)
@@ -1452,16 +1494,16 @@ async def generate_improved_answer_task(
             logger.warning("⚠️ Using fallback generic system prompt")
             system_prompt = "You are an expert UPSC answer writer. Generate an improved answer based on the feedback provided."
         
-        # File type check
+        # File type check (use local paths after GCS download)
         all_is_pdf = False
         all_is_image = False
-        if file_paths:
-            all_is_pdf = all(f.lower().endswith('.pdf') for f in file_paths)
-            all_is_image = all(f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')) for f in file_paths)
+        if local_file_paths:
+            all_is_pdf = all(f.lower().endswith('.pdf') for f in local_file_paths)
+            all_is_image = all(f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')) for f in local_file_paths)
         
         # Extract student answer text if using files
         student_answer_text = student_answer
-        if not student_answer_text and file_paths:
+        if not student_answer_text and local_file_paths:
             logger.info(f"📝 [JOB {job_id}] Extracting student answer from files...")
             try:
                 extract_prompt = "Read the handwritten answer and extract the complete answer text. Return ONLY the answer text."
@@ -1470,9 +1512,9 @@ async def generate_improved_answer_task(
                 if await lock.acquire(blocking=True, blocking_timeout=60):
                     try:
                         if all_is_pdf:
-                            student_answer_text = await gemini_client.generate_response(extract_prompt, pdf_path=file_paths[0], temperature=0.0)
+                            student_answer_text = await gemini_client.generate_response(extract_prompt, pdf_path=local_file_paths[0], temperature=0.0)
                         elif all_is_image:
-                            student_answer_text = await gemini_client.generate_response(extract_prompt, image_path=file_paths[0], temperature=0.0)
+                            student_answer_text = await gemini_client.generate_response(extract_prompt, image_path=local_file_paths[0], temperature=0.0)
                         else:
                             student_answer_text = "Answer extracted from file"
                         logger.info(f"✅ [JOB {job_id}] Extracted student answer: {len(student_answer_text)} chars")
@@ -1552,12 +1594,12 @@ async def generate_improved_answer_task(
             await check_cancellation(ctx, job_id)
             
             # Call Gemini (with files if provided, otherwise text-only)
-            if file_paths and (all_is_pdf or all_is_image):
+            if local_file_paths and (all_is_pdf or all_is_image):
                 if all_is_pdf:
                     response_text = await gemini_client.generate_response(
                         user_prompt=user_prompt,
                         system_prompt=system_prompt,
-                        pdf_path=file_paths,
+                        pdf_path=local_file_paths,
                         temperature=0.15,
                         max_retries=3
                     )
@@ -1565,7 +1607,7 @@ async def generate_improved_answer_task(
                     response_text = await gemini_client.generate_response(
                         user_prompt=user_prompt,
                         system_prompt=system_prompt,
-                        image_path=file_paths,
+                        image_path=local_file_paths,
                         temperature=0.15,
                         max_retries=3
                     )
@@ -1638,19 +1680,28 @@ async def generate_improved_answer_task(
         logger.error(f"❌ [JOB {job_id}] Failed: {e}", exc_info=True)
         await set_job_error(redis, job_id, error_handlers.clean_gemini_error(str(e)))
     finally:
-        # Cleanup files if provided
-        if file_paths:
-            for path in file_paths:
-                try:
-                    if os.path.exists(path):
-                        os.remove(path)
-                except:
-                    pass
-            # Cleanup directory
+        # Cleanup local files (downloaded from GCS or original local files)
+        for path in local_file_paths:
             try:
-                os.rmdir(Path(file_paths[0]).parent)
+                if os.path.exists(path):
+                    os.remove(path)
+                    logger.debug(f"🧹 Cleaned up local file: {path}")
             except:
                 pass
+        # Cleanup local directory
+        if local_file_paths:
+            try:
+                os.rmdir(Path(local_file_paths[0]).parent)
+            except:
+                pass
+        
+        # Cleanup GCS files if any were uploaded
+        if file_paths and file_paths[0].startswith("gs://"):
+            try:
+                await storage.cleanup_job(job_id)
+                logger.info(f"☁️ [JOB {job_id}] Cleaned up GCS files")
+            except Exception as e:
+                logger.warning(f"🧹 [JOB {job_id}] GCS cleanup warning: {e}")
         
         await redis.delete(f"cancel:{job_id}")
 
