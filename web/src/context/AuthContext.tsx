@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient, getSessionToken } from "@/lib/supabase";
 import { API_URL } from "@/lib/api";
@@ -39,6 +39,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isApiKeyValid, setIsApiKeyValid] = useState<'unknown' | 'valid' | 'invalid'>('unknown');
     const router = useRouter();
     const supabase = createClient();
+    
+    // Track if we've already handled the initial sign-in for the current user
+    // This prevents duplicate handling when SIGNED_IN fires on tab focus
+    const handledUserIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         // Get initial session
@@ -47,6 +51,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const { data: { session: initialSession } } = await supabase.auth.getSession();
                 if (initialSession) {
                     setSession(initialSession);
+                    // Mark this user as already handled (they were already signed in)
+                    handledUserIdRef.current = initialSession.user.id;
                     await fetchUserProfile(initialSession.user, initialSession.access_token);
                 }
             } catch (error) {
@@ -61,10 +67,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Listen for auth state changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, newSession) => {
-                console.log("Auth state changed:", event);
                 setSession(newSession);
                 
                 if (event === 'SIGNED_IN' && newSession) {
+                    // Check if this is a duplicate SIGNED_IN event for the same user
+                    // (happens on tab focus due to Supabase's visibility detection)
+                    const isAlreadyHandled = handledUserIdRef.current === newSession.user.id;
+                    
+                    if (isAlreadyHandled) {
+                        return;
+                    }
+                    
+                    // Mark this user as handled
+                    handledUserIdRef.current = newSession.user.id;
+                    
                     await fetchUserProfile(newSession.user, newSession.access_token);
                     
                     // Get return URL and redirect
@@ -82,6 +98,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 } else if (event === 'SIGNED_OUT') {
                     setUser(null);
                     setIsApiKeyValid('unknown');
+                    // Reset the handled user so next sign-in is processed
+                    handledUserIdRef.current = null;
                 }
             }
         );
