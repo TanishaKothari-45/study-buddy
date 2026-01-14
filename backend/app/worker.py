@@ -11,6 +11,7 @@ Usage:
     arq app.worker.WorkerSettings
 """
 
+
 import asyncio
 import json
 import logging
