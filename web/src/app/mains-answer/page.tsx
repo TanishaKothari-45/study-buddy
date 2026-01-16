@@ -375,6 +375,25 @@ export default function MainsAnswerPage() {
         }
     };
 
+    // Filter subjects based on GS Paper
+    const GS_TO_SUBJECTS: Record<string, string[]> = {
+        "GS1": ["History", "Geography", "Social Issues"],
+        "GS2": ["Constitution", "Administration", "International Relations", "Social Justice"],
+        "GS3": ["Economic Development", "Agriculture", "Technology", "Environment", "Disaster Management", "Internal Security"],
+        "GS4": ["Foundational Values", "Thinkers", "Governance & Ethics", "Case Studies"]
+    };
+
+    const ALL_SUBJECTS = Array.from(new Set(Object.values(GS_TO_SUBJECTS).flat())).sort();
+
+    const availableSubjects = gsPaper ? GS_TO_SUBJECTS[gsPaper] || ALL_SUBJECTS : ALL_SUBJECTS;
+
+    // Reset subject if not valid for selected GS Paper
+    useEffect(() => {
+        if (gsPaper && subject && !GS_TO_SUBJECTS[gsPaper]?.includes(subject)) {
+            setSubject("");
+        }
+    }, [gsPaper, subject, setSubject]);
+
     return (
         <>
             <div className="p-8 max-w-5xl mx-auto space-y-8">
@@ -493,10 +512,10 @@ export default function MainsAnswerPage() {
                                                 <SelectValue placeholder="Select GS Paper (Optional)" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="GS1">GS1 (History, Geography, Society)</SelectItem>
-                                                <SelectItem value="GS2">GS2 (Polity, Governance, IR)</SelectItem>
-                                                <SelectItem value="GS3">GS3 (Economy, Env, SciTech)</SelectItem>
-                                                <SelectItem value="GS4">GS4 (Ethics, Integrity)</SelectItem>
+                                                <SelectItem value="GS1">GS1</SelectItem>
+                                                <SelectItem value="GS2">GS2</SelectItem>
+                                                <SelectItem value="GS3">GS3</SelectItem>
+                                                <SelectItem value="GS4">GS4</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -507,23 +526,11 @@ export default function MainsAnswerPage() {
                                                 <SelectValue placeholder="Select Subject (Optional)" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="Administration">Administration</SelectItem>
-                                                <SelectItem value="Agriculture">Agriculture</SelectItem>
-                                                <SelectItem value="Case Studies">Case Studies</SelectItem>
-                                                <SelectItem value="Constitution">Constitution</SelectItem>
-                                                <SelectItem value="Disaster Management">Disaster Management</SelectItem>
-                                                <SelectItem value="Economic Development">Economic Development</SelectItem>
-                                                <SelectItem value="Environment">Environment</SelectItem>
-                                                <SelectItem value="Foundational Values">Foundational Values</SelectItem>
-                                                <SelectItem value="Geography">Geography</SelectItem>
-                                                <SelectItem value="Governance & Ethics">Governance & Ethics</SelectItem>
-                                                <SelectItem value="History">History</SelectItem>
-                                                <SelectItem value="Internal Security">Internal Security</SelectItem>
-                                                <SelectItem value="International Relations">International Relations</SelectItem>
-                                                <SelectItem value="Social Issues">Social Issues</SelectItem>
-                                                <SelectItem value="Social Justice">Social Justice</SelectItem>
-                                                <SelectItem value="Technology">Technology</SelectItem>
-                                                <SelectItem value="Thinkers">Thinkers</SelectItem>
+                                                {availableSubjects.map((subj) => (
+                                                    <SelectItem key={subj} value={subj}>
+                                                        {subj}
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
