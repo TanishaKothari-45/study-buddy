@@ -18,8 +18,9 @@ class APIKeyEncryption:
     """Handles encryption/decryption of user API keys"""
     
     def __init__(self):
-        # Get encryption key from environment
-        encryption_key = os.getenv("ENCRYPTION_KEY")
+        # Get encryption key from settings (Single Source of Truth)
+        from .config import settings
+        encryption_key = settings.ENCRYPTION_KEY
         
         if not encryption_key:
             # Generate a new key for development (NEVER use this in production)
