@@ -77,7 +77,9 @@ def assemble_mains_prompt(
     question: str,
     context: Optional[str],
     current_bullets: Optional[str],
-    word_count: int = 350
+    word_count: int = 350,
+    gs_paper: Optional[str] = None,
+    subject: Optional[str] = None
 ) -> dict:
     """
     Construct a system + user prompt pair for the LLM.
@@ -117,7 +119,7 @@ def assemble_mains_prompt(
             current_trim = current_trim[:2400] + "\n\n[TRUNCATED CURRENT AFFAIRS]"
 
     # User-level guidance that will be fed as user message
-    user_msg = f"""You are a Senior UPSC Mains answer-writer (Geography). Follow IBC strictly and include Mermaid diagrams.
+    user_msg = f"""You are a Senior UPSC Mains answer-writer. Follow IBC strictly and include Mermaid diagrams.
 
 Question: {question}
 
@@ -125,9 +127,9 @@ Question: {question}
 REFERENCE KNOWLEDGE BASE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 **FOUNDATIONAL CONTEXT** (Core concepts, mechanisms, theory):
-{context_trim or '[No retrieved context - use your geographical knowledge base]'}
+{context_trim or '[No retrieved context - use your standard UPSC knowledge base]'}
 **CURRENT AFFAIRS** (Recent data, examples):
-{current_trim or '[No current affairs - use general contemporary examples if needed]'}
+{current_trim or '[No current affairs - use general contemporary examples if relevant]'}
 
 ⚡ USAGE INSTRUCTIONS:
 - Build your answer using FOUNDATIONAL CONTEXT + your general geographical knowledge
@@ -138,45 +140,16 @@ REFERENCE KNOWLEDGE BASE
 📝 ANSWER REQUIREMENTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Constraints / Format:
-- INTRO: 2–3 lines. Must include either a definition, a data point/report citation, or a recent context or current affair (if applicable).
-- BODY: Use sub-headings and bullets. Each bullet <= 18 words.
-- BULLET FORMAT (CRITICAL): Every bullet MUST start with a dash (-). Example:
-  - **Main point one** with evidence (IPCC 2023) and example.
-  - **Main point two** with evidence and example.
-  Never write bullets without the dash prefix. Each bullet on its own line.
-- TABLE FORMAT (When Applicable):
-  - Tables replace bullets entirely for that sub-heading.
-  - Max size: 4 rows × 3 columns.
-  - Use for:
-    - Positive vs negative impacts
-    - Advantages vs limitations
-    - Comparative geography
-    - Category-wise or sector-wise impacts
-    - Matrix (two-axis) evaluation
-  - Do NOT repeat table content in bullets elsewhere.
-  - Table cell content must be brief and point-like.
-    - Avoid long sentences; no paragraph-style explanations inside cells.
-    - Prefer compact phrases or bullet-style points per cell.
 
-- DIAGRAM: Prefer including ONE Mermaid diagram when the question involves a clear process, mechanism, or causal chain. NEVER place diagram between a sub-heading and its bullets. Place it BEFORE the sub-heading or AFTER all bullets of a section.
-- MAP: If the question contains keywords like "distribution", "where", "locate", "belts", "hotspots", "areas", "regional", or explicitly asks about countries/regions, include a map-json block per MAP_GENERATION_RULES (map-json before Body under 'Map/Diagram').
-- **TOTAL VISUAL LIMIT**: You can include **at most TWO** visuals in total (spanning Tables, Mermaid diagrams, and Maps). Never include all three.
-- WAY FORWARD (Conditional Section – Include Only When Applicable and Relevant): 
- - Include 2–3 bullets, each starting with a dash (-).
- - Each bullet must be actionable, future-oriented, and specific.
- - Keep bullets concise, concrete, and implementable.
-- CONCLUSION: 1 para connecting to constitutional artciles, values, or SDG goals, or India’s governance ethos (equity, sustainability, decentralisation) or policy frameworks and where contextually relevant, appropriate technological or adaptive solutions.
 - WORD COUNT: Target ~{word_count} words. Acceptable range: 80%-140% of target. Only compress bullet language if exceeding 140%.
-- For directive words (Analyse, Evaluate, Critically examine, Discuss), follow the Directive Decoder rules in SYSTEM PROMPT.
-- Tone: concise, exam-style, zero fluff.
+- Tone: concise, exam-style, zero fluff UPSC mians answer.
 
-Output: Provide the answer only (no metadata), using markdown list format (- for bullets, each on new line), sub-headings, and Mermaid diagrams.
+Output: Provide the answer only (no metadata, no explanation), using markdown list format (- for bullets, each on new line), sub-headings, tables, and Mermaid diagrams.
 """
     
-    # Use shared prompts if available, otherwise fallback to legacy
-    if USE_SHARED_PROMPTS:
-        system_prompt = get_mains_answer_system_prompt()
-    else:
-        system_prompt = LEGACY_SYSTEM_PROMPT
+    # Use dynamic prompt assembler
+    from .prompt_assembler import assemble_mains_prompt as assemble_dynamic_prompt
+    
+    system_prompt = assemble_dynamic_prompt(gs_paper=gs_paper or "", subject=subject or "")
     
     return {"system": system_prompt, "user": user_msg}

@@ -1446,12 +1446,18 @@ async def generate_improved_answer_task(
             primary_domain = paper_and_subject_identification.get("primary_domain", "")
             
         # Import shared prompt
-        try:
-            from .prompts.shared_mains_prompts import get_improved_answer_system_prompt
-            system_prompt = get_improved_answer_system_prompt()
-        except ImportError:
-            logger.warning("⚠️ Using fallback generic system prompt")
-            system_prompt = "You are an expert UPSC answer writer. Generate an improved answer based on the feedback provided."
+        # Import assembler
+        from .prompts.prompt_assembler import assemble_improved_answer_prompt
+        
+        # Get GS Paper and Subject from identification
+        gs_paper = ""
+        subject = ""
+        if paper_and_subject_identification:
+            gs_paper = paper_and_subject_identification.get("gs_paper", "")
+            subject = paper_and_subject_identification.get("primary_domain", "") or paper_and_subject_identification.get("subject_domain", "")
+
+        # Assemble prompt with overlays
+        system_prompt = assemble_improved_answer_prompt(gs_paper=gs_paper, subject=subject)
         
         # File type check
         all_is_pdf = False
@@ -1805,7 +1811,7 @@ def count_words_excluding_visuals(text: str) -> int:
 # ============================================================
 
 @trace_chain("mains_answer_pipeline")
-async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str, word_count: int = 350, gemini_api_key: str = None):
+async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str, word_count: int = 350, gemini_api_key: str = None, gs_paper: str = None, subject: str = None):
     """
     Generate Mains Answer using Gemini 2.5 Pro (Full Pipeline).
     Includes:
@@ -1835,6 +1841,18 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         cache = get_cache_manager()
         pinecone_handler = ctx.get("pinecone_handler")
         
+        
+        # Determine strict Pinecone usage based on user requirement:
+        # "only when geography, agriculture, disaster selected in subject domain , only then we fetch context from pinecone"
+        allowed_subjects = ["geography", "agriculture", "disaster", "disaster management", "environment"]
+        skip_vector_search = True # Default to skip
+        
+        if subject and subject.lower() in allowed_subjects:
+             skip_vector_search = False
+             logger.info(f"✅ Subject '{subject}' allowed for retrieval. Enabling Pinecone vector search.")
+        else:
+             logger.info(f"⏩ Subject '{subject}' not in allowed list (Geography, Agriculture, Disaster). Skipping Pinecone search & embedding.")
+
         # ============================================================
         # PHASE 2: ALIGNED RETRIEVAL & NEWS PIPELINE
         # ============================================================
@@ -1842,7 +1860,8 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
             ctx=ctx,
             job_id=job_id,
             query=query,
-            gemini_api_key=gemini_api_key
+            gemini_api_key=gemini_api_key,
+            skip_vector_search=skip_vector_search
         )
         
         context = pipeline_result["context"]
@@ -1861,7 +1880,9 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
             question=query,
             context=context,
             current_bullets=current_affairs_section,
-            word_count=word_count
+            word_count=word_count,
+            gs_paper=gs_paper,
+            subject=subject
         )
         
         lock_key = f"lock:user:{user_id}"

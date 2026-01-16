@@ -8,6 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, PenTool, BookOpen, FileText, CheckCircle, AlertCircle, ChevronDown, Minimize2, RefreshCw, History } from "lucide-react";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
@@ -35,6 +42,8 @@ export default function MainsAnswerPage() {
     const {
         question,
         wordCount,
+        gsPaper,
+        subject,
         result,
         error,
         jobId,
@@ -45,6 +54,8 @@ export default function MainsAnswerPage() {
         isLoadingHistory,
         setQuestion,
         setWordCount,
+        setGsPaper,
+        setSubject,
         setResult,
         setError,
         setJobId,
@@ -295,7 +306,9 @@ export default function MainsAnswerPage() {
         try {
             const data = await api.post<{ job_id: string, status: string, message: string }>('/mains-answer/generate', {
                 question: question.trim(),
-                word_count: parseInt(wordCount)
+                word_count: parseInt(wordCount),
+                gs_paper: gsPaper || undefined,
+                subject: subject || undefined
             });
 
             if (data.job_id) {
@@ -472,6 +485,50 @@ export default function MainsAnswerPage() {
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={handleGenerate} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label>GS Paper Context</Label>
+                                        <Select value={gsPaper} onValueChange={setGsPaper}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select GS Paper (Optional)" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="GS1">GS1 (History, Geography, Society)</SelectItem>
+                                                <SelectItem value="GS2">GS2 (Polity, Governance, IR)</SelectItem>
+                                                <SelectItem value="GS3">GS3 (Economy, Env, SciTech)</SelectItem>
+                                                <SelectItem value="GS4">GS4 (Ethics, Integrity)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Subject Domain</Label>
+                                        <Select value={subject} onValueChange={setSubject}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select Subject (Optional)" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="Administration">Administration</SelectItem>
+                                                <SelectItem value="Agriculture">Agriculture</SelectItem>
+                                                <SelectItem value="Case Studies">Case Studies</SelectItem>
+                                                <SelectItem value="Constitution">Constitution</SelectItem>
+                                                <SelectItem value="Disaster Management">Disaster Management</SelectItem>
+                                                <SelectItem value="Economic Development">Economic Development</SelectItem>
+                                                <SelectItem value="Environment">Environment</SelectItem>
+                                                <SelectItem value="Foundational Values">Foundational Values</SelectItem>
+                                                <SelectItem value="Geography">Geography</SelectItem>
+                                                <SelectItem value="Governance & Ethics">Governance & Ethics</SelectItem>
+                                                <SelectItem value="History">History</SelectItem>
+                                                <SelectItem value="Internal Security">Internal Security</SelectItem>
+                                                <SelectItem value="International Relations">International Relations</SelectItem>
+                                                <SelectItem value="Social Issues">Social Issues</SelectItem>
+                                                <SelectItem value="Social Justice">Social Justice</SelectItem>
+                                                <SelectItem value="Technology">Technology</SelectItem>
+                                                <SelectItem value="Thinkers">Thinkers</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
                                 <div className="space-y-2">
                                     <Label htmlFor="question">Question</Label>
                                     <Textarea

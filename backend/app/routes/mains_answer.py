@@ -301,7 +301,9 @@ async def generate_mains_answer(
             query=mains_request.question,
             user_id=user_id,
             word_count=mains_request.word_count,
-            gemini_api_key=gemini_api_key
+            gemini_api_key=gemini_api_key,
+            gs_paper=mains_request.gs_paper,
+            subject=mains_request.subject
         )
 
         # 4. Set initial status
