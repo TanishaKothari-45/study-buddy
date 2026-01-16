@@ -1835,6 +1835,18 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         cache = get_cache_manager()
         pinecone_handler = ctx.get("pinecone_handler")
         
+        
+        # Determine strict Pinecone usage based on user requirement:
+        # "only when geography, agriculture, disaster selected in subject domain , only then we fetch context from pinecone"
+        allowed_subjects = ["geography", "agriculture", "disaster", "disaster management", "environment"]
+        skip_vector_search = True # Default to skip
+        
+        if subject and subject.lower() in allowed_subjects:
+             skip_vector_search = False
+             logger.info(f"✅ Subject '{subject}' allowed for retrieval. Enabling Pinecone vector search.")
+        else:
+             logger.info(f"⏩ Subject '{subject}' not in allowed list (Geography, Agriculture, Disaster). Skipping Pinecone search & embedding.")
+
         # ============================================================
         # PHASE 2: ALIGNED RETRIEVAL & NEWS PIPELINE
         # ============================================================
@@ -1842,7 +1854,8 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
             ctx=ctx,
             job_id=job_id,
             query=query,
-            gemini_api_key=gemini_api_key
+            gemini_api_key=gemini_api_key,
+            skip_vector_search=skip_vector_search
         )
         
         context = pipeline_result["context"]

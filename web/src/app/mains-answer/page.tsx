@@ -432,31 +432,6 @@ export default function MainsAnswerPage() {
                                         Previous Answers (Redises)
                                     </div>
                                     <div className="p-2 border-b bg-popover">
-                                        <Input
-                                            placeholder="Search previous questions..."
-                                            value={historySearch}
-                                            onChange={(e) => {
-                                                setHistorySearch(e.target.value);
-                                            }}
-                                            className="bg-popover! text-popover-foreground"
-                                        />
-                                    </div>
-                                    <div className="overflow-y-auto max-h-80 bg-popover">
-                                        {history.map((item) => (
-                                            <button
-                                                key={item.id}
-                                                onClick={() => handleHistoryClick(item)}
-                                                className="w-full text-left p-4 hover:bg-accent hover:text-accent-foreground border-b last:border-b-0 transition-colors bg-popover text-popover-foreground"
-                                            >
-                                                <p className="text-sm font-medium line-clamp-2">{item.question}</p>
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    {item.word_count || "250"} words • {new Date(item.timestamp).toLocaleDateString()}
-                                                </p>
-                                            </button>
-                                        ))}
-                                        {history.length === 0 && !isLoadingHistory && (
-                                            <div className="p-4 text-sm text-muted-foreground bg-popover">No results</div>
-                                        )}
                                     </div>
                                     <div className="p-2 border-t bg-popover flex items-center justify-between">
                                         <span className="text-xs text-muted-foreground">
@@ -507,12 +482,24 @@ export default function MainsAnswerPage() {
                                                 <SelectValue placeholder="Select Subject (Optional)" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="Geography">Geography</SelectItem>
-                                                <SelectItem value="History">History</SelectItem>
-                                                <SelectItem value="Polity">Polity</SelectItem>
+                                                <SelectItem value="Administration">Administration</SelectItem>
+                                                <SelectItem value="Agriculture">Agriculture</SelectItem>
+                                                <SelectItem value="Case Studies">Case Studies</SelectItem>
+                                                <SelectItem value="Constitution">Constitution</SelectItem>
+                                                <SelectItem value="Disaster Management">Disaster Management</SelectItem>
+                                                <SelectItem value="Economic Development">Economic Development</SelectItem>
                                                 <SelectItem value="Economy">Economy</SelectItem>
                                                 <SelectItem value="Environment">Environment</SelectItem>
-                                                <SelectItem value="Ethics">Ethics</SelectItem>
+                                                <SelectItem value="Foundational Values">Foundational Values</SelectItem>
+                                                <SelectItem value="Geography">Geography</SelectItem>
+                                                <SelectItem value="Governance & Ethics">Governance & Ethics</SelectItem>
+                                                <SelectItem value="History">History</SelectItem>
+                                                <SelectItem value="Internal Security">Internal Security</SelectItem>
+                                                <SelectItem value="International Relations">International Relations</SelectItem>
+                                                <SelectItem value="Social Issues">Social Issues</SelectItem>
+                                                <SelectItem value="Social Justice">Social Justice</SelectItem>
+                                                <SelectItem value="Technology">Technology</SelectItem>
+                                                <SelectItem value="Thinkers">Thinkers</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>

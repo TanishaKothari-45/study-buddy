@@ -23,12 +23,24 @@ from .gs_overlays.gs3_philosophy import GS3_PHILOSOPHY
 from .gs_overlays.gs4_philosophy import GS4_PHILOSOPHY
 
 # Subject Overlays
-from .subject_overlays.geography import GEOGRAPHY_SUBJECT_OVERLAY
-from .subject_overlays.modern_history import HISTORY_SUBJECT_OVERLAY
-from .subject_overlays.polity import POLITY_SUBJECT_OVERLAY
-from .subject_overlays.ethics import ETHICS_SUBJECT_OVERLAY
+from .subject_overlays.administration import ADMINISTRATION_SUBJECT_OVERLAY
+from .subject_overlays.agriculture import AGRICULTURE_OVERLAY
+from .subject_overlays.case_studies import CASE_STUDIES_OVERLAY
+from .subject_overlays.constitution import CONSTITUTION_SUBJECT_OVERLAY
+from .subject_overlays.disaster import DISASTER_MANAGEMENT_OVERLAY
+from .subject_overlays.economic_development import ECONOMIC_DEVELOPMENT_OVERLAY
 from .subject_overlays.economy import ECONOMY_SUBJECT_OVERLAY
 from .subject_overlays.environment import ENVIRONMENT_SUBJECT_OVERLAY
+from .subject_overlays.foundational_values import FOUNDATIONAL_VALUES_OVERLAY
+from .subject_overlays.geography import GEOGRAPHY_SUBJECT_OVERLAY
+from .subject_overlays.governance_ethics import GOVERNANCE_ETHICS_OVERLAY
+from .subject_overlays.history import HISTORY_SUBJECT_OVERLAY
+from .subject_overlays.internal_security import INTERNAL_SECURITY_OVERLAY
+from .subject_overlays.international_relations import INTERNATIONAL_RELATIONS_SUBJECT_OVERLAY
+from .subject_overlays.social import SOCIAL_SUBJECT_OVERLAY
+from .subject_overlays.social_justice import SOCIAL_JUSTICE_SUBJECT_OVERLAY
+from .subject_overlays.technology import TECHNOLOGY_OVERLAY
+from .subject_overlays.thinkers import THINKERS_OVERLAY
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +52,39 @@ GS_MAP = {
 }
 
 SUBJECT_MAP = {
-    "geography": GEOGRAPHY_SUBJECT_OVERLAY,
-    "history": HISTORY_SUBJECT_OVERLAY,
-    "polity": POLITY_SUBJECT_OVERLAY,
-    "ethics": ETHICS_SUBJECT_OVERLAY,
+    "administration": ADMINISTRATION_SUBJECT_OVERLAY,
+    "agriculture": AGRICULTURE_OVERLAY,
+    "case studies": CASE_STUDIES_OVERLAY,
+    "constitution": CONSTITUTION_SUBJECT_OVERLAY,
+    "disaster management": DISASTER_MANAGEMENT_OVERLAY,
+    "disaster": DISASTER_MANAGEMENT_OVERLAY,  # Alias
+    "economic development": ECONOMIC_DEVELOPMENT_OVERLAY,
     "economy": ECONOMY_SUBJECT_OVERLAY,
-    "environment": ENVIRONMENT_SUBJECT_OVERLAY
+    "environment": ENVIRONMENT_SUBJECT_OVERLAY,
+    "ethics": GOVERNANCE_ETHICS_OVERLAY, # Note: separate file for foundational values? Using governance_ethics for generic ethics if needed, or maybe foundational? Let's assume Governance/Ethics covers general. Wait, user has 'ethics' mapped to 'ETHICS_SUBJECT_OVERLAY' previously which was missing? 
+    # Ah, I see 'governance_ethics.py' is GOVERNANCE_ETHICS_OVERLAY. 
+    # In my grep results: app/prompts/subject_overlays/governance_ethics.py:GOVERNANCE_ETHICS_OVERLAY
+    # But wait, original code had: from .subject_overlays.ethics import ETHICS_SUBJECT_OVERLAY
+    # My grep didn't show 'ethics.py'. Let me re-check the file list.
+    # File list: governance_ethics.py, thinkers.py, foundational_values.py, case_studies.py. No 'ethics.py'.
+    # Original code was importing from .subject_overlays.ethics but that file likely didn't exist or was renamed?
+    # I will map "Ethics" to GOVERNANCE_ETHICS_OVERLAY for now, or check if I missed a file.
+    
+    "foundational values": FOUNDATIONAL_VALUES_OVERLAY,
+    "geography": GEOGRAPHY_SUBJECT_OVERLAY,
+    "governance": GOVERNANCE_ETHICS_OVERLAY,
+    "governance & ethics": GOVERNANCE_ETHICS_OVERLAY,
+    "history": HISTORY_SUBJECT_OVERLAY,
+    "internal security": INTERNAL_SECURITY_OVERLAY,
+    "international relations": INTERNATIONAL_RELATIONS_SUBJECT_OVERLAY,
+    "ir": INTERNATIONAL_RELATIONS_SUBJECT_OVERLAY, # Alias
+    "social": SOCIAL_SUBJECT_OVERLAY,
+    "society": SOCIAL_SUBJECT_OVERLAY, # Alias
+    "social issues": SOCIAL_SUBJECT_OVERLAY, # Alias match for frontend
+    "social justice": SOCIAL_JUSTICE_SUBJECT_OVERLAY,
+    "technology": TECHNOLOGY_OVERLAY,
+    "science & technology": TECHNOLOGY_OVERLAY, # Alias
+    "thinkers": THINKERS_OVERLAY
 }
 
 def assemble_mains_prompt(gs_paper: str, subject: str) -> str:

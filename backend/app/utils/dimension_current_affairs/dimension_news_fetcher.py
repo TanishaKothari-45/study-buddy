@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 try:
     from mcp_current_affairs.fetcher.news_fetcher import fetch_articles_for_query
     NEWS_FETCHER_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     NEWS_FETCHER_AVAILABLE = False
-    logger.warning("Could not import news fetcher from mcp_current_affairs")
+    logger.warning(f"Could not import news fetcher from mcp_current_affairs: {e}")
 
 
 # ============================================================================

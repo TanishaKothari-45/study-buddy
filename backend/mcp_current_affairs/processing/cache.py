@@ -6,7 +6,7 @@ Redis caching with metrics tracking for MCP Current Affairs.
 import json
 from ..config import SUMMARY_CACHE_TTL, REDIS_PREFIX
 from ..metrics import metrics
-from backend.app.core.deps import get_redis_client
+from app.core.deps import get_redis_client
 
 # Lazy-loaded Redis client
 _redis_client = None

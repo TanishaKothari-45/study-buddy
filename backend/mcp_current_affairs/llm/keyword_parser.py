@@ -10,7 +10,7 @@ import asyncio
 from pydantic import BaseModel, Field
 from typing import List
 
-from backend.app.core.deps import get_redis_client
+from app.core.deps import get_redis_client
 from ..config import KEYWORD_CACHE_TTL, REDIS_PREFIX
 from .prompts import KEYWORD_EXTRACTION_PROMPT
 
