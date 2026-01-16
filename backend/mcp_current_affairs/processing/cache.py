@@ -11,6 +11,7 @@ from app.core.deps import get_redis_client
 # Lazy-loaded Redis client
 _redis_client = None
 
+
 def _get_redis_client():
     global _redis_client
     if _redis_client is None:
