@@ -4,8 +4,9 @@ Redis caching with metrics tracking for MCP Current Affairs.
 """
 
 import json
-from ..config import SUMMARY_CACHE_TTL, REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD, REDIS_PREFIX
+from ..config import SUMMARY_CACHE_TTL, REDIS_PREFIX
 from ..metrics import metrics
+from backend.app.core.deps import get_redis_client
 
 # Lazy-loaded Redis client
 _redis_client = None
@@ -13,14 +14,7 @@ _redis_client = None
 def _get_redis_client():
     global _redis_client
     if _redis_client is None:
-        import redis
-        _redis_client = redis.Redis(
-            host=REDIS_HOST, 
-            port=REDIS_PORT, 
-            db=REDIS_DB, 
-            password=REDIS_PASSWORD, 
-            decode_responses=True
-        )
+        _redis_client = get_redis_client()
     return _redis_client
 
 def _full_key(key: str) -> str:

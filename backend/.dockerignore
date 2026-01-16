@@ -1,0 +1,64 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.venv
+venv
+env
+.env
+.env.local
+.env.example
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+tests/
+
+# Local data files
+*.db
+*.sqlite
+data/
+logs/
+uploads/
+map_storage/
+notebooks/
+*.log
+nohup.out
+web_cache.json
+dump.rdb
+
+# Documentation (keep README)
+docs/
+*.md
+!README.md
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# MCP test files
+mcp_test_output*.md
+
+# Scripts (not needed in container)
+scripts/
+
+# Temporary files
+tmp/
+temp/
+*.tmp

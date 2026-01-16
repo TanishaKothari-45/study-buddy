@@ -57,12 +57,13 @@ export default function EvaluatePage() {
         setResult,
         setError,
         reset,
+        evaluationMode,
+        setEvaluationMode,
     } = useEvaluateAnswerStore();
 
     const [files, setFiles] = useState<File[]>([]);
     const [showCompressed, setShowCompressed] = useState(true);
     const [showOriginal, setShowOriginal] = useState(false);
-    const [evaluationMode, setEvaluationMode] = useState<"single" | "batch">("single");
     const [useStandardFormat, setUseStandardFormat] = useState(false);
     const [questionFile, setQuestionFile] = useState<File | null>(null);
     const [numQuestions, setNumQuestions] = useState<number>(1);
@@ -119,7 +120,6 @@ export default function EvaluatePage() {
         setFiles([]);
         setShowCompressed(true);
         setShowOriginal(false);
-        setEvaluationMode("single");
         setUseStandardFormat(false);
         setError(null);
         setJobId(null);

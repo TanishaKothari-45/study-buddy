@@ -4,6 +4,7 @@ Centralized error handling middleware for FastAPI
 import logging
 import traceback
 import sys
+import os
 from datetime import datetime
 from typing import Union
 from fastapi import Request, status
@@ -12,6 +13,9 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from ..core.exceptions import AppException
+
+# Ensure logs directory exists
+os.makedirs('logs', exist_ok=True)
 
 # Configure logging
 logging.basicConfig(
