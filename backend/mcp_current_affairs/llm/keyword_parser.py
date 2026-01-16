@@ -10,7 +10,6 @@ import asyncio
 from pydantic import BaseModel, Field
 from typing import List
 
-from app.core.deps import get_redis_client
 from ..config import KEYWORD_CACHE_TTL, REDIS_PREFIX
 from .prompts import KEYWORD_EXTRACTION_PROMPT
 
@@ -37,6 +36,7 @@ def _get_openai_client():
 def _get_redis_client():
     global _redis_client
     if _redis_client is None:
+        from app.core.deps import get_redis_client
         _redis_client = get_redis_client()
     return _redis_client
 
