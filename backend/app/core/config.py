@@ -131,6 +131,9 @@ class Settings(BaseSettings):
     # Port (Cloud Run uses PORT env var)
     PORT: int = int(os.getenv("PORT", "8000"))
 
+    # Map Service URL (Local vs Vercel)
+    MAP_SERVICE_URL: str = os.getenv("MAP_SERVICE_URL", "http://localhost:3001")
+
     def setup_directories(self):
         """Create necessary directories (only for local development)"""
         if not IS_CLOUD_RUN:

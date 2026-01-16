@@ -16,11 +16,13 @@ import base64
 from typing import Optional, Dict, Any
 import xml.etree.ElementTree as ET
 
+from ..core.config import settings
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
 # Map service configuration
-MAP_SERVICE_URL = "http://localhost:3001"
+MAP_SERVICE_URL = settings.MAP_SERVICE_URL
 MAP_SERVICE_TIMEOUT = 30.0  # seconds
 
 
