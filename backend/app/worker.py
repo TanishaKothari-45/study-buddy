@@ -1446,12 +1446,18 @@ async def generate_improved_answer_task(
             primary_domain = paper_and_subject_identification.get("primary_domain", "")
             
         # Import shared prompt
-        try:
-            from .prompts.shared_mains_prompts import get_improved_answer_system_prompt
-            system_prompt = get_improved_answer_system_prompt()
-        except ImportError:
-            logger.warning("⚠️ Using fallback generic system prompt")
-            system_prompt = "You are an expert UPSC answer writer. Generate an improved answer based on the feedback provided."
+        # Import assembler
+        from .prompts.prompt_assembler import assemble_improved_answer_prompt
+        
+        # Get GS Paper and Subject from identification
+        gs_paper = ""
+        subject = ""
+        if paper_and_subject_identification:
+            gs_paper = paper_and_subject_identification.get("gs_paper", "")
+            subject = paper_and_subject_identification.get("primary_domain", "") or paper_and_subject_identification.get("subject_domain", "")
+
+        # Assemble prompt with overlays
+        system_prompt = assemble_improved_answer_prompt(gs_paper=gs_paper, subject=subject)
         
         # File type check
         all_is_pdf = False

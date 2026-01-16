@@ -513,7 +513,6 @@ export default function MainsAnswerPage() {
                                                 <SelectItem value="Constitution">Constitution</SelectItem>
                                                 <SelectItem value="Disaster Management">Disaster Management</SelectItem>
                                                 <SelectItem value="Economic Development">Economic Development</SelectItem>
-                                                <SelectItem value="Economy">Economy</SelectItem>
                                                 <SelectItem value="Environment">Environment</SelectItem>
                                                 <SelectItem value="Foundational Values">Foundational Values</SelectItem>
                                                 <SelectItem value="Geography">Geography</SelectItem>

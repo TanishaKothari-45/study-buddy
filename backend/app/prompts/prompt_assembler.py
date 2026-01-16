@@ -29,7 +29,6 @@ from .subject_overlays.case_studies import CASE_STUDIES_OVERLAY
 from .subject_overlays.constitution import CONSTITUTION_SUBJECT_OVERLAY
 from .subject_overlays.disaster import DISASTER_MANAGEMENT_OVERLAY
 from .subject_overlays.economic_development import ECONOMIC_DEVELOPMENT_OVERLAY
-from .subject_overlays.economy import ECONOMY_SUBJECT_OVERLAY
 from .subject_overlays.environment import ENVIRONMENT_SUBJECT_OVERLAY
 from .subject_overlays.foundational_values import FOUNDATIONAL_VALUES_OVERLAY
 from .subject_overlays.geography import GEOGRAPHY_SUBJECT_OVERLAY
@@ -59,7 +58,6 @@ SUBJECT_MAP = {
     "disaster management": DISASTER_MANAGEMENT_OVERLAY,
     "disaster": DISASTER_MANAGEMENT_OVERLAY,  # Alias
     "economic development": ECONOMIC_DEVELOPMENT_OVERLAY,
-    "economy": ECONOMY_SUBJECT_OVERLAY,
     "environment": ENVIRONMENT_SUBJECT_OVERLAY,
     "ethics": GOVERNANCE_ETHICS_OVERLAY, # Note: separate file for foundational values? Using governance_ethics for generic ethics if needed, or maybe foundational? Let's assume Governance/Ethics covers general. Wait, user has 'ethics' mapped to 'ETHICS_SUBJECT_OVERLAY' previously which was missing? 
     # Ah, I see 'governance_ethics.py' is GOVERNANCE_ETHICS_OVERLAY. 
@@ -87,6 +85,87 @@ SUBJECT_MAP = {
     "thinkers": THINKERS_OVERLAY
 }
 
+
+
+# Mapping from Syllabus JSON Primary Domains to Subject Overlays
+DOMAIN_TO_SUBJECT_MAP = {
+    # GS1
+    "Indian_Heritage_and_Culture": "history",
+    "Modern_Indian_History": "history",
+    "Post_Independence_India": "history",
+    "World_History": "history",
+    "Indian_Society": "social",
+    "Physical_Geography": "geography",
+    "World_Geography": "geography",
+    
+    # GS2
+    "Indian_Constitution": "constitution",
+    "Federal_Structure": "constitution",
+    "Separation_of_Powers": "constitution",
+    "Parliament_and_State_Legislatures": "constitution",
+    "Executive_and_Judiciary": "constitution",
+    "Representation_of_People": "constitution",
+    "Constitutional_Bodies": "constitution",
+    "Statutory_and_Regulatory_Bodies": "administration",
+    "Government_Policies": "administration",
+    "Development_Processes": "administration",
+    "Social_Justice": "social justice",
+    "Governance": "administration",
+    "International_Relations": "international relations",
+    
+    # GS3
+    "Indian_Economy": "economic development",
+    "Agriculture": "agriculture",
+    "Food_Processing": "agriculture",
+    "Land_Reforms": "agriculture",
+    "Industrial_Policy": "economic development",
+    "Infrastructure": "economic development",
+    "Investment_Models": "economic development",
+    "Science_and_Technology": "technology",
+    "Environment_and_Ecology": "environment",
+    "Disaster_Management": "disaster management",
+    "Internal_Security": "internal security",
+    
+    # GS4
+    "Ethics_and_Human_Interface": "foundational values",
+    "Human_Values": "foundational values",
+    "Attitude": "foundational values",
+    "Aptitude_and_Foundational_Values": "foundational values",
+    "Emotional_Intelligence": "foundational values",
+    "Moral_Thinkers": "thinkers",
+    "Public_Service_Ethics": "governance & ethics",
+    "Probity_in_Governance": "governance & ethics",
+    "Case_Studies": "case studies"
+}
+
+def resolve_subject_overlay(subject_input: str) -> str:
+    """
+    Resolves the subject overlay content from a subject input string.
+    Handles both direct subject names (e.g., 'history') and Syllabus Domains (e.g., 'Modern_Indian_History').
+    """
+    if not subject_input:
+        return ""
+        
+    s_clean = subject_input.strip()
+    
+    # 1. Check if it's a Syllabus Domain Key directly
+    if s_clean in DOMAIN_TO_SUBJECT_MAP:
+        mapped_subject = DOMAIN_TO_SUBJECT_MAP[s_clean]
+        logger.debug(f"Mapped Domain '{s_clean}' -> Subject '{mapped_subject}'")
+        return SUBJECT_MAP.get(mapped_subject, "")
+        
+    # 2. Check if it matches a Subject Map key directly (case-insensitive)
+    s_lower = s_clean.lower()
+    if s_lower in SUBJECT_MAP:
+        return SUBJECT_MAP[s_lower]
+        
+    # 3. Fallback: Check if it's a Syllabus Domain but case didn't match (unlikely if direct from JSON, but safe)
+    # or partial matching could go here if needed.
+    
+    logger.warning(f"Subject/Domain '{subject_input}' not found in any map. Defaulting to empty overlay.")
+    return ""
+
+
 def assemble_mains_prompt(gs_paper: str, subject: str) -> str:
     """
     Dynamically assumes the Mains Answer System Prompt based on GS Paper and Subject.
@@ -109,12 +188,8 @@ def assemble_mains_prompt(gs_paper: str, subject: str) -> str:
         logger.debug(f"Loaded GS Overlay for {gs_paper}")
 
     # 2. Fetch Subject Overlay
-    subject_key = subject.lower() if subject else ""
-    subject_overlay = SUBJECT_MAP.get(subject_key)
-    if not subject_overlay:
-        logger.warning(f"Subject '{subject}' not found in map. Defaulting to empty overlay.")
-        subject_overlay = ""
-    else:
+    subject_overlay = resolve_subject_overlay(subject)
+    if subject_overlay:
         logger.debug(f"Loaded Subject Overlay for {subject}")
         
     # 3. Assemble Prompt
@@ -174,5 +249,101 @@ The directive determines:
 - Keep diagrams simple and compact (stick to token budget).
 """
     
+
     logger.info("Prompt assembly completed successfully.")
+    return system_prompt
+
+def assemble_improved_answer_prompt(gs_paper: str, subject: str) -> str:
+    """
+    Dynamically assumes the Improved Answer System Prompt based on GS Paper and Subject.
+    
+    Args:
+        gs_paper: "GS1", "GS2", "GS3", "GS4"
+        subject: "Geography", "History", "Polity", etc. (case-insensitive)
+    """
+    logger.info(f"Assembling Improved Answer Prompt for GS Paper: {gs_paper}, Subject: {subject}")
+
+    # 1. Fetch GS Overlay
+    gs_overlay = GS_MAP.get(gs_paper.upper())
+    if not gs_overlay:
+        gs_overlay = ""
+
+    # 2. Fetch Subject Overlay
+    subject_overlay = resolve_subject_overlay(subject)
+        
+    # 3. Assemble Prompt
+    # Base structure matches get_improved_answer_system_prompt but with overlays injected
+    
+    system_prompt = f"""You are an expert UPSC Mains answer writer and mentor specializing in {subject if subject else 'General Studies'}.
+
+You are given:
+1. The original student answer
+2. Examiner evaluation feedback, including:
+   - Examiner Expectation Blueprint
+   - Critical gaps and remedies
+   - Directive alignment assessment
+
+Your task is to generate an IMPROVED VERSION of the answer.
+
+========================
+CONTEXTUAL OVERLAYS (GS PAPER & SUBJECT)
+========================
+
+{gs_overlay}
+
+{subject_overlay}
+
+========================
+CORE REWRITE PRINCIPLES
+========================
+**RULE 0 — PRIORITY HIERARCHY (MANDATORY)**:
+When improving the answer, follow this strict priority order:
+1. Examiner Expectation Blueprint (what the examiner expects)
+2. Directive compliance (depth, balance, judgement)
+3. Interpret the directive and depth of answer in line with the GS paper’s thematic philosophy (conceptual, governance-oriented, solution-driven, or ethical).
+4. Student’s original ideas, structure, examples, data and phrasing.
+5. Strengthen arguments with evidence (reports, examples, data, schemes) where relevant and appropriate to the subject and question.
+6. IBC formatting norms
+
+**RULE 1 - PRESERVE STUDENT'S VOICE (MOST IMPORTANT)**:
+Build strictly on the student’s original ideas, structure, and examples.
+EDIT (rephrase, reorganize, refine, add selectively, remove redundancy) rather than rewrite from scratch.
+Introduce new points ONLY where:
+- the blueprint explicitly demands them, or
+- evaluation identified a concrete gap.
+
+**RULE 2 - DIRECTIVE-FIRST RECONSTRUCTION**:
+Structure the improved answer strictly according to the directive identified.
+Depth, balance, and judgement must match the directive exactly.
+
+**RULE 3 - TARGETED IMPROVEMENT ONLY**:
+- Address gaps explicitly identified in the evaluation feedback.
+- Improve structure, logical flow and coherence.
+- Fulfil unmet key demands in the Examiner Expectation Blueprint.
+- Strengthen weak evidence with examples, data, or reports.
+- Add or replace visuals ONLY if evaluation said so or seems necessary.
+
+Do NOT over-enrich beyond UPSC expectations unless it is necessary to satisfy a blueprint demand.
+
+========================
+FORMAT & STRUCTURE RULES
+========================
+
+{IBC_FORMAT_RULES}
+{DIRECTIVE_DECODER}
+{BULLET_DISCIPLINE_RULES}
+{MERMAID_DIAGRAM_RULES}
+{GEO_VISUAL_INTELLIGENCE_RULES}
+{MAP_GENERATION_RULES}
+{WORD_COUNT_COMPRESSION_RULES}
+{FACTUAL_ACCURACY_RULES}
+
+========================
+OUTPUT FORMAT
+========================
+
+The output must be the **Improved Answer** in markdown format. 
+Do not include metadata JSON or preamble. Start directly with the answer title or first section.
+"""
+
     return system_prompt
