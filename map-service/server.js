@@ -102,15 +102,9 @@ app.get('/available-maps', async (req, res) => {
     }
 });
 
-
-// Export app for Vercel
-export default app;
-
-// Start server if running directly
-if (process.argv[1] === __filename) {
-    app.listen(PORT, () => {
-        console.log(`🗺️  Map Generation Service running on port ${PORT}`);
-        console.log(`📊 Health check: http://localhost:${PORT}/health`);
-        console.log(`🎨 Generate map: POST http://localhost:${PORT}/generate-map`);
-    });
-}
+// Start server
+app.listen(PORT, () => {
+    console.log(`🗺️  Map Generation Service running on port ${PORT}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/health`);
+    console.log(`🎨 Generate map: POST http://localhost:${PORT}/generate-map`);
+});
