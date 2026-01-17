@@ -103,6 +103,8 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://study-buddy-upsc-coach.vercel.app",  # Production frontend
+        "https://study-buddy-web-232142052244.asia-south1.run.app", # New Production frontend
+        "https://study-buddy-map-232142052244.asia-south1.run.app", # New Production map service
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
