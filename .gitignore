@@ -67,9 +67,7 @@ backend/map_storage/*.meta.json
 
 # Node
 node_modules/
-package-lock.json
 yarn.lock
-web/package-lock.json
 
 
 !web/src/lib/
@@ -92,6 +90,5 @@ backend/web_cache.json
 # Only ignore generated/temporary analysis files
 docs/analysis/*.json
 
-web/package-lock.json
 
 backend/map_storage/
