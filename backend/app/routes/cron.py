@@ -106,9 +106,17 @@ async def trigger_monthly_current_affairs(
         logger.info(f"    • Chunks added: {result['chunks_added']}")
         logger.info(f"    • Filename: {result['filename']}")
         
-        # TODO: Send email notification (optional)
-        # from ..utils.send_email import send_success_notification
-        # send_success_notification(result['filename'], result['chunks_added'], 'vercel-cron')
+        # Send success email notification
+        try:
+            from ..utils.send_email import send_success_notification
+            send_success_notification(
+                pdf_name=result['filename'],
+                chunks_created=result['chunks_added'],
+                log_file='Vercel Function Logs'
+            )
+            logger.info("📧 [CRON] Success email notification sent")
+        except Exception as email_err:
+            logger.warning(f"⚠️ [CRON] Email notification failed (non-critical): {email_err}")
         
         return {
             "status": "success",
@@ -124,9 +132,17 @@ async def trigger_monthly_current_affairs(
     except Exception as e:
         logger.error(f"❌ [CRON] Monthly current affairs job failed: {e}", exc_info=True)
         
-        # TODO: Send failure email notification (optional)
-        # from ..utils.send_email import send_failure_notification
-        # send_failure_notification('Monthly Current Affairs', 1, str(e))
+        # Send failure email notification
+        try:
+            from ..utils.send_email import send_failure_notification
+            send_failure_notification(
+                error=str(e),
+                exit_code=1,
+                log_file='Vercel Function Logs - Check Vercel Dashboard'
+            )
+            logger.info("📧 [CRON] Failure email notification sent")
+        except Exception as email_err:
+            logger.warning(f"⚠️ [CRON] Email notification failed (non-critical): {email_err}")
         
         raise HTTPException(
             status_code=500,

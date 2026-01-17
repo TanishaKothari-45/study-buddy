@@ -1,0 +1,8 @@
+{
+    "crons": [
+        {
+            "path": "/api/cron/trigger-monthly-current-affairs",
+            "schedule": "30 5 17 * *"
+        }
+    ]
+}
