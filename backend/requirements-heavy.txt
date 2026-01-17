@@ -1,0 +1,42 @@
+# ===========================================
+# Heavy Dependencies (Rarely Change, Slow to Install)
+# Install these first for better Docker layer caching
+# ===========================================
+
+# LangChain ecosystem (large, many transitive deps)
+langchain==1.1.0
+langchain-community==0.4.1
+langchain-core==1.1.0
+langchain-pinecone==0.2.13
+
+# Image Processing (requires native compilation)
+opencv-python==4.12.0.88
+
+# PDF Processing (heavy deps)
+weasyprint==66.0
+PyMuPDF==1.26.6
+
+# Google Cloud SDKs (large packages)
+google-cloud-vision==3.11.0
+google-genai==1.56.0
+google-cloud-secret-manager>=2.16.0
+google-cloud-storage>=2.10.0
+
+# Scientific Computing
+numpy==2.2.6
+pandas==2.3.3
+
+# NLP
+nltk==3.9.2
+
+# AI SDKs
+openai==2.8.1
+
+# Vector Database
+pinecone-client==6.0.0
+
+# Database drivers (native extensions)
+psycopg2-binary>=2.9.9
+asyncpg>=0.29.0
+cloud-sql-python-connector[pg8000]>=1.4.0
+pg8000>=1.30.0

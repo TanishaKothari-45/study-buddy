@@ -46,7 +46,7 @@ async def evaluate_answer_endpoint(
 ):
     """
     Enqueue answer evaluation task.
-    Saves files to backend/data/temp/{job_id}/ and enqueues job.
+    Saves files to backend/data/temp/{job_id}/ and uploads to GCS in Cloud Run.
     """
     try:
         # 1. Get Gemini Key
@@ -64,10 +64,13 @@ async def evaluate_answer_endpoint(
         job_id = str(uuid4())
         job_dir = settings.BASE_DIR / "data" / "temp" / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Get storage handler (GCS in Cloud Run, local otherwise)
+        storage = get_storage_handler()
 
         saved_file_paths = []
 
-        # 3. Save Files
+        # 3. Save Files locally and upload to GCS
         for file in files:
             file_ext = Path(file.filename).suffix.lower() if file.filename else '.pdf'
             safe_filename = f"{uuid4()}{file_ext}"
@@ -77,7 +80,9 @@ async def evaluate_answer_endpoint(
             with open(file_path, "wb") as f:
                 f.write(content)
 
-            saved_file_paths.append(str(file_path))
+            # Upload to GCS and get storage path (gs:// URI in Cloud Run, local path otherwise)
+            storage_path = await storage.upload_file(str(file_path), job_id)
+            saved_file_paths.append(storage_path)
 
         # 4. Enqueue Job
         arq_pool = request.app.state.arq_pool
@@ -160,14 +165,21 @@ async def evaluate_batch_answers_endpoint(
         job_id = str(uuid4())
         job_dir = settings.BASE_DIR / "data" / "temp" / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Get storage handler (GCS in Cloud Run, local otherwise)
+        storage = get_storage_handler()
 
-        pdf_path = job_dir / f"{uuid4()}.pdf"
+        # Save PDF locally first
+        local_pdf_path = job_dir / f"{uuid4()}.pdf"
         content = await file.read()
-        with open(pdf_path, "wb") as f:
+        with open(local_pdf_path, "wb") as f:
             f.write(content)
+        
+        # Upload to GCS and get storage path (gs:// URI in Cloud Run, local path otherwise)
+        pdf_storage_path = await storage.upload_file(str(local_pdf_path), job_id)
 
         # Save question file if provided
-        question_file_path = None
+        question_file_storage_path = None
         if question_file:
             # Validate question file type
             if not question_file.filename:
@@ -178,10 +190,13 @@ async def evaluate_batch_answers_endpoint(
             if file_ext not in allowed_extensions:
                 raise HTTPException(400, f"Question file must be PDF or image ({', '.join(allowed_extensions)})")
 
-            question_file_path = job_dir / f"question_{uuid4()}{file_ext}"
+            local_question_file_path = job_dir / f"question_{uuid4()}{file_ext}"
             question_content = await question_file.read()
-            with open(question_file_path, "wb") as f:
+            with open(local_question_file_path, "wb") as f:
                 f.write(question_content)
+            
+            # Upload to GCS
+            question_file_storage_path = await storage.upload_file(str(local_question_file_path), job_id)
 
         # Parse manual questions if provided
         question_texts = None
@@ -205,11 +220,11 @@ async def evaluate_batch_answers_endpoint(
             "evaluate_batch_answers_task",
             _job_id=job_id,
             job_id=job_id,
-            pdf_path=str(pdf_path),
+            pdf_path=pdf_storage_path,
             user_id=str(current_user.id) if current_user else "anonymous",
             gemini_api_key=gemini_api_key,
             use_standard_format=use_standard_format,
-            question_file_path=str(question_file_path) if question_file_path else None,
+            question_file_path=question_file_storage_path,
             question_texts=question_texts
         )
 
@@ -383,10 +398,13 @@ async def generate_improved_answer_endpoint(
         job_id = str(uuid4())
         saved_file_paths = None
 
-        # 4. Save Files if provided
+        # 4. Save Files if provided and upload to GCS
         if files and len(files) > 0:
             job_dir = settings.BASE_DIR / "data" / "temp" / job_id
             job_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Get storage handler (GCS in Cloud Run, local otherwise)
+            storage = get_storage_handler()
             saved_file_paths = []
             
             for file in files:
@@ -398,7 +416,9 @@ async def generate_improved_answer_endpoint(
                 with open(file_path, "wb") as f:
                     f.write(content)
 
-                saved_file_paths.append(str(file_path))
+                # Upload to GCS and get storage path (gs:// URI in Cloud Run, local path otherwise)
+                storage_path = await storage.upload_file(str(file_path), job_id)
+                saved_file_paths.append(storage_path)
 
         # 5. Enqueue Job
         arq_pool = request.app.state.arq_pool

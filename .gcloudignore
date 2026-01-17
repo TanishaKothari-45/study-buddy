@@ -1,0 +1,125 @@
+# ===========================================
+# Cloud Build Ignore File (ROOT)
+# Prevents large files from being uploaded to Cloud Build
+# Only uploads backend/ directory for the build
+# ===========================================
+
+# === EXCLUDE ENTIRE DIRECTORIES (not needed for backend build) ===
+web/
+agents/
+docs/
+notebooks/
+scripts/
+map-service/
+config/
+data/
+
+# === Root level files ===
+.git/
+.gitignore
+.gcloudignore
+.env
+.env.*
+*.md
+!backend/README.md
+dump.rdb
+google_vision.json
+package.json
+run_add_intrinsic_scores.sh
+
+# === BACKEND: Exclude large data directories ===
+backend/data/
+backend/logs/
+backend/uploads/
+backend/map_storage/
+backend/scripts/
+backend/tests/
+backend/notebooks/
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+*.egg-info/
+*.egg
+dist/
+build/
+
+# === IDE & Editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+*.sublime-*
+
+# === Local databases ===
+*.db
+*.sqlite
+*.sqlite3
+
+# === Backend specific excludes ===
+backend/*.md
+!backend/README.md
+backend/mcp_test_output*.md
+backend/nohup.out
+backend/web_cache.json
+backend/diagnostic_*.py
+backend/test_*.py
+
+# === Large binary files ===
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.gif
+*.bmp
+*.ico
+*.webp
+
+# === Archive files ===
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# === Video/Audio files ===
+*.mp4
+*.mp3
+*.wav
+*.avi
+*.mov
+
+# === Model files ===
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pkl
+*.joblib
+
+# === Node modules ===
+node_modules/
+
+# === Redis dump ===
+*.rdb
+
+# === Temporary & cache files ===
+tmp/
+temp/
+*.tmp
+*.log
+*.cache

@@ -1,9 +1,10 @@
+# syntax=docker/dockerfile:1.4
 # ===========================================
 # Study Buddy Backend - Cloud Run Dockerfile
-# Multi-stage build for smaller production image
+# Optimized multi-stage build with BuildKit caching
 # ===========================================
 
-# Stage 1: Builder
+# Stage 1: Builder with cached pip installs
 FROM python:3.12-slim AS builder
 
 WORKDIR /app
@@ -17,18 +18,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies to user directory
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+# ===========================================
+# Install HEAVY packages first (rarely change, slow to install)
+# This layer will be cached unless requirements-heavy.txt changes
+# ===========================================
+COPY requirements-heavy.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --user -r requirements-heavy.txt
 
 # ===========================================
-# Stage 2: Production
+# Install LIGHT packages (may change more often)
+# This layer rebuilds if requirements-light.txt changes
+# but heavy packages layer remains cached
+# ===========================================
+COPY requirements-light.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --user -r requirements-light.txt
+
+# ===========================================
+# Stage 2: Production (slim runtime)
 # ===========================================
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install runtime dependencies only
+# Install runtime dependencies only (no build tools)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libmagic1 \
@@ -46,7 +60,7 @@ COPY --from=builder /root/.local /usr/local
 RUN chmod -R a+rX /usr/local/bin /usr/local/lib
 ENV PATH=/usr/local/bin:$PATH
 
-# Copy application code
+# Copy application code (separate layer for better caching)
 COPY . .
 
 # Create necessary directories and set permissions
