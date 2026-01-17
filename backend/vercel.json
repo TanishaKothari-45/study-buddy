@@ -1,0 +1,24 @@
+{
+    "version": 2,
+    "builds": [
+        {
+            "src": "app/main.py",
+            "use": "@vercel/python"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "app/main.py"
+        }
+    ],
+    "crons": [
+        {
+            "path": "/api/cron/trigger-monthly-current-affairs",
+            "schedule": "30 5 17 * *"
+        }
+    ],
+    "env": {
+        "PYTHON_VERSION": "3.11"
+    }
+}

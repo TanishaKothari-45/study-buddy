@@ -109,7 +109,12 @@ app.add_middleware(
 )
 
 # Include versioned API router
+# Include versioned API router
 app.include_router(api_v1_router, prefix="/api/v1")
+
+# Include Cron Router
+from .routes.cron import router as cron_router
+app.include_router(cron_router, prefix="/api/cron", tags=["Cron"])
 
 @app.get("/")
 async def health_check():
