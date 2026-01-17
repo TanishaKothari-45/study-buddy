@@ -37,9 +37,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isApiKeyValid, setIsApiKeyValid] = useState<'unknown' | 'valid' | 'invalid'>('unknown');
+    const verifyRetryCountRef = useRef(0); // Track verification retry attempts
     const router = useRouter();
     const supabase = createClient();
-    
+
     // Track if we've already handled the initial sign-in for the current user
     // This prevents duplicate handling when SIGNED_IN fires on tab focus
     const handledUserIdRef = useRef<string | null>(null);
@@ -71,12 +72,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     // Check if this is a duplicate SIGNED_IN event for the same user
                     // (happens on tab focus due to Supabase's visibility detection)
                     const isAlreadyHandled = handledUserIdRef.current === newSession.user.id;
-                    
+
                     if (isAlreadyHandled) return;
-                    
+
                     // Mark this user as handled
                     handledUserIdRef.current = newSession.user.id;
-                    
+
                     await fetchUserProfile(newSession.user, newSession.access_token);
 
                     // Get return URL and redirect
@@ -124,8 +125,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     has_gemini_api_key: profileData.has_gemini_api_key,
                 });
 
-                // Verify API key if exists
+                // Verify API key if exists (reset retry counter on new login)
                 if (profileData.has_gemini_api_key) {
+                    verifyRetryCountRef.current = 0; // Reset retry counter
                     verifyApiKey();
                 } else {
                     setIsApiKeyValid('unknown');
@@ -223,16 +225,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.push("/login");
     };
 
-    const refreshUser = async () => {
+    const refreshUser = React.useCallback(async () => {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (currentSession?.user) {
             await fetchUserProfile(currentSession.user, currentSession.access_token);
         }
-    };
+    }, [supabase.auth]);
 
-    const verifyApiKey = async (): Promise<boolean> => {
+    const verifyApiKey = React.useCallback(async (): Promise<boolean> => {
         const token = await getSessionToken();
         if (!token) return false;
+
+        // Limit retries to prevent infinite loops
+        if (verifyRetryCountRef.current >= 2) {
+            console.warn('API key verification failed after 2 attempts, stopping');
+            setIsApiKeyValid('invalid');
+            return false;
+        }
+
+        verifyRetryCountRef.current += 1;
 
         try {
             const response = await fetch(`${API_URL}/api-key/verify`, {
@@ -243,20 +254,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (response.ok) {
                 setIsApiKeyValid('valid');
+                verifyRetryCountRef.current = 0; // Reset on success
                 return true;
             } else {
                 setIsApiKeyValid('invalid');
                 return false;
             }
         } catch (error) {
-            console.error("Failed to verify API key:", error);
+            console.error(`Failed to verify API key (attempt ${verifyRetryCountRef.current}/2):`, error);
+            setIsApiKeyValid('invalid');
             return false;
         }
-    };
+    }, []);
 
-    const getToken = async (): Promise<string | null> => {
+    const getToken = React.useCallback(async (): Promise<string | null> => {
         return getSessionToken();
-    };
+    }, []);
 
     return (
         <AuthContext.Provider value={{

@@ -29,7 +29,14 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
+    const statusRetryCountRef = React.useRef(0);
+
     const checkApiKeyStatus = React.useCallback(async () => {
+        if (statusRetryCountRef.current >= 2) {
+            console.warn("Stopping API key status check in modal after 2 failures");
+            return;
+        }
+
         try {
             const token = await getToken();
             if (!token) return;
@@ -41,9 +48,13 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
             if (response.ok) {
                 const data = await response.json();
                 setHasApiKey(data.has_api_key);
+                statusRetryCountRef.current = 0; // Reset on success
+            } else {
+                statusRetryCountRef.current += 1;
             }
-        } catch {
-            showToast("Failed to check API key status", "error");
+        } catch (err) {
+            statusRetryCountRef.current += 1;
+            console.error("Failed to check API key status in modal:", err);
         }
     }, [getToken]);
 
