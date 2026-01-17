@@ -33,6 +33,7 @@ nltk==3.9.2
 openai==2.8.1
 
 # Vector Database
+sentence-transformers==5.1.2
 pinecone-client==6.0.0
 
 # Database drivers (native extensions)
