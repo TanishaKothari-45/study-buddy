@@ -225,14 +225,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.push("/login");
     };
 
-    const refreshUser = async () => {
+    const refreshUser = React.useCallback(async () => {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (currentSession?.user) {
             await fetchUserProfile(currentSession.user, currentSession.access_token);
         }
-    };
+    }, [supabase.auth]);
 
-    const verifyApiKey = async (): Promise<boolean> => {
+    const verifyApiKey = React.useCallback(async (): Promise<boolean> => {
         const token = await getSessionToken();
         if (!token) return false;
 
@@ -265,11 +265,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsApiKeyValid('invalid');
             return false;
         }
-    };
+    }, []);
 
-    const getToken = async (): Promise<string | null> => {
+    const getToken = React.useCallback(async (): Promise<string | null> => {
         return getSessionToken();
-    };
+    }, []);
 
     return (
         <AuthContext.Provider value={{

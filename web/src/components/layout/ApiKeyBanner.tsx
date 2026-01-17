@@ -44,11 +44,21 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
         prevShowBannerRef.current = showBanner;
     }, [showBanner, bannerDismissed]);
 
+    // Track retry attempts for loadStatus
+    const statusRetryCountRef = React.useRef(0);
+
     // Load API key status
     useEffect(() => {
         let isMounted = true;
 
         const loadStatus = async () => {
+            // Prevent infinite retry loops
+            if (statusRetryCountRef.current >= 2) {
+                console.warn("Stopping API key status checks after 2 failures");
+                if (isMounted) setIsLoading(false);
+                return;
+            }
+
             try {
                 const token = await getToken();
                 const response = await fetch(`${API_URL}/api-key/status`, {
@@ -61,15 +71,19 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
                     setHasApiKey(data.has_api_key);
                     setIsAuthenticated(data.is_authenticated);
                     prevHasApiKeyRef.current = data.has_api_key;
+                    statusRetryCountRef.current = 0; // Reset on success
 
                     // If API key was just added, notify parent
                     if (!hadKey && data.has_api_key && onKeySet) {
                         onKeySet();
                     }
+                } else if (!response.ok) {
+                    statusRetryCountRef.current += 1;
                 }
-            } catch {
+            } catch (err) {
+                statusRetryCountRef.current += 1;
                 if (isMounted) {
-                    showToast("Failed to check API key status", "error");
+                    console.error("Failed to check API key status:", err);
                 }
             } finally {
                 if (isMounted) {
