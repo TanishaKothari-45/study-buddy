@@ -27,6 +27,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 
 # Environment variables needed for build time (Next.js public vars)
 # Note: These are public keys safe for browser/client-side use
+ENV NEXT_PUBLIC_API_URL="https://study-buddy-api-232142052244.asia-south1.run.app"
 ENV NEXT_PUBLIC_SUPABASE_URL="https://tpzuuqitpzgymgleadjd.supabase.co"
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwenV1cWl0cHpneW1nbGVhZGpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgyMTIxMTcsImV4cCI6MjA4Mzc4ODExN30.4Ba8bJ4ituScTuyD2nkuW8cJG_a8DwYUHQ0xVs5bhXI"
 
