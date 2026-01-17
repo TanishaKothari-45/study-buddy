@@ -1,12 +1,21 @@
 import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   // If "next" is in param, use it as the redirect URL
   const next = searchParams.get('next') ?? '/chat'
+
+  // Get the correct origin from forwarded headers (for Cloud Run/reverse proxy)
+  // or fall back to the request URL origin
+  const headersList = await headers()
+  const forwardedHost = headersList.get('x-forwarded-host')
+  const forwardedProto = headersList.get('x-forwarded-proto') || 'https'
+  const origin = forwardedHost 
+    ? `${forwardedProto}://${forwardedHost}`
+    : new URL(request.url).origin
 
   if (code) {
     const cookieStore = await cookies()
