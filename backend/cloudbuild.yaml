@@ -1,39 +1,34 @@
 # ===========================================
 # Cloud Build CI/CD Pipeline for Study Buddy
+# Optimized with Kaniko caching for faster builds
 # Builds and deploys BOTH API and Worker to Cloud Run
 # ===========================================
 
 steps:
   # ===========================================
-  # Step 1: Build the container image (shared by API and Worker)
+  # Step 1: Build with Kaniko (with layer caching)
+  # Kaniko handles both build AND push in one step
+  # Cache is stored in Artifact Registry for reuse
   # ===========================================
-  - name: 'gcr.io/cloud-builders/docker'
+  - name: 'gcr.io/kaniko-project/executor:latest'
     id: 'build-image'
     args:
-      - 'build'
-      - '-t'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:${BUILD_ID}'
-      - '-t'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:latest'
-      - '-f'
-      - 'Dockerfile'
-      - '.'
-    dir: 'backend'
+      - '--dockerfile=Dockerfile'
+      - '--context=dir://backend'
+      - '--destination=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:${BUILD_ID}'
+      - '--destination=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:latest'
+      # Enable layer caching in Artifact Registry
+      - '--cache=true'
+      - '--cache-ttl=168h'
+      # Cache location (uses same repo)
+      - '--cache-repo=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend/cache'
+      # Optimization flags
+      - '--snapshot-mode=redo'
+      - '--use-new-run'
+      - '--compressed-caching=false'
 
   # ===========================================
-  # Step 2: Push the container image
-  # ===========================================
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'push-image'
-    args:
-      - 'push'
-      - '--all-tags'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend'
-    waitFor:
-      - 'build-image'
-
-  # ===========================================
-  # Step 3: Deploy API Service to Cloud Run
+  # Step 2: Deploy API Service to Cloud Run
   # ===========================================
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'deploy-api'
@@ -57,10 +52,10 @@ steps:
       - '--max-instances=10'
       - '--allow-unauthenticated'
     waitFor:
-      - 'push-image'
+      - 'build-image'
 
   # ===========================================
-  # Step 4: Deploy Worker Service to Cloud Run
+  # Step 3: Deploy Worker Service to Cloud Run
   # ===========================================
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'deploy-worker'
@@ -91,7 +86,7 @@ steps:
       - '--cpu-boost'
       - '--no-cpu-throttling'
     waitFor:
-      - 'push-image'
+      - 'build-image'
 
 # ===========================================
 # Substitution Variables (Override via CLI or Trigger)
@@ -101,23 +96,18 @@ substitutions:
   _REPO: 'study-buddy'
   _SERVICE_ACCOUNT: 'study-buddy-backend@${PROJECT_ID}.iam.gserviceaccount.com'
   _VPC_CONNECTOR: 'projects/${PROJECT_ID}/locations/asia-south1/connectors/study-buddy-connector'
-  _GCS_BUCKET: 'study-buddy-uploads'  # GCS bucket for file uploads (API <-> Worker)
+  _GCS_BUCKET: 'study-buddy-uploads'
 
 # ===========================================
 # Build Options
 # ===========================================
 options:
   logging: CLOUD_LOGGING_ONLY
-  machineType: 'E2_HIGHCPU_8'  # Faster builds
+  machineType: 'E2_HIGHCPU_8'
 
 # ===========================================
+# Build Timeout (40 minutes - safer buffer)
+# With caching, subsequent builds should be 5-15 min
+# ===========================================
+timeout: '2400s'
 # Images to store in Artifact Registry
-# ===========================================
-images:
-  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:${BUILD_ID}'
-  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:latest'
-
-# ===========================================
-# Build Timeout (25 minutes for dual deploy)
-# ===========================================
-timeout: '1500s'

@@ -1,0 +1,125 @@
+# ===========================================
+# Cloud Build Ignore File
+# Prevents large files from being uploaded to Cloud Build
+# ===========================================
+
+# Git
+.git
+.gitignore
+.gcloudignore
+
+# Python virtual environments & cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.venv/
+venv/
+env/
+.env
+.env.local
+.env.example
+.env.*
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+*.sublime-*
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+.tox/
+.nox/
+
+# === CRITICAL: Large data directories ===
+# These contain databases, embeddings, uploads that can be 100+ MB
+data/
+logs/
+uploads/
+map_storage/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Notebooks
+notebooks/
+
+# Documentation (keep README for context)
+docs/
+*.md
+!README.md
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+*.egg
+
+# MCP test files
+mcp_test_output*.md
+
+# Scripts (not needed in container)
+scripts/
+
+# Temporary & cache files
+tmp/
+temp/
+*.tmp
+*.log
+nohup.out
+web_cache.json
+dump.rdb
+*.cache
+
+# Large binary files (images, PDFs, etc.)
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.gif
+*.bmp
+*.ico
+*.webp
+
+# Archive files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Video/Audio files (if any)
+*.mp4
+*.mp3
+*.wav
+*.avi
+*.mov
+
+# Model files (ML models can be huge)
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pkl
+*.joblib
+
+# Node modules (if any frontend assets)
+node_modules/
+
+# Redis dump
+*.rdb
+
+# Diagnostic & test files
+diagnostic_*.py
+test_*.py
