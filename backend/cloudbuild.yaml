@@ -17,13 +17,18 @@ steps:
       - '--context=dir://backend'
       - '--destination=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:${BUILD_ID}'
       - '--destination=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend:latest'
+      # Build arguments for pre-built base image
+      - '--build-arg=REGION=${_REGION}'
+      - '--build-arg=PROJECT_ID=${PROJECT_ID}'
+      - '--build-arg=REPO=${_REPO}'
       # Enable layer caching in Artifact Registry
       - '--cache=true'
       - '--cache-ttl=168h'
       # Cache location (uses same repo)
       - '--cache-repo=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend/cache'
-      # Optimization flags
-      - '--snapshot-mode=redo'
+      # Optimization flags for faster builds
+      - '--snapshot-mode=time'
+      - '--single-snapshot'
       - '--use-new-run'
       - '--compressed-caching=false'
 
@@ -106,8 +111,7 @@ options:
   machineType: 'E2_HIGHCPU_8'
 
 # ===========================================
-# Build Timeout (40 minutes - safer buffer)
-# With caching, subsequent builds should be 5-15 min
+# Build Timeout (15 minutes with pre-built base image)
+# Regular builds should complete in 3-5 min
 # ===========================================
-timeout: '2400s'
-# Images to store in Artifact Registry
+timeout: '900s'
