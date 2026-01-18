@@ -1,0 +1,49 @@
+# ===========================================
+# Cloud Build - Base Image Builder
+# Run this manually when requirements change
+# ===========================================
+# Usage (from project ROOT, not backend/):
+#   gcloud builds submit --config=backend/cloudbuild-base.yaml --region=asia-south1
+# ===========================================
+
+steps:
+  # ===========================================
+  # Build the base image with all Python dependencies
+  # This takes 15-20 minutes but only needs to run
+  # when requirements-heavy.txt or requirements-light.txt change
+  # ===========================================
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    id: 'build-base-image'
+    args:
+      - '--dockerfile=backend/Dockerfile.base'
+      - '--context=dir://.'
+      - '--destination=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend-base:latest'
+      - '--destination=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend-base:${SHORT_SHA}'
+      # Enable layer caching
+      - '--cache=true'
+      - '--cache-ttl=720h'
+      - '--cache-repo=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/backend-base/cache'
+      # Optimization flags
+      - '--snapshot-mode=time'
+      - '--single-snapshot'
+      - '--use-new-run'
+      - '--compressed-caching=false'
+
+# ===========================================
+# Substitution Variables
+# ===========================================
+substitutions:
+  _REGION: 'asia-south1'
+  _REPO: 'study-buddy'
+
+# ===========================================
+# Build Options
+# ===========================================
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+# ===========================================
+# Build Timeout (45 minutes for initial base build)
+# ===========================================
+timeout: '2700s'

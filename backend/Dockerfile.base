@@ -1,0 +1,68 @@
+# syntax=docker/dockerfile:1.4
+# ===========================================
+# Study Buddy - Pre-built Base Image
+# Contains all heavy Python dependencies
+# Rebuild only when requirements-heavy.txt changes
+# ===========================================
+# Build command (from project ROOT):
+#   gcloud builds submit --config=backend/cloudbuild-base.yaml --region=asia-south1
+# ===========================================
+
+# Stage 1: Builder with cached pip installs
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libpq-dev \
+    libffi-dev \
+    libmagic1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# ===========================================
+# Install ALL packages (heavy + light)
+# This base image is rebuilt infrequently
+# Note: Using backend/ prefix because context is project root
+# ===========================================
+COPY backend/requirements-heavy.txt .
+COPY backend/requirements-light.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --user -r requirements-heavy.txt -r requirements-light.txt
+
+# ===========================================
+# Stage 2: Production base (slim runtime)
+# ===========================================
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install runtime dependencies only (no build tools)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    libmagic1 \
+    poppler-utils \
+    curl \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy installed packages from builder to system location
+COPY --from=builder /root/.local /usr/local
+ENV PATH=/usr/local/bin:$PATH
+
+# Create app user and directories (will be reused by child image)
+RUN mkdir -p /app/logs /app/data/databases && \
+    useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+
+# Set Python environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Label for tracking
+LABEL maintainer="study-buddy-team"
+LABEL description="Pre-built base image with Python dependencies"
