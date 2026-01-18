@@ -40,20 +40,24 @@ async def fetch_with_retry(url: str, params: dict, client: httpx.AsyncClient, ma
                 
                 if r.status_code == 200:
                     return r.json()
-                elif r.status_code == 429:  # Rate limited
-                    metrics.record_api_failure("rate_limited")
-                    if attempt < max_retries:
-                        await asyncio.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s
-                        continue
                 else:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"⚠️ API call failed with status {r.status_code} for {url}")
                     metrics.record_api_failure(f"http_{r.status_code}")
-                    
+                    if r.status_code == 429:  # Rate limited
+                        if attempt < max_retries:
+                            await asyncio.sleep(2 ** attempt)
+                            continue
             except httpx.TimeoutException:
                 metrics.record_api_failure("timeout")
                 if attempt < max_retries:
                     await asyncio.sleep(2 ** attempt)
                     continue
             except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"❌ API call exception for {url}: {e}")
                 metrics.record_api_failure(f"error_{type(e).__name__}")
                 if attempt < max_retries:
                     await asyncio.sleep(2 ** attempt)
@@ -66,10 +70,13 @@ async def fetch_with_retry(url: str, params: dict, client: httpx.AsyncClient, ma
 # THENEWSAPI (PRIMARY)
 # -----------------------------
 async def fetch_from_thenewsapi(query: str):
+    import logging
+    logger = logging.getLogger(__name__)
     if not THENEWSAPI_KEY:
+        logger.warning("⚠️ THENEWSAPI_KEY is missing or empty")
         return []
 
-    url = "https://api.thenewsapi.com/v1/news/all"
+    logger.debug(f"🔍 Fetching from TheNewsAPI: {query[:40]}...")
     params = {
         "api_token": THENEWSAPI_KEY,
         "language": "en",
@@ -99,10 +106,13 @@ async def fetch_from_thenewsapi(query: str):
 # NEWSDATA.IO (FALLBACK 1)
 # -----------------------------
 async def fetch_from_newsdata(query: str):
+    import logging
+    logger = logging.getLogger(__name__)
     if not NEWSDATA_API_KEY:
+        logger.warning("⚠️ NEWSDATA_API_KEY is missing or empty")
         return []
 
-    url = "https://newsdata.io/api/1/news"
+    logger.debug(f"🔍 Fetching from NewsData: {query[:40]}...")
     params = {
         "apikey": NEWSDATA_API_KEY,
         "q": query,
@@ -132,10 +142,13 @@ async def fetch_from_newsdata(query: str):
 # GNEWS (FALLBACK 2)
 # -----------------------------
 async def fetch_from_gnews(query: str):
+    import logging
+    logger = logging.getLogger(__name__)
     if not GNEWS_API_KEY:
+        logger.warning("⚠️ GNEWS_API_KEY is missing or empty")
         return []
 
-    url = "https://gnews.io/api/v4/search"
+    logger.debug(f"🔍 Fetching from GNews: {query[:40]}...")
     params = {
         "q": query,
         "lang": "en",
