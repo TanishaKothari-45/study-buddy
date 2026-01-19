@@ -283,6 +283,8 @@ export function EvaluationResultCard({ result, index, files, isCollapsible = fal
                         </Card>
                     )}
 
+                    {/* Current Affairs Evaluation */}
+
                     {/* Strengths & Gaps */}
                     <div className="grid gap-4 md:grid-cols-2">
                         <Card className="border-l-4 border-l-green-500">
@@ -318,6 +320,72 @@ export function EvaluationResultCard({ result, index, files, isCollapsible = fal
                             </CardContent>
                         </Card>
                     </div>
+
+                    {/* Current Affairs Evaluation */}
+                    {feedback.current_affairs_feedback && (
+                        <Card className="border-l-4 border-l-cyan-500 bg-cyan-50/10">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base text-cyan-700 flex items-center gap-2">
+                                    <RefreshCw className="h-4 w-4" />
+                                    Current Affairs Evaluation
+                                </CardTitle>
+                                <CardDescription className="text-xs">Assessment of contemporary relevance and recent developments</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4 text-sm text-foreground">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-gray-900">Contemporary relevance expected:</span>
+                                    <span className={cn(
+                                        "px-2 py-0.5 rounded-full text-xs font-bold uppercase",
+                                        feedback.current_affairs_feedback.relevance_expected === "yes" ? "bg-green-100 text-green-700" :
+                                            feedback.current_affairs_feedback.relevance_expected === "partial" ? "bg-amber-100 text-amber-700" :
+                                                "bg-gray-100 text-gray-700"
+                                    )}>
+                                        {feedback.current_affairs_feedback.relevance_expected}
+                                    </span>
+                                </div>
+
+                                {feedback.current_affairs_feedback.used_contemporary_references?.length > 0 && (
+                                    <div className="bg-white/60 p-3 rounded border border-cyan-100">
+                                        <h4 className="text-xs font-bold text-cyan-900 uppercase mb-1">Contemporary References Used</h4>
+                                        <ul className="list-disc pl-4 space-y-1 text-gray-700">
+                                            {feedback.current_affairs_feedback.used_contemporary_references.map((item: string, i: number) => (
+                                                <li key={i}>{item}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {feedback.current_affairs_feedback.critical_misses?.length > 0 && (
+                                    <div>
+                                        <h4 className="text-xs font-bold text-red-900 uppercase mb-1">Missing Developments/Reports</h4>
+                                        <ul className="list-disc pl-4 space-y-1 text-gray-700">
+                                            {feedback.current_affairs_feedback.critical_misses.map((item: string, i: number) => (
+                                                <li key={i}>{item}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {feedback.current_affairs_feedback.examiner_impact && (
+                                    <div>
+                                        <h4 className="text-xs font-bold text-red-900 uppercase mb-1">Examiner Impact</h4>
+                                        <p className="text-gray-700 italic">"{feedback.current_affairs_feedback.examiner_impact}"</p>
+                                    </div>
+                                )}
+                                {feedback.current_affairs_feedback?.how_to_fix?.length > 0 && (
+
+                                    <div className="bg-cyan-50 border border-cyan-100 p-3 rounded-md shadow-sm">
+                                        <h4 className="text-xs font-bold uppercase mb-1 text-cyan-900 opacity-90">How to improve contemporary linkage</h4>
+                                        <ul className="list-disc pl-4 space-y-1 text-gray-700">
+                                            {feedback.current_affairs_feedback.how_to_fix.map((item: string, i: number) => (
+                                                <li key={i}>{item}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
 
                     {/* Overall Feedback */}
                     <Card>

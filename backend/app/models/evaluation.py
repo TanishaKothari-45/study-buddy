@@ -29,6 +29,28 @@ class CriticalGapAndRemedy(BaseModel):
         description="Concise, actionable instruction on how to fix it"
     )
 
+class CurrentAffairsFeedback(BaseModel):
+    """Evaluation of student's awareness of recent developments."""
+    relevance_expected: str = Field(
+        description="Whether contemporary linkage was expected (yes/partial/no)"
+    )
+    used_contemporary_references: Optional[str] = Field(
+        default=None,
+        description="Policies/reports/events actually cited by the student"
+    )
+    critical_misses: List[str] = Field(
+        default_factory=list,
+        description="Specific missing policies, reports, or developments"
+    )
+
+    examiner_impact: str = Field(
+        description="Actionable guidance on contemporary linkage"
+    )
+    how_to_fix: List[str] = Field(
+        default_factory=list,
+        description="using contemporary linkages at the right places"
+    )
+
 class FeedbackDetails(BaseModel):
     """Structured feedback for student answer evaluation."""
     strengths: List[str] = Field(
@@ -54,6 +76,18 @@ class FeedbackDetails(BaseModel):
     margin_comments: List[MarginComment] = Field(
         default_factory=list,
         description="Margin-style comments anchored to specific parts of the answer"
+    )
+    current_affairs_feedback: Optional[CurrentAffairsFeedback] = Field(
+        default=None,
+        description="Critique of student's contemporary relevance and current affairs integration"
+    )
+    visual_feedback: Optional[str] = Field(
+        default=None,
+        description="Critique of whether maps/diagrams/tables were needed but missing"
+    )
+    strategy_tip: Optional[str] = Field(
+        default=None,
+        description="Strategic tip for improving future answers"
     )
 
 class EvaluationResponse(BaseModel):

@@ -471,6 +471,33 @@ Evaluate:
 - Relevance to the question
 - Depth appropriate to question weight (10 vs 15) or word count (150 vs 250)
 
+**RULE 5A — CURRENT AFFAIRS & TEMPORAL RELEVANCE (MANDATORY)**:
+
+UPSC Mains questions are often triggered by recent developments.
+You MUST evaluate whether the answer reflects appropriate awareness of recent and relevant developments.
+
+Your task is to assess:
+
+1. Whether the question has an identifiable contemporary trigger such as:
+   - Recent government policy, scheme, or reform
+   - Supreme Court / Constitutional Bench judgment
+   - International agreement, treaty, or summit outcome
+   - Major report, index, or global assessment
+   - Significant recent event or trend (India or global)
+
+2. Whether the student:
+   - Correctly integrated relevant current affairs where expected
+   - Used outdated, generic, or no contemporary references
+   - Missed obvious recent developments directly linked to the question
+
+IMPORTANT DISCIPLINE:
+- Do NOT force current affairs into purely static or theoretical questions.
+- Penalise absence of current affairs ONLY when contemporary linkage is clearly expected.
+- Current affairs must ADD analytical value, not appear as name-dropping.
+
+Treat missing or outdated contemporary linkage as a mark-impacting weakness where applicable.
+
+
 **RULE 6 - MARK EXPECTATION DISCIPLINE**:
 
 Evaluate the answer relative to the question’s mark value.
@@ -572,6 +599,76 @@ Example 3 - Weakness (Medium Severity):
 - If repetition is unavoidable for a critical flaw, escalate it once at a higher level (e.g., overall assessment) rather than restating details.
 - Keep all comments examiner-style: brief, direct, and mark-focused.
 
+############################
+STEP 1 — TOPIC EXTRACTION (FOR CURRENT AFFAIRS SEARCH)
+############################
+
+From the question text, extract up to THREE concise topic phrases suitable for news/report searches.
+
+Rules:
+- Each topic: 2–5 words
+- Focus on substantive issues, not directive words
+- Merge overlapping parts into one topic if needed
+- Do NOT copy the full question text
+
+Return STRICTLY in JSON:
+{{
+  "topics": ["topic1", "topic2", "topic3"]
+}}
+
+############################
+STEP 2 — SEARCH QUERY GENERATION
+############################
+
+Using the extracted topics, generate search queries to retrieve recent (2024–2026) developments.
+
+For EACH topic, generate queries aimed at:
+- Government policies / schemes / reforms / global policies / global reforms
+- Reports / indices / assessments / global reports / alliances
+- Major news Indian/global events or judgments (if relevant)
+
+Queries must be written in journalistic/search-engine language, NOT exam language.
+
+Return STRICTLY in JSON:
+{{
+  "search_queries": [
+    "query1",
+    "query2",
+    "query3"
+  ]
+}}
+
+############################
+STEP 2.5 — RESEARCH FINDINGS
+############################
+
+Before proceeding to evaluation, list 5-7 specific, factual news points or findings discovered from the search results that are relevant to the question.
+- Each point: 15–25 words
+- Focus on data, years, names of reports, or specific policy changes.
+
+Return STRICTLY in JSON:
+{{
+  "research_findings": [
+    "finding1",
+    "finding2",
+    "finding3"
+  ]
+}}
+
+############################
+STEP 3 — CURRENT AFFAIRS EVALUATION
+############################
+
+Use the retrieved information ONLY to:
+- Identify whether a strong contemporary linkage existed for this question
+- Check whether the student referenced or missed it
+- Inform the "current_affairs_feedback" section
+
+Do NOT:
+- Insert new facts into the student answer
+- Rewrite the answer
+- Over-penalise if current affairs relevance is genuinely weak
+
 
 
 ========================
@@ -582,6 +679,11 @@ You MUST return ONLY a valid JSON object in the following structure:
 
 ```json
 {{
+  "intermediate_steps": {{
+    "topics": ["topic1", "topic2"],
+    "search_queries": ["query1", "query2"],
+    "research_findings": ["Short factual point 1", "Short factual point 2"]
+  }},
   "question": "The question text extracted from the uploaded file",
   "marks": 10 or 15,
   "word_count": 150 or 250,
@@ -634,6 +736,28 @@ You MUST return ONLY a valid JSON object in the following structure:
     }},
 
     "evidence_feedback": "Critical assessment of how effectively evidence (data, reports, examples) was used across different parts of the answer. Identify all points where evidence was correctly used, where it was missing despite being expected, and where specific reports or data could have strengthened otherwise correct arguments. Focus on missed opportunities that cap marks, not just factual absence.",
+    
+   "current_affairs_feedback": {{
+  "relevance_expected": "yes | partial | no",
+
+  "used_contemporary_references": [
+    "List ONLY explicitly cited contemporary reports/policies/events, if any",
+    "If none cited, state: 'No explicit contemporary references used'"
+  ],
+
+  "critical_misses": [
+    "List high-impact missing contemporary developments directly relevant to the question",
+    "Include only reports/policies/events that materially affect marks (not optional add-ons)"
+  ],
+
+  "examiner_impact": "Explain in one line how missing contemporary linkage limits evaluation depth or answer quality",
+
+  "how_to_fix": [
+    "Name all specific contemporary reports/policies/events that should have been integrated based on research findings",
+    "Indicate WHERE they fit (Intro / Body dimension / Evaluation / Way Forward)"
+  ]
+}},
+
 
     "visual_feedback": "Assessment of whether a map/diagram/table was required based on the examiner expectation blueprint, missing, misused, or could be improved.",
 

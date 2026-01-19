@@ -82,6 +82,14 @@ export interface CriticalGapAndRemedy {
     remedy: string;
 }
 
+export interface CurrentAffairsFeedback {
+    relevance_expected: "yes" | "partial" | "no";
+    used_contemporary_references?: string[];
+    critical_misses?: string[];
+    examiner_impact?: string;
+    how_to_fix?: string[];
+}
+
 export interface Feedback {
     paper_and_subject_identification?: {
         gs_paper: string;
@@ -98,6 +106,7 @@ export interface Feedback {
     visual_feedback?: string;
     strategy_tip?: string;
     overall_assessment: string;
+    current_affairs_feedback?: CurrentAffairsFeedback;
     margin_comments?: MarginComment[];
     // Legacy fields for backward compatibility
     missing_elements?: string[];
