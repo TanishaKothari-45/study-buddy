@@ -21,7 +21,7 @@ from .core.langsmith_config import configure_langsmith
 configure_langsmith()
 
 from .core.config import settings
-from .core.database import engine, Base
+from .core.database import init_db
 from .api.v1 import router as api_v1_router
 from .utils.memory_manager import init_memory_db
 
@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Create database tables (with proper error handling for concurrent workers)
+init_db()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

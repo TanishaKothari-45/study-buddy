@@ -1,78 +1,31 @@
 # syntax=docker/dockerfile:1.4
 # ===========================================
 # Study Buddy Backend - Cloud Run Dockerfile
-# Optimized multi-stage build with BuildKit caching
+# Uses pre-built base image for fast builds (~2-3 min)
+# ===========================================
+# IMPORTANT: First build the base image:
+#   gcloud builds submit --config=cloudbuild-base.yaml --region=asia-south1
 # ===========================================
 
-# Stage 1: Builder with cached pip installs
-FROM python:3.12-slim AS builder
+# Use the pre-built base image with all Python dependencies
+ARG REGION=asia-south1
+ARG PROJECT_ID
+ARG REPO=study-buddy
+FROM ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/backend-base:latest
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    libpq-dev \
-    libffi-dev \
-    libmagic1 \
-    && rm -rf /var/lib/apt/lists/*
-
-# ===========================================
-# Install HEAVY packages first (rarely change, slow to install)
-# This layer will be cached unless requirements-heavy.txt changes
-# ===========================================
-COPY requirements-heavy.txt .
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --user -r requirements-heavy.txt
-
-# ===========================================
-# Install LIGHT packages (may change more often)
-# This layer rebuilds if requirements-light.txt changes
-# but heavy packages layer remains cached
-# ===========================================
-COPY requirements-light.txt .
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --user -r requirements-light.txt
-
-# ===========================================
-# Stage 2: Production (slim runtime)
-# ===========================================
-FROM python:3.12-slim
-
-WORKDIR /app
-
-# Install runtime dependencies only (no build tools)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
-    libmagic1 \
-    poppler-utils \
-    curl \
-    libgl1 \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-# Copy installed packages from builder to system location
-# This allows the non-root user to access them
-COPY --from=builder /root/.local /usr/local
-# Ensure execute permissions for binaries
-RUN chmod -R a+rX /usr/local/bin /usr/local/lib
-ENV PATH=/usr/local/bin:$PATH
-
-# Copy application code (separate layer for better caching)
+# Copy application code only (dependencies are in base image)
 COPY . .
 
-# Create necessary directories and set permissions
-RUN mkdir -p /app/logs /app/data/databases && \
-    useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
+# Ensure correct ownership (appuser was created in base image)
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
 USER appuser
 
 # Port configuration (8001 for local, Cloud Run will override via PORT env var)
 ENV PORT=8001
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
 
 EXPOSE 8001
 
