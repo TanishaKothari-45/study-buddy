@@ -100,8 +100,8 @@ setup_exception_handlers(app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
         "https://study-buddy-upsc-coach.vercel.app",  # Production frontend
         "https://study-buddy-web-232142052244.asia-south1.run.app", # New Production frontend
         "https://study-buddy-map-232142052244.asia-south1.run.app", # New Production map service

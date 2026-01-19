@@ -403,7 +403,8 @@ export default function MainsAnswerPage() {
                     onKeySet={() => {
                         setShowBanner(false);
                         setError(null);
-                        refreshUser();
+                        // Skip verification since the key was just validated during save
+                        refreshUser(true);
                     }}
                 />
 

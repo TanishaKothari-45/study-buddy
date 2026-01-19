@@ -402,50 +402,110 @@ class GeminiClient:
         return mime_types.get(extension, 'image/jpeg')
     
     @staticmethod
-    def validate_api_key(api_key: str) -> bool:
+    def validate_api_key(api_key: str, max_retries: int = 3) -> bool:
         """
         Validate a Gemini API key using list_models().
         This is a lightweight call that doesn't consume generation quota.
         
-        Args:
-            api_key: The API key to validate
-            
-        Returns:
-            True if valid, False otherwise
-        """
-        try:
-            client = genai.Client(api_key=api_key)
-            # list_models() is a lightweight metadata call
-            models = client.models.list()
-            # Just check if we can iterate (validates the key)
-            for _ in models:
-                break
-            return True
-        except Exception as e:
-            print(f"❌ API Key Validation failed: {e}")
-            return False
-    
-    @staticmethod
-    async def validate_api_key_async(api_key: str) -> bool:
-        """
-        Validate a Gemini API key asynchronously.
+        Includes retry logic to handle transient network/API issues.
         
         Args:
             api_key: The API key to validate
+            max_retries: Number of retry attempts for transient failures
             
         Returns:
             True if valid, False otherwise
         """
-        try:
-            client = genai.Client(api_key=api_key)
-            # Use async list
-            models = await client.aio.models.list()
-            async for _ in models:
-                break
-            return True
-        except Exception as e:
-            print(f"❌ API Key Validation failed: {e}")
-            return False
+        import time
+        
+        for attempt in range(max_retries):
+            try:
+                client = genai.Client(api_key=api_key)
+                # list_models() is a lightweight metadata call
+                models = client.models.list()
+                # Just check if we can iterate (validates the key)
+                for _ in models:
+                    break
+                return True
+            except Exception as e:
+                error_str = str(e).lower()
+                
+                # Check if this is a definitive auth error (invalid key)
+                # These should NOT be retried
+                if any(keyword in error_str for keyword in [
+                    'invalid api key',
+                    'api key not valid',
+                    'api_key_invalid',
+                    'permission denied',
+                    'unauthenticated',
+                    '401',
+                    '403',
+                ]):
+                    print(f"❌ API Key Validation failed (invalid key): {e}")
+                    return False
+                
+                # For transient errors (network, timeout, rate limit), retry
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 0.5  # 0.5s, 1s, 1.5s
+                    print(f"⚠️ API Key Validation attempt {attempt + 1} failed, retrying in {wait_time}s: {e}")
+                    time.sleep(wait_time)
+                else:
+                    print(f"❌ API Key Validation failed after {max_retries} attempts: {e}")
+                    return False
+        
+        return False
+    
+    @staticmethod
+    async def validate_api_key_async(api_key: str, max_retries: int = 3) -> bool:
+        """
+        Validate a Gemini API key asynchronously.
+        
+        Includes retry logic to handle transient network/API issues.
+        
+        Args:
+            api_key: The API key to validate
+            max_retries: Number of retry attempts for transient failures
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        import asyncio
+        
+        for attempt in range(max_retries):
+            try:
+                client = genai.Client(api_key=api_key)
+                # Use async list
+                models = await client.aio.models.list()
+                async for _ in models:
+                    break
+                return True
+            except Exception as e:
+                error_str = str(e).lower()
+                
+                # Check if this is a definitive auth error (invalid key)
+                # These should NOT be retried
+                if any(keyword in error_str for keyword in [
+                    'invalid api key',
+                    'api key not valid',
+                    'api_key_invalid',
+                    'permission denied',
+                    'unauthenticated',
+                    '401',
+                    '403',
+                ]):
+                    print(f"❌ API Key Validation failed (invalid key): {e}")
+                    return False
+                
+                # For transient errors (network, timeout, rate limit), retry
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 0.5  # 0.5s, 1s, 1.5s
+                    print(f"⚠️ API Key Validation attempt {attempt + 1} failed, retrying in {wait_time}s: {e}")
+                    await asyncio.sleep(wait_time)
+                else:
+                    print(f"❌ API Key Validation failed after {max_retries} attempts: {e}")
+                    return False
+        
+        return False
 
 
 # Utility function for concurrent image processing (as shown in user's example)

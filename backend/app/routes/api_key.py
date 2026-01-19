@@ -232,8 +232,16 @@ def verify_current_key(
 ):
     """
     Verify the user's currently stored Gemini API key.
+    
+    This endpoint:
+    1. Decrypts the stored API key
+    2. Validates it against Google's Gemini API (with retry logic)
+    3. Returns success if valid, error if invalid
     """
+    logger.debug(f"Verifying API key for user {current_user.email}")
+    
     if not current_user.encrypted_gemini_api_key:
+        logger.warning(f"User {current_user.email} has no encrypted API key stored")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No API key configured."
@@ -244,19 +252,24 @@ def verify_current_key(
     decrypted_key = encryptor.decrypt_api_key(current_user.encrypted_gemini_api_key)
     
     if not decrypted_key:
+        logger.error(f"Failed to decrypt API key for user {current_user.email}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to decrypt stored API key."
         )
 
+    logger.debug(f"Decrypted API key for user {current_user.email}, validating with Gemini...")
+    
     if validate_gemini_key(decrypted_key):
+        logger.info(f"✅ API key verified successfully for user {current_user.email}")
         return {
             "success": True,
             "message": "API key is valid",
             "masked_key": encryptor.mask_api_key(decrypted_key, visible_chars=4)
         }
     else:
+        logger.warning(f"❌ API key validation failed for user {current_user.email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Stored API key is invalid or authorized."
+            detail="Stored API key is invalid or unauthorized."
         )

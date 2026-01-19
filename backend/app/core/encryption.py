@@ -102,12 +102,17 @@ class APIKeyEncryption:
         return "*" * (len(api_key) - visible_chars) + api_key[-visible_chars:]
 
 
-# Singleton instance
+# Thread-safe singleton instance
+import threading
 _encryption_instance = None
+_encryption_lock = threading.Lock()
 
 def get_api_key_encryptor() -> APIKeyEncryption:
-    """Get singleton encryption instance"""
+    """Get thread-safe singleton encryption instance"""
     global _encryption_instance
     if _encryption_instance is None:
-        _encryption_instance = APIKeyEncryption()
+        with _encryption_lock:
+            # Double-check locking pattern
+            if _encryption_instance is None:
+                _encryption_instance = APIKeyEncryption()
     return _encryption_instance

@@ -23,7 +23,7 @@ interface AuthContextType {
     signup: (email: string, password: string, fullName?: string) => Promise<{ error: string | null }>;
     logout: () => Promise<void>;
     isLoading: boolean;
-    refreshUser: () => Promise<void>;
+    refreshUser: (skipVerification?: boolean) => Promise<void>;
     verifyApiKey: () => Promise<boolean>;
     isApiKeyValid: 'unknown' | 'valid' | 'invalid';
     setIsApiKeyValid: (valid: 'unknown' | 'valid' | 'invalid') => void;
@@ -107,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
     }, []);
 
-    const fetchUserProfile = async (supabaseUser: SupabaseUser, token: string) => {
+    const fetchUserProfile = async (supabaseUser: SupabaseUser, token: string, skipVerification: boolean = false) => {
         try {
             // Fetch additional user profile data from backend
             const response = await fetch(`${API_URL}/auth/me`, {
@@ -126,10 +126,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 });
 
                 // Verify API key if exists (reset retry counter on new login)
-                if (profileData.has_gemini_api_key) {
+                // Skip verification if we just saved the key (to avoid race condition with DB propagation)
+                if (profileData.has_gemini_api_key && !skipVerification) {
                     verifyRetryCountRef.current = 0; // Reset retry counter
                     verifyApiKey();
-                } else {
+                } else if (!profileData.has_gemini_api_key) {
                     setIsApiKeyValid('unknown');
                 }
             } else {
@@ -225,10 +226,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.push("/login");
     };
 
-    const refreshUser = React.useCallback(async () => {
+    const refreshUser = React.useCallback(async (skipVerification: boolean = false) => {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (currentSession?.user) {
-            await fetchUserProfile(currentSession.user, currentSession.access_token);
+            await fetchUserProfile(currentSession.user, currentSession.access_token, skipVerification);
         }
     }, [supabase.auth]);
 
