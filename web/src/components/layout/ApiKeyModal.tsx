@@ -101,7 +101,9 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
                 setApiKey("");
                 setShowKey(false);
                 setIsUpdating(false);
-                refreshUser();
+                // Skip verification on refresh since we just validated the key
+                // This avoids race condition with Supabase DB propagation
+                refreshUser(true);
                 if (onApiKeyChange) onApiKeyChange();
                 // Only close if it was a fresh key setup, otherwise keep open to show success
                 if (!hasApiKey) onClose();

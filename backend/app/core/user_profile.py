@@ -66,6 +66,8 @@ def get_or_create_user_profile(
     """
     Get existing user profile or create a new one.
     
+    Includes retry logic to handle transient database errors.
+    
     Args:
         user_id: Supabase user UUID
         email: User's email (for logging purposes)
@@ -74,13 +76,27 @@ def get_or_create_user_profile(
     Returns:
         UserProfile (existing or newly created)
     """
-    # Try to get existing profile
-    profile = get_user_profile(user_id)
-    if profile:
-        profile.email = email  # Add email from JWT
-        return profile
+    import time
     
-    # Create new profile
+    # Try to get existing profile with retry
+    max_retries = 3
+    for attempt in range(max_retries):
+        profile = get_user_profile(user_id)
+        if profile:
+            profile.email = email  # Add email from JWT
+            return profile
+        
+        # If profile is None, it could be:
+        # 1. Profile doesn't exist yet (new user) - try to create
+        # 2. Transient error fetching - retry before creating
+        
+        if attempt < max_retries - 1:
+            # Brief pause before retry (only if we'll retry)
+            time.sleep(0.1 * (attempt + 1))  # 0.1s, 0.2s
+            logger.debug(f"Retrying get_user_profile for {user_id} (attempt {attempt + 2}/{max_retries})")
+            continue
+    
+    # Profile doesn't exist after retries - create new one
     try:
         supabase = get_supabase_client()
         result = supabase.table("user_profiles").insert({
@@ -101,9 +117,17 @@ def get_or_create_user_profile(
                 updated_at=profile_data.get("updated_at"),
             )
     except Exception as e:
+        # Insert failed - profile might already exist (unique constraint)
+        # Try one more fetch to get the existing profile with API key
+        logger.warning(f"Insert failed for {user_id}, attempting final fetch: {e}")
+        profile = get_user_profile(user_id)
+        if profile:
+            profile.email = email
+            return profile
         logger.error(f"Error creating user profile for {user_id}: {e}")
     
-    # Return a minimal profile even if creation fails
+    # Return a minimal profile only as last resort
+    logger.warning(f"Returning minimal profile for {user_id} - API key may be missing")
     return UserProfile(id=user_id, email=email, full_name=full_name)
 
 

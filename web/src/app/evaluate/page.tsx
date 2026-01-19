@@ -386,7 +386,8 @@ export default function EvaluatePage() {
                 onKeySet={() => {
                     setShowBanner(false);
                     setError("");
-                    refreshUser();
+                    // Skip verification since the key was just validated during save
+                    refreshUser(true);
                 }}
             />
 
