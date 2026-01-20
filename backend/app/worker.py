@@ -1784,6 +1784,22 @@ def _build_improved_answer_prompt(
         
         if gap_sections:
             feedback_parts.append("\n**CRITICAL GAPS & REMEDIES**:\n" + "\n".join(gap_sections))
+
+    # 3. Current Affairs Feedback (NEW)
+    if feedback.get("current_affairs_feedback"):
+        ca = feedback["current_affairs_feedback"]
+        ca_parts = []
+        
+        misses = ca.get("critical_misses", [])
+        if misses and len(misses) > 0:
+            ca_parts.append("**Critical Misses**: " + ", ".join(misses))
+            
+        fix = ca.get("how_to_fix", [])
+        if fix and len(fix) > 0:
+            ca_parts.append("**How to Integrate**: " + ", ".join(fix))
+            
+        if ca_parts:
+            feedback_parts.append("\n**CURRENT AFFAIRS FEEDBACK**:\n" + "\n".join(ca_parts))
     
     if feedback_parts:
         parts.append("**EVALUATION FEEDBACK**:\n")
@@ -1819,6 +1835,7 @@ def _build_improved_answer_prompt(
 2. Address ALL issues explicitly listed under:
    - Examiner Expectation Blueprint
    - Critical Gaps & Remedies
+   - Current Affairs Feedback (if provided)
 3. Use REFERENCE CONTEXT to add facts, data, reports, and examples
 4. Target word count: approximately {word_count} words
 

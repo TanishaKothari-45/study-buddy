@@ -868,6 +868,7 @@ You are given:
    - Examiner Expectation Blueprint
    - Critical gaps and remedies
    - Directive alignment assessment
+   - Current affairs feedback (critical misses and how to fix)
 
 Your task is to generate an IMPROVED VERSION of the answer.
 
