@@ -84,6 +84,7 @@ async def fetch_from_thenewsapi(query: str):
         "limit": ARTICLES_PER_QUERY
     }
 
+    url = "https://api.thenewsapi.com/v1/news/all"
     async with httpx.AsyncClient() as client:
         data = await fetch_with_retry(url, params, client)
         if not data or "data" not in data:
@@ -120,6 +121,7 @@ async def fetch_from_newsdata(query: str):
         "country": "in"
     }
 
+    url = "https://newsdata.io/api/1/news"
     async with httpx.AsyncClient() as client:
         data = await fetch_with_retry(url, params, client)
         if not data or "results" not in data:
@@ -156,6 +158,7 @@ async def fetch_from_gnews(query: str):
         "token": GNEWS_API_KEY
     }
 
+    url = "https://gnews.io/api/v4/search"
     async with httpx.AsyncClient() as client:
         data = await fetch_with_retry(url, params, client)
         if not data or "articles" not in data:

@@ -222,7 +222,8 @@ async def run_enriched_pipeline(
     k: int = 12,
     fetch_k: int = 30,
     max_total_tokens: int = 32000,
-    skip_vector_search: bool = False
+    skip_vector_search: bool = False,
+    skip_current_affairs: bool = False
 ) -> Dict[str, Any]:
     """
     Shared retrieval & news pipeline for Mains and Evaluation.
@@ -271,8 +272,11 @@ async def run_enriched_pipeline(
     # 3. News (Dimension-Based Research)
     async def fetch_news_dimension_research():
         try:
-            # We skip parse_question_for_search because run_dimension_pipeline 
-            # handles its own planning (dimensions + priority queries)
+            if skip_current_affairs:
+                logger.info("⏩ Skipping separate current affairs fetch (Integrated Tool Use)")
+                return {}, []
+
+            # We skip parse_question_for_search because fetch_current_affairs_for_question 
             bullets = await fetch_current_affairs_for_question(
                 question_text=query,
                 max_bullets=20,
@@ -1554,13 +1558,14 @@ async def generate_improved_answer_task(
         if skip_vector_search:
             logger.info(f"⏩ [JOB {job_id}] Skipping Pinecone retrieval (Domain not Geography)")
 
-        logger.info(f"📚 [JOB {job_id}] STEP 1: Running retrieval pipeline...")
+        logger.info(f"📚 [JOB {job_id}] STEP 1: Running retrieval pipeline (Skipping Current Affairs for Integrated Tool)...")
         pipeline_result = await run_enriched_pipeline(
             ctx=ctx,
             job_id=job_id,
             query=question,
             gemini_api_key=gemini_api_key,
-            skip_vector_search=skip_vector_search
+            skip_vector_search=skip_vector_search,
+            skip_current_affairs=True # Use integrated tool instead
         )
         
         context = pipeline_result["context"]
@@ -1604,7 +1609,8 @@ async def generate_improved_answer_task(
                         system_prompt=system_prompt,
                         pdf_path=file_paths,
                         temperature=0.15,
-                        max_retries=3
+                        max_retries=3,
+                        use_google_search=True # Integrated search
                     )
                 else:
                     response_text = await gemini_client.generate_response(
@@ -1612,7 +1618,8 @@ async def generate_improved_answer_task(
                         system_prompt=system_prompt,
                         image_path=file_paths,
                         temperature=0.15,
-                        max_retries=3
+                        max_retries=3,
+                        use_google_search=True # Integrated search
                     )
             else:
                 # Text-only generation
@@ -1620,7 +1627,8 @@ async def generate_improved_answer_task(
                     user_prompt=user_prompt,
                     system_prompt=system_prompt,
                     temperature=0.15,
-                    max_retries=3
+                    max_retries=3,
+                    use_google_search=True # Integrated search
                 )
             
             logger.info(f"✅ [JOB {job_id}] Received response: {len(response_text)} chars")
@@ -1916,7 +1924,8 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
             job_id=job_id,
             query=query,
             gemini_api_key=gemini_api_key,
-            skip_vector_search=skip_vector_search
+            skip_vector_search=skip_vector_search,
+            skip_current_affairs=False # Mains uses the separate research pipeline
         )
         
         context = pipeline_result["context"]

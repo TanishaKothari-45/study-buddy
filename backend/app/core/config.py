@@ -101,6 +101,9 @@ class Settings(BaseSettings):
     GEMINI_MODEL_PRO: str = "gemini-2.5-pro"  # For mains answer & evaluation (superior reasoning)
     GEMINI_MODEL_FLASH: str = "gemini-2.5-flash"  # For speed-critical tasks (if needed)
 
+    # Pipeline Settings
+    USE_GEMINI_SEARCH_FOR_CURRENT_AFFAIRS: bool = True  # Toggle for Gemini-based search
+
     # Default LLM (for backward compatibility)
     LLM_MODEL: str = "gpt-4o-mini"
     

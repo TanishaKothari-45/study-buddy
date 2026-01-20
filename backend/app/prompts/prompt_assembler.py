@@ -323,6 +323,11 @@ Depth, balance, and judgement must match the directive exactly.
 - Strengthen weak evidence with examples, data, or reports.
 - Add or replace visuals ONLY if evaluation said so or seems necessary.
 
+**RULE 4 - INTEGRATED RESEARCH (GOOGLE SEARCH)**:
+- You have access to the Google Search tool. 
+- Use it specifically to find the "Critical Misses" mentioned in the Current Affairs Feedback.
+- Look for recent (2024-2026) data, reports, or specific events that are relevant for different dimensions of the answer.
+- Ensure the integrated facts are seamlessly woven into the improved answer.
 Do NOT over-enrich beyond UPSC expectations unless it is necessary to satisfy a blueprint demand.
 
 ========================

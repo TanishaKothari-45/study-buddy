@@ -26,13 +26,14 @@ backend_dir = Path(__file__).resolve().parent.parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-# Import new dimension pipeline
+# Import dimension pipelines
 try:
     from .dimension_current_affairs.pipeline import run_dimension_pipeline
+    from .dimension_current_affairs.gemini_search_pipeline import run_gemini_search_dimension_pipeline
     PIPELINE_AVAILABLE = True
 except ImportError as e:
     PIPELINE_AVAILABLE = False
-    logger.warning(f"Could not import dimension pipeline: {e}")
+    logger.warning(f"Could not import dimension pipelines: {e}")
 
 from .langsmith_tracer import trace_chain
 
@@ -108,22 +109,44 @@ async def fetch_current_affairs_for_question(
         return cached_bullets[:max_bullets]
     
     try:
+        from app.core.config import settings
         logger.info(f"🗞️ Running dimension-based research for: {question_text[:50]}...")
         
-        # Run the full dimension pipeline
-        bullets = await run_dimension_pipeline(
-            topic=question_text,
-            gemini_api_key=gemini_api_key,
-            max_total_bullets=max_bullets
-        )
+        # Determine which pipeline to use (default to setting if not provided)
+        use_gemini_search = kwargs.get("use_gemini_search", settings.USE_GEMINI_SEARCH_FOR_CURRENT_AFFAIRS)
+        
+        if use_gemini_search:
+            logger.info("🧪 Using Gemini Google Search Tool pipeline")
+            result = await run_gemini_search_dimension_pipeline(
+                topic=question_text,
+                gemini_api_key=gemini_api_key
+            )
+            # Flatten bullets from all dimensions
+            bullets = []
+            for dim in result.dimensions:
+                bullets.extend(dim.bullets)
+        else:
+            logger.info("🧪 Using Map/NewsAPI dimension pipeline")
+            # Run the legacy/map dimension pipeline
+            bullets = await run_dimension_pipeline(
+                topic=question_text,
+                gemini_api_key=gemini_api_key,
+                max_total_bullets=max_bullets
+            )
         
         if bullets:
+            # Enforce max_bullets but keep variety from dimensions
+            if len(bullets) > max_bullets:
+                bullets = bullets[:max_bullets]
+                
             logger.info(f"✅ Retrieved {len(bullets)} research-backed bullets")
             for i, bullet in enumerate(bullets, 1):
-                logger.info(f"      {i}. {bullet}")
+                logger.debug(f"      {i}. {bullet}")
             
             # Store in Research Cache
             cache.set_cached_research(question_text, bullets)
+            
+            logger.info(f"✨ [FINAL CA ARRAY] {len(bullets)} bullets ready for context injection")
             return bullets
         
         logger.info("⚠️ No relevant research found for topic")
@@ -151,6 +174,9 @@ def format_bullets_for_context(bullets: List[str], header: str = "LATEST CURRENT
     formatted = f"\n\n**{header}** (Recent developments - last 3 months):\n"
     for bullet in bullets:
         formatted += f"• {bullet}\n"
+    
+    logger.info("📝 [CA CONTEXT SYNTAX] Final formatted section for LLM:")
+    logger.info(formatted)
     
     return formatted
 
