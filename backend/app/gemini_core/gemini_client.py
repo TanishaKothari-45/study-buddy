@@ -56,6 +56,7 @@ class GeminiClient:
         response_schema: Optional[BaseModel] = None,
         temperature: float = 0.0,
         cached_content_name: Optional[str] = None,
+        use_google_search: bool = False,
         max_retries: int = 2
     ) -> str:
         """
@@ -168,6 +169,9 @@ class GeminiClient:
             if system_prompt:
                 config_dict["system_instruction"] = system_prompt
             
+            if use_google_search:
+                config_dict["tools"] = [types.Tool(google_search=types.GoogleSearch())]
+            
             generation_config = types.GenerateContentConfig(**config_dict)
             
             # Retry loop for transient errors
@@ -181,6 +185,99 @@ class GeminiClient:
                     )
                     
                     if response and response.text:
+                        # Log grounding metadata for visibility (Google Search tool results)
+                        try:
+                            if hasattr(response, 'candidates') and response.candidates:
+                                candidate = response.candidates[0]
+                                if hasattr(candidate, 'grounding_metadata') and candidate.grounding_metadata is not None:
+                                    metadata = candidate.grounding_metadata
+                                    import logging
+                                    logger = logging.getLogger(__name__)
+                                    logger.info("🌐 [GEMINI] Grounding Metadata found (Google Search Tool active)")
+                                    
+                                    # 1. Log Search Queries (from SDK metadata)
+                                    sdk_queries = []
+                                    try:
+                                        if hasattr(metadata, 'web_search_queries') and metadata.web_search_queries:
+                                            sdk_queries = metadata.web_search_queries
+                                        elif hasattr(metadata, 'retrieval_queries') and metadata.retrieval_queries:
+                                            sdk_queries = metadata.retrieval_queries
+                                        elif hasattr(metadata, 'search_entry_point') and hasattr(metadata.search_entry_point, 'sdk_queries') and metadata.search_entry_point.sdk_queries:
+                                            sdk_queries = metadata.search_entry_point.sdk_queries
+                                        
+                                        if sdk_queries:
+                                            logger.info(f"🔍 [GEMINI] SDK Search Queries: {sdk_queries}")
+                                    except Exception as e:
+                                        logger.debug(f"Error extracting SDK queries: {e}")
+                                    
+                                    # 2. Extract Internal Steps from Text (Topics, Queries, Findings)
+                                    import re
+                                    import json
+                                    
+                                    steps = {}
+                                    try:
+                                        json_match = re.search(r'```json\s*(\{.*?\})\s*```', response.text, re.DOTALL)
+                                        if not json_match:
+                                            json_match = re.search(r'(\{.*\})', response.text, re.DOTALL)
+                                        
+                                        if json_match:
+                                            full_json = json.loads(json_match.group(1))
+                                            steps = full_json.get("intermediate_steps", {})
+                                    except: pass
+
+                                    def extract_list(key, text):
+                                        pattern = rf'[\"\']?{key}[\"\']?\s*:\s*\[(.*?)\]'
+                                        match = re.search(pattern, text, re.DOTALL)
+                                        if match:
+                                            try:
+                                                raw = match.group(1).replace('\n', ' ').strip()
+                                                items = [i.strip().strip('\"\'') for i in raw.split(',') if i.strip()]
+                                                return items
+                                            except: return []
+                                        return []
+
+                                    topics = steps.get("topics") or extract_list("topics", response.text)
+                                    if topics: logger.info(f"📝 [GEMINI] Step 1 Topics: {topics}")
+                                    
+                                    queries = steps.get("search_queries") or extract_list("search_queries", response.text)
+                                    if queries: logger.info(f"🔍 [GEMINI] Step 2 Search Queries (from text): {queries}")
+
+                                    findings = steps.get("research_findings") or extract_list("research_findings", response.text)
+                                    if findings:
+                                        logger.info(f"🗞️ [GEMINI] Step 2.5 Research Findings:")
+                                        for f in findings: logger.info(f"      • {f}")
+                                    
+                                    # 3. Log Grounding Chunks (Tool Output)
+                                    if hasattr(metadata, 'grounding_chunks') and metadata.grounding_chunks is not None:
+                                        logger.info(f"📊 [GEMINI] Received {len(metadata.grounding_chunks)} search results")
+                                        if len(metadata.grounding_chunks) == 0:
+                                            logger.info("   ⚠️ Grounding chunks list is empty")
+                                        for i, chunk in enumerate(metadata.grounding_chunks, 1):
+                                            if hasattr(chunk, 'web') and chunk.web:
+                                                title = getattr(chunk.web, 'title', 'No Title')
+                                                uri = getattr(chunk.web, 'uri', 'No URI')
+                                                logger.info(f"   📰 Result {i}: {title}")
+                                                logger.info(f"      🔗 {uri}")
+                                            elif hasattr(chunk, 'text') and chunk.text:
+                                                logger.info(f"   📄 Result {i} (Text): {chunk.text[:200]}...")
+                                            else:
+                                                logger.info(f"   ❓ Result {i}: {chunk}")
+                                    else:
+                                        logger.debug("📊 [GEMINI] No grounding chunks found in metadata object")
+
+                                    # Check search_entry_point
+                                    if hasattr(metadata, 'search_entry_point') and metadata.search_entry_point:
+                                         logger.info("🔍 [GEMINI] Search entry point found (UI elements available)")
+                                    
+                                    # 4. Log Grounding Supports
+                                    try:
+                                        if hasattr(metadata, 'grounding_supports') and metadata.grounding_supports:
+                                            logger.info(f"✨ [GEMINI] Response has {len(metadata.grounding_supports)} grounded segments")
+                                    except: pass
+                        except Exception as log_err:
+                            import logging
+                            logging.getLogger(__name__).warning(f"⚠️ Failed to log grounding metadata: {log_err}")
+
                         return response.text
                     else:
                         raise Exception("Empty response from Gemini API")
@@ -225,10 +322,9 @@ class GeminiClient:
     
     async def generate_response_streaming(
         self,
-        user_prompt: str,
-        system_prompt: Optional[str] = None,
         text_input: Optional[str] = None,
-        temperature: float = 0.0
+        temperature: float = 0.0,
+        use_google_search: bool = False
     ):
         """
         Generate streaming response from Gemini API.
@@ -249,10 +345,15 @@ class GeminiClient:
         if text_input:
             prompt_text = f"{user_prompt}\n\nContext:\n{text_input}"
         
-        config = types.GenerateContentConfig(
-            temperature=temperature,
-            system_instruction=system_prompt
-        )
+        config_dict = {
+            "temperature": temperature,
+            "system_instruction": system_prompt
+        }
+        
+        if use_google_search:
+            config_dict["tools"] = [types.Tool(google_search=types.GoogleSearch())]
+            
+        config = types.GenerateContentConfig(**config_dict)
         
         async for chunk in self.client.aio.models.generate_content_stream(
             model=self.model_name,

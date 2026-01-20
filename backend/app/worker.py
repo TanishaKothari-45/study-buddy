@@ -642,6 +642,7 @@ async def evaluate_answer_task(
                     system_prompt=system_prompt,
                     pdf_path=local_file_paths,
                     temperature=0.1,
+                    use_google_search=True,
                     max_retries=3
                 )
             elif all_is_image:
@@ -650,6 +651,7 @@ async def evaluate_answer_task(
                     system_prompt=system_prompt,
                     image_path=local_file_paths,
                     temperature=0.1,
+                    use_google_search=True,
                     max_retries=3
                 )
             else:
@@ -660,6 +662,7 @@ async def evaluate_answer_task(
                             system_prompt=system_prompt,
                             pdf_path=local_file_paths[0],
                             temperature=0.1,
+                            use_google_search=True,
                             max_retries=3
                         )
                     else:
@@ -668,6 +671,7 @@ async def evaluate_answer_task(
                             system_prompt=system_prompt,
                             image_path=local_file_paths[0],
                             temperature=0.1,
+                            use_google_search=True,
                             max_retries=3
                         )
             
@@ -848,6 +852,13 @@ def _build_evaluation_prompt(
 6. Assess directive alignment (if directive word is present in question)
 7. Comment on whether visuals (maps/diagrams/tables) were needed but missing
 8. Give an overall encouraging assessment
+9. **GROUNDING RESEARCH (Google Search Tool)**: If relevant, the model SHOULD perform a search to grounding its evaluation with recent facts (2024-2026).
+   Use the following search query patterns to guide your grounding:
+   - "Latest government policies and schemes related to {provided_question or 'the topic'} (2024-2026)"
+   - "Recent Supreme Court and High Court judgments relevant to {provided_question or 'the topic'}"
+   - "Key international reports, agreements or summits related to {provided_question or 'the topic'} (year 2024-2026)"
+   - "Recent news on events, crises or significant developments in {provided_question or 'the topic'} (2024-2026)"
+   - "Current data or indices relevant to {provided_question or 'the topic'} (latest reports/statistics)"
 """)
     
     if syllabus_content:
@@ -947,6 +958,7 @@ def _parse_evaluation_response(response_text: str) -> dict:
             "visual_feedback": feedback_data.get("visual_feedback"),
             "strategy_tip": feedback_data.get("strategy_tip"),
             "overall_assessment": feedback_data.get("overall_assessment", ""),
+            "current_affairs_feedback": feedback_data.get("current_affairs_feedback"),
             "margin_comments": feedback_data.get("margin_comments", [])
         }
         
