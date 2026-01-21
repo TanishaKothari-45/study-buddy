@@ -4,6 +4,7 @@ Pinecone vector store handler with LangChain integration
 import logging
 import os
 from typing import List, Dict, Any, Optional, ClassVar
+import numpy as np
 from fastapi import HTTPException
 
 # Try to import Pydantic ConfigDict for v2 compatibility
@@ -1443,7 +1444,9 @@ class PineconeHandler:
             raise
     
     def mmr_select_from_chunks(self, chunks: List[Dict[str, Any]], query_text: str,
-                               k: int = 10, lambda_mult: float = 0.65) -> List[Dict[str, Any]]:
+                               k: int = 10, lambda_mult: float = 0.65,
+                               chunk_embeddings: Optional[List[np.ndarray]] = None,
+                               query_embedding: Optional[np.ndarray] = None) -> List[Dict[str, Any]]:
         """
         Apply MMR diversity selection to a combined list of chunks from multiple sources.
         
@@ -1470,15 +1473,19 @@ class PineconeHandler:
             return chunks[:k]
         
         try:
-            import numpy as np
             
-            # Pure Python MMR implementation - no FAISS or vectorstore needed
-            # Step 1: Embed query and all chunks
-            logger.debug(f"   → Embedding query and {len(chunks)} chunks...")
-            query_embedding = np.array(self.langchain_embeddings.embed_query(query_text))
+            # Step 1: Embed query and all chunks (if not provided)
+            if query_embedding is None:
+                logger.debug(f"   → Embedding query...")
+                query_embedding = np.array(self.langchain_embeddings.embed_query(query_text))
             
-            chunk_texts = [chunk.get("content", "") for chunk in chunks]
-            chunk_embeddings = [np.array(emb) for emb in self.langchain_embeddings.embed_documents(chunk_texts)]
+            if chunk_embeddings is None:
+                logger.debug(f"   → Embedding {len(chunks)} chunks...")
+                chunk_texts = [chunk.get("content", "") for chunk in chunks]
+                chunk_embeddings = [np.array(emb) for emb in self.langchain_embeddings.embed_documents(chunk_texts)]
+            
+            # Ensure chunk_embeddings is correctly sized (in case a subset of precomputed was passed wrongly)
+            # But the caller should ensure alignment.
             
             # Step 2: Calculate query-document similarities
             def cosine_similarity(a, b):

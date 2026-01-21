@@ -1,232 +1,265 @@
 {
-    "metadata": {
-      "subject": "Geography",
-      "total_patterns": 6,
-      "description": "UPSC Prelims Geography question grammar dataset for few-shot prompting and style conditioning."
+  "metadata": {
+    "subject": "Geography",
+    "description": "Enhanced UPSC Prelims Geography question patterns for few-shot prompting and style conditioning, including trap logic and pattern notes."
+  },
+  "patterns": [
+    {
+      "id": "Q1",
+      "title": "Concept Definition / Single-Choice",
+      "explanation": "Tests precise conceptual understanding. Distractors should be conceptually close, not random.",
+      "examples": [
+        {
+          "question": "Which one of the following best describes the Coriolis force?",
+          "options": [
+            "(a) A force that deflects moving objects to the right in the Northern Hemisphere and to the left in the Southern Hemisphere",
+            "(b) A force that accelerates air from high pressure to low pressure",
+            "(c) A force caused by temperature differences between land and sea",
+            "(d) A force that increases with latitude due to decreased angular velocity"
+          ],
+          "correct_answer": "a",
+          "pattern_notes": "Definition of a core atmospheric concept; distractors are plausible but incorrect physical interpretations.",
+          "distractor_rationales": {
+            "(b)": "Confuses Coriolis effect with pressure gradient force.",
+            "(c)": "Mixes thermal contrast concept with dynamic Coriolis effect.",
+            "(d)": "Incorrect rationale on latitude effect; angular velocity decreases towards poles."
+          }
+        },
+        {
+          "question": "Which one of the following best defines 'continental drift'?",
+          "options": [
+            "(a) The vertical sinking of continents due to crustal cooling",
+            "(b) The lateral movement of continents over geological time",
+            "(c) Temporary shifting of tectonic plates due to earthquakes",
+            "(d) Seasonal fluctuation in land elevation due to climate change"
+          ],
+          "correct_answer": "b",
+          "pattern_notes": "Core movement of lithospheric plates; distractors reflect common misconceptions.",
+          "distractor_rationales": {
+            "(a)": "Mixes heat loss processes with lateral movement.",
+            "(c)": "Confuses plate drift with transient seismic events.",
+            "(d)": "Irrelevant seasonal effect."
+          }
+        }
+      ]
     },
-    "patterns": [
-      {
-        "id": "Q1",
-        "title": "Concept Definition / Single-Choice",
-        "explanation": "Tests conceptual understanding of a definition or scheme. UPSC often uses 'Which one of the following best describes...' to test conceptual precision or policy understanding.",
-        "example_questions": [
-          {
-            "question": "Which one of the following best describes the concept of 'Small Farmer Large Field'?",
-            "options": [
-              "(a) Resettlement of people uprooted from war zones for collective farming",
-              "(b) Many marginal farmers in an area organize themselves and synchronize key agricultural operations",
-              "(c) Many marginal farmers contract with a corporate body for fixed-term land use",
-              "(d) A company provides inputs and loans to small farmers to grow its required crops"
-            ],
-            "answer": "b",
-            "topic": "Agriculture - Farming Models",
-            "year": 2023
-          },
-          {
-            "question": "Which one of the following best describes the term 'Green Hydrogen'?",
-            "options": [
-              "(a) Hydrogen produced from natural gas",
-              "(b) Hydrogen produced using renewable energy sources such as solar or wind",
-              "(c) Hydrogen generated through nuclear fission",
-              "(d) Hydrogen produced using biomass combustion"
-            ],
-            "answer": "b",
-            "topic": "Energy and Resources",
-            "year": 2022
-          },
-          {
-            "question": "Which one of the following best defines the process of 'Salinization'?",
-            "options": [
-              "(a) Accumulation of salt in soil due to irrigation with saline water",
-              "(b) Conversion of fertile land into desert",
-              "(c) Excessive use of fertilizers leading to waterlogging",
-              "(d) Deposition of calcium in soil after deforestation"
-            ],
-            "answer": "a",
-            "topic": "Soil Degradation",
-            "year": 2021
+    {
+      "id": "Q2",
+      "title": "Multi-Statement Evaluation",
+      "explanation": "Evaluates relationships across factual and conceptual statements; distractors require elimination reasoning.",
+      "examples": [
+        {
+          "question": "Consider the following statements about Indian monsoon:\n1. The southwest monsoon is influenced by the thermal contrast between land and sea.\n2. The monsoon trough shifts southwards during peak summer.\n3. Western Disturbances bring winter rainfall to North India.\nWhich of the above statements are correct?",
+          "options": [
+            "(a) 1 and 3 only",
+            "(b) 2 and 3 only",
+            "(c) 1 and 2 only",
+            "(d) All of the above"
+          ],
+          "correct_answer": "c",
+          "pattern_notes": "Three-statement format common in UPSC geography; each statement tests distinct monsoon aspects.",
+          "distractor_rationales": {
+            "(a)": "Statement 3 is correct but 2 is the key seasonal shift detail; traps incomplete recall.",
+            "(b)": "Both are distinct phenomena but monsoon trough behavior linked more to ITCZ movement.",
+            "(d)": "Includes incorrect item 3 in winter rainfall context."
           }
-        ]
-      },
-      {
-        "id": "Q2",
-        "title": "Multi-Statement Evaluation",
-        "explanation": "This pattern uses 'Consider the following statements' followed by numbered facts or concepts. It evaluates factual recall and conceptual distinction across multiple points. The final sub-question asks how many or which statements are correct.",
-        "example_questions": [
-          {
-            "question": "Consider the following statements:\n1. The Government of India provides Minimum Support Price for niger (Guizotia abyssinica) seeds.\n2. Niger is cultivated as a Kharif crop.\n3. Some tribal people in India use niger seed oil for cooking.\nHow many of the above statements are correct?",
-            "options": [
-              "(a) Only one",
-              "(b) Only two",
-              "(c) All three",
-              "(d) None"
-            ],
-            "answer": "c",
-            "topic": "Agriculture - Oilseeds",
-            "year": 2023
-          },
-          {
-            "question": "Consider the following statements:\n1. The Himalayas are young fold mountains.\n2. They were formed due to collision between the Indo-Australian and Eurasian plates.\n3. They are among the oldest mountain systems in the world.\nWhich of the statements given above is/are correct?",
-            "options": [
-              "(a) 1 only",
-              "(b) 1 and 2 only",
-              "(c) 1 and 3 only",
-              "(d) 1, 2 and 3"
-            ],
-            "answer": "b",
-            "topic": "Geomorphology - Himalayas",
-            "year": 2020
-          },
-          {
-            "question": "Consider the following statements:\n1. Westerlies influence the rainfall pattern in Northern India during winters.\n2. Western Disturbances originate over the Mediterranean region.\nWhich of the statements given above is/are correct?",
-            "options": [
-              "(a) 1 only",
-              "(b) 2 only",
-              "(c) Both 1 and 2",
-              "(d) Neither 1 nor 2"
-            ],
-            "answer": "c",
-            "topic": "Climatology - Western Disturbances",
-            "year": 2021
+        },
+        {
+          "question": "Consider the following statements about ocean currents:\n1. Warm currents generally flow from the equator towards the poles.\n2. The Humboldt Current is a warm current.\n3. Ocean currents influence coastal climate.\nWhich of the above is/are correct?",
+          "options": [
+            "(a) 1 and 3 only",
+            "(b) 2 only",
+            "(c) 1, 2 and 3",
+            "(d) 3 only"
+          ],
+          "correct_answer": "a",
+          "pattern_notes": "Tests static physical geography (current characteristics) and climatic influence.",
+          "distractor_rationales": {
+            "(b)": "Humboldt is a cold current — classic misconception.",
+            "(c)": "Includes incorrect statement 2.",
+            "(d)": "Ignores fact 1 which is generally valid for major subtropical currents."
           }
-        ]
-      },
-      {
-        "id": "Q3",
-        "title": "Match-the-Pair Questions",
-        "explanation": "Two-column matching questions. They require pairing items such as regions vs resources, rivers vs origins, or mountain ranges vs countries. The question usually asks how many or which pairs are correctly matched.",
-        "example_questions": [
-          {
-            "question": "Consider the following pairs:\nRiver - Origin\n1. Ganga - Gangotri Glacier\n2. Godavari - Nasik Hills\n3. Krishna - Mahabaleshwar\nHow many of the above pairs are correctly matched?",
-            "options": [
-              "(a) Only one",
-              "(b) Only two",
-              "(c) All three",
-              "(d) None"
-            ],
-            "answer": "b",
-            "topic": "Indian Geography - Rivers",
-            "year": 2021
-          },
-          {
-            "question": "Consider the following pairs:\nMountain Range - Country\n1. Andes - South America\n2. Alps - Europe\n3. Atlas - Africa\nHow many of the above pairs are correctly matched?",
-            "options": [
-              "(a) Only one",
-              "(b) Only two",
-              "(c) All three",
-              "(d) None"
-            ],
-            "answer": "c",
-            "topic": "World Geography - Mountains",
-            "year": 2020
-          },
-          {
-            "question": "Consider the following pairs:\nCrop - Region\n1. Coffee - Karnataka\n2. Tea - Assam\n3. Rubber - Maharashtra\nHow many of the above pairs are correctly matched?",
-            "options": [
-              "(a) Only one",
-              "(b) Only two",
-              "(c) All three",
-              "(d) None"
-            ],
-            "answer": "b",
-            "topic": "Agriculture - Crops and Regions",
-            "year": 2018
+        }
+      ]
+    },
+    {
+      "id": "Q3",
+      "title": "Match-the-Pair Questions",
+      "explanation": "Requires precise one-to-one mapping of related concepts; distractors exploit common geography confusions.",
+      "examples": [
+        {
+          "question": "Consider the following pairs:\nRiver - Basin\n1. Rhine - North Sea\n2. Zambezi - Indian Ocean\n3. Ganga - Bay of Bengal\nHow many of the above are correctly matched?",
+          "options": [
+            "(a) Only one",
+            "(b) Only two",
+            "(c) All three",
+            "(d) None"
+          ],
+          "correct_answer": "b",
+          "pattern_notes": "Rivers with outlet basins; distractors are plausible but require correct basin identification.",
+          "distractor_rationales": {
+            "(a)": "Includes only clear match, but 3 is also correct.",
+            "(c)": "Incorrect because Zambezi flows into the Atlantic.",
+            "(d)": "Incorrect because two matches are correct."
           }
-        ]
-      },
-      {
-        "id": "Q4",
-        "title": "Assertion–Reason Type (Statement Linking)",
-        "explanation": "These questions test cause–effect or conceptual logic through 'Statement–I' and 'Statement–II'. The student must determine whether both are true and if Statement–II explains Statement–I correctly.",
-        "example_questions": [
-          {
-            "question": "Statement–I: India, despite having uranium deposits, depends on coal for most of its electricity production.\nStatement–II: Uranium enriched to at least 60% is required for electricity generation.\nWhich one of the following is correct in respect of the above statements?",
-            "options": [
-              "(a) Both Statement–I and Statement–II are correct and Statement–II is the correct explanation for Statement–I",
-              "(b) Both Statement–I and Statement–II are correct but Statement–II is not the correct explanation for Statement–I",
-              "(c) Statement–I is correct but Statement–II is incorrect",
-              "(d) Statement–I is incorrect but Statement–II is correct"
-            ],
-            "answer": "c",
-            "topic": "Energy Resources",
-            "year": 2023
-          },
-          {
-            "question": "Statement–I: Indian monsoon is influenced by both the Tibetan Plateau and the Indian Ocean.\nStatement–II: The Tibetan Plateau acts as a heat source during summer and affects the monsoon circulation.\nWhich one of the following is correct in respect of the above statements?",
-            "options": [
-              "(a) Both Statement–I and Statement–II are correct and Statement–II is the correct explanation for Statement–I",
-              "(b) Both Statement–I and Statement–II are correct but Statement–II is not the correct explanation for Statement–I",
-              "(c) Statement–I is correct but Statement–II is incorrect",
-              "(d) Statement–I is incorrect but Statement–II is correct"
-            ],
-            "answer": "a",
-            "topic": "Climatology - Monsoon Mechanism",
-            "year": 2020
+        },
+        {
+          "question": "Consider the following pairs:\nMountain Range - Continent\n1. Drakensberg - Africa\n2. Rockies - North America\n3. Ural - Europe\nHow many of the above are correctly matched?",
+          "options": [
+            "(a) Only one",
+            "(b) Only two",
+            "(c) All three",
+            "(d) None"
+          ],
+          "correct_answer": "a",
+          "pattern_notes": "Tests both world geography and subtle continental boundaries.",
+          "distractor_rationales": {
+            "(b)": "Ural Mountains span Europe and Asia, not strictly Europe.",
+            "(c)": "Includes incorrect interpretation of Urals.",
+            "(d)": "Incorrect because one correct mapping exists."
           }
-        ]
-      },
-      {
-        "id": "Q5",
-        "title": "Fact-Based / Direct MCQ",
-        "explanation": "Tests static geographical facts like location, composition, or a simple physical process. These questions are direct and rely on memory or conceptual clarity.",
-        "example_questions": [
-          {
-            "question": "Which one of the following is a part of the Congo Basin?",
-            "options": [
-              "(a) Cameroon",
-              "(b) Nigeria",
-              "(c) South Sudan",
-              "(d) Uganda"
-            ],
-            "answer": "a",
-            "topic": "World Geography - River Basins",
-            "year": 2021
-          },
-          {
-            "question": "Which one of the following rivers flows through a rift valley?",
-            "options": [
-              "(a) Godavari",
-              "(b) Tapi",
-              "(c) Krishna",
-              "(d) Mahanadi"
-            ],
-            "answer": "b",
-            "topic": "Geomorphology - Rivers",
-            "year": 2019
+        }
+      ]
+    },
+    {
+      "id": "Q4",
+      "title": "Assertion–Reason Type (Statement Linking)",
+      "explanation": "Tests conceptual cause–effect or logical linkage between two statements.",
+      "examples": [
+        {
+          "question": "Assertion (A): The thickness of the troposphere is greatest at the equator.\nReason (R): Strong convectional currents carry heat and moisture to greater heights at the equator.\nWhich of the following is correct?",
+          "options": [
+            "(a) Both A and R are correct and R explains A",
+            "(b) Both A and R are correct but R does not explain A",
+            "(c) A is correct but R is incorrect",
+            "(d) A is incorrect but R is correct"
+          ],
+          "correct_answer": "a",
+          "pattern_notes": "Both statements are precise geography concepts; distractors reflect logical relationships.",
+          "distractor_rationales": {
+            "(b)": "True statements but misses explanatory link.",
+            "(c)": "Rejects correct reasoning.",
+            "(d)": "Misrepresents the conceptual relationship."
           }
-        ]
-      },
-      {
-        "id": "Q6",
-        "title": "Map / Location / Identification",
-        "explanation": "Tests spatial or map-based knowledge — locations, passes, rivers, or features shown on maps. Often tests recognition or directional awareness.",
-        "example_questions": [
-          {
-            "question": "With reference to Indian geography, which of the following mountain passes lies on the eastern Himalayas?",
-            "options": [
-              "(a) Nathu La",
-              "(b) Zoji La",
-              "(c) Shipki La",
-              "(d) Rohtang Pass"
-            ],
-            "answer": "a",
-            "topic": "Indian Geography - Mountain Passes",
-            "year": 2019
-          },
-          {
-            "question": "Which one of the following cities is closest to the Tropic of Cancer?",
-            "options": [
-              "(a) Bhopal",
-              "(b) Ranchi",
-              "(c) Agra",
-              "(d) Delhi"
-            ],
-            "answer": "b",
-            "topic": "Indian Geography - Latitude and Climate",
-            "year": 2018
+        },
+        {
+          "question": "Assertion (A): Continental drift theory explains the similarity of fossil records in distant continents.\nReason (R): Continental drift is caused by differences in ocean salinity gradients.\nWhich of the following is correct?",
+          "options": [
+            "(a) Both A and R are correct and R explains A",
+            "(b) Both A and R are correct but R does not explain A",
+            "(c) A is correct but R is incorrect",
+            "(d) A is incorrect but R is correct"
+          ],
+          "correct_answer": "c",
+          "pattern_notes": "Tests conceptual understanding of drift and traps misconceptions about driving mechanisms.",
+          "distractor_rationales": {
+            "(a)": "Incorrect because R is false.",
+            "(b)": "Incorrect because salinity gradients are not the cause.",
+            "(d)": "Misrepresents basic plate tectonics."
           }
-        ]
-      }
-    ]
-  }
-  
+        }
+      ]
+    },
+    {
+      "id": "Q5",
+      "title": "Fact-Based / Direct MCQ",
+      "explanation": "Direct knowledge of physical or regional geography with distractors that are plausible yet incorrect.",
+      "examples": [
+        {
+          "question": "Which one of the following rivers flows through a rift valley?",
+          "options": [
+            "(a) Congo",
+            "(b) Nile",
+            "(c) Brahmaputra",
+            "(d) Ganga"
+          ],
+          "correct_answer": "b",
+          "pattern_notes": "Direct location feature fact — Nile is in East African Rift Valley.",
+          "distractor_rationales": {
+            "(a)": "Congo basin is not a rift valley.",
+            "(c)": "Brahmaputra does not follow a classic rift valley.",
+            "(d)": "Ganga flows in alluvial plains."
+          }
+        },
+        {
+          "question": "Which one of the following best describes the position of the Tropic of Cancer?",
+          "options": [
+            "(a) 23.5° N latitude",
+            "(b) 15° N latitude",
+            "(c) 30° S latitude",
+            "(d) Equator"
+          ],
+          "correct_answer": "a",
+          "pattern_notes": "Tests fundamental geographic coordinate.",
+          "distractor_rationales": {
+            "(b)": "Incorrect latitude often confused with sub-tropical markers.",
+            "(c)": "Latitude in the Southern Hemisphere — distractor.",
+            "(d)": "Equator is a different reference line."
+          }
+        }
+      ]
+    },
+    {
+      "id": "Q6",
+      "title": "Map / Location / Identification",
+      "explanation": "Spatial reasoning or relative location testing.",
+      "examples": [
+        {
+          "question": "Which one of the following cities is closest to the Tropic of Cancer?",
+          "options": [
+            "(a) Bhopal",
+            "(b) Ranchi",
+            "(c) Nagpur",
+            "(d) Delhi"
+          ],
+          "correct_answer": "b",
+          "pattern_notes": "Requires geometric/latitudinal knowledge, not recall alone.",
+          "distractor_rationales": {
+            "(a)": "Bhopal is north of the Tropic.",
+            "(c)": "Nagpur is slightly north.",
+            "(d)": "Delhi is much farther north."
+          }
+        },
+        {
+          "question": "Which one of the following mountain passes lies in the eastern Himalayas?",
+          "options": [
+            "(a) Nathu La",
+            "(b) Jelep La",
+            "(c) Rohtang Pass",
+            "(d) Zoji La"
+          ],
+          "correct_answer": "b",
+          "pattern_notes": "Spatial understanding of Himalayan passes.",
+          "distractor_rationales": {
+            "(a)": "Nathu La is in the Sikkim-Tibet area, but Jelep La is closer to eastern sector.",
+            "(c)": "Rohtang is in western Himalayas.",
+            "(d)": "Zoji La is in the western Himalayas."
+          }
+        }
+      ]
+    },
+    {
+      "id": "Q7",
+      "title": "Concept + Current Context",
+      "explanation": "Applies a geography concept to an observed or contemporary context (e.g., climate variation).",
+      "examples": [
+        {
+          "question": "Consider the following statements about recent trends in Indian monsoon onset:\n1. Rising sea surface temperatures can delay the monsoon onset.\n2. Enhanced land–sea temperature contrasts always lead to earlier monsoon onset.\n3. Climate models show increased variability in monsoon patterns.\nWhich of the above is/are correct?",
+          "options": [
+            "(a) Only 1",
+            "(b) 1 and 3 only",
+            "(c) 2 only",
+            "(d) All of the above"
+          ],
+          "correct_answer": "b",
+          "pattern_notes": "Integrates current climatic observations with static monsoon concepts.",
+          "distractor_rationales": {
+            "(a)": "Ignores variability shown in models.",
+            "(c)": "Reflects misunderstanding of temperature contrast effect.",
+            "(d)": "Incorrect because statement 2 is not universally valid."
+          }
+        }
+      ]
+    }
+  ]
+}

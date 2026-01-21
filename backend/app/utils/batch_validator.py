@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def validate_batch(questions: List[Dict[str, Any]]) -> Tuple[List[Dict], List[str]]:
     """
-    Validate a batch of questions for schema and quality
+    Validate a batch of questions for schema and quality with enhanced UPSC rigor
     
     Args:
         questions: List of question dictionaries from LLM
@@ -23,82 +23,75 @@ def validate_batch(questions: List[Dict[str, Any]]) -> Tuple[List[Dict], List[st
     for i, q in enumerate(questions):
         question_num = i + 1
         
-        # Schema validation - required fields
+        # 1. Schema validation - required fields
         required_fields = ["question", "options", "correct_answer", "explanation"]
         missing_fields = [f for f in required_fields if f not in q]
         if missing_fields:
             errors.append(f"Q{question_num}: Missing fields {missing_fields}")
             continue
         
-        # Options validation - must have exactly 4
+        # 2. Options validation - must have exactly 4
         options = q.get("options", [])
-        if not isinstance(options, list):
-            errors.append(f"Q{question_num}: Options must be a list")
+        if not isinstance(options, list) or len(options) != 4:
+            errors.append(f"Q{question_num}: Options must be a list of exactly 4 items")
             continue
         
-        if len(options) != 4:
-            errors.append(f"Q{question_num}: Must have exactly 4 options, got {len(options)}")
-            continue
+        # Prefix enforcement (a, b, c, d)
+        prefixes_valid = True
+        for j, opt in enumerate(options):
+            prefix = chr(97 + j)
+            if not str(opt).strip().lower().startswith(f"({prefix})"):
+                # Append the prefix if missing for better UX
+                options[j] = f"({prefix}) {str(opt).strip()}"
+                prefixes_valid = False
         
-        # Unique options check
+        if not prefixes_valid:
+            logger.debug(f"Q{question_num}: Normalized option prefixes")
+            
         if len(set(options)) != 4:
             errors.append(f"Q{question_num}: Duplicate options found")
             continue
         
-        # Empty options check
-        if any(not opt or not str(opt).strip() for opt in options):
-            errors.append(f"Q{question_num}: Empty option(s) found")
-            continue
-        
-        # Correct answer validation
-        correct_answer = q.get("correct_answer", "").strip().upper()
+        # 3. Correct answer validation
+        correct_answer = str(q.get("correct_answer", "")).strip().upper().replace("(", "").replace(")", "")
         if correct_answer not in ["A", "B", "C", "D"]:
             errors.append(f"Q{question_num}: Invalid correct_answer '{correct_answer}', must be A/B/C/D")
             continue
-        
-        # Normalize correct_answer
         q["correct_answer"] = correct_answer
         
-        # Minimum length checks (quality heuristic)
+        # 4. Length and Rigor Heuristics
         question_text = str(q.get("question", "")).strip()
-        if len(question_text) < 20:
-            errors.append(f"Q{question_num}: Question too short ({len(question_text)} chars)")
-            continue
-        
         explanation = str(q.get("explanation", "")).strip()
-        if len(explanation) < 30:
-            errors.append(f"Q{question_num}: Explanation too short ({len(explanation)} chars)")
+        
+        if len(question_text) < 50:
+            errors.append(f"Q{question_num}: Question too short (< 50 chars)")
             continue
         
-        # UPSC style check - basic heuristics
-        question_lower = question_text.lower()
-        upsc_indicators = [
-            "which of the following",
-            "consider the following",
-            "with reference to",
-            "statement-i", "statement-ii",
-            "assertion", "reason",
-            "select the correct",
-            "choose the correct",
-            "arrange the following"
-        ]
-        
-        has_upsc_style = any(indicator in question_lower for indicator in upsc_indicators)
-        if not has_upsc_style and len(question_text) < 50:
-            # Allow short questions if they don't look like UPSC style
-            # This is a soft warning, not a hard error
-            logger.debug(f"Q{question_num}: May not follow UPSC style")
-        
+        if len(explanation) < 100:
+            errors.append(f"Q{question_num}: Explanation lacks depth (< 100 chars)")
+            continue
+            
+        # 5. Trap Logic & Distractor Balance
+        opt_lengths = [len(str(o)) for o in options]
+        max_opt = max(opt_lengths)
+        min_opt = min(opt_lengths)
+        # Avoid "long pole" distractors - if one is 5x longer than others, it's a giveaway
+        if max_opt > min_opt * 5 and max_opt > 120:
+            errors.append(f"Q{question_num}: Option length imbalance (potential giveaway)")
+            continue
+
+        # 6. Explanation Thoroughness
+        exp_lower = explanation.lower()
+        if "correct" not in exp_lower and "right" not in exp_lower:
+            errors.append(f"Q{question_num}: Explanation doesn't explicitly justify correct option")
+            continue
+
         # All validations passed
         valid.append(q)
     
     # Log validation results
     if errors:
-        logger.warning(f"⚠️ Validation: {len(valid)}/{len(questions)} questions passed ({len(errors)} errors)")
-        for error in errors[:3]:  # Show first 3 errors
-            logger.warning(f"   - {error}")
-        if len(errors) > 3:
-            logger.warning(f"   - ... and {len(errors) - 3} more errors")
+        logger.warning(f"⚠️ Validation: {len(valid)}/{len(questions)} passed ({len(errors)} errors)")
     else:
         logger.info(f"✅ Validation: All {len(valid)} questions passed")
     

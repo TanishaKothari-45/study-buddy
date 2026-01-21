@@ -334,7 +334,6 @@ async def generate_mock_test_task(
     job_id: str,
     num_questions: int,
     topics: List[str],
-    difficulty: str,
     api_key: str
 ):
     """
@@ -346,8 +345,7 @@ async def generate_mock_test_task(
 
     await set_job_status(redis, job_id, "processing",
                          num_questions=num_questions,
-                         topics=topics,
-                         difficulty=difficulty)
+                         topics=topics)
 
     try:
         await check_cancellation(ctx, job_id)
@@ -369,8 +367,7 @@ async def generate_mock_test_task(
             pyq_chunks, content_chunks = hybrid_retrieve_for_mock_test(
                 pinecone_handler=pinecone_handler,
                 topics=topics,
-                num_questions=num_questions,
-                difficulty=difficulty
+                num_questions=num_questions
             )
             logger.info(f"✅ [JOB {job_id}] Retrieved {len(content_chunks)} content chunks, {len(pyq_chunks)} PYQ chunks")
         except Exception as e:
@@ -393,7 +390,6 @@ async def generate_mock_test_task(
             all_questions = await generate_micro_batches(
                 all_chunks=all_chunks,
                 num_questions=num_questions,
-                difficulty=difficulty,
                 topics=topics,
                 api_key=api_key,
                 job_id=job_id,
@@ -434,7 +430,6 @@ async def generate_mock_test_task(
                 gap_fill = await fill_gaps_targeted(
                     current_questions=unique_questions,
                     target=num_questions,
-                    difficulty=difficulty,
                     topics=topics,
                     api_key=api_key,
                     job_id=job_id,
@@ -469,8 +464,7 @@ async def generate_mock_test_task(
                     "chapter": "Mock Test",
                     "section": f"Question {i+1}",
                     "question_id": f"{job_id}_q{i+1}",
-                    "topics": topics,
-                    "difficulty": difficulty
+                    "topics": topics
                 }
             })
 
