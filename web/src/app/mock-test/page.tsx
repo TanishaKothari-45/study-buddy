@@ -532,7 +532,7 @@ export default function MockTestPage() {
                                             {qIdx + 1}
                                         </span>
                                         <div className="space-y-1">
-                                            <CardTitle className="text-base font-medium leading-relaxed">
+                                            <CardTitle className="text-base font-medium leading-relaxed whitespace-pre-line">
                                                 {q.question}
                                             </CardTitle>
                                             {submitted && (
