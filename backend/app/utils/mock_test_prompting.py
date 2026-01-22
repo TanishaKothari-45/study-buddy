@@ -127,6 +127,7 @@ Purpose:
 Expected Features:
 - Use “Consider the following statements…” followed by numbered items.
 - Statements must be independent but conceptually related.
+- Statements should test the application of static concepts.
 - Options query which are correct, requiring the solver to reason through each.
 
 Linkage Rules:
@@ -230,6 +231,7 @@ Static vs Current:
 Purpose:
 - Tests *static geography principles* in the light of *recent contextual observations or trends*.
 - Current context should serve as a testing *lens* for geography concepts, not trivia.
+- Current context should be applied part of the static concept.
 
 Expected Features:
 - One or more statements include a current context premise.
@@ -333,8 +335,8 @@ You MUST use your Google Search tool to research the following queries. These qu
 ### STEP 2: INTEGRATE CURRENT AFFAIRS WITH STATIC CONTENT
 
 **IMPORTANT**: You MUST create questions that integrate BOTH for UPSC style questions:
-1. **Static Knowledge** - Geography concepts, processes, theories
-2. **Current Affairs** (from your search results) - Recent events, policies, data, government initiatives
+1. **Static Knowledge** - Geography concepts, processes, theories 
+2. **Current Affairs** (from your search results) - Recent events, policies, data, government initiatives that are applied to the static content
 
 **INTEGRATION EXAMPLES:**
 - "In light of India's recent National Monsoon Mission findings (2024)..." + static monsoon concept
