@@ -722,6 +722,57 @@ def is_actual_question_chunk(chunk: Dict[str, Any]) -> bool:
 # PHASE 1: MICRO-BATCH GENERATION FUNCTIONS
 # ============================================================================
 
+def build_current_search_queries(topic_clusters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Generate 2 smart search queries per topic cluster for UPSC Geography Prelims.
+    Query selection is based on major_domain from chunk metadata.
+    
+    Total queries = unique_topics × 2
+    For 15 unique topics: 30 queries
+    """
+    all_queries = []
+    
+    for cluster in topic_clusters:
+        mt = cluster.get("micro_topic", "")
+        subs_list = cluster.get("sub_topics", [])
+        subs = " ".join(subs_list) if isinstance(subs_list, list) else str(subs_list)
+        major_domain = cluster.get("major_domain", "").lower()
+        
+        # Select 3 most relevant queries based on major_domain from metadata
+        if "physical" in major_domain:
+            # Physical Geography: Trends + Research + Extreme Events
+            all_queries.extend([
+                {"q": f"latest research {mt} {subs} scientific study geography India 2024 2025", "recency": 365},
+                {"q": f"{mt} {subs} extreme events 2024 2025 2026 India geography disaster", "recency": 365}
+            ])
+        elif "human" in major_domain:
+            # Human Geography: Trends + Research + Government Policy
+            all_queries.extend([
+                {"q": f"recent trends {mt} {subs} geography 2024 2025 2026 indian or global development", "recency": 365},
+                {"q": f"{mt} {subs} government policy implementation India 2024 2025", "recency": 365}
+            ])
+        elif "indian" in major_domain:
+            # Indian Geography: Trends + Government Policy + Regional Development
+            all_queries.extend([
+                {"q": f"recent trends or developments or extreme events {mt} {subs} India 2024 2025 2026 geography", "recency": 365},
+                {"q": f"{mt} {subs} government scheme policy India 2024 2025", "recency": 365},
+            ])
+        elif "world" in major_domain:
+            # World Geography: Trends + Global Policy + International Events
+            all_queries.extend([
+                {"q": f"recent trends or extreme events {mt} {subs} world geography 2024 2025 2026", "recency": 365},
+                {"q": f"{mt} {subs} global treaties international initiatives 2024 2025", "recency": 365}
+            ])
+        else:
+            # Default: Trends + Policy + Government (most versatile)
+            all_queries.extend([
+                {"q": f"recent trends or events {mt} {subs} geography 2024 2025 2026", "recency": 365},
+                {"q": f"{mt} {subs} climate policy environment geography 2024 2025", "recency": 365},
+                {"q": f"{mt} {subs} government policy India 2024 2025", "recency": 365}
+            ])
+        
+    return all_queries
+
 
 async def generate_single_batch(
     batch_num: int,
@@ -745,14 +796,51 @@ async def generate_single_batch(
         # Prepare content from chunks
         content_text = "\n\n".join([chunk['content'] for chunk in chunks])
 
+        # Step 0: Build current affairs search queries from chunk metadata
+        logger.info(f"📊 [BATCH {batch_num}] Extracting metadata from {len(chunks)} chunks...")
+        topic_clusters = []
+        for i, chunk in enumerate(chunks):
+            meta = chunk.get("metadata", {})
+            logger.debug(f"   Chunk {i+1} metadata: {meta}")
+            micro = meta.get("micro_topic") or meta.get("section") or meta.get("chapter")
+            subs = meta.get("sub_topics") or []
+            major_domain = meta.get("major_domain") or meta.get("domain") or ""
+            if micro:
+                topic_clusters.append({"micro_topic": micro, "sub_topics": subs, "major_domain": major_domain})
+                logger.debug(f"   ✅ Chunk {i+1}: micro_topic='{micro}', major_domain='{major_domain}'")
+            else:
+                logger.warning(f"   ⚠️ Chunk {i+1}: No micro_topic found in metadata")
+        
+        # Deduplicate topic clusters early
+        seen_mt = set()
+        unique_clusters = []
+        for cluster in topic_clusters:
+            mt = cluster.get("micro_topic", "")
+            if mt and mt not in seen_mt:
+                seen_mt.add(mt)
+                unique_clusters.append(cluster)
+        
+        logger.info(f"📦 [BATCH {batch_num}] Extracted {len(topic_clusters)} total clusters, {len(unique_clusters)} unique:")
+        for i, cluster in enumerate(unique_clusters):
+            logger.info(f"   Unique Cluster {i+1}: micro_topic='{cluster['micro_topic']}', sub_topics={cluster['sub_topics']}")
+        
+        logger.info(f"🔍 [BATCH {batch_num}] Building search queries from {len(unique_clusters)} unique clusters...")
+        search_queries = build_current_search_queries(unique_clusters)
+        logger.info(f"✅ [BATCH {batch_num}] Generated {len(search_queries)} search queries ({len(search_queries)//3} topics × 3 queries):")
+        for i, sq in enumerate(search_queries[:9]):  # Show first 9 queries (3 topics)
+            logger.info(f"   Query {i+1}: {sq['q'][:100]}... (recency: {sq['recency']} days)")
+        if len(search_queries) > 9:
+            logger.info(f"   ... and {len(search_queries) - 9} more queries")
+        
         # Prepare prompt
         topic = topics[0] if topics else "Geography"
         user_prompt = assemble_upsc_prompt(
             topic=topic,
             num_questions=num_questions,
             retrieved_static_text=content_text,
-            retrieved_current_affairs="",
-            pyq_chunks=pyq_chunks
+            retrieved_current_affairs="", # Will be filled by Gemini tool use
+            pyq_chunks=pyq_chunks,
+            search_queries=search_queries # Pass queries to prompt builder
         )
 
         # Use GeminiClient for generation with structured output
@@ -766,37 +854,86 @@ async def generate_single_batch(
             # We need a system prompt
             from ..utils.mock_test_prompting import SYSTEM_PROMPT
             
-            # Passed Pydantic model is automatically cleaned by GeminiClient
+            # IMPORTANT: Gemini doesn't support response_schema + Google Search together
+            # We must parse JSON manually when using search tool
             response_text = await gemini_client.generate_response(
                 user_prompt=user_prompt,
                 system_prompt=SYSTEM_PROMPT,
-                response_schema=GeneratedQuestions,
-                temperature=0.0
+                response_schema=None,  # Cannot use with Google Search
+                temperature=0.0,
+                use_google_search=True # Enable search
             )
             
             # Simple token estimation for Gemini (Simplified)
             prompt_tokens = len(user_prompt) // 4
             completion_tokens = len(response_text) // 4
             
+            # Log raw response for debugging
+            logger.info(f"📥 [BATCH {batch_num}] Gemini raw response length: {len(response_text)} chars")
+            logger.debug(f"📥 [BATCH {batch_num}] First 500 chars: {response_text[:500]}")
+            
         except Exception as e:
             logger.error(f"❌ Gemini generation failed for batch {batch_num}: {e}")
             return [], 0, 0
 
-        # Parse JSON response
+        # Parse JSON response - handle markdown wrapping and other issues
         import json
+        import re
+        
+        questions_data = []
+        current_affairs_bullets = []
+        
         try:
-            # Structured generation ensures valid JSON without markdown wrapping
+            # First try direct parse
             response_data = json.loads(response_text)
             questions_data = response_data.get("questions", [])
+            current_affairs_bullets = response_data.get("current_affairs_bullets", [])
+            logger.info(f"✅ [BATCH {batch_num}] Direct JSON parse successful")
         except json.JSONDecodeError as e:
-            logger.error(f"❌ Batch {batch_num}: JSON parse error: {e}")
-            # Fallback sanitization in case of emergency
-            sanitized_text = sanitize_json_response(response_text)
-            try:
-                response_data = json.loads(sanitized_text)
-                questions_data = response_data.get("questions", [])
-            except:
-                questions_data = []
+            logger.warning(f"⚠️ [BATCH {batch_num}] Direct JSON parse failed: {e}")
+            logger.info(f"📄 [BATCH {batch_num}] Raw response preview: {response_text[:1000]}...")
+            
+            # Try to extract JSON from markdown code blocks
+            json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response_text)
+            if json_match:
+                try:
+                    extracted_json = json_match.group(1).strip()
+                    response_data = json.loads(extracted_json)
+                    questions_data = response_data.get("questions", [])
+                    current_affairs_bullets = response_data.get("current_affairs_bullets", [])
+                    logger.info(f"✅ [BATCH {batch_num}] Extracted JSON from markdown block")
+                except json.JSONDecodeError:
+                    pass
+            
+            # Try to find raw JSON object
+            if not questions_data:
+                json_obj_match = re.search(r'\{[\s\S]*"questions"[\s\S]*\}', response_text)
+                if json_obj_match:
+                    try:
+                        response_data = json.loads(json_obj_match.group(0))
+                        questions_data = response_data.get("questions", [])
+                        current_affairs_bullets = response_data.get("current_affairs_bullets", [])
+                        logger.info(f"✅ [BATCH {batch_num}] Extracted JSON via regex")
+                    except json.JSONDecodeError:
+                        pass
+            
+            # Final fallback: use sanitize_json_response
+            if not questions_data:
+                logger.warning(f"⚠️ [BATCH {batch_num}] Trying sanitize_json_response fallback...")
+                sanitized_text = sanitize_json_response(response_text)
+                try:
+                    response_data = json.loads(sanitized_text)
+                    questions_data = response_data.get("questions", [])
+                    current_affairs_bullets = response_data.get("current_affairs_bullets", [])
+                    logger.info(f"✅ [BATCH {batch_num}] Sanitization fallback successful")
+                except:
+                    logger.error(f"❌ [BATCH {batch_num}] All JSON parsing attempts failed")
+        
+        # Log current affairs bullets if found
+        if current_affairs_bullets:
+            logger.info(f"🗞️ [BATCH {batch_num}] Found {len(current_affairs_bullets)} current affairs bullets:")
+            for i, bullet in enumerate(current_affairs_bullets[:5]):
+                logger.info(f"   CA Bullet {i+1}: {bullet[:100]}...")
 
         # Validate batch
         valid_questions, errors = validate_batch(questions_data)

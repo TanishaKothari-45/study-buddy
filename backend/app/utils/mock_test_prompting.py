@@ -293,7 +293,8 @@ def assemble_upsc_prompt(
     num_questions: int,
     retrieved_static_text: str,
     retrieved_current_affairs: str = "",
-    pyq_chunks: List[Dict] = None
+    pyq_chunks: List[Dict] = None,
+    search_queries: List[Dict] = None
 ) -> str:
     """
     Build the hierarchical prompt for UPSC question generation.
@@ -304,6 +305,7 @@ def assemble_upsc_prompt(
         retrieved_static_text: Static material context (NCERT, Vision notes)
         retrieved_current_affairs: Current affairs context (if any)
         pyq_chunks: List of PYQ chunks for style learning
+        search_queries: Optional list of Google Search queries (q, recency)
         
     Returns:
         Complete prompt string ready for LLM
@@ -312,6 +314,36 @@ def assemble_upsc_prompt(
     
     # Pass full contexts without trimming (enforced by bucket selection logic)
     content_text = retrieved_static_text if retrieved_static_text else "No content material available."
+    
+    # Format search queries if provided
+    research_instruction = ""
+    if search_queries:
+        research_instruction = """### STEP 1: CONDUCT LIVE RESEARCH (CRITICAL FOR CURRENT AFFAIRS)
+
+You MUST use your Google Search tool to research the following queries. These queries target the LATEST (2024-2026) developments, policies, and data that will make your questions contemporary and UPSC-relevant.
+
+**SEARCH QUERIES TO EXECUTE:**
+"""
+        for i, sq in enumerate(search_queries):
+            research_instruction += f"{i+1}. {sq['q']}\n"
+        
+        research_instruction += """
+**AFTER SEARCHING**, synthesize your findings into factual 'Current Affair Bullets' (30-40 words each). This act as CURRENT AFFAIRS context for your questions.
+
+### STEP 2: INTEGRATE CURRENT AFFAIRS WITH STATIC CONTENT
+
+**IMPORTANT**: You MUST create questions that integrate BOTH for UPSC style questions:
+1. **Static Knowledge** - Geography concepts, processes, theories
+2. **Current Affairs** (from your search results) - Recent events, policies, data, government initiatives
+
+**INTEGRATION EXAMPLES:**
+- "In light of India's recent National Monsoon Mission findings (2024)..." + static monsoon concept
+- "The 2025 IPCC report highlighted..." + static climate change geography
+- "Considering the recent Himalayan glacial lake outburst..." + static glacier dynamics
+
+At least 40% of your questions MUST link current affairs with static concepts. This is CRITICAL for UPSC-style question quality.
+
+"""
     
     # Format PYQ chunks for style learning
     pyq_examples_text = ""
@@ -335,9 +367,9 @@ FRAMEWORK:
 {COGNITIVE_FRAMEWORK}
 
 
-CONTEXT SOURCES (Factual Knowledge - 70%):
+{research_instruction}
 
-Study Materials (NCERT, Vision Notes, Current Affairs):
+CONTEXT SOURCES (Factual Knowledge - 70%):
 
 {content_text}
 
@@ -380,20 +412,24 @@ CRITICAL FORMATTING RULES:
 
 1. For Multi-Statement questions ("Consider the following statements"):
    - The "question" field MUST include ALL statements WITHIN it.
-   - Format: "Consider the following statements regarding [topic]:\n1. [First statement]\n2. [Second statement]\n3. [Third statement]\n\nWhich of the following is correct?"
+   - Format: "Consider the following statements regarding [topic]:\\n1. [First statement]\\n2. [Second statement]\\n3. [Third statement]\\n\\nWhich of the following is correct?"
    - DO NOT put statements in a separate field - they must be part of the question text.
 
 2. For Assertion-Reason questions:
-   - Format: "Assertion (A): [Assertion text]\nReason (R): [Reason text]\n\nWhich of the following is correct?"
+   - Format: "Assertion (A): [Assertion text]\\nReason (R): [Reason text]\\n\\nWhich of the following is correct?"
    - Both Assertion and Reason MUST be in the question field.
 
 3. For Match-the-Pair questions:
-   - Format: "Match the following:\nList I\n1. [Item 1]\n2. [Item 2]\n3. [Item 3]\n\nList II\n(a) [Match 1]\n(b) [Match 2]\n(c) [Match 3]\n\nSelect the correct answer:"
+   - Format: "Match the following:\\nList I\\n1. [Item 1]\\n2. [Item 2]\\n3. [Item 3]\\n\\nList II\\n(a) [Match 1]\\n(b) [Match 2]\\n(c) [Match 3]\\n\\nSelect the correct answer:"
    - All pairs and lists MUST be in the question field.
 
 IMPORTANT: The "options" field must be a JSON array of strings, not a dictionary.
 Example: "options": ["(a) Option 1", "(b) Option 2", "(c) Option 3", "(d) Option 4"]
-NOT: "options": {{"A": "Option 1", "B": "Option 2"}}"""
+NOT: "options": {{"A": "Option 1", "B": "Option 2"}}
+
+**CRITICAL JSON OUTPUT REQUIREMENT:**
+You MUST return ONLY valid JSON with NO markdown formatting, NO code blocks, NO explanatory text.
+Start your response with {{ and end with }}.
+Do NOT wrap the JSON in ```json or any other markers."""
     
     return prompt.strip()
-
