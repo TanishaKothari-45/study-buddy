@@ -8,6 +8,8 @@ import os
 import random
 import logging
 import time
+import uuid
+from datetime import datetime
 import asyncio
 import math
 from uuid import uuid4
@@ -78,187 +80,82 @@ def sanitize_json_response(text: str) -> str:
         text = text.split("```")[1].split("```")[0].strip()
     return text
 
-async def generate_question_paper(pyq_chunks: List[Dict], content_chunks: List[Dict], 
-                            request: MockTestRequest, api_key: str, app_state=None) -> MockTestResponse:
-    """
-    Generate UPSC-style mock test questions using style learning + content knowledge.
-    
-    Style Learning (30% of prompt):
-    - 40% PYQ chunks (from database)
-    - 40% from patterns JSON
-    - 30% from feedback (if available)
-    
-    Content Knowledge (70% of prompt):
-    - Concept chunks (NCERT, Vision notes)
-    - Current affairs chunks (if medium/hard)
-    
-    Cost Optimization Strategy:
-    - Embeddings: Already using text-embedding-3-small (cheap)
-    - Question Generation: Uses gpt-4o (large model) for quality
-    - Other tasks (evaluation, query, etc.): Use gpt-4o-mini (small model)
-    
-    This balances cost (~90% tasks use mini) with quality (final questions use 4o).
-    """
-    # Prepare static text from content chunks
-    content_text = "\n\n".join([chunk['content'] for chunk in content_chunks[:20]])
-    logger.info(f"✅ Prepared content context from {len(content_chunks)} optimized chunks")
-    
-    # Extract topic from request (use first topic or "Geography" as default)
-    topic = request.topics[0] if request.topics else "Geography"
-    
-    # Assemble prompt using direct pyq_chunks
-    user_prompt = assemble_upsc_prompt(
-        topic=topic,
-        num_questions=request.num_questions,
-        retrieved_static_text=content_text,
-        retrieved_current_affairs="",
-        pyq_chunks=pyq_chunks
-    )
-    
-    logger.info(f"📊 Prompt composition: {len(content_chunks)} optimized chunks and {len(pyq_chunks) if pyq_chunks else 0} PYQ chunks")
-    
-    # Use GeminiClient for generation with structured output
-    try:
-        
-        # Use GeminiClient for generation with structured output
-        if not GEMINI_API_KEY:
-            raise HTTPException(500, "Gemini API key not configured")
+def format_mock_test_response(questions_data: List[Dict], job_id: str, topics: List[str]) -> MockTestResponse:
+    """Helper to convert list of question dicts into a formatted MockTestResponse."""
+    questions = []
+    for i, q_data in enumerate(questions_data):
+        if isinstance(q_data, dict):
+            # Handle options - convert dict to list if needed
+            options_raw = q_data.get("options", [])
+            if isinstance(options_raw, dict):
+                options_list = [options_raw.get(key, "") for key in ["A", "B", "C", "D"]]
+                options_list = [opt for opt in options_list if opt]
+            elif isinstance(options_raw, list):
+                options_list = options_raw
+            else:
+                options_list = ["A", "B", "C", "D"]
             
-        gemini_client = GeminiClient(api_key=GEMINI_API_KEY)
-        
-        # Use large model for final question generation
-        # Passed Pydantic model is automatically cleaned by GeminiClient
-        response_text = await gemini_client.generate_response(
-            user_prompt=user_prompt,
-            system_prompt="You are a UPSC Prelims question setter. Output valid JSON array for 'questions' key and nothing else.",
-            response_schema=GeneratedQuestions,
-            temperature=0.7
-        )
-        
-        # Parse JSON response
-        import json
-        try:
-            # Structured generation ensures valid JSON without markdown wrapping
-            response_data = json.loads(response_text)
-            questions_data = response_data.get("questions", [])
-        except json.JSONDecodeError:
-            # Fallback: try to extract questions from text if something went fundamentally wrong
-            logger.warning("Failed to parse Structured response, using fallback sanitization")
-            sanitized_text = sanitize_json_response(response_text)
-            try:
-                response_data = json.loads(sanitized_text)
-                questions_data = response_data.get("questions", [])
-            except:
-                questions_data = []
-        
-        # Convert to MockTestQuestion objects
-        questions = []
-        # Get embedder from app_state (passed from route) or from request if available
-        embedder = None
-        if app_state and hasattr(app_state, 'vector_handler'):
-            embedder = app_state.vector_handler.embedder
-        elif hasattr(request, 'app') and hasattr(request.app.state, 'vector_handler'):
-            embedder = request.app.state.vector_handler.embedder
-        
-        for i, q_data in enumerate(questions_data):
-            if isinstance(q_data, dict):
-                # Handle options - convert dict to list if needed
-                options_raw = q_data.get("options", [])
-                if isinstance(options_raw, dict):
-                    # Convert dict like {"A": "option1", "B": "option2"} to list ["option1", "option2", ...]
-                    options_list = [options_raw.get(key, "") for key in ["A", "B", "C", "D"]]
-                    # Filter out empty strings in case some keys are missing
-                    options_list = [opt for opt in options_list if opt]
-                elif isinstance(options_raw, list):
-                    options_list = options_raw
-                else:
-                    options_list = ["A", "B", "C", "D"]  # Fallback
-                
-                question_text = q_data.get("question", f"Question {i+1}")
-                
-                question = MockTestQuestion(
-                    question=question_text,
-                    options=options_list,
-                    correct_answer=q_data.get("correct_answer", "A"),
-                    explanation=q_data.get("explanation", "No explanation provided"),
-                    source={
-                        "filename": "Generated", 
-                        "chapter": "Mock Test", 
-                        "section": f"Question {i+1}",
-                        "question_id": f"mock_{int(time.time())}_{i}",  # Generate unique ID
-                        "topics": q_data.get("source", {}).get("topics", request.topics)
-                    }
+            question_text = q_data.get("question", f"Question {i+1}")
+            
+            # Map source data
+            src = q_data.get("source", {})
+            if isinstance(src, str): src = {} # Fallback
+            
+            question = MockTestQuestion(
+                question=question_text,
+                options=options_list,
+                correct_answer=q_data.get("correct_answer", "A"),
+                explanation=q_data.get("explanation", "No explanation provided"),
+                source=QuestionSource(
+                    topic=src.get("topic", topics[0] if topics else "General"),
+                    sub_domain=src.get("sub_domain", "General")
                 )
-                questions.append(question)
-                
-                # 🆕 STEP 5: Memory Update - Store question in recency DB
-                # 🆕 STEP 5: Memory Update - Store question in recency DB
-                try:
-                    # Extract topic and subtopic from request
-                    topic = request.topics[0] if request.topics else "Geography"
-                    subtopic = request.topics[1] if len(request.topics) > 1 else topic
-                    
-                    # Store in recency DB
-                    record_recent_question(
-                        question_text=question_text,
-                        topic=topic,
-                        subtopic=subtopic
-                    )
-                    logger.debug(f"✅ Stored question {i+1} in recency DB")
-                except Exception as e:
-                    logger.warning(f"⚠️ Failed to store question in recency DB: {e}")
-                    # Continue even if storage fails
-        
-        # If no questions were parsed, create a fallback
-        if not questions:
-            questions = [MockTestQuestion(
-                question="What is the primary focus of Geography as a discipline?",
-                options=[
-                    "Study of physical features only",
-                    "Study of human-environment interactions",
-                    "Study of maps and cartography",
-                    "Study of weather patterns"
-                ],
-                correct_answer="B",
-                explanation="Geography is the study of human-environment interactions, encompassing both physical and human aspects.",
-                source={"filename": "Generated", "chapter": "Mock Test", "section": "Fallback Question"}
-            )]
-        
-        # Calculate time allowed: 2 hours for 100 questions = 1.2 minutes per question
-        minutes_per_question = 1.2
-        total_minutes = len(questions) * minutes_per_question
-        hours = int(total_minutes // 60)
-        minutes = int(total_minutes % 60)
-        if hours > 0:
-            time_allowed = f"{hours} hour{'s' if hours > 1 else ''} {minutes} minute{'s' if minutes != 1 else ''}"
-        else:
-            time_allowed = f"{minutes} minute{'s' if minutes != 1 else ''}"
-        
-        # Create response with updated instructions based on scoring
-        total_marks = len(questions) * 2
-        instructions = [
-            "Attempt all questions.",
-            f"Each question carries 2 marks.",
-            f"Total marks: {total_marks}.",
-            "Negative marking: -0.67 marks (1/3 of 2 marks) for each wrong answer.",
-            "No marks deducted for unanswered questions.",
-            "Choose the most appropriate option.",
-            "Questions are based on your uploaded study materials."
-        ]
-        
-        return MockTestResponse(
-            questions=questions,
-            total_marks=total_marks,
-            time_allowed=time_allowed,
-            instructions=instructions
-        )
-        
-    except Exception as e:
-        logger.error(f"❌ Failed to generate mock test: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to generate mock test. Please try again."
-        )
+            )
+            questions.append(question)
+            
+            # Memory Update - Store question in recency DB
+            try:
+                topic = topics[0] if topics else "Geography"
+                subtopic = topics[1] if len(topics) > 1 else topic
+                record_recent_question(
+                    question_text=question_text,
+                    topic=topic,
+                    subtopic=subtopic
+                )
+            except Exception as e:
+                logger.debug(f"⚠️ Memory update skipped: {e}")
+
+    # Fallback
+    if not questions:
+        questions = [MockTestQuestion(
+            question="What is the primary focus of Geography as a discipline?",
+            options=["Physical features", "Human-environment interactions", "Maps", "Weather"],
+            correct_answer="B",
+            explanation="Geography is the study of human-environment interactions.",
+            source=QuestionSource(topic="General", sub_domain="General")
+        )]
+    
+    # Calculate time/marks
+    total_marks = len(questions) * 2
+    total_minutes = len(questions) * 1.2
+    hours = int(total_minutes // 60)
+    minutes = int(total_minutes % 60)
+    time_allowed = f"{hours}h {minutes}m" if hours > 0 else f"{int(minutes)} minutes"
+    
+    instructions = [
+        "Attempt all questions.",
+        f"Each question carries 2 marks.",
+        f"Total marks: {total_marks}.",
+        "Negative marking: -0.67 marks (1/3) for each wrong answer.",
+        "Questions are based on your uploaded study materials."
+    ]
+    
+    return MockTestResponse(
+        questions=questions,
+        total_marks=total_marks,
+        time_allowed=time_allowed,
+        instructions=instructions
+    )
 
 def is_pyq_chunk(chunk: Dict[str, Any]) -> bool:
     """Check if a chunk is from a PYQ (Previous Year Question) file"""
@@ -445,6 +342,11 @@ def hybrid_retrieve_for_mock_test(
     
     logger.info(f"🎯 [BUCKET_RETRIEVE] Starting retrieval: major_domain={major_domain}, sub_domain={sub_domain}, questions={num_questions}")
     
+    # 🎯 Optimize: Compute embedding once for reuse
+    # This saves 3-4 OpenAI API calls per generation
+    logger.info("⚡ Generating query embedding once for reuse...")
+    query_vector = pinecone_handler.langchain_embeddings.embed_query(query)
+    
     # ================================
     # 1️⃣ Raw Content Fetch (n * 10)
     # ================================
@@ -452,37 +354,90 @@ def hybrid_retrieve_for_mock_test(
     logger.info(f"📘 Fetching {target_fetch} content chunks (excluding PYQs)...")
     
     try:
-        # Fetch raw concept and current_affairs chunks
         # metadata filter: source_type IN ['concept', 'current_affairs']
         content_filter = {"source_type": {"$in": ["concept", "current_affairs"]}}
         
-        # Use direct Pinecone metadata (use_content_store=False) for initial fetch
-        # This avoids 50 SQL queries since we only need metadata for bucketing
-        raw_chunks = pinecone_handler.query_documents(
-            query_text=query,
-            k=target_fetch,
-            filter_metadata=content_filter,
-            use_content_store=False
-        )
-        logger.info(f"   ✅ Retrieved {len(raw_chunks)} raw content chunks (using direct Pinecone metadata)")
+        # New: Add domain/sub_domain filters if present from dropdowns
+        if sub_domain:
+            content_filter["sub_domain"] = sub_domain
+        elif major_domain:
+            content_filter["major_domain"] = major_domain
+
+        raw_chunks = []
+        
+        # New: If no domain/sub_domain selected, fetch across all major domains for diversity
+        if not major_domain:
+            from ..utils.metadata_enricher import GEOGRAPHY_DOMAINS
+            logger.info("🌍 [BUCKET_RETRIEVE] No topic selected. Fetching cross-domain for diversity...")
+            all_major_domains = list(GEOGRAPHY_DOMAINS.keys())
+            
+            chunks_per_domain = math.ceil(target_fetch / len(all_major_domains))
+            
+            for domain in all_major_domains:
+                domain_filter = content_filter.copy()
+                domain_filter["major_domain"] = domain
+                # Reuse query vector (saves calls)
+                
+                logger.debug(f"   🔍 Fetching diversity chunks for domain: {domain}")
+                domain_chunks = pinecone_handler.query_documents(
+                    query_text=query,
+                    k=chunks_per_domain,
+                    filter_metadata=domain_filter,
+                    use_content_store=False,
+                    query_vector=query_vector # Reuse vector
+                )
+                raw_chunks.extend(domain_chunks)
+            
+            logger.info(f"   ✅ Retrieved {len(raw_chunks)} raw content chunks across {len(all_major_domains)} domains")
+        else:
+            # Standard fetch with metadata filter
+            raw_chunks = pinecone_handler.query_documents(
+                query_text=query,
+                k=target_fetch,
+                filter_metadata=content_filter,
+                use_content_store=False,
+                query_vector=query_vector # Reuse vector
+            )
+            logger.info(f"   ✅ Retrieved {len(raw_chunks)} raw content chunks (using metadata filter)")
+        
+        if not raw_chunks:
+            logger.warning("⚠️ No chunks found with specific filters, falling back to general query...")
+            raw_chunks = pinecone_handler.query_documents(
+                query_text=query,
+                k=target_fetch,
+                filter_metadata={"source_type": {"$in": ["concept", "current_affairs"]}},
+                use_content_store=False,
+                query_vector=query_vector # Reuse vector
+            )
         
         # ================================
-        # 2️⃣ Metadata Bucketing
+        # 2️⃣ Adaptive Metadata Bucketing
         # ================================
+        # Initial bucket attempt
         buckets = bucket_chunks_by_metadata(raw_chunks, major_domain, sub_domain)
+        
+        # 🛡️ Adaptive Granularity: If only 1 bucket formed, force finer granularity
+        if len(buckets) < 2 and raw_chunks:
+            logger.info(f"⚠️ Only {len(buckets)} bucket formed. Forcing finer granularity (Level 3 - Micro Topic)...")
+            # Force bucket by section/micro-topic regardless of current level
+            buckets = defaultdict(list)
+            for chunk in raw_chunks:
+                meta = chunk.get("metadata", {})
+                bucket_key = meta.get("section") or meta.get("chapter") or meta.get("micro_topic") or "General"
+                buckets[bucket_key].append(chunk)
+                
         bucket_stats = {k: len(v) for k, v in buckets.items()}
-        logger.info(f"   📊 Formed {len(buckets)} buckets: {bucket_stats}")
+        logger.info(f"   📊 Final Buckets ({len(buckets)}): {bucket_stats}")
         
         # Pre-embed query and all chunks once to minimize Embedding calls
-        logger.info(f"   📝 Pre-embedding query and {len(raw_chunks)} chunks for efficient MMR...")
-        query_embedding = np.array(pinecone_handler.langchain_embeddings.embed_query(query))
+        logger.info(f"   📝 Pre-embedding {len(raw_chunks)} chunks for efficient MMR...")
+        # Query embedding already done as query_vector
+        query_embedding = np.array(query_vector)
         
         all_chunk_texts = [c.get("content", "") for c in raw_chunks]
         all_chunk_embeddings = [np.array(emb) for emb in pinecone_handler.langchain_embeddings.embed_documents(all_chunk_texts)]
         
         # Create a mapping from chunk content to embedding for quick lookup
-        # (Using content as key is safe here because chunks are distinct or from same list)
-        # Better: use index mapping
         chunk_to_emb = {i: emb for i, emb in enumerate(all_chunk_embeddings)}
         
         # Map raw chunks to their indices for retrieval during MMR
@@ -554,23 +509,99 @@ def hybrid_retrieve_for_mock_test(
                     full_content = pinecone_handler.content_store.get_chunk(chunk_id, filename)
                     if full_content:
                         chunk["content"] = full_content
+                    else:
+                        # User strictly wants FULL TEXT ONLY. Clear metadata fallback.
+                        chunk["content"] = ""
+                else:
+                    chunk["content"] = ""
                 
                 final_content.append(chunk)
 
             logger.info(f"   ✅ Final content selection: {len(final_content)} enriched chunks")
+        else:
+            final_content = []
         
         # ================================
         # 5️⃣ PYQ Style Fetch (Exactly 10)
         # ================================
-        logger.info("📝 Fetching 10 PYQ chunks for style learning...")
+        logger.info("📝 Fetching 10 PYQ chunks with prioritized topic matching...")
         try:
-            pyq_chunks = pinecone_handler.query_documents(
-                query_text=query,
-                k=10,
-                filter_metadata={"source_type": "pyq"},
-                use_content_store=True
-            )
-            logger.info(f"   ✅ Retrieved {len(pyq_chunks)} PYQ chunks")
+            pyq_chunks_raw = []
+            
+            # Step A: Try most specific filter (sub_domain)
+            if sub_domain:
+                logger.debug(f"   🔍 Level 1: Fetching PYQs for sub_domain: {sub_domain}")
+                res = pinecone_handler.query_documents(
+                    query_text=query,
+                    k=10,
+                    filter_metadata={"source_type": "pyq", "sub_domain": sub_domain},
+                    use_content_store=False,
+                    query_vector=query_vector # Reuse vector
+                )
+                pyq_chunks_raw.extend(res)
+                
+            # Step B: If still need more, try major_domain
+            if len(pyq_chunks_raw) < 10 and major_domain:
+                needed = 10 - len(pyq_chunks_raw)
+                logger.debug(f"   🔍 Level 2: Fetching {needed} more PYQs for major_domain: {major_domain}")
+                existing_ids = [p.get("metadata", {}).get("chunk_id") for p in pyq_chunks_raw]
+                
+                # Fetch more with major_domain filter
+                res = pinecone_handler.query_documents(
+                    query_text=query,
+                    k=needed,
+                    filter_metadata={"source_type": "pyq", "major_domain": major_domain},
+                    use_content_store=False,
+                    query_vector=query_vector # Reuse vector
+                )
+                
+                # De-duplicate manually (Pinecone filter doesn't support NOT IN easily in this handler)
+                for p in res:
+                    if p.get("metadata", {}).get("chunk_id") not in existing_ids:
+                        pyq_chunks_raw.append(p)
+                        if len(pyq_chunks_raw) >= 10: break
+            
+            # Step C: Fallback to general PYQs if still less than 10
+            if len(pyq_chunks_raw) < 10:
+                needed = 10 - len(pyq_chunks_raw)
+                logger.debug(f"   🔍 Level 3: Fetching {needed} general PYQs")
+                existing_ids = [p.get("metadata", {}).get("chunk_id") for p in pyq_chunks_raw]
+                
+                res = pinecone_handler.query_documents(
+                    query_text=query,
+                    k=needed,
+                    filter_metadata={"source_type": "pyq"},
+                    use_content_store=False,
+                    query_vector=query_vector # Reuse vector
+                )
+                
+                for p in res:
+                    if p.get("metadata", {}).get("chunk_id") not in existing_ids:
+                        pyq_chunks_raw.append(p)
+                        if len(pyq_chunks_raw) >= 10: break
+            
+            # Enrich PYQs from SQL Content Store to get domain metadata
+            pyq_chunks = []
+            for pyq in pyq_chunks_raw:
+                meta = pyq.get("metadata", {})
+                chunk_id = meta.get("chunk_id")
+                filename = meta.get("filename")
+                
+                if chunk_id and filename and pinecone_handler.content_store:
+                    # Use get_enriched_chunk to get classification + content
+                    enriched = pinecone_handler.content_store.get_enriched_chunk(chunk_id, filename)
+                    if enriched:
+                        pyq["content"] = enriched.get("full_content", "") # Strict full text
+                        # Only keep major_domain and sub_domain to save tokens
+                        pyq["metadata"]["major_domain"] = enriched.get("major_domain")
+                        pyq["metadata"]["sub_domain"] = enriched.get("sub_domain")
+                    else:
+                        pyq["content"] = "" # No enrichment = no content
+                else:
+                    pyq["content"] = ""
+                pyq_chunks.append(pyq)
+                
+            logger.info(f"   ✅ Retrieved and enriched {len(pyq_chunks)} PYQ chunks (Topic matched: {len(pyq_chunks_raw)})")
         except Exception as e:
             logger.warning(f"⚠️ PYQ retrieval failed: {e}")
             pyq_chunks = []
@@ -632,7 +663,18 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
                 detail="Gemini API key not configured. Mock test generation requires Gemini for quality questions."
             )
 
-        return await generate_question_paper(pyq_chunks, content_chunks, test_request, api_key, app_state=request.app.state)
+        # Use generate_single_batch (the unified pipeline with research)
+        batch_questions, _, _ = await generate_single_batch(
+            batch_num=1,
+            chunks=content_chunks,  # Limit chunks for sync speed
+            num_questions=test_request.num_questions,
+            topics=test_request.topics,
+            api_key=api_key,
+            job_id=f"sync_{uuid.uuid4().hex[:8]}",
+            pyq_chunks=pyq_chunks
+        )
+        
+        return format_mock_test_response(batch_questions, None, test_request.topics)
     except Exception as e:
         logger.error(f"❌ Mock test generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -725,50 +767,58 @@ def is_actual_question_chunk(chunk: Dict[str, Any]) -> bool:
 def build_current_search_queries(topic_clusters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Generate 2 smart search queries per topic cluster for UPSC Geography Prelims.
-    Query selection is based on major_domain from chunk metadata.
+    Query selection is based on major_domain and sub_topic weighting.
     
-    Total queries = unique_topics × 2
-    For 15 unique topics: 30 queries
+    Includes heuristic for Static vs Dynamic topics to optimize cost.
     """
     all_queries = []
     
     for cluster in topic_clusters:
         mt = cluster.get("micro_topic", "")
-        subs_list = cluster.get("sub_topics", [])
-        subs = " ".join(subs_list) if isinstance(subs_list, list) else str(subs_list)
         major_domain = cluster.get("major_domain", "").lower()
+        sub_topics_list = cluster.get("sub_topics", [])
         
-        # Select 3 most relevant queries based on major_domain from metadata
+        # 1. Sub-Topic Weighting: Pick top 2 representative sub-topics if available
+        # This makes the query more specific (e.g., "Monsoon + Onset")
+        refined_subs = ""
+        if isinstance(sub_topics_list, list) and sub_topics_list:
+            # Filter out generic words
+            valid_subs = [s for s in sub_topics_list if len(s) > 3 and s.lower() not in ["general", "introduction", "types"]]
+            if valid_subs:
+                refined_subs = " ".join(valid_subs[:2]) # Take top 2
+        
+        # 2. Focused Query Templates
+        # We generate 2 queries per topic: Qualitative (Trends/Policy) and Quantitative (Data/Reports)
+        
         if "physical" in major_domain:
-            # Physical Geography: Trends + Research + Extreme Events
+            # Physical: Focus on Extreme Events & Scientific Studies
             all_queries.extend([
-                {"q": f"latest research {mt} {subs} scientific study geography India 2024 2025", "recency": 365},
-                {"q": f"{mt} {subs} extreme events 2024 2025 2026 India geography disaster", "recency": 365}
+                {"q": f"recent extreme events or anomalies {mt} {refined_subs} 2024 2025 scientific report", "recency": 365},
+                {"q": f"latest study research {mt} {refined_subs} geography climate Indian global impact 2024 2025", "recency": 365}
             ])
-        elif "human" in major_domain:
-            # Human Geography: Trends + Research + Government Policy
+        elif "human" in major_domain or "economic" in major_domain:
+            # Human/Economic: Focus on Data, Census updates, Policy
             all_queries.extend([
-                {"q": f"recent trends {mt} {subs} geography 2024 2025 2026 indian or global development", "recency": 365},
-                {"q": f"{mt} {subs} government policy implementation India 2024 2025", "recency": 365}
+                {"q": f"recent data statistics {mt} {refined_subs} India global 2024 2025 report", "recency": 365},
+                {"q": f"government policy schemes {mt} {refined_subs} India 2024 2025 analysis", "recency": 365}
             ])
         elif "indian" in major_domain:
-            # Indian Geography: Trends + Government Policy + Regional Development
+            # Indian Geography: Very specific to Ministry/Department reports
             all_queries.extend([
-                {"q": f"recent trends or developments or extreme events {mt} {subs} India 2024 2025 2026 geography", "recency": 365},
-                {"q": f"{mt} {subs} government scheme policy India 2024 2025", "recency": 365},
+                {"q": f"Ministry/ Committee report {mt} {refined_subs} India 2024 2025 data", "recency": 365},
+                {"q": f"recent developments/ policies {mt} {refined_subs} India geography 2024 2025", "recency": 365},
             ])
         elif "world" in major_domain:
-            # World Geography: Trends + Global Policy + International Events
+            # World Geography: Global trends + International Treaties/Summits
             all_queries.extend([
-                {"q": f"recent trends or extreme events {mt} {subs} world geography 2024 2025 2026", "recency": 365},
-                {"q": f"{mt} {subs} global treaties international initiatives 2024 2025", "recency": 365}
+                {"q": f"global trends major events {mt} {refined_subs} world geography 2024 2025", "recency": 365},
+                {"q": f"international treaties summits {mt} {refined_subs} 2024 2025 impact", "recency": 365}
             ])
         else:
-            # Default: Trends + Policy + Government (most versatile)
+            # Default: Trends + Action/Governance
             all_queries.extend([
-                {"q": f"recent trends or events {mt} {subs} geography 2024 2025 2026", "recency": 365},
-                {"q": f"{mt} {subs} climate policy environment geography 2024 2025", "recency": 365},
-                {"q": f"{mt} {subs} government policy India 2024 2025", "recency": 365}
+                {"q": f"recent empirical trends {mt} {refined_subs} India/Global geography 2024 2025", "recency": 365},
+                {"q": f"policy governance {mt} {refined_subs} disaster risk climate action 2024 2025", "recency": 365}
             ])
         
     return all_queries
@@ -820,9 +870,18 @@ async def generate_single_batch(
                 seen_mt.add(mt)
                 unique_clusters.append(cluster)
         
-        logger.info(f"📦 [BATCH {batch_num}] Extracted {len(topic_clusters)} total clusters, {len(unique_clusters)} unique:")
+        # Limit unique clusters dynamically based on number of questions
+        # Rule: For 10 questions -> ~7 topics. For 5 questions -> 5 topics.
+        # Logic: max(5, num_questions // 2 + 2)
+        MAX_RESEARCH_TOPICS = max(5, (num_questions // 2) + 2)
+        
+        if len(unique_clusters) > MAX_RESEARCH_TOPICS:
+            logger.info(f"⚖️  Limiting research from {len(unique_clusters)} to {MAX_RESEARCH_TOPICS} topics (Scaling with N={num_questions})")
+            unique_clusters = unique_clusters[:MAX_RESEARCH_TOPICS]
+        
+        logger.info(f"📦 [BATCH {batch_num}] Extracted {len(topic_clusters)} total clusters, using {len(unique_clusters)} for research:")
         for i, cluster in enumerate(unique_clusters):
-            logger.info(f"   Unique Cluster {i+1}: micro_topic='{cluster['micro_topic']}', sub_topics={cluster['sub_topics']}")
+            logger.info(f"   Research Topic {i+1}: micro_topic='{cluster['micro_topic']}', sub_topics={cluster['sub_topics']}")
         
         logger.info(f"🔍 [BATCH {batch_num}] Building search queries from {len(unique_clusters)} unique clusters...")
         search_queries = build_current_search_queries(unique_clusters)
@@ -860,7 +919,7 @@ async def generate_single_batch(
                 user_prompt=user_prompt,
                 system_prompt=SYSTEM_PROMPT,
                 response_schema=None,  # Cannot use with Google Search
-                temperature=0.0,
+                temperature=0.8,
                 use_google_search=True # Enable search
             )
             

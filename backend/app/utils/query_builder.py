@@ -39,33 +39,33 @@ def build_query_text(
     """
     subject = subject.lower()
     
-    # 1️⃣ Subject-based tone modifiers
+    # 1️⃣ Subject-based tone modifiers (Simplified)
     if subject == "ncert":
-        tone = "fundamental NCERT-level conceptual foundations and standard definitions"
+        tone = "fundamental conceptual foundations"
     elif subject == "current_affairs":
-        tone = "recent developments, policy overlaps, and contemporary geographical trends"
+        tone = "recent geographic developments and trends"
     else:
-        tone = "advanced analytical and conceptual synthesis including interdisciplinary links"
+        # Simplified tone for general queries to avoid query dilution
+        tone = "analytical conceptual synthesis and interdisciplinary links"
     
     # 2️⃣ Base core query construction
     if sub_domain:
-        # Micro-level focus + internal sub-links
+        # Micro-level focus
         base_query = (
-            f"Detailed {tone} of {sub_domain} in geography, "
-            f"including interlinks with related subtopics and mechanisms within "
-            f"the {major_domain or 'same'} domain."
+            f"Detailed {tone} of {sub_domain} in geography. "
+            f"Focus on mechanisms, processes, and spatial distribution."
         )
     elif major_domain:
-        # Broader domain + cross-domain bridge
+        # Broader domain focus
         base_query = (
-            f"Important {tone} topics under {major_domain} geography "
-            f"and their interconnections with its subdomains."
+            f"Key {tone} in {major_domain} geography. "
+            f"Include major theories, processes, and sub-domain linkages."
         )
     else:
-        # Fully general — multi-domain thematic blending
+        # Fully general
         base_query = (
-            f"Important geography topics across physical, human, and environmental domains, "
-            f"focusing on {tone}."
+            f"Core geography concepts across physical, human, and environmental domains. "
+            f"Focus on {tone}."
         )
     
     # Determine related domains for cross-linking

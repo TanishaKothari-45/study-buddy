@@ -352,8 +352,12 @@ At least 40% of your questions MUST link current affairs with static concepts. T
     if pyq_chunks:
         for i, chunk in enumerate(pyq_chunks):
             content = chunk.get("content", "").strip()
+            meta = chunk.get("metadata", {})
+            major = meta.get("major_domain", "General")
+            sub = meta.get("sub_domain", "General")
+            
             if content:
-                pyq_examples_text += f"Example {i+1}:\n{content}\n---\n"
+                pyq_examples_text += f"Example {i+1} [Topic: {major} > {sub}]:\n{content}\n---\n"
     
     if not pyq_examples_text:
         pyq_examples_text = "No style learning examples available."

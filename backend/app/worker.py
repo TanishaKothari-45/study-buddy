@@ -355,7 +355,8 @@ async def generate_mock_test_task(
             hybrid_retrieve_for_mock_test,
             generate_micro_batches,
             semantic_deduplicate,
-            fill_gaps_targeted
+            fill_gaps_targeted,
+            format_mock_test_response
         )
         from .core.config import settings
 
@@ -451,41 +452,12 @@ async def generate_mock_test_task(
         import random
         random.shuffle(unique_questions)
 
-        # Convert to final format
-        final_questions = []
-        for i, q in enumerate(unique_questions):
-            final_questions.append({
-                "question": q.get("question", ""),
-                "options": q.get("options", []),
-                "correct_answer": q.get("correct_answer", "A"),
-                "explanation": q.get("explanation", ""),
-                "source": {
-                    "filename": "Generated",
-                    "chapter": "Mock Test",
-                    "section": f"Question {i+1}",
-                    "question_id": f"{job_id}_q{i+1}",
-                    "topics": topics
-                }
-            })
-
-        # Build result
-        result = {
-            "questions": final_questions,
-            "total_marks": len(final_questions) * 2,
-            "time_allowed": f"{len(final_questions) * 1.2:.0f} minutes",
-            "instructions": [
-                "Attempt all questions.",
-                f"Each question carries 2 marks.",
-                f"Total marks: {len(final_questions) * 2}.",
-                "Negative marking: -0.67 marks (1/3 of 2 marks) for each wrong answer.",
-                "No marks deducted for unanswered questions.",
-                "Choose the most appropriate option.",
-                "Questions are based on your uploaded study materials."
-            ]
-        }
+        # Use unified formatter for consistency
+        mock_response = format_mock_test_response(unique_questions, job_id, topics)
+        result = mock_response.model_dump()
 
         await set_job_result(redis, job_id, result)
-        logger.info(f"✅ [JOB {job_id}] Completed - {len(final_questions)} questions generated")
+        logger.info(f"✅ [JOB {job_id}] Completed - {len(mock_response.questions)} questions generated")
 
     except asyncio.CancelledError:
         await set_job_error(redis, job_id, "Cancelled by user")

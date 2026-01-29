@@ -79,7 +79,7 @@ if not LANGCHAIN_AVAILABLE:
     logger.warning("LangChain not available - some features will not work")
 
 if not PINECONE_AVAILABLE:
-    logger.warning("Pinecone not available - please install pinecone-client")
+    logger.warning("Pinecone not available - please install 'pinecone' (not 'pinecone-client')")
 
 
 class CrossEncoderSingleton:
@@ -416,7 +416,7 @@ class PineconeHandler:
         if not PINECONE_AVAILABLE:
             raise HTTPException(
                 status_code=500,
-                detail="Pinecone is not available. Please install pinecone-client."
+            detail="Pinecone is not available. Please install 'pinecone' (not 'pinecone-client')."
             )
         
         # Get Pinecone API key
@@ -866,86 +866,99 @@ class PineconeHandler:
                        filter_metadata: Optional[Dict[str, Any]] = None,
                        use_content_store: bool = True,
                        re_rank: bool = False,
-                       fetch_k: int = 30) -> List[Dict[str, Any]]:
+                       fetch_k: int = 30,
+                       query_vector: Optional[List[float]] = None) -> List[Dict[str, Any]]:
         """
         Query for most relevant documents
         
         Args:
-            query_text: Text to search for
+            query_text: Text to search for (used for embedding if query_vector not provided)
             k: Number of results to return (final)
             filter_metadata: Optional dict to filter by metadata fields
             use_content_store: If True, enrich with full content from content store
             re_rank: If True, fetch 'fetch_k' docs and re-rank to 'k'
-            fetch_k: Candidates to fetch if re_ranking (default 20)
+            fetch_k: Candidates to fetch if re_ranking (default 30)
+            query_vector: Optional pre-computed embedding vector (avoids API cost)
         """
-        logger.info(f"[ENTRY] query_documents called with: k={k}, fetch_k={fetch_k}, re_rank={re_rank}, query_text='{query_text[:60]}', use_content_store={use_content_store}, filter_metadata={filter_metadata}")
+        logger.info(f"[ENTRY] query_documents called with: k={k}, fetch_k={fetch_k}, re_rank={re_rank}, query_text='{query_text[:60]}', use_content_store={use_content_store}, filter_metadata={filter_metadata}, reuse_vector={bool(query_vector)}")
         try:
-            vectorstore = self._get_vectorstore()
+            # 1. Generate or use provided embedding
+            # Note: We use Direct Pinecone Index query for support of query_vector
+            index = self.pc.Index(self.index_name)
             
-            # Build filter if provided
-            pinecone_filter = None
-            if filter_metadata:
-                pinecone_filter = filter_metadata
+            if query_vector:
+                embedding = query_vector
+            else:
+                embedding = self.langchain_embeddings.embed_query(query_text)
                 
             # Determine initial fetch count
             initial_k = fetch_k if re_rank else k
             
             logger.info(f"🔍 [RETRIEVAL-DEBUG] Querying Pinecone for {initial_k} candidates (re_rank={re_rank})")
-            logger.info(f"   Query: '{query_text}'")
             
-            docs = vectorstore.similarity_search_with_score(
-                query_text,
-                k=initial_k,
-                filter=pinecone_filter
+            # Query Pinecone directly
+            query_response = index.query(
+                vector=embedding,
+                top_k=initial_k,
+                include_metadata=True,
+                filter=filter_metadata
             )
             
-            logger.info(f"✅ [RETRIEVAL-DEBUG] Pinecone returned {len(docs)} candidates")
-            
-            # Enrich with content store
-            # We do this logic manually here to match existing pattern or map it
-            # But wait, logic below processes 'docs' which are (Document, score) tuples
+            matches = query_response.get("matches", [])
+            logger.info(f"✅ [RETRIEVAL-DEBUG] Pinecone returned {len(matches)} candidates")
             
             formatted_results = []
             enriched_count = 0
             
-            logger.info(f"💾 [RETRIEVAL-DEBUG] Starting SQL Content Store enrichment for {len(docs)} docs...")
+            logger.info(f"💾 [RETRIEVAL-DEBUG] Starting SQL Content Store enrichment for {len(matches)} docs...")
             
-            for doc, score in docs:
-                chunk = {
-                    "content": doc.page_content,
-                    "metadata": doc.metadata,
-                    "score": float(score)
-                }
+            for match in matches:
+                meta = match.metadata or {}
+                chunk_id = meta.get("chunk_id")
+                filename = meta.get("filename")
+                
+                # Default to empty content initially
+                # We want FULL TEXT or NOTHING. No metadata fallback.
+                content = ""
+                _source = "empty"
                 
                 # Enrich from SQLite if requested
-                if use_content_store and self.content_store:
+                if use_content_store and self.content_store and chunk_id and filename:
                     try:
-                        # Extract IDs
-                        chunk_id = doc.metadata.get("chunk_id")
-                        filename = doc.metadata.get("filename")
-                        
-                        full_content = None
-                        if chunk_id and filename:
-                            full_content = self.content_store.get_chunk(chunk_id, filename)
-                            
+                        full_content = self.content_store.get_chunk(chunk_id, filename)
                         if full_content:
-                            # Use full content
-                            chunk["content"] = full_content
-                            chunk["_content_source"] = "content_store"
+                            content = full_content
+                            _source = "content_store"
                             enriched_count += 1
                         else:
-                            # Fallback: Content might be truncated in Pinecone metadata
-                            chunk["_content_source"] = "pinecone_metadata"
-                            pass
-                            
+                            # Log detailed debug info for PYQ chunks specifically
+                            if filter_metadata and filter_metadata.get("source_type") == "pyq":
+                                logger.debug(f"⚠️ [PYQ-DEBUG] Store miss. ID: {chunk_id}, File: {filename}")
                     except Exception as e:
                         logger.warning(f"⚠️ Content store lookup failed for {filename}/{chunk_id}: {e}")
                 
-                # Deduplication logic (basic map check seen in previous code, simplified here)
-                # Actually, simplest is just to append
-                formatted_results.append(chunk)
+                # If content is still empty, we skip adding it to results?
+                # User said: "ensure we either get full text or no text at all"
+                # So we can return the object with empty content, and filters downstream can handle it,
+                # OR we filter it out here.
+                # Returning it with empty content allows the caller to see "we found a match but lost content".
+                
+                # However, if we return empty content, valid sources like "concepts" might be blank.
+                # If use_content_store=False (e.g. initial fetch?), we might still want metadata content?
+                
+                if not use_content_store:
+                     # If explicit false, fallback to metadata content is allowed/expected
+                     content = meta.get("content", meta.get("text", ""))
+                     _source = "pinecone_metadata"
 
-            logger.info(f"✅ [RETRIEVAL-DEBUG] Enrichment complete. {enriched_count}/{len(docs)} enriched from SQL.")
+                formatted_results.append({
+                    "content": content,
+                    "metadata": meta,
+                    "score": match.score,
+                    "_content_source": _source
+                })
+
+            logger.info(f"✅ [RETRIEVAL-DEBUG] Enrichment complete. {enriched_count}/{len(matches)} enriched from SQL.")
 
             # Re-rank if requested
             if re_rank and len(formatted_results) > 0:
@@ -961,14 +974,8 @@ class PineconeHandler:
             logger.error(f"❌ Query failed: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to query Pinecone: {str(e)}"
-            )
-    
-    def query_documents_mmr(self, query_text: str, fetch_k: int = 50, k: int = 10,
-                            lambda_mult: float = 0.65,
-                            filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+            # raise HTTPException(status_code=500, detail=str(e)) # Don't raise here, return empty list
+            return []
         """
         Query documents using MMR (Maximum Marginal Relevance) retriever.
         
