@@ -28,24 +28,24 @@ const routes = [
         href: "/",
         color: "text-sky-500",
     },
-    {
-        label: "Upload PDFs",
-        icon: Upload,
-        href: "/upload",
-        color: "text-violet-500",
-    },
+    // {
+    //     label: "Upload PDFs",
+    //     icon: Upload,
+    //     href: "/upload",
+    //     color: "text-violet-500",
+    // },
     {
         label: "Evaluate Answer",
         icon: FileText,
         href: "/evaluate",
         color: "text-pink-700",
     },
-    {
-        label: "Training Data",
-        icon: Database,
-        href: "/training-data",
-        color: "text-orange-700",
-    },
+    // {
+    //     label: "Training Data",
+    //     icon: Database,
+    //     href: "/training-data",
+    //     color: "text-orange-700",
+    // },
     {
         label: "Chat / Q&A",
         icon: MessageSquare,
