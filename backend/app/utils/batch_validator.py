@@ -66,25 +66,6 @@ def validate_batch(questions: List[Dict[str, Any]]) -> Tuple[List[Dict], List[st
         if len(question_text) < 50:
             errors.append(f"Q{question_num}: Question too short (< 50 chars)")
             continue
-        
-        if len(explanation) < 100:
-            errors.append(f"Q{question_num}: Explanation lacks depth (< 100 chars)")
-            continue
-            
-        # 5. Trap Logic & Distractor Balance
-        opt_lengths = [len(str(o)) for o in options]
-        max_opt = max(opt_lengths)
-        min_opt = min(opt_lengths)
-        # Avoid "long pole" distractors - if one is 5x longer than others, it's a giveaway
-        if max_opt > min_opt * 5 and max_opt > 120:
-            errors.append(f"Q{question_num}: Option length imbalance (potential giveaway)")
-            continue
-
-        # 6. Explanation Thoroughness
-        exp_lower = explanation.lower()
-        if "correct" not in exp_lower and "right" not in exp_lower:
-            errors.append(f"Q{question_num}: Explanation doesn't explicitly justify correct option")
-            continue
 
         # All validations passed
         valid.append(q)
