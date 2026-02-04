@@ -9,8 +9,7 @@ import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from PIL import Image
 
-# Temporarily disabled - will be enabled once poppler is installed
-# from .pdf_converter import convert_pdf_to_images
+from .pdf_converter import convert_pdf_to_images
 from .roi_detector import (
     extract_answer_roi, 
     detect_roi_from_sample, 
@@ -45,17 +44,10 @@ def process_pdf_with_roi(
     """
     # Step 1: Convert PDF to images
     logger.info(f"📄 Step 1: Converting PDF to images (DPI: {dpi})...")
-    logger.error("❌ PDF processing temporarily disabled - poppler not installed")
-    logger.error("   Please use image files (JPG, PNG, WEBP) directly for now")
-    raise ImportError(
-        "PDF processing temporarily disabled. "
-        "Please install poppler: brew install poppler. "
-        "For now, upload image files directly."
-    )
-    # Temporarily disabled - uncomment once poppler is installed
-    # images = convert_pdf_to_images(pdf_path, dpi=dpi)
-    # if not images:
-    #     raise ValueError("No images extracted from PDF")
+    
+    images = convert_pdf_to_images(pdf_path, dpi=dpi)
+    if not images:
+        raise ValueError("No images extracted from PDF")
     
     # Step 2: Detect ROI (once, reuse for all pages)
     logger.info(f"🔍 Step 2: Detecting ROI...")

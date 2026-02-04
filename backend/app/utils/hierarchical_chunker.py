@@ -6,6 +6,8 @@ Uses font size analysis for PDFs to detect hierarchy.
 """
 
 import logging
+import json
+import re
 import os
 from typing import List, Dict, Any, Optional
 from pathlib import Path
@@ -35,7 +37,7 @@ class HierarchicalChunker:
         self.chunk_overlap_percent = settings.CHUNK_OVERLAP_PERCENT
         self.min_words_per_chunk = settings.MIN_WORDS_PER_CHUNK
         
-    def process_pdf(self, pdf_path: str, filename: str, subject: str = "Geography") -> List[Dict[str, Any]]:
+    def process_pdf(self, pdf_path: str, filename: str, subject: str = "Unclassified") -> List[Dict[str, Any]]:
         """
         Process a PDF file and return hierarchical chunks.
         
@@ -50,21 +52,16 @@ class HierarchicalChunker:
         try:
             logger.info(f"📄 Processing PDF: {filename}")
             
-            # Extract text from PDF using pdf_reader
+            # Step 1: Extract text from PDF first
             pages_content = extract_text_from_pdf(pdf_path)
-            
             if not pages_content:
                 logger.warning(f"⚠️ No content extracted from {filename}")
                 return []
             
-            # Detect structure from PDF (chapters, sections)
-            structure = self._detect_pdf_structure(pdf_path)
-            
-            # Chunk the content hierarchically
-            chunks = self._chunk_hierarchically(pages_content, filename, subject, structure)
-            
-            logger.info(f"✅ Created {len(chunks)} chunks from {filename}")
-            return chunks
+            # TOC/Gemini Extraction disabled by user request. 
+            # Treating all files as single chapters for now.
+            logger.info(f"ℹ️ Skipping TOC extraction and treating {filename} as a single chapter.")
+            return self.process_as_single_chunk(pages_content, filename, subject)
             
         except Exception as e:
             logger.error(f"❌ Error processing PDF {filename}: {e}")
@@ -72,6 +69,39 @@ class HierarchicalChunker:
             logger.error(traceback.format_exc())
             return []
     
+    def process_as_single_chunk(
+        self, 
+        pages_content: Optional[List[Dict[str, Any]]] = None, 
+        filename: str = "document", 
+        subject: str = "Unclassified",
+        text_override: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Convert whole content into a single chunk after cleaning watermarks.
+        Can take either PyMuPDF pages_content or a single string.
+        """
+        if text_override:
+            full_text = text_override
+        elif pages_content:
+            full_text = "\n\n".join([p["text"] for p in pages_content]).strip()
+        else:
+            return []
+            
+        cleaned_text = self._clean_text(full_text)
+        
+        if not cleaned_text:
+            return []
+            
+        return [{
+            "content": cleaned_text,
+            "metadata": {
+                "filename": filename,
+                "subject": subject,
+                "chapter": filename.replace(".pdf", "").replace(".PDF", ""),
+                "chunk_id": f"{filename}_chapter_1"
+            }
+        }]
+
     def process_txt(
         self, 
         txt_path: str, 
@@ -200,172 +230,312 @@ class HierarchicalChunker:
             logger.error(traceback.format_exc())
             return []
     
-    def _detect_pdf_structure(self, pdf_path: str) -> Dict[str, Any]:
+    def _extract_toc_with_gemini(self, sample_pages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Detect document structure from PDF using font size analysis.
-        
-        Args:
-            pdf_path: Path to PDF file
+        Use Gemini to extract Table of Contents from the first few pages of text.
+        """
+        if not self.llm_client:
+            logger.warning("⚠️ No LLM client provided for Gemini TOC extraction")
+            return []
             
-        Returns:
-            Dictionary with structure information (chapters, sections, etc.)
+        # Combine text from first 15 pages
+        toc_text = "\n\n".join([f"PAGE {p['page_number']}:\n{p['text']}" for p in sample_pages])
+        
+        prompt = f"""
+        You are a document structure analyst. I will provide the first few pages of a History/Geography book.
+        Find the Table of Contents/Index and extract the major chapters and their starting page numbers.
+        
+        CRITICAL INSTRUCTIONS:
+        1. Look for headings like "Contents", "List of Chapters", or "Index".
+        2. Identify main chapters (Level 1) and their starting page numbers.
+        3. Identify sub-chapters (Level 2) if they have clear page numbers.
+        4. Return a clean JSON list of objects.
+        
+        Example format:
+        [
+          {{"title": "Introduction", "page_number": 1, "level": 1}},
+          {{"title": "Chapter 1: The First Frontier", "page_number": 15, "level": 1}},
+          {{"title": "1.1 The Landscape", "page_number": 17, "level": 2}}
+        ]
+        
+        Note: The page_number should be the actual page number from the contents page.
+        Only return the JSON list, no explanation or markdown blocks.
+        
+        TEXT TO ANALYZE:
+        {toc_text[:15000]}
         """
-        structure = {
-            "chapters": [],
-            "sections": [],
-            "page_structure": {}
-        }
         
         try:
-            doc = fitz.open(pdf_path)
+            from .metadata_enricher import safe_json_parse
             
-            # Analyze font sizes to detect hierarchy
-            font_sizes = {}
-            for page_num in range(min(10, len(doc))):  # Analyze first 10 pages
-                page = doc[page_num]
-                blocks = page.get_text("dict")["blocks"]
-                
-                for block in blocks:
-                    if "lines" in block:
-                        for line in block["lines"]:
-                            for span in line["spans"]:
-                                size = span["size"]
-                                text = span["text"].strip()
-                                
-                                if size not in font_sizes:
-                                    font_sizes[size] = []
-                                font_sizes[size].append(text)
+            response = self.llm_client.chat.completions.create(
+                model="gpt-4o-mini", # Using mini for speed/cost, maybe Gemini 1.5 Flash if available?
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=1000
+            )
+            
+            output = response.choices[0].message.content
+            toc_entries = safe_json_parse(output)
+            
+            if toc_entries:
+                logger.info(f"✅ Gemini extracted {len(toc_entries)} TOC entries")
+                return toc_entries
+            else:
+                logger.warning(f"⚠️ Gemini returned empty or invalid TOC JSON. Raw output: {output[:500]}...")
+        except Exception as e:
+            logger.error(f"❌ Gemini TOC extraction failed: {e}")
+            
+        return []
+
+    def _clean_text(self, text: str) -> str:
+        """
+        Remove repetitive watermarks and administrative noise from text.
+        """
+        noise_strings = [
+            "xaam.in", "Raz Kr", "Facebook Group", "Administrative Service", 
+            "Telegram:", "Copyright", "All Rights Reserved", "[Live]",
+            "Indian Administrative Service", "RazKr"
+        ]
+        
+        cleaned = text
+        for noise in noise_strings:
+            # Case insensitive removal
+            pattern = re.compile(re.escape(noise), re.IGNORECASE)
+            cleaned = pattern.sub("", cleaned)
+            
+        # Clean up excess whitespace
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        return cleaned
+
+    def _should_filter_chunk(self, content: str) -> bool:
+        """
+        Identify and filter out ONLY truly empty or meta-only chunks.
+        Book content with watermarks should NOT be filtered, but cleaned.
+        """
+        cleaned = self._clean_text(content)
+        
+        # 1. Filter if too short AFTER cleaning (meta-only chunks)
+        if len(cleaned.split()) < 20:
+            logger.info(f"🗑️ Filtering meta-only chunk (length {len(cleaned.split())} words)")
+            return True
+            
+        # 2. High digit ratio often indicates index/biblio pages
+        digit_ratio = sum(c.isdigit() for c in cleaned) / len(cleaned) if cleaned else 0
+        if digit_ratio > 0.4 and len(cleaned) < 500:
+            logger.info(f"🗑️ Filtering index-like chunk (high digit ratio)")
+            return True
+            
+        return False
+
+    def _extract_toc(self, pdf_path: str) -> List[Dict[str, Any]]:
+        """
+        Extract Table of Contents (bookmarks) from PDF.
+        
+        Returns:
+            List of dictionaries with 'title', 'page_number', and 'level'
+        """
+        toc_entries = []
+        try:
+            doc = fitz.open(pdf_path)
+            toc = doc.get_toc()
+            
+            for entry in toc:
+                level, title, page_num = entry
+                toc_entries.append({
+                    "level": level,
+                    "title": title.strip(),
+                    "page_number": page_num
+                })
             
             doc.close()
-            
-            # Identify chapter/section patterns from font sizes
-            # Larger fonts are likely chapter titles
-            if font_sizes:
-                sorted_sizes = sorted(font_sizes.keys(), reverse=True)
-                # Largest fonts are likely chapters
-                if len(sorted_sizes) > 0:
-                    structure["chapter_font_size"] = sorted_sizes[0]
-                if len(sorted_sizes) > 1:
-                    structure["section_font_size"] = sorted_sizes[1]
-            
+            if toc_entries:
+                logger.info(f"✅ Found {len(toc_entries)} TOC entries (bookmarks)")
         except Exception as e:
-            logger.warning(f"⚠️ Could not detect PDF structure: {e}")
+            logger.warning(f"⚠️ Could not extract PDF TOC: {e}")
         
-        return structure
+        return toc_entries
     
     def _chunk_hierarchically(
         self, 
         pages_content: List[Dict[str, Any]], 
         filename: str,
         subject: str,
-        structure: Dict[str, Any]
+        toc: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """
-        Chunk pages content hierarchically.
-        
-        Args:
-            pages_content: List of page dictionaries with 'text' and 'page_number'
-            filename: Name of the file
-            subject: Subject area
-            structure: Structure information from PDF analysis
-            
-        Returns:
-            List of chunk dictionaries
+        Chunk content based on TOC-defined chapters.
+        Keeps chapters whole unless they exceed 6000 words.
+        If a chapter is too large, it attempts to use nested TOC levels for division.
         """
         chunks = []
-        current_chunk = []
-        current_words = 0
-        current_chapter = "Introduction"
-        current_section = "General"
-        chunk_id = 1
+        MAX_WORD_LIMIT = 6000
         
-        for page_data in pages_content:
-            page_text = page_data.get("text", "")
-            page_number = page_data.get("page_number", 0)
+        # Sort TOC by page number
+        sorted_toc = sorted(toc, key=lambda x: x["page_number"])
+        
+        # If no TOC, use heuristic: each page is a chunk or use simple paragraph chunking
+        if not sorted_toc:
+            logger.info("ℹ️ No TOC found, falling back to heuristic structural chunking")
+            return self._chunk_heuristically(pages_content, filename, subject)
+        
+        logger.info(f"📊 Chunking by TOC boundaries ({len(sorted_toc)} entries)")
+        
+        # Identify major chapters (Level 1)
+        major_chapters = [entry for entry in sorted_toc if entry["level"] == 1]
+        
+        # If no Level 1 entries, treat all as potential chapter boundaries
+        if not major_chapters:
+            major_chapters = sorted_toc
             
-            if not page_text.strip():
+        for i, entry in enumerate(major_chapters):
+            title = entry["title"]
+            start_page = entry["page_number"]
+            # End page is the start of next major chapter, or end of document
+            end_page = major_chapters[i+1]["page_number"] - 1 if i + 1 < len(major_chapters) else pages_content[-1]["page_number"]
+            
+            # Extract text for this range
+            chapter_text = []
+            for p in pages_content:
+                if start_page <= p["page_number"] <= end_page:
+                    chapter_text.append(p["text"])
+            
+            full_text = "\n\n".join(chapter_text).strip()
+            if not full_text:
                 continue
+                
+            word_count = len(full_text.split())
             
-            # Split into paragraphs
-            paragraphs = [p.strip() for p in page_text.split('\n\n') if p.strip()]
-            
-            for para in paragraphs:
-                para_words = len(para.split())
-                
-                # Check if paragraph looks like a chapter/section header
-                # (short, all caps, or starts with number)
-                if para_words < 10 and (para.isupper() or para[0].isdigit()):
-                    # Save current chunk before starting new section
-                    if current_chunk:
-                        chunk_text = '\n\n'.join(current_chunk)
-                        if len(chunk_text.split()) >= self.min_words_per_chunk:
-                            chunks.append({
-                                "content": chunk_text,
-                                "metadata": {
-                                    "filename": filename,
-                                    "subject": subject,
-                                    "chapter": current_chapter,
-                                    "section": current_section,
-                                    "page_start": page_number,
-                                    "page_end": page_number,
-                                    "chunk_id": f"{filename}_{chunk_id}"
-                                }
-                            })
-                            chunk_id += 1
-                    
-                    # Update chapter/section
-                    if para_words < 5:
-                        current_chapter = para[:100]  # Limit length
-                    else:
-                        current_section = para[:100]
-                    
-                    current_chunk = []
-                    current_words = 0
-                    continue
-                
-                # Add paragraph to current chunk
-                if current_words + para_words > self.chunk_size_words and current_chunk:
-                    # Save current chunk
-                    chunk_text = '\n\n'.join(current_chunk)
-                    if len(chunk_text.split()) >= self.min_words_per_chunk:
-                        chunks.append({
-                            "content": chunk_text,
-                            "metadata": {
-                                "filename": filename,
-                                "subject": subject,
-                                "chapter": current_chapter,
-                                "section": current_section,
-                                "page_start": page_number,
-                                "page_end": page_number,
-                                "chunk_id": f"{filename}_{chunk_id}"
-                            }
-                        })
-                        chunk_id += 1
-                    
-                    # Start new chunk with overlap
-                    overlap_words = int(self.chunk_size_words * self.chunk_overlap_percent)
-                    overlap_text = ' '.join(chunk_text.split()[-overlap_words:])
-                    current_chunk = [overlap_text] if overlap_text else []
-                    current_words = len(overlap_text.split())
-                
-                current_chunk.append(para)
-                current_words += para_words
-        
-        # Add final chunk
-        if current_chunk:
-            chunk_text = '\n\n'.join(current_chunk)
-            if len(chunk_text.split()) >= self.min_words_per_chunk:
+            # If chapter is within 6000 words, keep as one chunk
+            if word_count <= MAX_WORD_LIMIT:
                 chunks.append({
-                    "content": chunk_text,
+                    "content": full_text,
                     "metadata": {
                         "filename": filename,
                         "subject": subject,
-                        "chapter": current_chapter,
-                        "section": current_section,
-                        "page_start": pages_content[-1].get("page_number", 0) if pages_content else 0,
-                        "page_end": pages_content[-1].get("page_number", 0) if pages_content else 0,
-                        "chunk_id": f"{filename}_{chunk_id}"
+                        "chapter": title,
+                        "page_start": start_page,
+                        "page_end": end_page,
+                        "chunk_id": f"{filename}_{title.replace(' ', '_')[:30]}"
                     }
                 })
+            else:
+                # Chapter is too large, try to subdivide using nested TOC entries
+                logger.info(f"⚠️ Chapter '{title}' exceeds {MAX_WORD_LIMIT} words ({word_count} words). Subdividing...")
+                
+                # Find all TOC entries that fall within this chapter's page range (Level 2 or 3)
+                sub_entries = [t for t in sorted_toc if t["page_number"] >= start_page and t["page_number"] <= end_page and t != entry]
+                
+                if sub_entries:
+                    logger.info(f"   🔍 Found {len(sub_entries)} sub-sections. Using them for division.")
+                    # Sort sub-entries and current entry to create sub-boundaries
+                    all_boundaries = sorted([entry] + sub_entries, key=lambda x: x["page_number"])
+                    
+                    for j, sub_entry in enumerate(all_boundaries):
+                        sub_title = sub_entry["title"]
+                        sub_start = sub_entry["page_number"]
+                        sub_end = all_boundaries[j+1]["page_number"] - 1 if j + 1 < len(all_boundaries) else end_page
+                        
+                        sub_text_list = []
+                        for p in pages_content:
+                            if sub_start <= p["page_number"] <= sub_end:
+                                sub_text_list.append(p["text"])
+                        
+                        sub_full_text = "\n\n".join(sub_text_list).strip()
+                        if not sub_full_text:
+                            continue
+                            
+                        # If sub-section is still too large, split it minimally
+                        if len(sub_full_text.split()) > MAX_WORD_LIMIT:
+                            chunks.extend(self._split_minimally(sub_full_text, f"{title} > {sub_title}", filename, subject, sub_start, sub_end, limit=MAX_WORD_LIMIT))
+                        else:
+                            chunks.append({
+                                "content": sub_full_text,
+                                "metadata": {
+                                    "filename": filename,
+                                    "subject": subject,
+                                    "chapter": title,
+                                    "section": sub_title,
+                                    "page_start": sub_start,
+                                    "page_end": sub_end,
+                                    "chunk_id": f"{filename}_{sub_title.replace(' ', '_')[:30]}"
+                                }
+                            })
+                else:
+                    # No sub-entries found, fall back to minimal splitting
+                    logger.info("   ⚠️ No sub-sections found in TOC. Splitting content minimally.")
+                    chunks.extend(self._split_minimally(full_text, title, filename, subject, start_page, end_page, limit=MAX_WORD_LIMIT))
         
+        # Clean and Filter out noise chunks before returning
+        initial_count = len(chunks)
+        cleaned_chunks = []
+        for c in chunks:
+            c["content"] = self._clean_text(c["content"])
+            if not self._should_filter_chunk(c["content"]):
+                cleaned_chunks.append(c)
+                
+        if len(cleaned_chunks) < initial_count:
+            logger.info(f"🧹 Filtered out {initial_count - len(cleaned_chunks)} noise chunks from hierarchical path")
+            
+        return cleaned_chunks
+
+    def _split_minimally(self, text: str, title: str, filename: str, subject: str, start: int, end: int, limit: int = 6000) -> List[Dict[str, Any]]:
+        """Split a large text into chunks of specified limit while preserving context."""
+        words = text.split()
+        chunks = []
+        overlap = 300  # Increased overlap for larger chunks
+        
+        for i in range(0, len(words), limit - overlap):
+            chunk_content = " ".join(words[i : i + limit])
+            if len(chunk_content.split()) < self.min_words_per_chunk:
+                continue
+            chunks.append({
+                "content": chunk_content,
+                "metadata": {
+                    "filename": filename,
+                    "subject": subject,
+                    "chapter": title,
+                    "page_start": start,
+                    "page_end": end,
+                    "chunk_id": f"{filename}_{title.replace(' ', '_')[:25]}_{len(chunks)+1}"
+                }
+            })
         return chunks
+
+    def _chunk_heuristically(self, pages_content, filename, subject):
+        """Standard chunking for cases with no TOC."""
+        # For now, let's keep it simple and just use the previous logic
+        # but optimized for larger chunks as requested.
+        all_text = "\n\n".join(p["text"] for p in pages_content)
+        words = all_text.split()
+        chunks = []
+        # Use larger chunk size to respect "avoid further division"
+        size = 1500
+        overlap = 150
+        
+        for i in range(0, len(words), size - overlap):
+            chunk_content = " ".join(words[i : i + size])
+            if len(chunk_content.split()) < self.min_words_per_chunk:
+                continue
+            chunks.append({
+                "content": chunk_content,
+                "metadata": {
+                    "filename": filename,
+                    "subject": subject,
+                    "chapter": "General Content",
+                    "chunk_id": f"{filename}_heur_{len(chunks)+1}"
+                }
+            })
+            
+        # Clean and Filter out noise chunks before returning
+        initial_count = len(chunks)
+        cleaned_chunks = []
+        for c in chunks:
+            c["content"] = self._clean_text(c["content"])
+            if not self._should_filter_chunk(c["content"]):
+                cleaned_chunks.append(c)
+                
+        if len(cleaned_chunks) < initial_count:
+            logger.info(f"🧹 Filtered out {initial_count - len(cleaned_chunks)} noise chunks from heuristic path")
+            
+        return cleaned_chunks

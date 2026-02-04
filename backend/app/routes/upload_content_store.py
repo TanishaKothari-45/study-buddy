@@ -317,7 +317,8 @@ def match_and_store_pinecone_chunks(
 @router.post("/")
 async def upload_content_store(
     request: Request,
-    files: List[UploadFile] = File(...)
+    files: List[UploadFile] = File(...),
+    subject: str = Form("Geography")
 ):
     """
     Upload files to content store (full text storage, no embeddings).
@@ -378,7 +379,7 @@ async def upload_content_store(
                         chunks = chunker.process_pdf(
                             pdf_path=file_path,
                             filename=file.filename,
-                            subject="Geography"
+                            subject=subject
                         )
                     else:
                         logger.warning(f"⚠️ PDF {file.filename} has insufficient text, skipping")
@@ -389,7 +390,7 @@ async def upload_content_store(
                     chunks = chunker.process_txt(
                         txt_path=file_path,
                         filename=file.filename,
-                        subject="Geography"
+                        subject=subject
                     )
                 else:
                     logger.warning(f"⚠️ Unsupported file type: {file_ext}")

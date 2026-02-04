@@ -346,16 +346,17 @@ class GeminiClient:
         self,
         text_input: Optional[str] = None,
         temperature: float = 0.0,
-        use_google_search: bool = False
+        use_google_search: bool = False,
+        system_prompt: Optional[str] = None
     ):
         """
         Generate streaming response from Gemini API.
         
         Args:
-            user_prompt: The main query/instruction
-            system_prompt: Optional system-level instructions
-            text_input: Optional text context to include
+            text_input: The main text/prompt to send
             temperature: Temperature for response generation
+            use_google_search: Whether to enable Google Search tool
+            system_prompt: Optional system-level instructions
             
         Yields:
             Text chunks as they are generated
@@ -363,9 +364,8 @@ class GeminiClient:
         if system_prompt is None:
             system_prompt = self.DEFAULT_SYSTEM_PROMPT
         
-        prompt_text = user_prompt
-        if text_input:
-            prompt_text = f"{user_prompt}\n\nContext:\n{text_input}"
+        if not text_input:
+            raise ValueError("text_input is required for streaming")
         
         config_dict = {
             "temperature": temperature,
@@ -377,13 +377,41 @@ class GeminiClient:
             
         config = types.GenerateContentConfig(**config_dict)
         
-        async for chunk in self.client.aio.models.generate_content_stream(
-            model=self.model_name,
-            contents=[prompt_text],
-            config=config
-        ):
-            if chunk.text:
-                yield chunk.text
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Use non-streaming API and simulate streaming by chunking the response
+            # This is more reliable than trying to use generate_content_stream which may not be available
+            logger.debug(f"📝 Generating response for streaming (model: {self.model_name})")
+            
+            response = await self.client.aio.models.generate_content(
+                model=self.model_name,
+                contents=[text_input],
+                config=config
+            )
+            
+            if not response:
+                logger.warning("⚠️ Empty response from Gemini")
+                return
+            
+            if not response.text:
+                logger.warning("⚠️ Response has no text content")
+                return
+            
+            # Simulate streaming by yielding in chunks
+            text = response.text
+            chunk_size = 30  # Characters per chunk for smooth streaming effect
+            for i in range(0, len(text), chunk_size):
+                chunk = text[i:i + chunk_size]
+                if chunk:  # Only yield non-empty chunks
+                    yield chunk
+                    # Small delay to simulate real streaming
+                    await asyncio.sleep(0.02)
+                    
+        except Exception as e:
+            logger.error(f"❌ Streaming error: {e}", exc_info=True)
+            raise
     
     def create_chat_session(self, system_instruction: str):
         """

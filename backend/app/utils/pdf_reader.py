@@ -14,16 +14,283 @@ from .pdf_precleaner import clean_text_basic
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def is_gibberish(text: str) -> bool:
+    """
+    Detect if text is gibberish (reversed text, random characters, etc.)
+    Returns True if the text appears to be garbage.
+    """
+    import re
+    
+    if not text or len(text) < 5:
+        return False
+    
+    # Check 1: Too many consecutive consonants (gibberish pattern)
+    # Real English rarely has 5+ consonants in a row
+    consonant_pattern = r'[bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ]{5,}'
+    if re.search(consonant_pattern, text):
+        # Check if it might be an acronym (all caps, short)
+        if not (text.isupper() and len(text) < 10):
+            return True
+    
+    # Check 2: Very low vowel ratio (gibberish has few vowels)
+    vowels = sum(1 for c in text.lower() if c in 'aeiou')
+    letters = sum(1 for c in text if c.isalpha())
+    if letters > 10 and vowels / letters < 0.15:  # Less than 15% vowels
+        return True
+    
+    # Check 3: Check if it's reversed text (common PDF issue)
+    # Reversed text often has unusual letter patterns at start/end
+    reversed_text = text[::-1]
+    # Simple heuristic: if reversed version has more common word patterns
+    common_starts = ['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out']
+    original_score = sum(1 for word in common_starts if word in text.lower())
+    reversed_score = sum(1 for word in common_starts if word in reversed_text.lower())
+    if reversed_score > original_score + 2 and len(text) > 15:
+        return True  # Likely reversed text
+    
+    return False
+
+
+def clean_gibberish_from_text(text: str) -> str:
+    """Remove gibberish words and reversed text from extracted PDF text."""
+    import re
+    
+    if not text:
+        return ""
+    
+    lines = text.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        # Check if entire line is gibberish
+        if is_gibberish(line.strip()):
+            continue
+        
+        # Check individual words for gibberish (for mixed lines)
+        words = line.split()
+        cleaned_words = []
+        for word in words:
+            # Keep short words, check longer ones for gibberish
+            if len(word) <= 4 or not is_gibberish(word):
+                cleaned_words.append(word)
+        
+        if cleaned_words:
+            cleaned_lines.append(' '.join(cleaned_words))
+    
+    return '\n'.join(cleaned_lines)
+
+
+def fix_word_spacing(text: str) -> str:
+    """
+    Fix common word spacing issues from OCR/PDF extraction:
+    - Split joined words: "theworld" → "the world"  
+    - Join broken words: "th e" → "the", "don t" → "don't"
+    - Fix hyphenation across lines: "administra-\ntion" → "administration"
+    """
+    import re
+    
+    if not text:
+        return ""
+    
+    # Common English words for detection (expanded list)
+    COMMON_WORDS = {
+        'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 
+        'her', 'was', 'one', 'our', 'out', 'has', 'his', 'how', 'its', 'may',
+        'new', 'now', 'old', 'see', 'way', 'who', 'did', 'get', 'let', 'put',
+        'say', 'she', 'too', 'use', 'been', 'from', 'have', 'into', 'make',
+        'than', 'that', 'them', 'then', 'this', 'what', 'when', 'will', 'with',
+        'would', 'about', 'after', 'being', 'could', 'first', 'found', 'great',
+        'india', 'indian', 'water', 'river', 'land', 'soil', 'forest', 'climate',
+        'region', 'area', 'state', 'country', 'world', 'national', 'development',
+        'resource', 'agriculture', 'industry', 'population', 'environment',
+        'government', 'economic', 'social', 'political', 'cultural', 'natural'
+    }
+    
+    # Step 1: Fix hyphenation across lines (administra-\ntion → administration)
+    text = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', text)
+    # Also fix mid-line hyphenation: "administra- tion" → "administration"  
+    text = re.sub(r'(\w+)-\s+(\w+)', lambda m: m.group(1) + m.group(2) if len(m.group(2)) > 2 else m.group(0), text)
+    
+    # Step 2: Fix common broken contractions
+    contractions = [
+        (r"\bdon\s+t\b", "don't"),
+        (r"\bwon\s+t\b", "won't"),
+        (r"\bcan\s+t\b", "can't"),
+        (r"\bdidn\s+t\b", "didn't"),
+        (r"\bdoesn\s+t\b", "doesn't"),
+        (r"\bisn\s+t\b", "isn't"),
+        (r"\baren\s+t\b", "aren't"),
+        (r"\bweren\s+t\b", "weren't"),
+        (r"\bwasn\s+t\b", "wasn't"),
+        (r"\bhasn\s+t\b", "hasn't"),
+        (r"\bhaven\s+t\b", "haven't"),
+        (r"\bcouldn\s+t\b", "couldn't"),
+        (r"\bwouldn\s+t\b", "wouldn't"),
+        (r"\bshouldn\s+t\b", "shouldn't"),
+        (r"\bi\s+m\b", "I'm"),
+        (r"\bi\s+ve\b", "I've"),
+        (r"\bi\s+ll\b", "I'll"),
+        (r"\bit\s+s\b", "it's"),
+        (r"\bthat\s+s\b", "that's"),
+        (r"\bwhat\s+s\b", "what's"),
+        (r"\bthere\s+s\b", "there's"),
+        (r"\bwho\s+s\b", "who's"),
+        (r"\blet\s+s\b", "let's"),
+    ]
+    for pattern, replacement in contractions:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    
+    # Step 3: Fix single-letter broken words (th e → the, fo r → for)
+    # Pattern: single letter + space + rest of word that makes a common word
+    def fix_broken_word(match):
+        full = match.group(1) + match.group(2)
+        if full.lower() in COMMON_WORDS:
+            return full
+        return match.group(0)  # Return original if not a word
+    
+    # Fix "a bc" → "abc" patterns if result is a word
+    text = re.sub(r'\b([a-zA-Z])\s+([a-zA-Z]{2,})\b', fix_broken_word, text)
+    # Fix "ab c" → "abc" patterns  
+    text = re.sub(r'\b([a-zA-Z]{2,})\s+([a-zA-Z])\b', lambda m: m.group(1) + m.group(2) if (m.group(1) + m.group(2)).lower() in COMMON_WORDS else m.group(0), text)
+    
+    # Step 4: Fix common OCR character confusions
+    ocr_fixes = [
+        (r'\brn\b', 'm'),  # "rn" alone → "m"
+        (r'([a-z])rn([a-z])', r'\1m\2'),  # "arn" in word → "am"
+        (r'([a-z])vv([a-z])', r'\1w\2'),  # "vv" → "w"
+        (r'\bI\s+n\s+d\s+i\s+a\b', 'India'),  # Spaced out "India"
+        (r'\b([A-Z])\s+([a-z])', r'\1\2'),  # "T he" → "The" (capital + space + lower)
+    ]
+    for pattern, replacement in ocr_fixes:
+        text = re.sub(pattern, replacement, text)
+    
+    # Step 5: Split obvious joined words (limited to avoid false positives)
+    def split_joined_words(text):
+        """Split commonly joined words like 'theworld' → 'the world'"""
+        # Only split if we find common word at start followed by another word-like pattern
+        patterns = [
+            (r'\b(the)([A-Z][a-z]+)\b', r'\1 \2'),  # theWorld → the World
+            (r'\b(and)([A-Z][a-z]+)\b', r'\1 \2'),  # andThe → and The
+            (r'\b(for)([A-Z][a-z]+)\b', r'\1 \2'),  # forThe → for The
+            (r'\b(with)([A-Z][a-z]+)\b', r'\1 \2'), # withThe → with The
+            (r'\b(from)([A-Z][a-z]+)\b', r'\1 \2'), # fromThe → from The
+            (r'\b(this)([A-Z][a-z]+)\b', r'\1 \2'), # thisIs → this Is
+            (r'\b(that)([A-Z][a-z]+)\b', r'\1 \2'), # thatIs → that Is
+        ]
+        for pattern, replacement in patterns:
+            text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+        return text
+    
+    text = split_joined_words(text)
+    
+    # Step 6: Clean up extra spaces that might have been introduced
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\n ', '\n', text)  # Remove space after newline
+    text = re.sub(r' \n', '\n', text)  # Remove space before newline
+    
+    return text
+
+
+def fix_common_ocr_errors(text: str) -> str:
+    """
+    Fix common OCR misreads that create nonsense words.
+    """
+    import re
+    
+    if not text:
+        return ""
+    
+    # Common OCR character confusions (word-level fixes)
+    word_fixes = {
+        # Common misreads
+        'rnany': 'many',
+        'sorne': 'some', 
+        'tirne': 'time',
+        'clirnate': 'climate',
+        'developrnent': 'development',
+        'governrnent': 'government',
+        'environrnent': 'environment',
+        'movernent': 'movement',
+        'rnovement': 'movement',
+        'rnountain': 'mountain',
+        'rnonth': 'month',
+        'rnain': 'main',
+        'rnake': 'make',
+        'rnade': 'made',
+        'frorn': 'from',
+        'thern': 'them',
+        'vvater': 'water',
+        'vvorld': 'world',
+        'vvith': 'with',
+        'vvhere': 'where',
+        'vvhat': 'what',
+        'vvhen': 'when',
+        'vvhich': 'which',
+        'vvhy': 'why',
+        'nurnber': 'number',
+        'rnernber': 'member',
+        'rernainder': 'remainder',
+        'assernbly': 'assembly',
+        'problern': 'problem',
+        'systern': 'system',
+        'rnillion': 'million',
+        # "l" and "1" confusion
+        'l00': '100',
+        'l0': '10',
+        'lndia': 'India',
+        'lndian': 'Indian',
+    }
+    
+    # Apply word-level fixes (case-insensitive, preserve case)
+    for wrong, right in word_fixes.items():
+        # Match whole words only
+        pattern = r'\b' + re.escape(wrong) + r'\b'
+        text = re.sub(pattern, right, text, flags=re.IGNORECASE)
+    
+    # Fix patterns where 'rn' appears where 'm' should be (within words)
+    # Only fix if result looks more like a word
+    def fix_rn_to_m(match):
+        word = match.group(0)
+        fixed = word.replace('rn', 'm')
+        # Simple heuristic: if fixed version has better letter distribution, use it
+        # Count vowels - real words typically have ~40% vowels
+        orig_vowels = sum(1 for c in word.lower() if c in 'aeiou')
+        fixed_vowels = sum(1 for c in fixed.lower() if c in 'aeiou')
+        if len(word) > 4:
+            orig_ratio = orig_vowels / len(word) 
+            fixed_ratio = fixed_vowels / len(fixed)
+            # If fixed version has better vowel ratio (closer to 0.35-0.45), use it
+            if abs(fixed_ratio - 0.4) < abs(orig_ratio - 0.4):
+                return fixed
+        return word
+    
+    # Look for words with 'rn' that might be 'm'
+    text = re.sub(r'\b\w*rn\w*\b', fix_rn_to_m, text)
+    
+    return text
+
+
 def clean_text(text: str) -> str:
-    """Clean extracted text to handle common PDF issues and remove noise"""
+    """
+    Clean extracted text to handle common PDF/OCR issues and remove noise.
+    
+    Pipeline:
+    1. Remove gibberish/reversed text
+    2. Remove control characters
+    3. Fix word spacing and hyphenation
+    4. Fix common OCR character errors
+    5. Remove noise and special symbols
+    """
     import re
     import unicodedata
     
     if not text:
         return ""
     
+    # Step 0: Remove gibberish and reversed text first
+    text = clean_gibberish_from_text(text)
+    
     # Step 1: Remove control characters and non-printable characters (except newlines and tabs)
-    # Keep only printable characters, newlines, tabs, and common whitespace
     cleaned = []
     for char in text:
         if char == '\n' or char == '\t':
@@ -32,31 +299,26 @@ def clean_text(text: str) -> str:
             cleaned.append(' ')  # Normalize all whitespace to space
         elif unicodedata.category(char)[0] != 'C':  # Not a control character
             cleaned.append(char)
-        # Skip control characters
     text = ''.join(cleaned)
     
-    # Step 2: Remove excessive special symbols and decorative characters
-    # Keep only standard punctuation and alphanumeric characters
-    # Remove symbols that are likely noise (decorative, mathematical symbols used as noise, etc.)
-    # Keep: letters, numbers, spaces, and common punctuation: . , ; : ! ? - ( ) [ ] { } " ' / \ | _ = + < > @ # $ % & * ~
-    # Remove: decorative symbols, box-drawing characters, mathematical operators used as noise
+    # Step 2: Fix word spacing issues (broken words, hyphenation, contractions)
+    text = fix_word_spacing(text)
     
-    # Pattern to keep: alphanumeric, common punctuation, and whitespace
-    # Remove everything else that's not a standard character
+    # Step 3: Fix common OCR character errors (rn→m, vv→w, etc.)
+    text = fix_common_ocr_errors(text)
+    
+    # Step 4: Remove excessive special symbols and decorative characters
+    # Keep: letters, numbers, spaces, and common punctuation
     text = re.sub(r'[^\w\s\.\,\;\:\!\?\-\_\(\)\[\]\{\}\"\'\`\/\\\|\=\+\<\>\@\#\$\%\&\*\~\n\t]', ' ', text)
     
-    # Step 3: Remove sequences of special characters (likely noise)
-    # Remove patterns like "✁✁ ✂ ✄" - sequences of non-alphanumeric characters
+    # Step 5: Remove sequences of special characters (likely noise)
     text = re.sub(r'[^\w\s]{3,}', ' ', text)  # Remove 3+ consecutive special chars
     
-    # Step 4: Remove excessive whitespace and normalize
-    text = re.sub(r'\s+', ' ', text)  # Multiple spaces to single space
+    # Step 6: Remove excessive whitespace and normalize
+    text = re.sub(r' +', ' ', text)  # Multiple spaces to single space
     text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)  # Multiple newlines to max 2
     
-    # Step 5: Fix common OCR issues
-    text = text.replace('II', 'I').replace('EE', 'E').replace('aa', 'a')
-    
-    # Step 6: Remove lines that are mostly special characters or very short noise
+    # Step 7: Remove lines that are mostly special characters or very short noise
     lines = text.split('\n')
     cleaned_lines = []
     for line in lines:
@@ -68,7 +330,6 @@ def clean_text(text: str) -> str:
         # Skip lines that are mostly special characters (less than 30% alphanumeric)
         alnum_count = sum(1 for c in line_stripped if c.isalnum())
         if len(line_stripped) > 0 and alnum_count / len(line_stripped) < 0.3:
-            # This line is mostly noise, skip it
             continue
         
         # Skip very short lines that are just symbols
@@ -79,11 +340,10 @@ def clean_text(text: str) -> str:
     
     text = '\n'.join(cleaned_lines)
     
-    # Step 7: Final cleanup - remove leading/trailing whitespace
+    # Step 8: Final cleanup
     text = text.strip()
     
-    # Step 8: Remove excessive repeated characters (but keep intentional ones like "III" in Roman numerals)
-    # Only remove if it's 4+ repetitions of the same character
+    # Step 9: Remove excessive repeated characters (keep III for Roman numerals)
     text = re.sub(r'(.)\1{3,}', r'\1\1\1', text)  # Max 3 repetitions
     
     return text
@@ -106,7 +366,7 @@ def extract_text_from_pdf(pdf_path: str) -> List[Dict[str, Any]]:
                 page_text = ""
                 
                 if tables:
-                    # If tables exist, format them properly
+                    # If tables exist, format them properly (but skip gibberish tables)
                     for table in tables:
                         if table:
                             # Convert table to formatted text
@@ -114,7 +374,9 @@ def extract_text_from_pdf(pdf_path: str) -> List[Dict[str, Any]]:
                                 " | ".join(str(cell) if cell else "" for cell in row)
                                 for row in table
                             )
-                            page_text += "\nTable:\n" + table_text + "\n"
+                            # Skip tables that are mostly gibberish
+                            if not is_gibberish(table_text) and len(table_text.strip()) > 10:
+                                page_text += "\nTable:\n" + table_text + "\n"
                 
                 # Then extract regular text
                 text = page.extract_text()

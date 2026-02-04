@@ -490,7 +490,7 @@ def process_extracted_pdf(pdf_path: str, pinecone_handler=None, content_store=No
 
 
 
-def download_latest_visionias_workbook(download_dir="data/geography_current_affairs", extract_sections: bool = True):
+def download_latest_visionias_workbook(download_dir="data/geography_current_affairs", extract_sections: bool = True, subject: str = "Geography"):
     """
     Download the latest VisionIAS monthly current affairs workbook PDF.
     Optionally extracts only Geography and Environment sections.
@@ -615,13 +615,20 @@ def download_latest_visionias_workbook(download_dir="data/geography_current_affa
                 except ImportError:
                     from backend.app.utils.pdf_section_extractor import extract_sections_with_validation
                 
+                # Define keywords based on subject
+                subject_keywords = {
+                    "Geography": ["geography", "environment"],
+                    "History": ["culture"]
+                }
+                keywords = subject_keywords.get(subject, ["geography", "environment"])
+                
                 logger.info("\n" + "="*60)
-                logger.info("📚 Extracting Geography and Environment sections...")
+                logger.info(f"📚 Extracting {subject} relevant sections (keywords: {keywords})...")
                 logger.info("="*60)
                 
                 extracted_file = extract_sections_with_validation(
                     save_path,
-                    keywords=['geography', 'environment']
+                    keywords=keywords
                 )
                 
                 if extracted_file and os.path.exists(extracted_file):

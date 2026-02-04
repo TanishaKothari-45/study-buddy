@@ -5,7 +5,8 @@ import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Send, User, Bot, Loader2, BookOpen, AlertCircle, Plus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Send, User, Bot, Loader2, BookOpen, AlertCircle, Plus, GraduationCap } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
@@ -31,6 +32,7 @@ export default function ChatPage() {
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [subject, setSubject] = useState<string>("Geography");
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -84,6 +86,7 @@ export default function ChatPage() {
                 },
                 body: JSON.stringify({
                     question: userMessage.content,
+                    subject: subject,
                     session_id: sessionId,
                     k: 5,
                 }),
@@ -147,12 +150,27 @@ export default function ChatPage() {
             <div className="flex items-center justify-between mb-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-foreground">Ask Away</h1>
-                    <p className="text-sm text-muted-foreground">Chat with your AI study buddy about Geography</p>
+                    <p className="text-sm text-muted-foreground">Chat with your AI study buddy about {subject}</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={startNewChat} className="text-gray-500 hover:text-violet-600">
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Chat
-                </Button>
+                <div className="flex items-center gap-3">
+                    {/* Subject Dropdown */}
+                    <div className="flex items-center gap-2">
+                        <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                        <Select value={subject} onValueChange={setSubject}>
+                            <SelectTrigger className="w-[140px] h-9 text-sm">
+                                <SelectValue placeholder="Subject" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Geography">Geography</SelectItem>
+                                <SelectItem value="History">History</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={startNewChat} className="text-gray-500 hover:text-violet-600">
+                        <Plus className="h-4 w-4 mr-2" />
+                        New Chat
+                    </Button>
+                </div>
             </div>
 
             <Card className="flex-1 flex flex-col overflow-hidden border-gray-200 shadow-sm bg-white dark:bg-card">
@@ -265,7 +283,7 @@ export default function ChatPage() {
                 <CardFooter className="p-4 bg-white border-t border-gray-100">
                     <form onSubmit={handleSendMessage} className="flex w-full gap-3">
                         <Input
-                            placeholder="Ask a question about your geography notes..."
+                            placeholder={`Ask a question about your ${subject.toLowerCase()} notes...`}
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             disabled={loading}

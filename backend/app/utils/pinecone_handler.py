@@ -614,7 +614,8 @@ class PineconeHandler:
         valid_indices = []
         filtered_documents = []
         filtered_metadatas = []
-        MAX_WORDS_PER_CHUNK = 1500  # Match embedder limit
+        MAX_WORDS_PER_CHUNK = settings.MAX_CHAPTER_CHUNK_WORDS
+        OVERLAP_WORDS = settings.CHAPTER_CHUNK_OVERLAP_WORDS
         
         for i, doc in enumerate(documents):
             if isinstance(doc, str) and doc.strip() and len(doc.strip()) > 10:
@@ -627,7 +628,7 @@ class PineconeHandler:
                 word_count = len(cleaned_doc.split())
                 if word_count > MAX_WORDS_PER_CHUNK:
                     logger.warning(f"⚠️ Chunk {i+1} is too long ({word_count} words), splitting into smaller chunks...")
-                    split_chunks = split_long_chunk_by_sentences(cleaned_doc, MAX_WORDS_PER_CHUNK, overlap_words=100)
+                    split_chunks = split_long_chunk_by_sentences(cleaned_doc, MAX_WORDS_PER_CHUNK, overlap_words=OVERLAP_WORDS)
                     logger.info(f"   ✅ Split into {len(split_chunks)} chunks")
                     
                     # Add each split chunk with its metadata
@@ -1398,7 +1399,7 @@ class PineconeHandler:
             # Note: This requires Pinecone serverless or pod-based index
             try:
                 # Try to delete with filter
-                index.delete(filter={"filename": {"$regex": filename}})
+                index.delete(filter={"filename": {"$eq": filename}})
                 logger.info(f"✅ Deleted documents matching filename '{filename}'")
                 # Note: Pinecone doesn't return count, so we can't know exact number
                 return 1  # Indicate success
@@ -1409,6 +1410,32 @@ class PineconeHandler:
                 
         except Exception as e:
             logger.error(f"❌ Failed to delete documents by filename: {e}")
+            raise
+
+    def delete_documents_by_subject(self, subject: str) -> int:
+        """
+        Delete all documents/chunks that match a specific subject.
+        
+        Args:
+            subject: The subject to match (e.g., "History", "Geography")
+        
+        Returns:
+            Number of documents deleted
+        """
+        try:
+            index = self.pc.Index(self.index_name)
+            
+            try:
+                # Use exact match for subject
+                index.delete(filter={"subject": {"$eq": subject}})
+                logger.info(f"✅ Deleted documents matching subject '{subject}'")
+                return 1
+            except Exception as filter_error:
+                logger.warning(f"⚠️ Filter-based delete (by subject) failed: {filter_error}")
+                return 0
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to delete documents by subject: {e}")
             raise
     
     def switch_to_collection(self, collection_name: str) -> None:

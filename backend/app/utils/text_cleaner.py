@@ -10,6 +10,14 @@ from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+# Import enhanced cleaning functions from pdf_reader
+try:
+    from .pdf_reader import fix_word_spacing, fix_common_ocr_errors
+    ENHANCED_CLEANING_AVAILABLE = True
+except ImportError:
+    ENHANCED_CLEANING_AVAILABLE = False
+    logger.debug("Enhanced cleaning functions not available")
+
 # Common patterns for image placeholders and OCR artifacts
 IMAGE_PATTERNS = [
     r'\[IMAGE\]', r'\[PICTURE\]', r'\[FIGURE\]', r'\[DIAGRAM\]',
@@ -200,7 +208,12 @@ def clean_text_advanced(text: str, pages_content: List[Dict[str, Any]] = None) -
     text = text.replace('þ', 'th')  # Replace thorn with 'th'
     text = text.replace('Þ', 'Th')  # Capital thorn
     
-    # Step 6c: Remove control characters and non-printable characters
+    # Step 6c: Enhanced word spacing and OCR error fixing
+    if ENHANCED_CLEANING_AVAILABLE:
+        text = fix_word_spacing(text)
+        text = fix_common_ocr_errors(text)
+    
+    # Step 6d: Remove control characters and non-printable characters
     cleaned = []
     for char in text:
         if char == '\n' or char == '\t':

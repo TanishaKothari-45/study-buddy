@@ -3,10 +3,18 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Database, Layers } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Database, Layers, GraduationCap, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_URL } from "@/lib/api";
 import { authFetch } from "@/lib/authHandler";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 interface UploadResult {
     filename: string;
@@ -14,15 +22,38 @@ interface UploadResult {
     message?: string;
     chunks_created?: number;
     chunks_stored?: number;
+    chapters?: string[];
     reason?: string;
 }
 
 export default function UploadPage() {
     const [files, setFiles] = useState<FileList | null>(null);
     const [mode, setMode] = useState<"pinecone" | "content_store">("pinecone");
+    const [subject, setSubject] = useState<string>("Geography");
+    const [majorDomain, setMajorDomain] = useState<string>("Unclassified");
+    const [sourceType, setSourceType] = useState<string>("concept");
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<UploadResult[]>([]);
     const [error, setError] = useState("");
+
+    const SUBJECT_DOMAINS: Record<string, string[]> = {
+        "Geography": [
+            "Physical Geography",
+            "Indian Geography",
+            "World Geography",
+            "Human Geography",
+            "Mapping and Cartography"
+        ],
+        "History": [
+            "Indian Heritage and Culture",
+            "Ancient Indian History",
+            "Medieval Indian History",
+            "Modern Indian History",
+            "Post-Independence History",
+            "World History"
+        ],
+        "Unclassified": ["Unclassified"]
+    };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -45,6 +76,9 @@ export default function UploadPage() {
         for (let i = 0; i < files.length; i++) {
             formData.append("files", files[i]);
         }
+        formData.append("subject", subject);
+        formData.append("major_domain", majorDomain);
+        formData.append("source_type", sourceType);
 
         const endpoint = mode === "pinecone" ? "/upload/" : "/upload-content-store/";
 
@@ -122,6 +156,76 @@ export default function UploadPage() {
                                 </div>
                             </div>
                         </div>
+
+                        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <Label htmlFor="subject-select" className="text-sm font-medium mb-2 block">
+                                    Subject
+                                </Label>
+                                <Select
+                                    value={subject}
+                                    onValueChange={(val) => {
+                                        setSubject(val);
+                                        setMajorDomain(SUBJECT_DOMAINS[val][0]);
+                                    }}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <div className="flex items-center gap-2">
+                                            <GraduationCap className="h-4 w-4 text-primary" />
+                                            <SelectValue placeholder="Select Subject" />
+                                        </div>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Geography">Geography</SelectItem>
+                                        <SelectItem value="History">History</SelectItem>
+                                        <SelectItem value="Unclassified">Unclassified</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label htmlFor="domain-select" className="text-sm font-medium mb-2 block">
+                                    Major Domain
+                                </Label>
+                                <Select value={majorDomain} onValueChange={setMajorDomain}>
+                                    <SelectTrigger className="w-full">
+                                        <div className="flex items-center gap-2">
+                                            <Layers className="h-4 w-4 text-primary" />
+                                            <SelectValue placeholder="Select Domain" />
+                                        </div>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {SUBJECT_DOMAINS[subject]?.map((domain) => (
+                                            <SelectItem key={domain} value={domain}>
+                                                {domain}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <Label htmlFor="source-type-select" className="text-sm font-medium mb-2 block">
+                                    Source Type
+                                </Label>
+                                <Select value={sourceType} onValueChange={setSourceType}>
+                                    <SelectTrigger className="w-full">
+                                        <div className="flex items-center gap-2">
+                                            <BookOpen className="h-4 w-4 text-primary" />
+                                            <SelectValue placeholder="Select Source Type" />
+                                        </div>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="ncert">NCERT</SelectItem>
+                                        <SelectItem value="concept">Concept / Topic</SelectItem>
+                                        <SelectItem value="current_affairs">Current Affairs</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-4">
+                            Selected: <span className="text-primary font-medium">{subject} / {majorDomain} / {sourceType}</span>. This will be used to guide the AI's metadata enrichment.
+                        </p>
                     </CardContent>
                 </Card>
 
@@ -213,9 +317,25 @@ export default function UploadPage() {
                                                 )}
                                                 <span className="font-medium text-foreground">{res.filename}</span>
                                             </div>
-                                            <p className="text-sm text-muted-foreground">
+                                            <p className="text-sm text-muted-foreground mb-3">
                                                 {res.message || res.reason || "Processed successfully"}
                                             </p>
+
+                                            {res.chapters && res.chapters.length > 0 && (
+                                                <div className="mt-2 space-y-1">
+                                                    <p className="text-xs font-semibold text-foreground flex items-center gap-1">
+                                                        <FileText className="h-3 w-3" />
+                                                        Identified Chapters:
+                                                    </p>
+                                                    <div className="flex flex-wrap gap-1.5 mt-1">
+                                                        {res.chapters.map((chapter, idx) => (
+                                                            <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-secondary text-secondary-foreground border border-border">
+                                                                {chapter}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                         {res.chunks_stored !== undefined && (
                                             <div className="text-right">

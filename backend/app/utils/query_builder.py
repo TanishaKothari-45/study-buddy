@@ -5,8 +5,8 @@ Builds semantically rich, difficulty-aware queries for Pinecone retrieval
 from typing import Optional
 
 
-# Cross-domain relationships mapping (editable and expandable)
-RELATED_DOMAINS = {
+# Cross-domain relationships mapping for Geography
+GEOGRAPHY_RELATED_DOMAINS = {
     "Climatology": ["Oceanography", "Agriculture", "Environmental Geography"],
     "Geomorphology": ["Hydrology", "Soils", "Settlement Geography"],
     "Human Geography": ["Economic Geography", "Cultural Geography", "Climatology"],
@@ -26,6 +26,19 @@ RELATED_DOMAINS = {
     "Ecology": ["Biogeography", "Environmental Geography", "Climatology"]
 }
 
+# Cross-domain relationships mapping for History
+HISTORY_RELATED_DOMAINS = {
+    "Ancient Indian History": ["Indian Heritage and Culture", "Medieval Indian History"],
+    "Medieval Indian History": ["Ancient Indian History", "Modern Indian History", "Indian Heritage and Culture"],
+    "Modern Indian History": ["Medieval Indian History", "Post-Independence History", "World History"],
+    "Post-Independence History": ["Modern Indian History", "World History"],
+    "World History": ["Modern Indian History", "Post-Independence History"],
+    "Indian Heritage and Culture": ["Ancient Indian History", "Medieval Indian History"]
+}
+
+# Combined for backward compatibility
+RELATED_DOMAINS = {**GEOGRAPHY_RELATED_DOMAINS, **HISTORY_RELATED_DOMAINS}
+
 
 def build_query_text(
     major_domain: Optional[str] = None, 
@@ -36,37 +49,60 @@ def build_query_text(
     """
     Build a semantic, analytical query for Pinecone retrieval.
     Focuses on conceptual depth and interlinks regardless of difficulty.
+    Supports both Geography and History subjects.
     """
-    subject = subject.lower()
+    subject_lower = subject.lower() if subject else "general"
     
-    # 1️⃣ Subject-based tone modifiers (Simplified)
-    if subject == "ncert":
+    # Detect if this is a History query based on domain names
+    history_domains = ["ancient", "medieval", "modern", "post-independence", "world history", "heritage", "culture"]
+    is_history = subject_lower == "history" or any(h in (major_domain or "").lower() for h in history_domains)
+    
+    # 1️⃣ Subject-based tone modifiers
+    if subject_lower == "ncert" or subject_lower == "concept":
         tone = "fundamental conceptual foundations"
-    elif subject == "current_affairs":
-        tone = "recent geographic developments and trends"
+    elif subject_lower == "current_affairs":
+        tone = "recent developments and trends"
+    elif is_history:
+        tone = "historical analysis, causes, consequences, and significance"
     else:
-        # Simplified tone for general queries to avoid query dilution
+        # Default for Geography and general
         tone = "analytical conceptual synthesis and interdisciplinary links"
     
     # 2️⃣ Base core query construction
-    if sub_domain:
-        # Micro-level focus
-        base_query = (
-            f"Detailed {tone} of {sub_domain} in geography. "
-            f"Focus on mechanisms, processes, and spatial distribution."
-        )
-    elif major_domain:
-        # Broader domain focus
-        base_query = (
-            f"Key {tone} in {major_domain} geography. "
-            f"Include major theories, processes, and sub-domain linkages."
-        )
+    if is_history:
+        # History-specific queries
+        if sub_domain:
+            base_query = (
+                f"Detailed {tone} of {sub_domain}. "
+                f"Focus on events, movements, personalities, and socio-economic impact."
+            )
+        elif major_domain:
+            base_query = (
+                f"Key {tone} in {major_domain}. "
+                f"Include major events, reforms, movements, and their significance."
+            )
+        else:
+            base_query = (
+                f"Core Indian and World History concepts across ancient, medieval, and modern periods. "
+                f"Focus on {tone}."
+            )
     else:
-        # Fully general
-        base_query = (
-            f"Core geography concepts across physical, human, and environmental domains. "
-            f"Focus on {tone}."
-        )
+        # Geography queries (original behavior)
+        if sub_domain:
+            base_query = (
+                f"Detailed {tone} of {sub_domain} in geography. "
+                f"Focus on mechanisms, processes, and spatial distribution."
+            )
+        elif major_domain:
+            base_query = (
+                f"Key {tone} in {major_domain} geography. "
+                f"Include major theories, processes, and sub-domain linkages."
+            )
+        else:
+            base_query = (
+                f"Core geography concepts across physical, human, and environmental domains. "
+                f"Focus on {tone}."
+            )
     
     # Determine related domains for cross-linking
     cross_domains = []
@@ -75,7 +111,6 @@ def build_query_text(
     
     if cross_domains:
         joined = ", ".join(cross_domains)
-        domain_ref = major_domain or sub_domain or "geography"
         base_query += f" Also explore relationships with {joined}."
     
     return f"UPSC analytical context: {base_query}"

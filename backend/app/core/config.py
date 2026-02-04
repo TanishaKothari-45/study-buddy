@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP_PERCENT: float = 0.15  # 15% overlap between chunks
     MIN_WORDS_PER_CHUNK: int = 20  # Minimum words to consider a chunk valid
     
+    # Large Chapter Chunking (for single-chunk uploads)
+    MAX_CHAPTER_CHUNK_WORDS: int = 2000  # Safety limit for chapter-wise uploads
+    CHAPTER_CHUNK_OVERLAP_WORDS: int = 200  # Overlap words when a chapter must be split
+    
     # Semantic Chunking Settings (fallback)
     USE_SEMANTIC_FALLBACK: bool = True  # Enable semantic chunking fallback
     SEMANTIC_THRESHOLD: float = 0.80  # Similarity threshold for semantic splitting

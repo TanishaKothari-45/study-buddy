@@ -2,7 +2,7 @@ import re
 import json
 import logging
 import time
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
@@ -44,27 +44,98 @@ GEOGRAPHY_DOMAINS = {
     ]
 }
 
+# UPSC History taxonomy (Simplified from user input)
+HISTORY_DOMAINS = {
+    "Indian Heritage and Culture": [
+        "Art Forms",
+        "Architecture",
+        "Literature & Language Traditions",
+        "Religious & Philosophical Streams",
+        "Performing & Folk Traditions"
+    ],
+    "Ancient Indian History": [
+        "Prehistoric Cultures",
+        "Indus Valley Civilization",
+        "Vedic Period",
+        "Mahajanapadas & Second Urbanisation",
+        "Major Empires (Mauryas, Guptas)",
+        "Religion, Philosophy & Society",
+        "Economy & Trade",
+        "Science & Technology / Education"
+    ],
+    "Medieval Indian History": [
+        "Early Medieval Polities",
+        "Delhi Sultanate",
+        "Mughal Empire",
+        "Regional Kingdoms",
+        "Socio-Cultural Movements (Bhakti & Sufi)",
+        "Architecture & Art",
+        "Economic and Agrarian Trends"
+    ],
+    "Modern Indian History": [
+        "European Penetration & Colonial Expansion",
+        "Administrative & Economic Policies",
+        "Social & Religious Reform Movements",
+        "Revolt of 1857",
+        "Freedom Movement (1885-1947)",
+        "Partition & Independence"
+    ],
+    "Post-Independence History": [
+        "Consolidation & Reorganization of States",
+        "Domestic Political Developments",
+        "Economic & Social Transformations",
+        "Foreign Policy & International Relations",
+        "Challenges of nation-building"
+    ],
+    "World History": [
+        "Industrial Revolution",
+        "French Revolution & Napoleonic Era",
+        "Nationalism in Europe",
+        "Colonialism & Imperialism",
+        "World Wars I & II",
+        "Russian Revolution & Communist Ideology",
+        "Inter-War Period & Great Depression",
+        "Cold War & Decolonisation",
+        "Post-Cold War World"
+    ]
+}
+
+SUBJECT_DOMAINS = {
+    "Geography": GEOGRAPHY_DOMAINS,
+    "History": HISTORY_DOMAINS
+}
+
 # Legacy GEOGRAPHY_TOPICS for backward compatibility
 GEOGRAPHY_TOPICS = GEOGRAPHY_DOMAINS.copy()
 GEOGRAPHY_TOPICS["Map-Based Questions"] = [
     "Mapping", "Political and Physical Features"
 ]
 
-# System prompt for batch classification
-SYSTEM_PROMPT = f"""
-You are a UPSC Geography domain expert.
+def get_system_prompt(subject: str = "Unclassified", provided_major_domain: str = "Unclassified") -> str:
+    """Generate system prompt for specified subject."""
+    domains = SUBJECT_DOMAINS.get(subject, GEOGRAPHY_DOMAINS)
+    
+    # Instructions for prioritizing the provided major domain
+    priority_instruction = ""
+    if provided_major_domain != "Unclassified":
+        priority_instruction = f"CRITICAL: The user has specified '{provided_major_domain}' as the major domain for THIS batch of chunks. Unless a chunk is flagrantly unrelated, use '{provided_major_domain}' specifically."
+
+    return f"""
+You are a UPSC {subject} domain expert.
 
 Classify each provided passage according to the following hierarchy:
 
-• major_domain  → one of: {list(GEOGRAPHY_DOMAINS.keys())}
+• major_domain  → one of: {list(domains.keys())}
 
 • sub_domain    → choose only from the valid sub-domains under that major domain:
 
-{json.dumps(GEOGRAPHY_DOMAINS, indent=2)}
+{json.dumps(domains, indent=2)}
 
 • micro_topic   → the main concept or phenomenon described (free-form, 1-4 words)
 
 • sub_topics    → optional list of smaller ideas/examples if multiple appear (array of strings)
+
+{priority_instruction}
 
 Guidelines:
 - Use exact names from the lists for major_domain and sub_domain.
@@ -75,13 +146,12 @@ Guidelines:
 
 Example output format:
 [
-  {{"major_domain": "Indian Geography", "sub_domain": "Indian Climate", "micro_topic": "Monsoon", "sub_topics": ["El Niño", "La Niña"]}},
-  {{"major_domain": "Physical Geography", "sub_domain": "Climatology", "micro_topic": "Jet Streams", "sub_topics": []}}
+  {{"major_domain": "{list(domains.keys())[0]}", "sub_domain": "{domains[list(domains.keys())[0]][0]}", "micro_topic": "Example Concept", "sub_topics": ["Specific 1", "Specific 2"]}}
 ]
 """
 
 # Configuration
-CLASSIFICATION_BATCH_SIZE = 5
+CLASSIFICATION_BATCH_SIZE = 20
 MAX_RETRIES = 1
 
 # --- source type detection --- #
@@ -95,6 +165,9 @@ def detect_source_type(filename: str) -> Dict[str, str]:
     
     Uses word-boundary matching to avoid false positives (e.g., "ca" in "Practical").
     """
+    if not filename:
+        return {"source_type": "concept", "source_subtype": "topic"}
+    
     filename_lower = filename.lower()
     
     # PYQ patterns - check first
@@ -158,12 +231,16 @@ def detect_source_type(filename: str) -> Dict[str, str]:
     return {"source_type": "concept", "source_subtype": "topic"}
 
 # --- simple rule-based detection (fallback) --- #
-def detect_topic(text: str) -> Dict[str, str]:
+def detect_topic(text: str, subject: str = "Geography") -> Dict[str, str]:
     """Rule-based fallback for domain detection"""
     text_lower = text.lower()
-    for domain, subtopics in GEOGRAPHY_TOPICS.items():
+    domains = SUBJECT_DOMAINS.get(subject, GEOGRAPHY_DOMAINS)
+    
+    for domain, subtopics in domains.items():
         for sub in subtopics:
-            if re.search(rf"\b{sub.lower().split()[0]}\b", text_lower):
+            # Match first word of sub-topic as simplified rule
+            match_word = sub.lower().split()[0]
+            if len(match_word) > 3 and re.search(rf"\b{match_word}\b", text_lower):
                 return {"major_domain": domain, "sub_domain": sub}
     return {"major_domain": None, "sub_domain": None}
 
@@ -206,7 +283,7 @@ def safe_json_parse(text: str) -> List[Dict[str, Any]]:
 from .langsmith_tracer import trace_llm
 
 @trace_llm("metadata_enrichment_batch")
-def enrich_batch(batch: List[Dict[str, Any]], client: OpenAI) -> List[Dict[str, Any]]:
+def enrich_batch(batch: List[Dict[str, Any]], client: OpenAI, subject: str = "Unclassified", provided_major_domain: str = "Unclassified") -> List[Dict[str, Any]]:
     """Send a batch of chunks to GPT and return enriched classifications."""
     # Prepare combined input
     combined = "\n\n".join([
@@ -215,7 +292,7 @@ def enrich_batch(batch: List[Dict[str, Any]], client: OpenAI) -> List[Dict[str, 
     ])
     
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": get_system_prompt(subject, provided_major_domain)},
         {"role": "user", "content": combined}
     ]
     
@@ -251,18 +328,22 @@ def enrich_batch(batch: List[Dict[str, Any]], client: OpenAI) -> List[Dict[str, 
     return [{} for _ in batch]
 
 
-def classify_chunks_batch(chunks: List[Dict[str, Any]], client: OpenAI) -> List[Dict[str, Any]]:
+def classify_chunks_batch(chunks: List[Dict[str, Any]], client: OpenAI, subject: str = "Unclassified", provided_major_domain: str = "Unclassified", source_type: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Classify all chunks in batches and merge results into metadata.
     
     Args:
         chunks: List of dicts with 'content' and 'metadata' keys
         client: OpenAI client instance
+        subject: The subject domain (History, Geography, etc.)
+        provided_major_domain: User-selected major domain hint
+        source_type: User-selected source type (ncert, concept, current_affairs). If None, auto-detect from filename.
     
     Returns:
         List of enriched chunks with major_domain, sub_domain, micro_topic, sub_topics added
     """
     enriched = []
+    domains = SUBJECT_DOMAINS.get(subject, GEOGRAPHY_DOMAINS)
     
     for i in range(0, len(chunks), CLASSIFICATION_BATCH_SIZE):
         batch = chunks[i:i + CLASSIFICATION_BATCH_SIZE]
@@ -271,28 +352,40 @@ def classify_chunks_batch(chunks: List[Dict[str, Any]], client: OpenAI) -> List[
         
         logger.info(f"   Processing classification batch {batch_num}/{total_batches} ({len(batch)} chunks)...")
         
-        results = enrich_batch(batch, client)
+        results = enrich_batch(batch, client, subject=subject, provided_major_domain=provided_major_domain)
         
         for j, chunk in enumerate(batch):
             classification = results[j] if j < len(results) else {}
             meta = chunk["metadata"].copy()
             
-            # Detect source_type from filename
+            # Use provided source_type if available, otherwise detect from filename
             filename = meta.get("filename", "")
-            source_info = detect_source_type(filename)
+            logger.info(f"   📌 source_type parameter received: '{source_type}' (type: {type(source_type).__name__})")
+            if source_type:
+                # User provided source_type directly - use as-is
+                source_info = {"source_type": source_type, "source_subtype": source_type}
+                logger.info(f"   ✅ Using user-provided source_type: {source_info}")
+            else:
+                # Auto-detect from filename (legacy behavior)
+                source_info = detect_source_type(filename)
+                logger.info(f"   ⚠️ Auto-detected from filename '{filename}': {source_info}")
             meta.update(source_info)
             
             # Extract classification fields
+            # Use provided domain as override if it's set and valid
             major_domain = classification.get("major_domain")
+            if provided_major_domain != "Unclassified":
+                major_domain = provided_major_domain
+                
             sub_domain = classification.get("sub_domain")
             micro_topic = classification.get("micro_topic")
             sub_topics = classification.get("sub_topics", [])
             
             # Validate major_domain
-            if major_domain and major_domain not in GEOGRAPHY_DOMAINS:
+            if major_domain and major_domain not in domains:
                 # Check if LLM confused a sub_domain as major_domain
                 corrected = False
-                for valid_major, sub_domains in GEOGRAPHY_DOMAINS.items():
+                for valid_major, sub_domains in domains.items():
                     if major_domain in sub_domains:
                         logger.warning(f"⚠️ LLM returned sub_domain '{major_domain}' as major_domain, correcting to '{valid_major}'")
                         # If sub_domain wasn't provided, use the one LLM returned
@@ -305,18 +398,19 @@ def classify_chunks_batch(chunks: List[Dict[str, Any]], client: OpenAI) -> List[
                 # If not a sub_domain either, use rule-based fallback
                 if not corrected:
                     logger.warning(f"⚠️ Invalid major_domain '{major_domain}', using rule-based fallback")
-                    rule_meta = detect_topic(chunk['content'])
+                    rule_meta = detect_topic(chunk['content'], subject)
                     major_domain = rule_meta.get("major_domain") or "Unclassified"
                     sub_domain = rule_meta.get("sub_domain") or sub_domain or "Unknown"
             
             # Fallback to rule-based if GPT didn't provide domain
             if not major_domain:
-                rule_meta = detect_topic(chunk['content'])
+                rule_meta = detect_topic(chunk['content'], subject)
                 major_domain = rule_meta.get("major_domain") or "Unclassified"
                 sub_domain = rule_meta.get("sub_domain") or sub_domain or "Unknown"
             
             # Update metadata
             meta.update({
+                "subject": subject,
                 "major_domain": major_domain,
                 "sub_domain": sub_domain or "Unknown",
                 "micro_topic": micro_topic or "General Concepts",

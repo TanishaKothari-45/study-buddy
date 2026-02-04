@@ -8,10 +8,10 @@ from ..utils.ocr_processor import process_handwritten_document
 from ..utils.handwritten_processor import process_pdf_with_roi, process_image_with_roi
 from ..utils.gemini_ocr import process_pages_with_gemini_ocr
 from ..utils.pdf_generator import generate_pdf_from_ocr_results
-from ..utils.answer_reconstructor import reconstruct_pages_blocks
 from ..core.config import settings
 from ..utils.hierarchical_chunker import HierarchicalChunker
 from ..utils.metadata_enricher import enrich_metadata
+from ..utils.content_store import ContentStore
 from openai import OpenAI
 
 router = APIRouter()
@@ -217,8 +217,9 @@ os.makedirs(SAMPLE_SHEET_DIR, exist_ok=True)
 os.makedirs(ROI_PREVIEW_DIR, exist_ok=True)
 os.makedirs(OCR_OUTPUT_DIR, exist_ok=True)
 
-# Initialize the hierarchical chunker
+# Initialize components
 chunker = HierarchicalChunker(llm_client=OpenAI(api_key=os.getenv("OPENAI_API_KEY")))
+content_store = ContentStore()
 
 # Store sample sheet path in app state (will be set per session)
 # In production, you might want to use a database or session storage
@@ -227,8 +228,12 @@ chunker = HierarchicalChunker(llm_client=OpenAI(api_key=os.getenv("OPENAI_API_KE
 async def upload_pdfs(
     request: Request, 
     files: List[UploadFile] = File(...),
+    subject: str = Form("Unclassified"),
+    major_domain: str = Form("Unclassified"),
+    source_type: Optional[str] = Form(None),
     dpi: Optional[int] = Form(None),
-    sample_sheet_path: Optional[str] = Form(None)
+    sample_sheet_path: Optional[str] = Form(None),
+    skip_embedding: bool = Form(False)
 ):
     """
     Uploads multiple PDF, TXT, or image files, processes them, chunks them,
@@ -244,6 +249,13 @@ async def upload_pdfs(
     - TXT: Plain text files (processed directly with hierarchical chunker)
     - Images: JPG, JPEG, PNG, WEBP, GIF, BMP, TIFF (processed with OCR and ROI)
     """
+    # Debug: Log received parameters
+    logger.info(f"📥 Upload request received:")
+    logger.info(f"   • subject: {subject}")
+    logger.info(f"   • major_domain: {major_domain}")
+    logger.info(f"   • source_type: '{source_type}' (type: {type(source_type).__name__})")
+    logger.info(f"   • files: {[f.filename for f in files]}")
+    
     processed_files_summary = []
     # Use vector_handler (which is PineconeHandler when USE_PINECONE=True)
     vector_handler = request.app.state.vector_handler
@@ -276,423 +288,530 @@ async def upload_pdfs(
     # Supported image extensions
     image_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff', '.tif']
     
+    # ==========================================================================
+    # PHASE 1: Collect all files and identify which need OCR
+    # ==========================================================================
+    files_needing_ocr = []  # List of {filename, file_path, pages, roi_result, roi_preview_paths}
+    files_with_text = []    # List of {filename, file_path, text, pages_content}
+    txt_files = []          # List of {filename, file_path}
+    image_files = []        # List of {filename, file_path}
+    
+    logger.info(f"\n{'='*70}")
+    logger.info(f"📁 PHASE 1: Analyzing {len(files)} file(s) for processing")
+    logger.info(f"{'='*70}\n")
+    
     for file in files:
         file_path = os.path.join(UPLOAD_DIR, file.filename)
         file_ext = os.path.splitext(file.filename)[1].lower()
-        roi_info = None  # Initialize ROI info for this file
         
         try:
             # Save the uploaded file temporarily
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
-
-            # Determine file type and process accordingly
+            
             if file_ext == '.pdf':
-                # Optional: Compress PDF if it's too large (disabled by default to avoid issues)
-                # Uncomment the lines below if you want compression enabled
-                # from ..utils.pdf_compressor import compress_pdf_if_needed
-                # file_path = compress_pdf_if_needed(file_path, threshold_mb=40)
-                
-                # First try to extract text directly from PDF
+                # Try to extract text directly from PDF
                 pages_content = extract_text_from_pdf(file_path)
                 text = "\n".join(page["text"] for page in pages_content if page.get("text"))
-
-                # Log PDF text extraction details
-                logger.info(f"📄 PDF Text Extraction for {file.filename}:")
-                logger.info(f"   • Total pages: {len(pages_content)}")
-                logger.info(f"   • Total text length: {len(text)} characters")
                 
-                # If PDF has no extractable text (scanned/image-based), use ROI + OCR
+                logger.info(f"📄 {file.filename}: {len(pages_content)} pages, {len(text)} chars extracted")
+                
+                # If PDF has no extractable text, it needs OCR
                 if not text or len(text.strip()) < 200:
-                    logger.warning(f"   ⚠️ PDF appears to be scanned/image-based. Using ROI + OCR...")
-                    try:
-                        # Process PDF with ROI detection
-                        roi_result = process_pdf_with_roi(
-                            pdf_path=file_path,
-                            dpi=dpi,
-                            sample_sheet_path=sample_sheet_path,
-                            save_roi_previews=True,
-                            preview_dir=os.path.join(ROI_PREVIEW_DIR, os.path.splitext(file.filename)[0])
-                        )
-                        
-                        # Extract ROI preview paths
-                        roi_preview_paths = [page.get("roi_preview_path") for page in roi_result["pages"] if page.get("roi_preview_path")]
-                        
-                        # TODO: Run OCR on ROI images (PaddleOCR → EasyOCR → Tesseract)
-                        # For now, we'll prepare the ROI images for OCR
-                        # This is where OCR will be integrated in the next step
-                        
-                        # Create placeholder text from ROI metadata
-                        ocr_text = f"ROI extracted from {len(roi_result['pages'])} pages. ROI method: {roi_result['roi_method']}. OCR processing pending."
-                        
-                        # Save temporary text file (will be replaced with actual OCR results)
-                        temp_txt_path = file_path.replace('.pdf', '_roi_ocr.txt')
-                        with open(temp_txt_path, 'w', encoding='utf-8') as f:
-                            f.write(ocr_text)
-                        
-                        logger.info(f"   ✅ ROI extracted from {len(roi_result['pages'])} pages")
-                        logger.info(f"   • ROI method: {roi_result['roi_method']}")
-                        logger.info(f"   • ROI previews saved: {len(roi_preview_paths)} files")
-                        
-                        # Process using chunker (will be updated when OCR is integrated)
-                        chunks = chunker.process_txt(temp_txt_path, file.filename)
-                        
-                        # Store ROI preview paths in summary
-                        roi_info = {
-                            "roi_preview_paths": roi_preview_paths,
-                            "roi_method": roi_result["roi_method"],
-                            "roi_coordinates": roi_result["roi_coordinates"]
-                        }
-                        
-                        # Clean up temp file
-                        if os.path.exists(temp_txt_path):
-                            os.remove(temp_txt_path)
-                    except Exception as roi_error:
-                        logger.error(f"   ❌ ROI + OCR processing failed: {roi_error}")
-                        processed_files_summary.append({
-                            "filename": file.filename,
-                            "status": "failed",
-                            "reason": f"ROI + OCR processing failed: {str(roi_error)}"
-                        })
-                        continue
-                else:
-                    # PDF has extractable text, process normally
-                    if text:
-                        # Show first 500 characters as sample
-                        sample_text = text[:500].replace('\n', ' ')
-                        logger.info(f"   • Sample text (first 500 chars): {sample_text}...")
+                    logger.info(f"   → Scanned/image-based PDF, will use OCR")
                     
-                    # Process PDF using the hierarchical chunker
-                    chunks = chunker.process_pdf(file_path, file.filename)
-                
-            elif file_ext == '.txt':
-                # Process TXT file directly
-                logger.info(f"📝 Processing TXT file: {file.filename}")
-                chunks = chunker.process_txt(file_path, file.filename)
-                
-                if not chunks:
-                    processed_files_summary.append({
-                        "filename": file.filename,
-                        "status": "skipped",
-                        "reason": "No chunks created from TXT file"
-                    })
-                    continue
-                    
-            elif file_ext in image_extensions:
-                # Process image file with ROI + OCR + PDF generation
-                logger.info(f"🖼️ Processing image file with ROI + OCR: {file.filename}")
-                try:
-                    # Step 1: Process image with ROI detection
-                    roi_result = process_image_with_roi(
-                        image_path=file_path,
+                    # Process PDF with ROI detection
+                    roi_result = process_pdf_with_roi(
+                        pdf_path=file_path,
+                        dpi=dpi,
                         sample_sheet_path=sample_sheet_path,
-                        save_roi_preview=True,
+                        save_roi_previews=True,
                         preview_dir=os.path.join(ROI_PREVIEW_DIR, os.path.splitext(file.filename)[0])
                     )
                     
-                    logger.info(f"   ✅ ROI extracted using method: {roi_result['roi_method']}")
+                    roi_preview_paths = [page.get("roi_preview_path") for page in roi_result["pages"] if page.get("roi_preview_path")]
                     
-                    # Step 2: Prepare page data for OCR (single page)
-                    page_data = [{
+                    files_needing_ocr.append({
+                        "filename": file.filename,
+                        "file_path": file_path,
+                        "pages": roi_result["pages"],
+                        "roi_result": roi_result,
+                        "roi_preview_paths": roi_preview_paths,
+                        "page_count": len(roi_result["pages"])
+                    })
+                else:
+                    logger.info(f"   → Text-extractable PDF, no OCR needed")
+                    files_with_text.append({
+                        "filename": file.filename,
+                        "file_path": file_path,
+                        "text": text,
+                        "pages_content": pages_content
+                    })
+                    
+            elif file_ext == '.txt':
+                logger.info(f"📝 {file.filename}: TXT file")
+                txt_files.append({
+                    "filename": file.filename,
+                    "file_path": file_path
+                })
+                
+            elif file_ext in image_extensions:
+                logger.info(f"🖼️ {file.filename}: Image file, will use OCR")
+                
+                # Process image with ROI detection
+                roi_result = process_image_with_roi(
+                    image_path=file_path,
+                    sample_sheet_path=sample_sheet_path,
+                    save_roi_preview=True,
+                    preview_dir=os.path.join(ROI_PREVIEW_DIR, os.path.splitext(file.filename)[0])
+                )
+                
+                image_files.append({
+                    "filename": file.filename,
+                    "file_path": file_path,
+                    "roi_result": roi_result,
+                    "page_data": [{
                         "page_number": 1,
                         "roi_image_preprocessed": roi_result["roi_image_preprocessed"]
                     }]
-                    
-                    # Step 3: Run OCR using Gemini API
-                    logger.info("")
-                    logger.info("   " + "="*70)
-                    logger.info("   🔍 STEP 3: Starting OCR Processing")
-                    logger.info("   " + "="*70)
-                    logger.info("   📋 OCR Pipeline: Gemini 2.5 Pro")
-                    logger.info("   ⏳ Processing with Gemini OCR...")
-                    logger.info("   " + "="*70)
-                    logger.info("")
-                    try:
-                        # Get Gemini API key
-                        from ..core.config import settings
-                        from ..gemini_core import settings_gemini_key
-                        gemini_api_key = settings_gemini_key.GEMINI_API_KEY
-                        
-                        if not gemini_api_key:
-                            raise Exception("GEMINI_API_KEY not configured")
-                        
-                        ocr_results = process_pages_with_gemini_ocr(page_data, gemini_api_key, max_workers=1)
-                        logger.info("")
-                        logger.info("   ✅ STEP 3: OCR Processing Complete!")
-                        logger.info("")
-                        
-                        # Step 4: No post-processing cleaning - only block filtering (len > 2) done in Gemini output
-                        # Blocks are primary data - merged text is for backward compatibility only
-                        # No cleaning applied to preserve spatial structure
-                    except Exception as ocr_error:
-                        logger.error(f"   ❌ OCR processing failed: {ocr_error}")
-                        # Create empty OCR result so PDF can still be generated
-                        ocr_results = [{
-                            "page_number": 1,
-                            "text": f"OCR processing failed: {str(ocr_error)}\n\nPlease check:\n1. GEMINI_API_KEY is set in environment\n2. Gemini API is accessible\n3. Backend logs for details",
-                            "error": str(ocr_error),
-                            "blocks": []
-                        }]
-                    
-                    # Step 5: Reconstruct blocks using LLM
-                    logger.info("")
-                    logger.info("   " + "="*70)
-                    logger.info("   🤖 STEP 5: Starting LLM Reconstruction")
-                    logger.info("   " + "="*70)
-                    logger.info("   📋 Reconstructing OCR blocks into clean prose...")
-                    logger.info("   " + "="*70)
-                    logger.info("")
-                    
-                    try:
-                        # Log OCR data being sent to LLM (for user inspection)
-                        logger.info("   📋 OCR Data Summary (before LLM reconstruction):")
-                        for result in ocr_results:
-                            page_no = result.get("page_number", 0)
-                            blocks = result.get("blocks", [])
-                            full_text = result.get("full_text", "")
-                            width = result.get("width", 0)
-                            height = result.get("height", 0)
-                            
-                            logger.info(f"      Page {page_no}:")
-                            logger.info(f"         • Blocks: {len(blocks)}")
-                            logger.info(f"         • Full text: {len(full_text)} chars")
-                            logger.info(f"         • Dimensions: {width}x{height} pixels")
-                            
-                            if blocks:
-                                # Show first few blocks as preview
-                                for i, block in enumerate(blocks[:3], 1):
-                                    text_preview = block.get("text", "")[:60]
-                                    conf = block.get("conf", 0.0)
-                                    bbox = block.get("bbox", [])
-                                    logger.info(f"         Block {i}: '{text_preview}...' (conf={conf:.2f}) bbox={bbox}")
-                                if len(blocks) > 3:
-                                    logger.info(f"         ... and {len(blocks) - 3} more blocks")
-                        
-                        # Initialize OpenAI client for reconstruction
-                        openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-                        
-                        # Reconstruct OCR data using LLM (combine pages for single reconstruction)
-                        ocr_results = reconstruct_pages_blocks(
-                            ocr_results=ocr_results,
-                            llm_client=openai_client,
-                            model=settings.LLM_MODEL,
-                            combine_pages=True  # Combine all pages into one reconstruction
-                        )
-                        
-                        logger.info("")
-                        logger.info("   ✅ STEP 5: LLM Reconstruction Complete!")
-                        logger.info("")
-                        
-                    except Exception as recon_error:
-                        logger.error(f"   ❌ LLM reconstruction failed: {recon_error}")
-                        logger.warning(f"   ⚠️ Using original merged text as fallback")
-                        # Add empty reconstructed_text to results
-                        for result in ocr_results:
-                            if "reconstructed_text" not in result:
-                                result["reconstructed_text"] = result.get("text", "")
-                    
-                    # Step 6: Generate PDF (even if OCR failed, generate PDF with error message)
-                    pdf_filename = os.path.splitext(file.filename)[0] + "_ocr.pdf"
-                    pdf_path = os.path.join(OCR_OUTPUT_DIR, pdf_filename)
-                    
-                    logger.info(f"   📄 Generating PDF: {pdf_filename}")
-                    try:
-                        # Use reconstructed text if available, otherwise use original text
-                        pdf_results = []
-                        for result in ocr_results:
-                            reconstructed_text = result.get("reconstructed_text", "")
-                            original_text = result.get("text", "")
-                            text_to_use = reconstructed_text if reconstructed_text else original_text
-                            
-                            logger.info(f"   📄 Page {result.get('page_number', 1)}:")
-                            logger.info(f"      • Using {'reconstructed' if reconstructed_text else 'original'} text")
-                            logger.info(f"      • Text length: {len(text_to_use)} chars")
-                            if text_to_use:
-                                logger.info(f"      • Preview: {text_to_use[:100]}...")
-                            else:
-                                logger.warning(f"      • ⚠️ No text available for this page!")
-                            
-                            pdf_result = {
-                                "page_number": result.get("page_number", 1),
-                                "text": text_to_use
-                            }
-                            pdf_results.append(pdf_result)
-                        
-                        generate_pdf_from_ocr_results(
-                            ocr_results=pdf_results,
-                            output_path=pdf_path,
-                            title=f"OCR Extracted Text: {file.filename}"
-                        )
-                    except Exception as pdf_error:
-                        logger.error(f"   ❌ PDF generation failed: {pdf_error}")
-                        raise Exception(f"Failed to generate PDF: {str(pdf_error)}")
-                    
-                    # Store results
-                    roi_info = {
-                        "roi_preview_path": roi_result.get("roi_preview_path"),
-                        "roi_method": roi_result["roi_method"],
-                        "roi_coordinates": roi_result["roi_coordinates"],
-                        "pdf_path": pdf_path,
-                        "pdf_filename": pdf_filename,
-                        "ocr_results": ocr_results
-                    }
-                    
-                    # Return success with PDF download link
-                    processed_files_summary.append({
-                        "filename": file.filename,
-                        "status": "success",
-                        "pdf_path": pdf_path,
-                        "pdf_filename": pdf_filename,
-                        "pdf_download_url": f"/upload/download/{pdf_filename}",
-                        "roi_preview_path": roi_info["roi_preview_path"],
-                        "roi_method": roi_info["roi_method"],
-                        "ocr_results": [
-                            {
-                                "page_number": r["page_number"],
-                                "text": r.get("text", ""),  # Original merged text from blocks
-                                "full_text": r.get("full_text", ""),  # Full text from Gemini OCR
-                                "reconstructed_text": r.get("reconstructed_text", ""),  # LLM reconstructed prose
-                                "identified_question": r.get("identified_question", ""),  # Question identified from OCR blocks
-                                "text_length": len(r.get("text", "")),
-                                "full_text_length": len(r.get("full_text", "")),
-                                "reconstructed_length": len(r.get("reconstructed_text", "")),
-                                "num_blocks": len(r.get("blocks", [])),
-                                "width": r.get("width", 0),
-                                "height": r.get("height", 0),
-                                "blocks": r.get("blocks", []),  # Include raw blocks data (with conf) sent to LLM
-                                "ocr_method": "gemini"
-                            }
-                            for r in ocr_results
-                        ],
-                        "message": f"OCR complete. PDF generated: {pdf_filename}"
-                    })
-                    continue
-                        
-                except Exception as roi_error:
-                    logger.error(f"   ❌ ROI + OCR processing failed: {roi_error}")
-                    processed_files_summary.append({
-                        "filename": file.filename,
-                        "status": "failed",
-                        "reason": f"ROI + OCR processing failed: {str(roi_error)}"
-                    })
-                    continue
+                })
             else:
+                logger.warning(f"⚠️ {file.filename}: Unsupported file type {file_ext}")
                 processed_files_summary.append({
                     "filename": file.filename,
                     "status": "skipped",
-                    "reason": f"Unsupported file type: {file_ext}. Supported: PDF, TXT, JPG, PNG, GIF, BMP, TIFF"
+                    "reason": f"Unsupported file type: {file_ext}"
                 })
-                logger.warning(f"⚠️ Unsupported file type: {file_ext} for {file.filename}")
-                continue
-
-            # Log chunk creation details
-            if chunks:
-                logger.info(f"📦 Chunk Creation Summary for {file.filename}:")
-                logger.info(f"   • Total chunks created: {len(chunks)}")
                 
-                # Show sample chunks (first 3)
-                for i, chunk in enumerate(chunks[:3], 1):
-                    content_preview = chunk['content'][:200].replace('\n', ' ')
-                    metadata = chunk.get('metadata', {})
-                    logger.info(f"   • Sample Chunk {i}:")
-                    logger.info(f"     - Content preview: {content_preview}...")
-                    logger.info(f"     - Content length: {len(chunk['content'])} chars")
-                    logger.info(f"     - Metadata: {metadata}")
-                
-                if len(chunks) > 3:
-                    logger.info(f"   • ... and {len(chunks) - 3} more chunks")
-
-            # Classify chunks with GPT-4o-mini and store in Pinecone
-            if chunks:
-                try:
-                    # Print diagnostics for chunks before classification
-                    logger.info(f"\n📊 Chunking Diagnostics:")
-                    logger.info(f"   • Total chunks created: {len(chunks)}")
-                    if chunks:
-                        sample = chunks[0]
-                        logger.info(f"   • Sample chunk metadata keys: {list(sample.get('metadata', {}).keys())}")
-                        logger.info(f"   • Sample chunk size: {len(sample['content'].split())} words")
-                        logger.info(f"   • Sample chapter: {sample.get('metadata', {}).get('chapter', 'N/A')}")
-                        logger.info(f"   • Sample section: {sample.get('metadata', {}).get('section', 'N/A')}")
-                    
-                    # Step 1: Classify chunks with GPT-4o-mini (batch processing)
-                    logger.info(f"\n🤖 Classifying {len(chunks)} chunks with GPT-4o-mini (batch processing)...")
-                    from ..utils.metadata_enricher import classify_chunks_batch
-                    openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-                    
-                    # Classify all chunks in batches
-                    classified_chunks = classify_chunks_batch(chunks, openai_client)
-                    
-                    logger.info(f"✅ Classification complete for {len(classified_chunks)} chunks")
-                    
-                    # Show first 3 chunks with classification
-                    logger.info(f"\n📝 First 3 chunks with classification:")
-                    for i, chunk in enumerate(classified_chunks[:3], 1):
-                        meta = chunk.get('metadata', {})
-                        logger.info(f"\n   Chunk {i}:")
-                        logger.info(f"      • Content preview: {chunk['content'][:150].replace(chr(10), ' ')}...")
-                        logger.info(f"      • Word count: {len(chunk['content'].split())} words")
-                        logger.info(f"      • Major Domain: {meta.get('major_domain', 'N/A')}")
-                        logger.info(f"      • Sub Domain: {meta.get('sub_domain', 'N/A')}")
-                        logger.info(f"      • Micro Topic: {meta.get('micro_topic', 'N/A')}")
-                        if meta.get('sub_topics'):
-                            logger.info(f"      • Sub Topics: {', '.join(meta.get('sub_topics', []))}")
-                        logger.info(f"      • Full Metadata: {meta}")
-                    
-                    # Step 2: Store classified chunks in Pinecone (this will generate embeddings automatically)
-                    logger.info(f"\n💾 Storing {len(classified_chunks)} chunks in Pinecone (generating embeddings)...")
-                    vector_handler.add_documents(classified_chunks)
-                    logger.info(f"✅ Successfully stored {len(classified_chunks)} chunks in Pinecone")
-                    
-                    # Prepare summary
-                    summary_item = {
-                        "filename": file.filename,
-                        "status": "success",
-                        "chunks_created": len(chunks),
-                        "chunks_stored": len(chunks),
-                        "message": "Chunks created and stored successfully in Pinecone"
-                    }
-                    
-                    # Add ROI preview paths if available
-                    if roi_info:
-                        if "roi_preview_paths" in roi_info:
-                            summary_item["roi_preview_paths"] = roi_info["roi_preview_paths"]
-                        elif "roi_preview_path" in roi_info:
-                            summary_item["roi_preview_path"] = roi_info["roi_preview_path"]
-                        summary_item["roi_method"] = roi_info.get("roi_method")
-                    
-                    processed_files_summary.append(summary_item)
-                    logger.info(f"✅ Successfully processed and stored {len(chunks)} chunks for {file.filename}")
-                    
-                except Exception as storage_error:
-                    # Chunks were created but storage failed
-                    logger.error(f"❌ Chunks created but storage failed for {file.filename}: {storage_error}")
-                    processed_files_summary.append({
-                        "filename": file.filename,
-                        "status": "failed",
-                        "reason": f"Storage failed: {str(storage_error)}",
-                        "chunks_created": len(chunks),
-                        "chunks_stored": 0
-                    })
-                    raise  # Re-raise to be caught by outer exception handler
-            else:
-                processed_files_summary.append({
-                    "filename": file.filename,
-                    "status": "skipped",
-                    "reason": f"No chunks created from {file_ext.upper()} file"
-                })
-                logger.warning(f"⚠️ No chunks created for {file.filename}")
-
         except Exception as e:
-            logger.error(f"Error processing {file.filename}: {e}")
+            logger.error(f"❌ Error analyzing {file.filename}: {e}")
             processed_files_summary.append({
                 "filename": file.filename,
+                "status": "failed",
+                "reason": f"Analysis failed: {str(e)}"
+            })
+    
+    # ==========================================================================
+    # PHASE 2: Batch OCR all scanned PDFs and images together
+    # ==========================================================================
+    ocr_results_by_file = {}  # filename -> list of OCR results
+    
+    if files_needing_ocr or image_files:
+        logger.info(f"\n{'='*70}")
+        logger.info(f"🔍 PHASE 2: Batch OCR Processing")
+        logger.info(f"   • Scanned PDFs: {len(files_needing_ocr)} files")
+        logger.info(f"   • Images: {len(image_files)} files")
+        logger.info(f"{'='*70}\n")
+        
+        try:
+            from ..gemini_core import settings_gemini_key
+            gemini_api_key = settings_gemini_key.GEMINI_API_KEY
+            
+            if not gemini_api_key:
+                raise Exception("GEMINI_API_KEY not configured")
+            
+            # Collect ALL pages from all files with tracking metadata
+            all_pages_for_ocr = []
+            page_to_file_map = []  # Maps each page index to (filename, local_page_number)
+            
+            # Add pages from scanned PDFs
+            for file_info in files_needing_ocr:
+                filename = file_info["filename"]
+                for local_idx, page in enumerate(file_info["pages"]):
+                    # Add filename tracking to page data
+                    page_with_tracking = page.copy()
+                    page_with_tracking["_source_filename"] = filename
+                    page_with_tracking["_local_page_number"] = local_idx + 1
+                    all_pages_for_ocr.append(page_with_tracking)
+                    page_to_file_map.append((filename, local_idx + 1))
+            
+            # Add pages from images
+            for img_info in image_files:
+                filename = img_info["filename"]
+                for page in img_info["page_data"]:
+                    page_with_tracking = page.copy()
+                    page_with_tracking["_source_filename"] = filename
+                    page_with_tracking["_local_page_number"] = 1
+                    all_pages_for_ocr.append(page_with_tracking)
+                    page_to_file_map.append((filename, 1))
+            
+            total_pages = len(all_pages_for_ocr)
+            logger.info(f"⏳ Running Gemini OCR on {total_pages} total pages from {len(files_needing_ocr) + len(image_files)} files...")
+            
+            # BATCH OCR all pages together WITH RECONSTRUCTION (for PDF uploads to Pinecone)
+            from ..utils.gemini_ocr import process_pages_with_gemini_ocr_with_reconstruction
+            ocr_results = await process_pages_with_gemini_ocr_with_reconstruction(all_pages_for_ocr, gemini_api_key, max_workers=2)
+            
+            # Check for OCR failures
+            failed_pages = [r for r in ocr_results if r.get("error")]
+            if failed_pages:
+                error_details = "; ".join([f"Page {r['page_number']}: {r['error']}" for r in failed_pages[:5]])
+                logger.error(f"❌ OCR failed for {len(failed_pages)} page(s): {error_details}")
+            
+            logger.info(f"✅ OCR completed for {len(ocr_results)} pages")
+            
+            # Group OCR results back by filename
+            for idx, ocr_result in enumerate(ocr_results):
+                if idx < len(page_to_file_map):
+                    filename, local_page_num = page_to_file_map[idx]
+                    if filename not in ocr_results_by_file:
+                        ocr_results_by_file[filename] = []
+                    
+                    # Add local page number to result
+                    ocr_result["page_number"] = local_page_num
+                    ocr_results_by_file[filename].append(ocr_result)
+            
+            logger.info(f"\n📊 OCR results grouped by file:")
+            for filename, results in ocr_results_by_file.items():
+                logger.info(f"   • {filename}: {len(results)} pages")
+                
+        except Exception as ocr_error:
+            logger.error(f"❌ Batch OCR failed: {ocr_error}")
+            import traceback
+            logger.error(traceback.format_exc())
+            
+            # Mark all OCR files as failed
+            for file_info in files_needing_ocr:
+                processed_files_summary.append({
+                    "filename": file_info["filename"],
+                    "status": "failed",
+                    "reason": f"Batch OCR failed: {str(ocr_error)}"
+                })
+            for img_info in image_files:
+                processed_files_summary.append({
+                    "filename": img_info["filename"],
+                    "status": "failed",
+                    "reason": f"Batch OCR failed: {str(ocr_error)}"
+                })
+            
+            # Clear these lists so we don't try to process them further
+            files_needing_ocr = []
+            image_files = []
+    
+    # ==========================================================================
+    # PHASE 3: Reconstruct and chunk each file separately
+    # ==========================================================================
+    logger.info(f"\n{'='*70}")
+    logger.info(f"📝 PHASE 3: Reconstruct & Chunk per file")
+    logger.info(f"{'='*70}\n")
+    
+    # Process scanned PDFs (from OCR results)
+    for file_info in files_needing_ocr:
+        filename = file_info["filename"]
+        file_path = file_info["file_path"]
+        roi_info = {
+            "roi_preview_paths": file_info["roi_preview_paths"],
+            "roi_method": file_info["roi_result"]["roi_method"],
+            "roi_coordinates": file_info["roi_result"]["roi_coordinates"]
+        }
+        
+        if filename not in ocr_results_by_file:
+            logger.error(f"❌ No OCR results for {filename}")
+            processed_files_summary.append({
+                "filename": filename,
+                "status": "failed",
+                "reason": "No OCR results available"
+            })
+            continue
+        
+        file_ocr_results = ocr_results_by_file[filename]
+        
+        try:
+            # Simply combine OCR text from all pages (no LLM reconstruction needed for uploads)
+            logger.info(f"📄 Combining {len(file_ocr_results)} pages of OCR text for {filename}...")
+            
+            # Join text from all pages - use full_text or text field from OCR results
+            page_texts = []
+            for page_result in file_ocr_results:
+                # Prefer full_text (raw Gemini output), fall back to text (merged blocks)
+                page_text = page_result.get("full_text") or page_result.get("text", "")
+                if page_text:
+                    page_texts.append(page_text)
+            
+            ocr_text = "\n\n".join(page_texts)
+            
+            if not ocr_text or len(ocr_text.strip()) < 50:
+                logger.error(f"❌ OCR produced insufficient text for {filename}")
+                processed_files_summary.append({
+                    "filename": filename,
+                    "status": "failed",
+                    "reason": "OCR produced insufficient text"
+                })
+                continue
+            
+            logger.info(f"   ✅ Combined {len(ocr_text)} chars from {len(page_texts)} pages")
+            
+            # Create single chunk for this file
+            chunks = chunker.process_as_single_chunk(text_override=ocr_text, filename=filename, subject=subject)
+            
+            # Continue to classification and storage (shared code below)
+            # We need to add this file to a processing queue
+            # For now, process inline...
+            
+            if not chunks:
+                processed_files_summary.append({
+                    "filename": filename,
+                    "status": "skipped",
+                    "reason": "No chunks created"
+                })
+                continue
+            
+            # Skip embedding if requested
+            if skip_embedding:
+                processed_files_summary.append({
+                    "filename": filename,
+                    "status": "success",
+                    "message": "Processed (embedding skipped)",
+                    "chunks_created": len(chunks),
+                    "content_preview": ocr_text[:200] + "..." if len(ocr_text) > 200 else ocr_text
+                })
+                continue
+            
+            # Classify and store chunks
+            logger.info(f"🤖 Classifying {len(chunks)} chunks for {filename}...")
+            from ..utils.metadata_enricher import classify_chunks_batch
+            openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            classified_chunks = classify_chunks_batch(chunks, openai_client, subject=subject, provided_major_domain=major_domain, source_type=source_type)
+            
+            # Store in Pinecone
+            logger.info(f"💾 Storing {len(classified_chunks)} chunks in Pinecone...")
+            vector_handler.add_documents(classified_chunks)
+            
+            # Store in SQL ContentStore
+            logger.info(f"💾 Storing in SQL ContentStore...")
+            cs_result = content_store.batch_store(classified_chunks)
+            
+            processed_files_summary.append({
+                "filename": filename,
+                "status": "success",
+                "message": f"OCR + Chunking completed",
+                "chunks_created": len(chunks),
+                "chunks_stored": len(classified_chunks),
+                "pages_processed": len(file_ocr_results),
+                "content_preview": ocr_text[:200] + "..." if len(ocr_text) > 200 else ocr_text,
+                "roi_info": roi_info
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing {filename}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            processed_files_summary.append({
+                "filename": filename,
+                "status": "failed",
+                "reason": str(e)
+            })
+    
+    # Process images (from OCR results)
+    for img_info in image_files:
+        filename = img_info["filename"]
+        file_path = img_info["file_path"]
+        
+        if filename not in ocr_results_by_file:
+            logger.error(f"❌ No OCR results for image {filename}")
+            processed_files_summary.append({
+                "filename": filename,
+                "status": "failed",
+                "reason": "No OCR results available"
+            })
+            continue
+        
+        file_ocr_results = ocr_results_by_file[filename]
+        
+        try:
+            # Simply get OCR text (no LLM reconstruction needed for uploads)
+            logger.info(f"🖼️ Processing OCR text for image {filename}...")
+            
+            # Get text from OCR result (images have single page)
+            page_texts = []
+            for page_result in file_ocr_results:
+                page_text = page_result.get("full_text") or page_result.get("text", "")
+                if page_text:
+                    page_texts.append(page_text)
+            
+            ocr_text = "\n\n".join(page_texts)
+            
+            if not ocr_text or len(ocr_text.strip()) < 50:
+                processed_files_summary.append({
+                    "filename": filename,
+                    "status": "failed",
+                    "reason": "OCR produced insufficient text"
+                })
+                continue
+            
+            # Create chunk
+            chunks = chunker.process_as_single_chunk(text_override=ocr_text, filename=filename, subject=subject)
+            
+            if not chunks:
+                processed_files_summary.append({
+                    "filename": filename,
+                    "status": "skipped",
+                    "reason": "No chunks created"
+                })
+                continue
+            
+            if skip_embedding:
+                processed_files_summary.append({
+                    "filename": filename,
+                    "status": "success",
+                    "message": "Processed (embedding skipped)",
+                    "chunks_created": len(chunks),
+                    "content_preview": ocr_text[:200] + "..."
+                })
+                continue
+            
+            # Classify and store
+            from ..utils.metadata_enricher import classify_chunks_batch
+            openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            classified_chunks = classify_chunks_batch(chunks, openai_client, subject=subject, provided_major_domain=major_domain, source_type=source_type)
+            
+            vector_handler.add_documents(classified_chunks)
+            cs_result = content_store.batch_store(classified_chunks)
+            
+            processed_files_summary.append({
+                "filename": filename,
+                "status": "success",
+                "message": "Image OCR + Chunking completed",
+                "chunks_created": len(chunks),
+                "chunks_stored": len(classified_chunks),
+                "content_preview": ocr_text[:200] + "..."
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing image {filename}: {e}")
+            processed_files_summary.append({
+                "filename": filename,
+                "status": "failed",
+                "reason": str(e)
+            })
+    
+    # Process text-extractable PDFs (no OCR needed)
+    for file_info in files_with_text:
+        filename = file_info["filename"]
+        file_path = file_info["file_path"]
+        
+        try:
+            logger.info(f"📄 Processing text PDF: {filename}")
+            
+            # Process PDF using the hierarchical chunker
+            chunks = chunker.process_pdf(file_path, filename, subject=subject)
+            
+            if not chunks:
+                processed_files_summary.append({
+                    "filename": filename,
+                    "status": "skipped",
+                    "reason": "No chunks created"
+                })
+                continue
+            
+            if skip_embedding:
+                processed_files_summary.append({
+                    "filename": filename,
+                    "status": "success",
+                    "message": "Processed (embedding skipped)",
+                    "chunks_created": len(chunks)
+                })
+                continue
+            
+            # Classify and store
+            logger.info(f"🤖 Classifying {len(chunks)} chunks for {filename}...")
+            from ..utils.metadata_enricher import classify_chunks_batch
+            openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            classified_chunks = classify_chunks_batch(chunks, openai_client, subject=subject, provided_major_domain=major_domain, source_type=source_type)
+            
+            logger.info(f"💾 Storing {len(classified_chunks)} chunks in Pinecone...")
+            vector_handler.add_documents(classified_chunks)
+            
+            logger.info(f"💾 Storing in SQL ContentStore...")
+            cs_result = content_store.batch_store(classified_chunks)
+            
+            chapters = sorted(list(set(c.get('metadata', {}).get('chapter', 'General') for c in chunks)))
+            
+            processed_files_summary.append({
+                "filename": filename,
+                "status": "success",
+                "message": "Text PDF processed successfully",
+                "chunks_created": len(chunks),
+                "chunks_stored": len(classified_chunks),
+                "chapters": chapters
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing {filename}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            processed_files_summary.append({
+                "filename": filename,
                 "status": "failed",
                 "reason": str(e)
             })
         finally:
             if os.path.exists(file_path):
                 os.remove(file_path)
+    
+    # Process TXT files
+    for file_info in txt_files:
+        filename = file_info["filename"]
+        file_path = file_info["file_path"]
+        
+        try:
+            logger.info(f"📝 Processing TXT file: {filename}")
+            chunks = chunker.process_txt(file_path, filename)
+            
+            if not chunks:
+                processed_files_summary.append({
+                    "filename": filename,
+                    "status": "skipped",
+                    "reason": "No chunks created from TXT file"
+                })
+                continue
+            
+            if skip_embedding:
+                processed_files_summary.append({
+                    "filename": filename,
+                    "status": "success",
+                    "message": "Processed (embedding skipped)",
+                    "chunks_created": len(chunks)
+                })
+                continue
+            
+            # Classify and store
+            from ..utils.metadata_enricher import classify_chunks_batch
+            openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            classified_chunks = classify_chunks_batch(chunks, openai_client, subject=subject, provided_major_domain=major_domain, source_type=source_type)
+            
+            vector_handler.add_documents(classified_chunks)
+            cs_result = content_store.batch_store(classified_chunks)
+            
+            processed_files_summary.append({
+                "filename": filename,
+                "status": "success",
+                "message": "TXT file processed successfully",
+                "chunks_created": len(chunks),
+                "chunks_stored": len(classified_chunks)
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing {filename}: {e}")
+            processed_files_summary.append({
+                "filename": filename,
+                "status": "failed",
+                "reason": str(e)
+            })
+        finally:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+    
+    # ==========================================================================
+    # PHASE 4: Final Summary
+    # ==========================================================================
+    logger.info(f"\n{'='*70}")
+    logger.info(f"✅ PROCESSING COMPLETE")
+    logger.info(f"   • Total files: {len(files)}")
+    logger.info(f"   • Successful: {len([f for f in processed_files_summary if f.get('status') == 'success'])}")
+    logger.info(f"   • Failed: {len([f for f in processed_files_summary if f.get('status') == 'failed'])}")
+    logger.info(f"   • Skipped: {len([f for f in processed_files_summary if f.get('status') == 'skipped'])}")
+    logger.info(f"{'='*70}\n")
 
     if not processed_files_summary:
         raise HTTPException(status_code=400, detail="No files were processed.")

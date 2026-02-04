@@ -60,9 +60,9 @@ class Embedder:
         # Split texts that are too long (OpenAI limit: 8192 tokens ≈ 6000 words)
         # Use VERY conservative limit: 1500 words ≈ 1950 tokens (very safe)
         cleaned_texts = []
-        MAX_WORDS = 1500  # Very conservative limit: ~1950 tokens (well under 8192)
+        MAX_WORDS = settings.MAX_CHAPTER_CHUNK_WORDS
         
-        def split_text_by_sentences(text: str, max_words: int, overlap_words: int = 100) -> List[str]:
+        def split_text_by_sentences(text: str, max_words: int, overlap_words: int = 200) -> List[str]:
             """Split long text by sentences with overlap"""
             import re
             
@@ -129,7 +129,7 @@ class Embedder:
                 # If text is too long, split it instead of truncating
                 if word_count > MAX_WORDS:
                     logger.warning(f"⚠️ Text {i+1} too long ({word_count} words), splitting into smaller chunks...")
-                    split_chunks = split_text_by_sentences(text, MAX_WORDS, overlap_words=100)
+                    split_chunks = split_text_by_sentences(text, MAX_WORDS, overlap_words=settings.CHAPTER_CHUNK_OVERLAP_WORDS)
                     logger.info(f"   ✅ Split into {len(split_chunks)} chunks")
                     # Store split info for caller
                     start_idx = len(cleaned_texts)
@@ -144,7 +144,7 @@ class Embedder:
                 word_count = len(words)
                 if word_count > MAX_WORDS:
                     logger.warning(f"⚠️ Text {i+1} too long ({word_count} words), splitting into smaller chunks...")
-                    split_chunks = split_text_by_sentences(text_str, MAX_WORDS, overlap_words=100)
+                    split_chunks = split_text_by_sentences(text_str, MAX_WORDS, overlap_words=settings.CHAPTER_CHUNK_OVERLAP_WORDS)
                     logger.info(f"   ✅ Split into {len(split_chunks)} chunks")
                     start_idx = len(cleaned_texts)
                     cleaned_texts.extend([chunk.strip() for chunk in split_chunks if chunk.strip()])

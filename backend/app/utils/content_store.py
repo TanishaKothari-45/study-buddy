@@ -228,24 +228,39 @@ class ContentStore:
         success_count = 0
         failures = []
         
-        # Simple implementation for now (can be optimized with executemany)
         for chunk in chunks:
+            # Handle both flat and nested metadata structures
+            meta = chunk.get("metadata", {})
+            
+            # If metadata exists, extract from it, otherwise use chunk directly
+            # This makes it robust to both formats
+            chunk_id = meta.get("chunk_id") if meta else chunk.get("chunk_id")
+            filename = meta.get("filename") if meta else chunk.get("filename")
+            chapter = meta.get("chapter") if meta else chunk.get("chapter")
+            section = meta.get("section") if meta else chunk.get("section")
+            major_domain = meta.get("major_domain") if meta else chunk.get("major_domain")
+            sub_domain = meta.get("sub_domain") if meta else chunk.get("sub_domain")
+            micro_topic = meta.get("micro_topic") if meta else chunk.get("micro_topic")
+            sub_topics = meta.get("sub_topics") if meta else chunk.get("sub_topics")
+            source_type = meta.get("source_type") if meta else chunk.get("source_type")
+            source_subtype = meta.get("source_subtype") if meta else chunk.get("source_subtype")
+            
             res = self.store_chunk(
-                chunk_id=chunk.get("chunk_id"),
-                filename=chunk.get("filename"),
+                chunk_id=chunk_id,
+                filename=filename,
                 full_content=chunk.get("content", ""),
-                chapter=chunk.get("chapter"),
-                section=chunk.get("section"),
-                major_domain=chunk.get("major_domain"),
-                sub_domain=chunk.get("sub_domain"),
-                micro_topic=chunk.get("micro_topic"),
-                sub_topics=chunk.get("sub_topics"),
-                source_type=chunk.get("source_type"),
-                source_subtype=chunk.get("source_subtype")
+                chapter=chapter,
+                section=section,
+                major_domain=major_domain,
+                sub_domain=sub_domain,
+                micro_topic=micro_topic,
+                sub_topics=sub_topics,
+                source_type=source_type,
+                source_subtype=source_subtype
             )
             if res:
                 success_count += 1
             else:
-                failures.append(chunk.get("chunk_id", "unknown"))
+                failures.append(chunk_id or "unknown")
         
         return {"success": success_count, "failed": len(failures), "failures": failures}
