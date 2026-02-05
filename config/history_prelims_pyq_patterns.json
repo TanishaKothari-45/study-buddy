@@ -1,0 +1,250 @@
+{
+    "metadata": {
+        "subject": "History",
+        "total_patterns": 7,
+        "description": "UPSC Prelims History question grammar dataset for few-shot prompting and style conditioning."
+    },
+    "patterns": [
+        {
+            "id": "H1",
+            "title": "Concept Definition / Single-Choice",
+            "explanation": "Tests precise understanding of a historical concept or terminology. The distractors include plausible alternatives linked to common misconceptions or related concepts.",
+            "example_questions": [
+                {
+                    "question": "Which one of the following best describes the Ryotwari Settlement introduced in British India?",
+                    "options": [
+                        "(a) Land revenue was collected through intermediaries (zamindars)",
+                        "(b) Land revenue was collected directly from the cultivator by the government",
+                        "(c) Land was rented by the state to village communities",
+                        "(d) Land revenue was abolished in newly colonised territories"
+                    ],
+                    "correct_answer": "b",
+                    "pattern_notes": "Upsc often tests precise definitions of colonial revenue systems; confusion arises between zamindari, ryotwari, and mahalwari.",
+                    "distractor_rationales": {
+                        "(a)": "Represents the *zamindari* system, not ryotwari.",
+                        "(c)": "Describes village community systems, not a revenue settlement.",
+                        "(d)": "Incorrect; revenue was not abolished."
+                    }
+                },
+                {
+                    "question": "Which one of the following best describes Ashoka’s Dhamma?",
+                    "options": [
+                        "(a) A religious scripture detailing rituals",
+                        "(b) A moral code promoting non-violence and welfare",
+                        "(c) A political manifesto demanding conquest",
+                        "(d) A treatise on taxation and revenue"
+                    ],
+                    "correct_answer": "b",
+                    "pattern_notes": "Tests understanding of Ashokan ideology; distractors include unrelated historical narratives.",
+                    "distractor_rationales": {
+                        "(a)": "Suggests religious script, but dhamma was ethical governance.",
+                        "(c)": "False; dhamma was non-violent, not conquest.",
+                        "(d)": "Incorrect association with fiscal policy."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "H2",
+            "title": "Multi-Statement Evaluation",
+            "explanation": "This pattern uses a list of statements testing factual recall and logical discrimination. UPSC commonly uses this format in History questions. :contentReference[oaicite:0]{index=0}",
+            "example_questions": [
+                {
+                    "question": "Consider the following statements about the Revolt of 1857:\n1. It began in Meerut and quickly spread to other regions.\n2. The revolt had the direct support of all princely states.\n3. The Doctrine of Lapse was one of the causes of discontent.\nWhich of the statements given above is/are correct?",
+                    "options": [
+                        "(a) 1 and 2 only",
+                        "(b) 1 and 3 only",
+                        "(c) 2 and 3 only",
+                        "(d) 1, 2 and 3"
+                    ],
+                    "correct_answer": "b",
+                    "pattern_notes": "Common multi-statement question; combines geography of revolt with causes.",
+                    "distractor_rationales": {
+                        "(a)": "Statement 2 is wrong (many states stayed neutral).",
+                        "(c)": "Statement 2 is incorrect.",
+                        "(d)": "Statement 2 is incorrect; all three is wrong."
+                    }
+                },
+                {
+                    "question": "Consider the following statements:\n1. The Government of India Act 1935 provided for an All India Federation.\n2. It abolished dyarchy in the provinces.\n3. It abolished princely states entirely.\nWhich of the statements given above are correct?",
+                    "options": [
+                        "(a) 1 and 2 only",
+                        "(b) 2 and 3 only",
+                        "(c) 1 and 3 only",
+                        "(d) All three"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Tests understanding of key provisions of the 1935 Act; distractions are common misconceptions. :contentReference[oaicite:1]{index=1}",
+                    "distractor_rationales": {
+                        "(b)": "Statement 3 is incorrect.",
+                        "(c)": "Statement 3 is incorrect.",
+                        "(d)": "Statement 3 is incorrect."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "H3",
+            "title": "Match-the-Pair Questions",
+            "explanation": "The two-column matching format tests associations like personalities with contributions or movements with leaders.",
+            "example_questions": [
+                {
+                    "question": "Match the following:\nList I\n1. Raja Ram Mohan Roy\n2. Bal Gangadhar Tilak\n3. Annie Besant\n\nList II\n(a) Home Rule Movement\n(b) Founder of Brahmo Samaj\n(c) Promoted Ganapati and Shivaji festivals\nSelect the correct answer:",
+                    "options": [
+                        "(a) 1–b, 2–c, 3–a",
+                        "(b) 1–a, 2–b, 3–c",
+                        "(c) 1–c, 2–a, 3–b",
+                        "(d) 1–b, 2–a, 3–c"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Tests matching reformers to their major contributions; UPSC often uses this in history. :contentReference[oaicite:2]{index=2}",
+                    "distractor_rationales": {
+                        "(b)": "Incorrect pairing of individuals and movements.",
+                        "(c)": "Random incorrect matches.",
+                        "(d)": "Incorrect alignment for Tilak and Besant."
+                    }
+                },
+                {
+                    "question": "Match the following:\nList I\n1. Ashoka\n2. Harsha\n3. Samudragupta\n\nList II\n(a) Rock Edicts\n(b) Prashasti (inscription)\n(c) Kannauj Empire\nSelect the correct answer:",
+                    "options": [
+                        "(a) 1–a, 2–c, 3–b",
+                        "(b) 1–b, 2–a, 3–c",
+                        "(c) 1–c, 2–b, 3–a",
+                        "(d) 1–a, 2–b, 3–c"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Pairs personalities with inscriptions/territorial conquests.",
+                    "distractor_rationales": {
+                        "(b)": "Incorrect permutations of roles.",
+                        "(c)": "Wrong assignment of historical figures to achievements.",
+                        "(d)": "Statement mismatch between ruler and event."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "H4",
+            "title": "Assertion–Reason Type (Linkage)",
+            "explanation": "This format tests causal or logical connections between two statements. Distractors explore whether reason correctly explains the assertion.",
+            "example_questions": [
+                {
+                    "question": "Assertion (A): The Non-Cooperation Movement was withdrawn in 1922.\nReason (R): The Chauri Chaura incident led to violent clashes between protestors and police.\nWhich of the following is correct?",
+                    "options": [
+                        "(a) Both A and R are correct and R is the correct explanation for A",
+                        "(b) Both A and R are correct but R is not the correct explanation for A",
+                        "(c) A is correct but R is incorrect",
+                        "(d) A is incorrect but R is correct"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Classical assertion–reason pattern; UPSC often uses such as part of History tests.",
+                    "distractor_rationales": {
+                        "(b)": "Reason is indeed the cause behind withdrawal.",
+                        "(c)": "Reason is correct; A is correct but R does explain A.",
+                        "(d)": "Both statements are factual, so (d) is wrong."
+                    }
+                },
+                {
+                    "question": "Assertion (A): The Government of India Act, 1919 introduced diarchy in provinces.\nReason (R): Diarchy meant separation of subjects into transferred and reserved categories.\nWhich is correct?",
+                    "options": [
+                        "(a) Both A and R are correct and R is the correct explanation for A",
+                        "(b) Both A and R are correct but R is not the correct explanation for A",
+                        "(c) A is correct but R is incorrect",
+                        "(d) Both are incorrect"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Tests knowledge of constitutional provisions and administrative terms.",
+                    "distractor_rationales": {
+                        "(b)": "Reason *is* correct explanation of the concept introduced.",
+                        "(c)": "Both are correct; R explains A.",
+                        "(d)": "Both are factual, so incorrect."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "H5",
+            "title": "Fact-Based / Direct MCQ",
+            "explanation": "Straightforward recall of factual historical knowledge — place, person, event, etc.",
+            "example_questions": [
+                {
+                    "question": "With reference to Indian history, who founded the Indian National Congress in 1885?",
+                    "options": [
+                        "(a) Bal Gangadhar Tilak",
+                        "(b) Dadabhai Naoroji",
+                        "(c) A.O. Hume",
+                        "(d) Gopal Krishna Gokhale"
+                    ],
+                    "correct_answer": "c",
+                    "pattern_notes": "Direct test of a foundational fact about Congress formation.",
+                    "distractor_rationales": {
+                        "(a)": "Incorrect founder; prominent leader later.",
+                        "(b)": "Important figure but not founder.",
+                        "(d)": "Later leader, not founder."
+                    }
+                },
+                {
+                    "question": "Which one of the following was the capital of the Chola Empire?",
+                    "options": [
+                        "(a) Pataliputra",
+                        "(b) Kanchipuram",
+                        "(c) Ujjain",
+                        "(d) Mandu"
+                    ],
+                    "correct_answer": "b",
+                    "pattern_notes": "Static recall tied to South Indian polity and capitals.",
+                    "distractor_rationales": {
+                        "(a)": "North Indian capital unrelated to Cholas.",
+                        "(c)": "Western Indian city not linked here.",
+                        "(d)": "Central Indian fort, unrelated."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "H6",
+            "title": "Chronology / Sequence MCQ",
+            "explanation": "Tests the ability to place historical events or developments in correct temporal order — a frequent prelims pattern. :contentReference[oaicite:3]{index=3}",
+            "example_questions": [
+                {
+                    "question": "Arrange the following in chronological order:\n1. First Battle of Panipat\n2. Battle of Plassey\n3. Revolt of 1857",
+                    "options": [
+                        "(a) 1–2–3",
+                        "(b) 2–1–3",
+                        "(c) 1–3–2",
+                        "(d) 3–1–2"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Common sequence test across ancient to modern timelines.",
+                    "distractor_rationales": {
+                        "(b)": "Plassey occurred after Panipat.",
+                        "(c)": "Incorrect temporal order.",
+                        "(d)": "Revolt of 1857 is much later."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "H7",
+            "title": "Current-Linked History MCQ",
+            "explanation": "Uses a recent archaeological or heritage event to test static History knowledge in applied context. Current contexts often inspire prelims questions. :contentReference[oaicite:4]{index=4}",
+            "example_questions": [
+                {
+                    "question": "Recent excavations near [Site X] unearthed artefacts belonging to the Indus Valley Civilization. With reference to the Harappan craft industries, which of the following is correct?",
+                    "options": [
+                        "(a) Terracotta beads were common across Harappan sites",
+                        "(b) Harappans did not engage in long-distance trade",
+                        "(c) Iron tools were ubiquitously used",
+                        "(d) Sanskrit was the language of seals"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Current discovery used to frame static knowledge question.",
+                    "distractor_rationales": {
+                        "(b)": "Harappans engaged in long-distance trade.",
+                        "(c)": "Iron was not common in mature Harappan period.",
+                        "(d)": "Language on seals remains undeciphered."
+                    }
+                }
+            ]
+        }
+    ]
+}

@@ -528,6 +528,11 @@ class PineconeHandler:
             for p in garbage_patterns:
                 text = re.sub(p, "", text, flags=re.I)
             
+            # CRITICAL: Clean "dense garbage" - remove any single "word" > 250 chars
+            # This catches base64 image strings, massive URLs, and minified code that crashes embedding
+            # 250 is generous enough for scientific terms (longest is ~190) but catches data payloads
+            text = re.sub(r'\S{250,}', '', text)
+            
             # Remove lines with garbage keywords
             lines = text.split('\n')
             cleaned_lines = []
@@ -624,11 +629,46 @@ class PineconeHandler:
                 if not cleaned_doc or len(cleaned_doc.strip()) <= 10:
                     continue
                 
-                # Check if chunk is too long and split if needed
+                # Check if chunk is too long (words OR chars) and split if needed
+                # Use strict char limit (24k) to prevent OpenAI 8k token limit errors
                 word_count = len(cleaned_doc.split())
-                if word_count > MAX_WORDS_PER_CHUNK:
-                    logger.warning(f"⚠️ Chunk {i+1} is too long ({word_count} words), splitting into smaller chunks...")
-                    split_chunks = split_long_chunk_by_sentences(cleaned_doc, MAX_WORDS_PER_CHUNK, overlap_words=OVERLAP_WORDS)
+                char_count = len(cleaned_doc)
+                MAX_CHARS = 24000
+                
+                if word_count > MAX_WORDS_PER_CHUNK or char_count > MAX_CHARS:
+                    logger.warning(f"⚠️ Chunk {i+1} is too long ({word_count} words, {char_count} chars), splitting...")
+                    # We utilize the enhanced split_text_by_sentences from Embedder (re-implemented here or imported)
+                    # Since we can't easily import the complex logic from embedder instance method, 
+                    # we rely on the Embedder's own splitting when get_openai_embeddings is called later.
+                    # BUT we must pre-split here to preserve metadata splitting logic
+                    
+                    # For PineconeHandler, we'll use a simpler robust split here to match the Embedder's logic
+                    # or better: let the Embedder handle the splitting entirely?
+                    # Problem: If we let Embedder split, we lose the 1-to-many metadata mapping if we don't track it.
+                    # Current architecture: Handler splits -> Metadatas duplicated -> Embedder receives safe chunks.
+                    
+                    # So we MUST replicate the safe splitting here.
+                    
+                    # Robust split implementation (simplified version of Embedder's new logic)
+                    split_chunks = []
+                    
+                    # If incredibly dense, hard char split
+                    if char_count > MAX_CHARS and word_count < (MAX_WORDS_PER_CHUNK // 2):
+                         split_chunks = [cleaned_doc[k:k+20000] for k in range(0, char_count, 20000)]
+                    else:
+                        # Try sentence split first
+                        split_chunks = split_long_chunk_by_sentences(cleaned_doc, MAX_WORDS_PER_CHUNK, overlap_words=OVERLAP_WORDS)
+                        
+                        # Post-process: Check if any result chunk is still too big in chars
+                        final_chunks = []
+                        for sc in split_chunks:
+                            if len(sc) > MAX_CHARS:
+                                # Recursively sub-split by chars
+                                final_chunks.extend([sc[k:k+MAX_CHARS] for k in range(0, len(sc), MAX_CHARS)])
+                            else:
+                                final_chunks.append(sc)
+                        split_chunks = final_chunks
+
                     logger.info(f"   ✅ Split into {len(split_chunks)} chunks")
                     
                     # Add each split chunk with its metadata

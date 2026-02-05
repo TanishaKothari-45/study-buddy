@@ -31,7 +31,7 @@ export default function UploadPage() {
     const [mode, setMode] = useState<"pinecone" | "content_store">("pinecone");
     const [subject, setSubject] = useState<string>("Geography");
     const [majorDomain, setMajorDomain] = useState<string>("Unclassified");
-    const [sourceType, setSourceType] = useState<string>("concept");
+    const [sourceType, setSourceType] = useState<string>("");
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<UploadResult[]>([]);
     const [error, setError] = useState("");
@@ -78,7 +78,10 @@ export default function UploadPage() {
         }
         formData.append("subject", subject);
         formData.append("major_domain", majorDomain);
-        formData.append("source_type", sourceType);
+        // Only append source_type if it's not empty (Auto)
+        if (sourceType) {
+            formData.append("source_type", sourceType);
+        }
 
         const endpoint = mode === "pinecone" ? "/upload/" : "/upload-content-store/";
 
@@ -216,6 +219,8 @@ export default function UploadPage() {
                                         </div>
                                     </SelectTrigger>
                                     <SelectContent>
+                                        <SelectItem value="">Auto-detect (from filename)</SelectItem>
+                                        <SelectItem value="pyq">Previous Year Questions (PYQ)</SelectItem>
                                         <SelectItem value="ncert">NCERT</SelectItem>
                                         <SelectItem value="concept">Concept / Topic</SelectItem>
                                         <SelectItem value="current_affairs">Current Affairs</SelectItem>
@@ -224,7 +229,7 @@ export default function UploadPage() {
                             </div>
                         </div>
                         <p className="text-xs text-muted-foreground mt-4">
-                            Selected: <span className="text-primary font-medium">{subject} / {majorDomain} / {sourceType}</span>. This will be used to guide the AI's metadata enrichment.
+                            Selected: <span className="text-primary font-medium">{subject} / {majorDomain} / {sourceType || "Auto-detect"}</span>. This will be used to guide the AI's metadata enrichment.
                         </p>
                     </CardContent>
                 </Card>

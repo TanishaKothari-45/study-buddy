@@ -171,31 +171,33 @@ def detect_source_type(filename: str) -> Dict[str, str]:
     filename_lower = filename.lower()
     
     # PYQ patterns - check first
-    pyq_patterns = [
-        "geography-pyq topic wise", "geography_questions_in_upsc_prelims",
-        "pyq", "prelims", "previous year"
-    ]
+    # User specific: "modern history pyq prelims" or generic "pyq" or "questions"
+    # STRICT RULE: If it looks like a PYQ, it IS a PYQ. Do not fall back to concept.
+    pyq_indicators = ["pyq", "previous year", "questions"]
+    
+    is_pyq = False
+    for indicator in pyq_indicators:
+        if indicator in filename_lower:
+            is_pyq = True
+            break
+            
+    if is_pyq:
+        # Determine subtype strictly based on filename
+        if "mains" in filename_lower:
+            subtype = "mains"
+        elif "prelims" in filename_lower:
+            subtype = "prelims"
+        else:
+            # User Rule: "make sure its not concept or so"
+            # If we know it's a PYQ but don't see 'mains' or 'prelims', 
+            # we default to 'prelims' as a safe assumption for mock tests.
+            # We explicitly do NOT fall back to checking other types.
+            subtype = "prelims"
+            
+        return {"source_type": "pyq", "source_subtype": subtype}
     
     # NCERT patterns - check before current affairs (more specific)
     ncert_patterns = ["ncert"]
-    
-    # Current Affairs patterns - use word boundaries to avoid false matches
-    # e.g., "ca" should match "ca" or "current_affairs" but not "Practical"
-    import re
-    
-    # Check PYQ first
-    # Check PYQ first
-    for pattern in pyq_patterns:
-        if pattern in filename_lower:
-            # Determine subtype
-            if "mains" in filename_lower:
-                subtype = "mains"
-            elif "prelims" in filename_lower:
-                subtype = "prelims"
-            else:
-                # Default to prelims if generic (or you can use "prelims" as safe default for legacy files)
-                subtype = "prelims"
-            return {"source_type": "pyq", "source_subtype": subtype}
     
     # Check NCERT second (before current affairs to avoid false positives)
     for pattern in ncert_patterns:

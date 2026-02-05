@@ -62,17 +62,33 @@ class Embedder:
         cleaned_texts = []
         MAX_WORDS = settings.MAX_CHAPTER_CHUNK_WORDS
         
+        # Conservative character limit (8192 tokens * ~3 chars/token = ~24.5k chars)
+        # We use 20k to be extremely safe against base64/dense text
+        MAX_CHARS = 24000
+        
         def split_text_by_sentences(text: str, max_words: int, overlap_words: int = 200) -> List[str]:
-            """Split long text by sentences with overlap"""
+            """Split long text by sentences with overlap, enforcing char limits"""
             import re
             
             words = text.split()
             word_count = len(words)
+            char_count = len(text)
             
-            if word_count <= max_words:
+            # If within limits, return original
+            if word_count <= max_words and char_count <= MAX_CHARS:
                 return [text]
+                
+            # SPECIAL CASE: Low word count but high char count (e.g., base64, long URL, biological sequence)
+            # Force hard split by characters
+            if char_count > MAX_CHARS and word_count < (max_words // 2):
+                logger.warning(f"⚠️ Dense text detected (len={char_count}, words={word_count}). Force splitting by chars.")
+                chunk_size = 20000
+                chunks = []
+                for i in range(0, char_count, chunk_size):
+                    chunks.append(text[i:i + chunk_size])
+                return chunks
             
-            # Split by sentences
+            # Normal splitting by sentences
             sentences = re.split(r'([.!?]+\s+)', text)
             sentence_list = []
             for i in range(0, len(sentences) - 1, 2):
@@ -81,36 +97,71 @@ class Embedder:
                 else:
                     sentence_list.append(sentences[i])
             
-            # Fallback to word-based if no sentences
+            # Fallback to word-based if no sentences found (or only 1 huge sentence)
             if len(sentence_list) <= 1:
+                # Check if even word splitting is viable
+                if word_count <= max_words: 
+                    # If words are few but chars are many (caught above ideally, but safety net)
+                     if len(text) > MAX_CHARS:
+                        return [text[i:i+MAX_CHARS] for i in range(0, len(text), MAX_CHARS)]
+                     return [text]
+                     
                 chunks = []
+                # Word-based splitting
                 for i in range(0, word_count, max_words - overlap_words):
-                    chunk = " ".join(words[i:i + max_words])
-                    if chunk.strip():
-                        chunks.append(chunk)
+                    chunk_words = words[i:i + max_words]
+                    chunk = " ".join(chunk_words)
+                    
+                    # Check if resulted chunk is still too big (huge words)
+                    if len(chunk) > MAX_CHARS:
+                         # Sub-split this chunk by chars
+                         chunks.extend([chunk[k:k+MAX_CHARS] for k in range(0, len(chunk), MAX_CHARS)])
+                    else:
+                         if chunk.strip():
+                            chunks.append(chunk)
                 return chunks
             
             # Build chunks from sentences
             chunks = []
             current_chunk = []
             current_word_count = 0
+            current_char_count = 0
             
             for sentence in sentence_list:
                 sentence_words = sentence.split()
                 sentence_word_count = len(sentence_words)
+                sentence_char_count = len(sentence)
                 
-                if current_word_count + sentence_word_count > max_words and current_chunk:
+                # Check limits (both word and char)
+                word_limit_exceeded = (current_word_count + sentence_word_count > max_words)
+                char_limit_exceeded = (current_char_count + sentence_char_count > MAX_CHARS)
+                
+                if (word_limit_exceeded or char_limit_exceeded) and current_chunk:
                     chunk_text = "".join(current_chunk).strip()
                     if chunk_text:
                         chunks.append(chunk_text)
                     
-                    # Overlap: last N words
-                    overlap_text = " ".join(words[max(0, current_word_count - overlap_words):current_word_count])
-                    current_chunk = [overlap_text + " "] if overlap_text else []
-                    current_word_count = len(overlap_text.split()) if overlap_text else 0
+                    # Manage Overlap logic
+                    # For simplicity in this robust version, we just reset or take last sentence
+                    # (Implementing complex word-overlap with Sentence lists is error prone)
+                    overlap_text = current_chunk[-1] if current_chunk else ""
+                    current_chunk = [overlap_text] if overlap_text else []
+                    current_word_count = len(overlap_text.split())
+                    current_char_count = len(overlap_text)
                 
-                current_chunk.append(sentence)
-                current_word_count += sentence_word_count
+                if len(sentence) > MAX_CHARS:
+                    # Single sentence is massive; force character split for it
+                    sub_chunks = [sentence[k:k+MAX_CHARS] for k in range(0, len(sentence), MAX_CHARS)]
+                    if current_chunk: # Flush current
+                        chunks.append("".join(current_chunk).strip())
+                        current_chunk = []
+                        current_word_count = 0
+                        current_char_count = 0
+                    chunks.extend(sub_chunks)
+                else: 
+                    current_chunk.append(sentence)
+                    current_word_count += sentence_word_count
+                    current_char_count += sentence_char_count
             
             if current_chunk:
                 chunk_text = "".join(current_chunk).strip()
@@ -124,12 +175,17 @@ class Embedder:
         
         for i, text in enumerate(texts):
             if isinstance(text, str) and text.strip():
-                words = text.split()
+                # Clean invalid tokens before length check
+                clean_text = text.replace('\x00', '')
+                
+                words = clean_text.split()
                 word_count = len(words)
-                # If text is too long, split it instead of truncating
-                if word_count > MAX_WORDS:
-                    logger.warning(f"⚠️ Text {i+1} too long ({word_count} words), splitting into smaller chunks...")
-                    split_chunks = split_text_by_sentences(text, MAX_WORDS, overlap_words=settings.CHAPTER_CHUNK_OVERLAP_WORDS)
+                char_count = len(clean_text)
+                
+                # Split if word count high OR char count high (dense text)
+                if word_count > MAX_WORDS or char_count > MAX_CHARS:
+                    logger.warning(f"⚠️ Text {i+1} huge (words={word_count}, chars={char_count}), splitting...")
+                    split_chunks = split_text_by_sentences(clean_text, MAX_WORDS, overlap_words=settings.CHAPTER_CHUNK_OVERLAP_WORDS)
                     logger.info(f"   ✅ Split into {len(split_chunks)} chunks")
                     # Store split info for caller
                     start_idx = len(cleaned_texts)
@@ -137,7 +193,7 @@ class Embedder:
                     end_idx = len(cleaned_texts)
                     text_split_map[i] = list(range(start_idx, end_idx))
                 else:
-                    cleaned_texts.append(text.strip())
+                    cleaned_texts.append(clean_text.strip())
             elif text:  # Non-empty but not string - convert to string
                 text_str = str(text).strip()
                 words = text_str.split()

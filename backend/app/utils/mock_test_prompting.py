@@ -68,13 +68,19 @@ def format_patterns_for_prompt() -> str:
         formatted += f"- **{p.get('title', 'Pattern')}**: {p.get('explanation', '')}\n"
     return formatted
 
-SYSTEM_PROMPT = """You are an expert UPSC Prelims Geography question designer with deep examiner-level understanding of the UPSC CSE exam pattern, especially for Geography sections.
+# ----------------------------------------------------------------------
+# SYSTEM PROMPTS (Dynamic)
+# ----------------------------------------------------------------------
 
-Your role is to generate multiple-choice questions that reflect how UPSC examiners think, reason, and trap candidates — privileging application, conceptual linkage, spatial and map logic, and disciplined elimination reasoning.
+def get_system_prompt(subject: str) -> str:
+    """Generate subject-specific system prompt."""
+    return f"""You are an expert UPSC Prelims {subject} question designer with deep examiner-level understanding of the UPSC CSE exam pattern, especially for {subject} sections.
 
-Your questions must be rooted in static geographic concepts, with current contextual elements used only to test concept application, not to ask superficial news facts.
+Your role is to generate multiple-choice questions that reflect how UPSC examiners think, reason, and trap candidates — privileging application, conceptual linkage, chronology/logic (for History) or spatial/map logic (for Geography), and disciplined elimination reasoning.
 
-You must produce questions in authentic UPSC formats including multi-statement reasoning, assertion–reasoning, match-pairs, map/spatial logic, and integrated conceptual themes.
+Your questions must be rooted in static {subject.lower()} concepts, with current contextual elements used only to test concept application, not to ask superficial news facts.
+
+You must produce questions in authentic UPSC formats including multi-statement reasoning, assertion–reasoning, match-pairs, and applied conceptual themes.
 
 Craft distractors that are plausible, conceptually related, and require reasoning to eliminate. Avoid trivial or purely definitional options unless tightly linked with deeper understanding.
 
@@ -82,10 +88,10 @@ You should always assume UPSC-like language, precision, and structure in all que
 """
 
 # ----------------------------------------------------------------------
-# COGNITIVE FRAMEWORK – Universal generation rules for all difficulties
+# COGNITIVE FRAMEWORKS (Subject-Specific)
 # ----------------------------------------------------------------------
 
-COGNITIVE_FRAMEWORK = """COGNITIVE FRAMEWORK
+FRAMEWORK_GEOGRAPHY = """COGNITIVE FRAMEWORK
 
 PATTERN DEFINITIONS & QUESTION DESIGN RULES (GEOGRAPHY UP-SC CSE PRELIMS)
 
@@ -283,8 +289,92 @@ GENERAL RULES FOR LINKAGE & DISTRACTOR DESIGN
 ---
 """
 
-# Integrate patterns into the framework
-COGNITIVE_FRAMEWORK += "\n" + format_patterns_for_prompt()
+FRAMEWORK_HISTORY = """COGNITIVE FRAMEWORK
+
+1. Examination Intent
+   • History in UPSC Prelims tests **factual knowledge, chronological understanding, logical reasoning, and conceptual discrimination** based on the Indian historical narrative — from ancient to modern and art & culture.  
+   • Questions are derived from *core sources* (NCERTs, standard reference texts, PYQ trends) and often combine understanding with analysis or cause–effect logic.  
+   • History questions may vary in difficulty from straightforward recall to analytical multi-statement and comparative reasoning. :contentReference[oaicite:0]{index=0}
+
+2. Topic Coverage & Domain Balance
+   • Cover all major History domains — Ancient, Medieval, Modern, and Art & Culture — with a balanced distribution reflecting PYQ trends. Modern History generally has higher annual representation, followed by Ancient and Art & Culture. :contentReference[oaicite:1]{index=1}  
+   • Each question should be anchored in *relevant historical context*, not isolated trivia.
+
+3. Core Question Types & Generation Rules
+
+   A) **Direct Concept / Definition**
+      - Test precise understanding of historical concepts, terminologies, systems, or institutions.
+      - Craft distractors that reflect *related but distinct concepts* to challenge elimination skills.
+
+   B) **Multi-Statement Evaluation**
+      - Use 2-or-3 statement sets requiring examinees to evaluate each statement’s correctness.
+      - Include combinations that test *cause–effect relationships, policy context, or comparative facts*.
+
+   C) **Match-the-Pair**
+      - Pair personalities with contributions, movements with leaders, kingdoms with capitals, inscriptions with rulers, etc.
+      - Distractors should include *incorrect but plausible associations* drawn from adjacent historical contexts.
+
+   D) **Assertion–Reason**
+      - Frame an assertion reflecting a historical fact, with a reason statement that may or may not logically explain it.
+      - Ensure all four options (A–D) cover the logical space of explanation correctness.
+
+   E) **Chronology / Sequence**
+      - Tests ordering of events, reforms, movements, or reigns.
+      - Distractors should represent *historically plausible but incorrect sequences*, forcing chronological discrimination.
+
+   F) **Current-Linked Static Application**
+      - If current or heritage context is used (e.g., archaeological discoveries, centenaries), embed it into the stem so that it serves as *a trigger for testing static knowledge*, not as trivia.
+
+4. Distractor Engineering
+   • Distractors must be:
+     – **Plausible**: derived from closely related content or common misconceptions.  
+     – **Non-redundant**: each must represent a distinct wrong choice, not trivial or obviously incorrect.  
+     – **Elimination-testable**: knowledgeable candidates can eliminate based on historical relationships, not impossible facts.
+
+   • Example distractor sources:
+     – Alternate administrative systems (e.g., confusing Ryotwari vs Zamindari).  
+     – Misplaced chronological facts (events from adjacent periods).  
+     – Incorrect causal links (e.g., associating a law with the wrong movement).
+
+5. Difficulty Calibration
+   • **Easy:** Pure recall (dates, definitions, names, capitals, contributions).  
+   • **Medium:** Multi-statement or matching where at least one statement/distractor requires reasoning.  
+   • **Hard:** Assertion–Reason or sequence questions that *interlink two domains or themes* (e.g., reform policy impact on subsequent movements).
+
+6. Static vs Current Use
+   • Static knowledge is foundational; current context (heritage news, archaeological news, centenaries) should *supplement static understanding* and test analytical application.  
+   • Avoid relying on isolated news facts — always link current context back to the syllabus. :contentReference[oaicite:2]{index=2}
+
+7. Domain Nuances
+   • **Ancient History:** Civilizational features, political structures, philosophical streams, art & architecture, societal frameworks.  
+   • **Medieval History:** Sultanate and Mughal structures, regional powers, religious and cultural synthesis. :contentReference[oaicite:3]{index=3}  
+   • **Modern History:** British policies, revolts & movements, constitutional developments, nationalist leadership — frequently tested and a major component of PYQs. :contentReference[oaicite:4]{index=4}  
+   • **Art & Culture:** Architectural styles, rock-cut traditions, inscription analysis, literature and performance traditions — tested contextually.
+
+8. Explanation Standards
+   • Provide **concise but comprehensive** explanations that justify the correct answer and eliminate distractors.  
+   • Explanations must highlight *historical logic*, not just factual affirmation.
+
+9. Output Structure & Consistency
+   • Each generated question should follow the JSON format with fields: “question”, “options”, “correct_answer”, “explanation”, and a “source” map indicating the historical topic and sub-domain.  
+   • Avoid repetition of facts across questions; emphasize variety even within a topic cluster.
+
+10. Examples of Prompt Framing (Internal Guidance for Model)
+   • “Use the historical narrative and logical relationships to construct distractors that require elimination reasoning.”  
+   • “For multi-statement and assertion–reason questions, ensure each statement tests a distinct factual or conceptual element.”  
+   • “When using recent context or archaeology/heritage triggers, anchor the question in static content — do not ask about current news directly.” 
+
+"""
+
+def get_cognitive_framework(subject: str) -> str:
+    """Return the cognitive framework for the given subject."""
+    if subject == "History":
+        return FRAMEWORK_HISTORY
+    # Default to Geography
+    return FRAMEWORK_GEOGRAPHY
+
+
+# Integrate patterns is now dynamic in the assembler
 
 # ----------------------------------------------------------------------
 # PROMPT ASSEMBLER
@@ -292,6 +382,7 @@ COGNITIVE_FRAMEWORK += "\n" + format_patterns_for_prompt()
 
 def assemble_upsc_prompt(
     topic: str,
+    subject: str,
     num_questions: int,
     retrieved_static_text: str,
     retrieved_current_affairs: str = "",
@@ -302,18 +393,41 @@ def assemble_upsc_prompt(
     Build the hierarchical prompt for UPSC question generation.
     
     Args:
-        topic: Topic/subject for the questions
-        num_questions: Number of questions to generate
-        retrieved_static_text: Static material context (NCERT, Vision notes)
-        retrieved_current_affairs: Current affairs context (if any)
-        pyq_chunks: List of PYQ chunks for style learning
-        search_queries: Optional list of Google Search queries (q, recency)
+        topic: Topic for the questions
+        subject: Subject (Geography, History)
+        num_questions: Number of questions
+        retrieved_static_text: Static material context
+        retrieved_current_affairs: Current affairs context
+        pyq_chunks: PYQ chunks for style learning
+        search_queries: Google Search queries
         
     Returns:
         Complete prompt string ready for LLM
     """
-    # Difficulty-based modifiers are now handled via subject-based queries and the framework itself
+    # 1. Load Subject-Specific Patterns
+    pattern_file = "history_prelims_pyq_patterns.json" if subject == "History" else "geography_prelims_pyq_patterns.json"
     
+    # We reload patterns here to ensure subject specificity
+    # In a high-perf scenario, we'd cache these, but for now this is safe
+    patterns_path = BASE_DIR / "config" / pattern_file
+    
+    patterns_text = ""
+    if patterns_path.exists():
+        try:
+            with open(patterns_path, "r", encoding="utf-8") as f:
+                pdata = json.load(f)
+                patterns = pdata.get("patterns", [])
+                if patterns:
+                    patterns_text = "### Additional UPSC Question Patterns:\n"
+                    for p in patterns:
+                        patterns_text += f"- **{p.get('title', 'Pattern')}**: {p.get('explanation', '')}\n"
+        except Exception as e:
+            print(f"Error loading patterns for {subject}: {e}")
+
+    # 2. Get Frameworks
+    system_prompt = get_system_prompt(subject)
+    cognitive_framework = get_cognitive_framework(subject) + "\n" + patterns_text
+
     # Pass full contexts without trimming (enforced by bucket selection logic)
     content_text = retrieved_static_text if retrieved_static_text else "No content material available."
     
@@ -335,7 +449,7 @@ You MUST use your Google Search tool to research the following queries. These qu
 ### STEP 2: INTEGRATE CURRENT AFFAIRS WITH STATIC CONTENT
 
 **IMPORTANT**: You MUST create questions that integrate BOTH for UPSC style questions:
-1. **Static Knowledge** - Geography concepts, processes, theories 
+1. **Static Knowledge** - Subject concepts, processes, theories 
 2. **Current Affairs** (from your search results) - Recent events, policies, data, government initiatives that are applied to the static content
 
 **INTEGRATION EXAMPLES:**
@@ -364,13 +478,13 @@ At least 40% of your questions MUST link current affairs with static concepts. T
     
     prompt = f"""SYSTEM:
 
-{SYSTEM_PROMPT}
+{system_prompt}
 
 ---
 
 FRAMEWORK:
 
-{COGNITIVE_FRAMEWORK}
+{cognitive_framework}
 
 
 {research_instruction}
@@ -437,5 +551,7 @@ NOT: "options": {{"A": "Option 1", "B": "Option 2"}}
 You MUST return ONLY valid JSON with NO markdown formatting, NO code blocks, NO explanatory text.
 Start your response with {{ and end with }}.
 Do NOT wrap the JSON in ```json or any other markers."""
+    
+    return prompt.strip()
     
     return prompt.strip()

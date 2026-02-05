@@ -54,6 +54,49 @@ const GEOGRAPHY_DOMAINS: Record<string, string[]> = {
         "Mapping and Cartography"
     ]
 };
+// UPSC History taxonomy
+const HISTORY_DOMAINS: Record<string, string[]> = {
+    "Indian Heritage and Culture": [
+        "Art Forms",
+        "Architecture",
+        "Literature & Language Traditions",
+        "Religious & Philosophical Streams",
+        "Performing & Folk Traditions"
+    ],
+    "Ancient Indian History": [
+        "Prehistoric Cultures",
+        "Indus Valley Civilization",
+        "Vedic Period",
+        "Mahajanapadas & Second Urbanisation",
+        "Major Empires (Mauryas, Guptas)",
+        "Religion, Philosophy & Society",
+        "Economy & Trade",
+        "Science & Technology / Education"
+    ],
+    "Medieval Indian History": [
+        "Early Medieval Polities",
+        "Delhi Sultanate",
+        "Mughal Empire",
+        "Regional Kingdoms",
+        "Socio-Cultural Movements (Bhakti & Sufi)",
+        "Architecture & Art",
+        "Economic and Agrarian Trends"
+    ],
+    "Modern Indian History": [
+        "European Penetration & Colonial Expansion",
+        "Administrative & Economic Policies",
+        "Social & Religious Reform Movements",
+        "Revolt of 1857",
+        "Freedom Movement (1885-1947)",
+        "Partition & Independence"
+    ]
+
+};
+
+const SUBJECT_DOMAINS: Record<string, Record<string, string[]>> = {
+    "Geography": GEOGRAPHY_DOMAINS,
+    "History": HISTORY_DOMAINS
+};
 
 type JobStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'failed';
 
@@ -80,6 +123,7 @@ export default function MockTestPage() {
 
     // Configuration State (local - doesn't need persistence)
     const [numQuestions, setNumQuestions] = useState("5");
+    const [selectedSubject, setSelectedSubject] = useState<string>("Geography");
     const [selectedDomain, setSelectedDomain] = useState<string>("");
     const [selectedSubDomain, setSelectedSubDomain] = useState<string>("");
     const [customTopic, setCustomTopic] = useState("");
@@ -186,7 +230,8 @@ export default function MockTestPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     num_questions: parseInt(numQuestions),
-                    topics: topics
+                    topics: topics,
+                    subject: selectedSubject
                 }),
             });
 
@@ -375,6 +420,27 @@ export default function MockTestPage() {
                                 </Select>
                             </div>
 
+                            {/* Subject Selection */}
+                            <div className="space-y-2">
+                                <Label>Subject</Label>
+                                <Select
+                                    value={selectedSubject}
+                                    onValueChange={(val) => {
+                                        setSelectedSubject(val);
+                                        setSelectedDomain(""); // Reset domain when subject changes
+                                        setSelectedSubDomain("");
+                                    }}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select Subject" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-card z-50">
+                                        <SelectItem value="Geography">Geography</SelectItem>
+                                        <SelectItem value="History">History</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                         </div>
 
                         {/* Topic Selection */}
@@ -395,9 +461,13 @@ export default function MockTestPage() {
                                             <SelectValue placeholder="Select Major Domain" />
                                         </SelectTrigger>
                                         <SelectContent className="bg-card z-50">
-                                            {Object.keys(GEOGRAPHY_DOMAINS).map((domain) => (
-                                                <SelectItem key={domain} value={domain}>{domain}</SelectItem>
-                                            ))}
+                                            {selectedSubject && SUBJECT_DOMAINS[selectedSubject] ? (
+                                                Object.keys(SUBJECT_DOMAINS[selectedSubject]).map((domain) => (
+                                                    <SelectItem key={domain} value={domain}>{domain}</SelectItem>
+                                                ))
+                                            ) : (
+                                                <SelectItem value="none" disabled>Select Subject First</SelectItem>
+                                            )}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -414,7 +484,7 @@ export default function MockTestPage() {
                                         </SelectTrigger>
                                         <SelectContent className="bg-card z-50">
                                             <SelectItem value="all">All Sub-topics</SelectItem>
-                                            {selectedDomain && GEOGRAPHY_DOMAINS[selectedDomain]?.map((sub) => (
+                                            {selectedSubject && selectedDomain && SUBJECT_DOMAINS[selectedSubject]?.[selectedDomain]?.map((sub) => (
                                                 <SelectItem key={sub} value={sub}>{sub}</SelectItem>
                                             ))}
                                         </SelectContent>

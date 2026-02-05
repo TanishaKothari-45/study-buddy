@@ -357,11 +357,14 @@ def hybrid_retrieve_for_mock_test(
         # metadata filter: source_type IN ['concept', 'current_affairs']
         content_filter = {"source_type": {"$in": ["concept", "current_affairs"]}}
         
-        # New: Add domain/sub_domain filters if present from dropdowns
         if sub_domain:
             content_filter["sub_domain"] = sub_domain
         elif major_domain:
             content_filter["major_domain"] = major_domain
+            
+        # New: Add subject filter if specific subject is requested
+        if subject and subject.lower() != "general":
+            content_filter["subject"] = subject
 
         raw_chunks = []
         
@@ -402,10 +405,14 @@ def hybrid_retrieve_for_mock_test(
         
         if not raw_chunks:
             logger.warning("⚠️ No chunks found with specific filters, falling back to general query...")
+            fallback_filter = {"source_type": {"$in": ["concept", "current_affairs"]}}
+            if subject and subject.lower() != "general":
+                fallback_filter["subject"] = subject
+                
             raw_chunks = pinecone_handler.query_documents(
                 query_text=query,
                 k=target_fetch,
-                filter_metadata={"source_type": {"$in": ["concept", "current_affairs"]}},
+                filter_metadata=fallback_filter,
                 use_content_store=False,
                 query_vector=query_vector # Reuse vector
             )
@@ -531,10 +538,14 @@ def hybrid_retrieve_for_mock_test(
             # Step A: Try most specific filter (sub_domain)
             if sub_domain:
                 logger.debug(f"   🔍 Level 1: Fetching PYQs for sub_domain: {sub_domain}")
+                pyq_filter = {"source_type": "pyq", "sub_domain": sub_domain}
+                if subject and subject.lower() != "general":
+                    pyq_filter["subject"] = subject
+                    
                 res = pinecone_handler.query_documents(
                     query_text=query,
                     k=10,
-                    filter_metadata={"source_type": "pyq", "sub_domain": sub_domain},
+                    filter_metadata=pyq_filter,
                     use_content_store=False,
                     query_vector=query_vector # Reuse vector
                 )
@@ -547,10 +558,14 @@ def hybrid_retrieve_for_mock_test(
                 existing_ids = [p.get("metadata", {}).get("chunk_id") for p in pyq_chunks_raw]
                 
                 # Fetch more with major_domain filter
+                pyq_filter_major = {"source_type": "pyq", "major_domain": major_domain}
+                if subject and subject.lower() != "general":
+                    pyq_filter_major["subject"] = subject
+                    
                 res = pinecone_handler.query_documents(
                     query_text=query,
                     k=needed,
-                    filter_metadata={"source_type": "pyq", "major_domain": major_domain},
+                    filter_metadata=pyq_filter_major,
                     use_content_store=False,
                     query_vector=query_vector # Reuse vector
                 )
@@ -567,10 +582,14 @@ def hybrid_retrieve_for_mock_test(
                 logger.debug(f"   🔍 Level 3: Fetching {needed} general PYQs")
                 existing_ids = [p.get("metadata", {}).get("chunk_id") for p in pyq_chunks_raw]
                 
+                pyq_filter_general = {"source_type": "pyq"}
+                if subject and subject.lower() != "general":
+                    pyq_filter_general["subject"] = subject
+                    
                 res = pinecone_handler.query_documents(
                     query_text=query,
                     k=needed,
-                    filter_metadata={"source_type": "pyq"},
+                    filter_metadata=pyq_filter_general,
                     use_content_store=False,
                     query_vector=query_vector # Reuse vector
                 )
@@ -671,7 +690,8 @@ async def generate_mock_test(request: Request, test_request: MockTestRequest):
             topics=test_request.topics,
             api_key=api_key,
             job_id=f"sync_{uuid.uuid4().hex[:8]}",
-            pyq_chunks=pyq_chunks
+            pyq_chunks=pyq_chunks,
+            subject=test_request.subject
         )
         
         return format_mock_test_response(batch_questions, None, test_request.topics)
@@ -831,7 +851,8 @@ async def generate_single_batch(
     topics: List[str],
     api_key: str,
     job_id: str,
-    pyq_chunks: List[Dict] = None
+    pyq_chunks: List[Dict] = None,
+    subject: str = "Geography"
 ) -> Tuple[List[Dict], int, int]:
     """
     Generate a single batch of questions with validation and provenance tracking
@@ -840,7 +861,7 @@ async def generate_single_batch(
         Tuple of (valid_questions, prompt_tokens, completion_tokens)
     """
     batch_id = f"{job_id}_batch_{batch_num}"
-    logger.info(f"🔨 Generating batch {batch_num}: {num_questions} questions")
+    logger.info(f"🔨 Generating batch {batch_num}: {num_questions} questions for subject={subject}")
 
     try:
         # Prepare content from chunks
@@ -892,9 +913,10 @@ async def generate_single_batch(
             logger.info(f"   ... and {len(search_queries) - 9} more queries")
         
         # Prepare prompt
-        topic = topics[0] if topics else "Geography"
+        topic = topics[0] if topics else subject 
         user_prompt = assemble_upsc_prompt(
             topic=topic,
+            subject=subject,
             num_questions=num_questions,
             retrieved_static_text=content_text,
             retrieved_current_affairs="", # Will be filled by Gemini tool use
