@@ -378,7 +378,7 @@ async def generate_mock_test_task(
         all_chunks = content_chunks  # Use content chunks for generation
 
         if len(all_chunks) < 10:
-            raise Exception(f"Insufficient content: only {len(all_chunks)} chunks retrieved")
+            logger.warning(f"⚠️ [JOB {job_id}] Low content mode: only {len(all_chunks)} chunks retrieved. Proceeding with LLM knowledge and research fallback.")
 
         await check_cancellation(ctx, job_id)
 

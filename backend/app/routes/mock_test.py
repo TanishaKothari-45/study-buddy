@@ -20,7 +20,7 @@ import numpy as np
 
 from ..core.config import settings
 from ..core.deps import get_redis_client
-from ..utils.metadata_enricher import GEOGRAPHY_TOPICS, GEOGRAPHY_DOMAINS
+from ..utils.metadata_enricher import GEOGRAPHY_TOPICS, GEOGRAPHY_DOMAINS, SUBJECT_DOMAINS
 from ..utils.mm_utils import enforce_source_diversity
 from ..utils.mock_test_prompting import assemble_upsc_prompt
 from ..utils.query_builder import build_query_text, build_current_affairs_query
@@ -250,11 +250,11 @@ def extract_domains_from_topics(topics: List[str]) -> Tuple[Optional[str], Optio
     """
     Extract major_domain and sub_domain from topics list.
     
-    Since topics now come from dropdowns, they should match exactly with GEOGRAPHY_DOMAINS.
+    Checks against ALL supported subjects (Geography, History, etc.) in SUBJECT_DOMAINS.
     Returns the first matching major_domain and sub_domain found.
     
     Args:
-        topics: List of topic strings (can be sub-domains or major domains)
+        topics: List of topics (can be sub-domains or major domains)
     
     Returns:
         Tuple of (major_domain, sub_domain) or (None, None) if not found
@@ -267,30 +267,40 @@ def extract_domains_from_topics(topics: List[str]) -> Tuple[Optional[str], Optio
     
     topics_lower = [t.lower() for t in topics]
     
-    # First, check if any topic is a direct major domain match
-    for domain in GEOGRAPHY_DOMAINS.keys():
-        if domain.lower() in topics_lower or any(domain.lower() == t for t in topics_lower):
-            major_domain = domain
-            break
-    
-    # Then, check if any topic is a sub-domain
-    for domain, subdomains in GEOGRAPHY_DOMAINS.items():
-        for sub in subdomains:
-            if sub.lower() in topics_lower or any(sub.lower() == t for t in topics_lower):
-                sub_domain = sub
-                # If we found a sub-domain, its parent is the major domain
-                if not major_domain:
-                    major_domain = domain
-                break
-        if sub_domain:
-            break
-    
-    # If we found a sub-domain but no major domain, find the parent
-    if sub_domain and not major_domain:
-        for domain, subdomains in GEOGRAPHY_DOMAINS.items():
-            if sub_domain in subdomains:
+    # Iterate over all subjects (Geography, History)
+    for subject, domains_dict in SUBJECT_DOMAINS.items():
+        
+        # 1. Check direct major domain match
+        for domain in domains_dict.keys():
+            if domain.lower() in topics_lower or any(domain.lower() == t for t in topics_lower):
                 major_domain = domain
+                logger.info(f"📌 Found Major Domain match: {major_domain} (Subject: {subject})")
                 break
+        
+        if major_domain: break
+
+    # If no major domain found, or to find sub-domain, check sub-domains across all subjects
+    for subject, domains_dict in SUBJECT_DOMAINS.items():
+        for domain, subdomains in domains_dict.items():
+            for sub in subdomains:
+                if sub.lower() in topics_lower or any(sub.lower() == t for t in topics_lower):
+                    sub_domain = sub
+                    # If we found a sub-domain, its parent is the major domain
+                    if not major_domain:
+                        major_domain = domain
+                        logger.info(f"📌 Found Major Domain {major_domain} via Sub-domain {sub_domain} (Subject: {subject})")
+                    break
+            if sub_domain: break
+        if sub_domain: break
+            
+    # If we found a sub-domain but no major domain (unlikely with above logic, but safety net)
+    if sub_domain and not major_domain:
+        for subject, domains_dict in SUBJECT_DOMAINS.items():
+            for domain, subdomains in domains_dict.items():
+                if sub_domain in subdomains:
+                    major_domain = domain
+                    break
+            if major_domain: break
     
     logger.info(f"📌 Extracted domains from topics {topics}: major_domain={major_domain}, sub_domain={sub_domain}")
     return major_domain, sub_domain
@@ -808,37 +818,43 @@ def build_current_search_queries(topic_clusters: List[Dict[str, Any]]) -> List[D
                 refined_subs = " ".join(valid_subs[:2]) # Take top 2
         
         # 2. Focused Query Templates
-        # We generate 2 queries per topic: Qualitative (Trends/Policy) and Quantitative (Data/Reports)
+        # We generate 3 queries per topic: Qualitative, Quantitative, and Static Core
         
         if "physical" in major_domain:
-            # Physical: Focus on Extreme Events & Scientific Studies
             all_queries.extend([
-                {"q": f"recent extreme events or anomalies {mt} {refined_subs} 2024 2025 scientific report", "recency": 365},
-                {"q": f"latest study research {mt} {refined_subs} geography climate Indian global impact 2024 2025", "recency": 365}
+                {"q": f"recent extreme events or anomalies {mt} {refined_subs} 2024 2025 official analysis", "recency": 365},
+                {"q": f"latest study research {mt} {refined_subs} geography climate Indian global impact 2024 2025", "recency": 365},
+                {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} standard textbook core principles geography UPSC", "recency": 1500}
             ])
         elif "human" in major_domain or "economic" in major_domain:
-            # Human/Economic: Focus on Data, Census updates, Policy
             all_queries.extend([
-                {"q": f"recent data statistics {mt} {refined_subs} India global 2024 2025 report", "recency": 365},
-                {"q": f"government policy schemes {mt} {refined_subs} India 2024 2025 analysis", "recency": 365}
+                {"q": f"recent data statistics {mt} {refined_subs} India global 2024 2025 official report", "recency": 365},
+                {"q": f"government policy schemes {mt} {refined_subs} India 2024 2025 analysis", "recency": 365},
+                {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} core concepts human and economic geography UPSC", "recency": 1500}
             ])
         elif "indian" in major_domain:
-            # Indian Geography: Very specific to Ministry/Department reports
             all_queries.extend([
                 {"q": f"Ministry/ Committee report {mt} {refined_subs} India 2024 2025 data", "recency": 365},
                 {"q": f"recent developments/ policies {mt} {refined_subs} India geography 2024 2025", "recency": 365},
+                {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} Indian geography core static facts standard reference", "recency": 1500}
             ])
         elif "world" in major_domain:
-            # World Geography: Global trends + International Treaties/Summits
             all_queries.extend([
-                {"q": f"global trends major events {mt} {refined_subs} world geography 2024 2025", "recency": 365},
-                {"q": f"international treaties summits {mt} {refined_subs} 2024 2025 impact", "recency": 365}
+                {"q": f"global trends major events {mt} {refined_subs} world geography 2024 2025 report", "recency": 365},
+                {"q": f"international treaties summits {mt} {refined_subs} 2024 2025 official impact", "recency": 365},
+                {"q": f"site:gov.in OR site:org {mt} {refined_subs} world geography mapping and static core concepts", "recency": 1500}
+            ])
+        elif "history" in major_domain or "ancient" in major_domain or "medieval" in major_domain or "modern" in major_domain:
+            all_queries.extend([
+                {"q": f"recent archaeological heritage news {mt} {refined_subs} 2024 2025 reports", "recency": 365},
+                {"q": f"historical analysis scholarly trends {mt} {refined_subs} Indian history 2024 2025", "recency": 365},
+                {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} history core static facts standard authors UPSC", "recency": 1500}
             ])
         else:
-            # Default: Trends + Action/Governance
             all_queries.extend([
-                {"q": f"recent empirical trends {mt} {refined_subs} India/Global geography 2024 2025", "recency": 365},
-                {"q": f"policy governance {mt} {refined_subs} disaster risk climate action 2024 2025", "recency": 365}
+                {"q": f"recent empirical trends {mt} {refined_subs} India/Global 2024 2025 verified", "recency": 365},
+                {"q": f"policy governance {mt} {refined_subs} climate action development 2024 2025 report", "recency": 365},
+                {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} core concepts standard syllabus UPSC", "recency": 1500}
             ])
         
     return all_queries
@@ -891,6 +907,16 @@ async def generate_single_batch(
                 seen_mt.add(mt)
                 unique_clusters.append(cluster)
         
+        # 🧪 Topic-Based Research Fallback: If no clusters from metadata, use provided topics
+        if not unique_clusters and topics:
+            logger.info(f"🧪 [BATCH {batch_num}] No metadata clusters found. Using provided topics for research grounding.")
+            for t in topics:
+                unique_clusters.append({
+                    "micro_topic": t,
+                    "sub_topics": [],
+                    "major_domain": subject # Use subject as fallback domain
+                })
+        
         # Limit unique clusters dynamically based on number of questions
         # Rule: For 10 questions -> ~7 topics. For 5 questions -> 5 topics.
         # Logic: max(5, num_questions // 2 + 2)
@@ -933,13 +959,14 @@ async def generate_single_batch(
         
         try:
             # We need a system prompt
-            from ..utils.mock_test_prompting import SYSTEM_PROMPT
+            from ..utils.mock_test_prompting import get_system_prompt
+            system_prompt = get_system_prompt(subject)
             
             # IMPORTANT: Gemini doesn't support response_schema + Google Search together
             # We must parse JSON manually when using search tool
             response_text = await gemini_client.generate_response(
                 user_prompt=user_prompt,
-                system_prompt=SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 response_schema=None,  # Cannot use with Google Search
                 temperature=0.8,
                 use_google_search=True # Enable search
@@ -962,31 +989,48 @@ async def generate_single_batch(
         import re
         
         questions_data = []
+        factual_units = []
         current_affairs_bullets = []
         
         try:
             # First try direct parse
             response_data = json.loads(response_text)
             questions_data = response_data.get("questions", [])
+            factual_units = response_data.get("factual_units", [])
             current_affairs_bullets = response_data.get("current_affairs_bullets", [])
+            
+            if factual_units:
+                logger.info(f"🧬 [BATCH {batch_num}] Extracted {len(factual_units)} Atomic Factual Units for grounding")
+                for i, unit in enumerate(factual_units[:5]):
+                    logger.info(f"   Fact {i+1}: {unit[:120]}...")
+            
             logger.info(f"✅ [BATCH {batch_num}] Direct JSON parse successful")
         except json.JSONDecodeError as e:
-            logger.warning(f"⚠️ [BATCH {batch_num}] Direct JSON parse failed: {e}")
-            logger.info(f"📄 [BATCH {batch_num}] Raw response preview: {response_text[:1000]}...")
+            logger.warning(f"⚠️ [BATCH {batch_num}] Direct JSON parse failed: {e}. Attempting extraction...")
             
-            # Try to extract JSON from markdown code blocks
-            json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response_text)
+            # Markdown code block extraction
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+            if not json_match:
+                 # Try finding just { ... } if no code blocks
+                 json_match = re.search(r'(\{.*\})', response_text, re.DOTALL)
+            
             if json_match:
                 try:
-                    extracted_json = json_match.group(1).strip()
-                    response_data = json.loads(extracted_json)
+                    response_data = json.loads(json_match.group(1))
                     questions_data = response_data.get("questions", [])
+                    factual_units = response_data.get("factual_units", [])
                     current_affairs_bullets = response_data.get("current_affairs_bullets", [])
-                    logger.info(f"✅ [BATCH {batch_num}] Extracted JSON from markdown block")
-                except json.JSONDecodeError:
-                    pass
+                    
+                    if factual_units:
+                        logger.info(f"🧬 [BATCH {batch_num}] Extracted {len(factual_units)} Factual Units from markdown block")
+                    
+                    logger.info(f"✅ [BATCH {batch_num}] JSON extraction successful")
+                except Exception as ex:
+                    logger.error(f"❌ [BATCH {batch_num}] Both direct parse and extraction failed: {ex}")
+            else:
+                logger.error(f"❌ [BATCH {batch_num}] No JSON found in response")
             
-            # Try to find raw JSON object
+            # Try to find raw JSON object if questions_data is still empty
             if not questions_data:
                 json_obj_match = re.search(r'\{[\s\S]*"questions"[\s\S]*\}', response_text)
                 if json_obj_match:
@@ -1306,7 +1350,7 @@ async def generate_async_pipeline(
         all_chunks = content_chunks  # Use content chunks for generation
 
         if len(all_chunks) < 10:
-            raise Exception(f"Insufficient content: only {len(all_chunks)} chunks retrieved")
+            logger.warning(f"⚠️ [JOB {job_id[:8]}] Low content mode: only {len(all_chunks)} chunks retrieved. Proceeding with LLM knowledge and research fallback.")
 
         # Step 2: Generate micro-batches
         logger.info(f"🔨 [JOB {job_id[:8]}] Step 2: Generating micro-batches")

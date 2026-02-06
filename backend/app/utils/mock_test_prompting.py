@@ -80,6 +80,9 @@ Your role is to generate multiple-choice questions that reflect how UPSC examine
 
 Your questions must be rooted in static {subject.lower()} concepts, with current contextual elements used only to test concept application, not to ask superficial news facts.
 
+### Source Legitimacy Rule:
+If provided context is minimal or missing, you MUST use your search tool to find verified academic, governmental, or reputable reference sources. You MUST prioritize these search results over your internal weights to ensure questions are grounded in legit, non-hallucinated content.
+
 You must produce questions in authentic UPSC formats including multi-statement reasoning, assertion–reasoning, match-pairs, and applied conceptual themes.
 
 Craft distractors that are plausible, conceptually related, and require reasoning to eliminate. Avoid trivial or purely definitional options unless tightly linked with deeper understanding.
@@ -434,9 +437,20 @@ def assemble_upsc_prompt(
     # Format search queries if provided
     research_instruction = ""
     if search_queries:
-        research_instruction = """### STEP 1: CONDUCT LIVE RESEARCH (CRITICAL FOR CURRENT AFFAIRS)
+        research_instruction = """### STEP 0: EXTRACT ATOMIC FACTUAL UNITS (CRITICAL REASONING STEP)
 
-You MUST use your Google Search tool to research the following queries. These queries target the LATEST (2024-2026) developments, policies, and data that will make your questions contemporary and UPSC-relevant.
+Before generating any questions, you MUST extract and return a JSON array of `factual_units`. 
+A **Factual Unit** is a standalone, individually verifiable historical, geographical, or economic fact derived from your search results or the provided context.
+
+Follow these rules for Factual Units:
+- Extract 7-10 dense factual units.
+- They serve as context anchors for the question stems.
+- They are the "Ground Truth" used to evaluate the correctness of your options.
+- Use them to create distractors that are grounded in actual content (e.g., swapping a dynasty name or a current data point).
+
+### STEP 1: CONDUCT LIVE RESEARCH (CRITICAL FOR GROUNDING)
+
+You MUST use your Google Search tool to research the following queries. These queries target BOTH latest developments (2024-2025) and static core concepts from authoritative sources (NCERT, Gov reports).
 
 **SEARCH QUERIES TO EXECUTE:**
 """
@@ -444,20 +458,15 @@ You MUST use your Google Search tool to research the following queries. These qu
             research_instruction += f"{i+1}. {sq['q']}\n"
         
         research_instruction += """
-**AFTER SEARCHING**, synthesize your findings into factual 'Current Affair Bullets' (30-40 words each). This act as CURRENT AFFAIRS context for your questions.
+**AFTER SEARCHING**, synthesize your findings into "Verified Factual Units" as described in STEP 0.
 
 ### STEP 2: INTEGRATE CURRENT AFFAIRS WITH STATIC CONTENT
 
-**IMPORTANT**: You MUST create questions that integrate BOTH for UPSC style questions:
-1. **Static Knowledge** - Subject concepts, processes, theories 
-2. **Current Affairs** (from your search results) - Recent events, policies, data, government initiatives that are applied to the static content
+**IMPORTANT**: You MUST create questions that integrate BOTH:
+1. **Static Knowledge** - Subject concepts, processes, theories (Verified via search or context)
+2. **Current Affairs** - Recent events, policies, data (Verified via search)
 
-**INTEGRATION EXAMPLES:**
-- "In light of India's recent National Monsoon Mission findings (2024)..." + static monsoon concept
-- "The 2025 IPCC report highlighted..." + static climate change geography
-- "Considering the recent Himalayan glacial lake outburst..." + static glacier dynamics
-
-At least 40% of your questions MUST link current affairs with static concepts. This is CRITICAL for UPSC-style question quality.
+At least 40% of your questions MUST link current affairs with static concepts.
 
 """
     
@@ -505,9 +514,14 @@ TASK:
 
 Generate {num_questions} UPSC-style MCQs on the topic: {topic}.
 
+You MUST return a JSON object with two main keys:
+1. "factual_units": An array of at least 8 independently verifiable atomic facts extracted from your search and context.
+2. "questions": An array of questions derived from those units.
+
 Each question must follow this structure:
 
 {{
+  "factual_units": ["Fact 1...", "Fact 2...", "..."],
   "questions": [
     {{
       "question": "...",

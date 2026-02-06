@@ -381,7 +381,7 @@ export default function MockTestPage() {
             <div className="flex items-center justify-between">
                 <div className="flex flex-col space-y-2">
                     <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                        Prelims Geography Mock Test
+                        Prelims Mock Test
                     </h1>
                     <p className="text-muted-foreground">
                         Generate AI-powered mock tests based on your study materials and UPSC patterns.
