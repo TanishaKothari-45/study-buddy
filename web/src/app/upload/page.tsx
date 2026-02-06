@@ -31,7 +31,7 @@ export default function UploadPage() {
     const [mode, setMode] = useState<"pinecone" | "content_store">("pinecone");
     const [subject, setSubject] = useState<string>("Geography");
     const [majorDomain, setMajorDomain] = useState<string>("Unclassified");
-    const [sourceType, setSourceType] = useState<string>("");
+    const [sourceType, setSourceType] = useState<string>("auto");
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<UploadResult[]>([]);
     const [error, setError] = useState("");
@@ -48,9 +48,42 @@ export default function UploadPage() {
             "Indian Heritage and Culture",
             "Ancient Indian History",
             "Medieval Indian History",
-            "Modern Indian History",
-            "Post-Independence History",
-            "World History"
+            "Modern Indian History"
+        ],
+        "Economy": [
+            "Basic Economic Concepts",
+            "Macroeconomics & Policy",
+            "Indian Economy & Development",
+            "Banking & Finance",
+            "Taxation & Public Finance",
+            "External Sector & Global Economy",
+            "Contemporary Economic Issues"
+        ],
+        "Science & Tech": [
+            "Fundamental Science Concepts",
+            "Space & Defence Technology",
+            "Information & Communication Tech",
+            "Biotechnology & Health Tech",
+            "Emerging Technologies",
+            "Applied Science & Research"
+        ],
+        "Environment & Ecology": [
+            "Ecology & Ecosystems",
+            "Biodiversity & Conservation",
+            "Pollution & Environmental Issues",
+            "Climate Change & Global Frameworks",
+            "Environmental Laws & Policies",
+            "Natural Resource Management",
+            "Contemporary Environmental Issues"
+        ],
+        "Polity": [
+            "Constitutional Framework",
+            "Union Government",
+            "State & Local Governance",
+            "Judiciary & Legal Institutions",
+            "Electoral Processes & Reforms",
+            "Governance & Public Policy",
+            "Contemporary Governance Issues"
         ],
         "Unclassified": ["Unclassified"]
     };
@@ -78,8 +111,8 @@ export default function UploadPage() {
         }
         formData.append("subject", subject);
         formData.append("major_domain", majorDomain);
-        // Only append source_type if it's not empty (Auto)
-        if (sourceType) {
+        // Only append source_type if it's not "auto"
+        if (sourceType && sourceType !== "auto") {
             formData.append("source_type", sourceType);
         }
 
@@ -179,9 +212,9 @@ export default function UploadPage() {
                                         </div>
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="Geography">Geography</SelectItem>
-                                        <SelectItem value="History">History</SelectItem>
-                                        <SelectItem value="Unclassified">Unclassified</SelectItem>
+                                        {Object.keys(SUBJECT_DOMAINS).map((subj) => (
+                                            <SelectItem key={subj} value={subj}>{subj}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -219,7 +252,7 @@ export default function UploadPage() {
                                         </div>
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="">Auto-detect (from filename)</SelectItem>
+                                        <SelectItem value="auto">Auto-detect (from filename)</SelectItem>
                                         <SelectItem value="pyq">Previous Year Questions (PYQ)</SelectItem>
                                         <SelectItem value="ncert">NCERT</SelectItem>
                                         <SelectItem value="concept">Concept / Topic</SelectItem>

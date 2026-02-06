@@ -352,10 +352,10 @@ def hybrid_retrieve_for_mock_test(
     
     logger.info(f"🎯 [BUCKET_RETRIEVE] Starting retrieval: major_domain={major_domain}, sub_domain={sub_domain}, questions={num_questions}")
     
-    # 🎯 [OPTIMIZATION] Skip Pinecone retrieval for subjects without indexed data
-    # Only Geography and History have vector data currently.
-    indexed_subjects = ["geography", "history"]
-    if subject.lower() not in indexed_subjects and subject.lower() != "general":
+    # 🎯 [OPTIMIZATION] Skip Pinecone retrieval ONLY for subjects without vector data
+    # Economy, Polity, Environment have been/are being indexed.
+    skip_subjects = ["science & technology", "science & tech", "science"]
+    if any(s in subject.lower() for s in skip_subjects):
         logger.info(f"⏩ [BUCKET_RETRIEVE] Skipping Pinecone retrieval for '{subject}' (No vector data yet). Bypassing to search-only grounding.")
         return [], []
         
@@ -875,11 +875,12 @@ def build_current_search_queries(topic_clusters: List[Dict[str, Any]]) -> List[D
                 ])
         
         elif "economy" in subject_lower or "economy" in major_domain.lower() or any(d in major_domain for d in ["Basic Economic Concepts", "Macroeconomics", "Indian Economy", "Banking", "Taxation", "External Sector"]):
-            # Economy Logic
+            # Economy Logic - Prioritizing PIB, Arthapedia, Vikaspedia, Investopedia
             all_queries.extend([
-                {"q": f"site:gov.in OR site:niti.gov.in {mt} {refined_subs} Indian economy core concepts UPSC", "recency": 1500},
-                {"q": f"recent economic policy {mt} {refined_subs} India budget RBI inflation report analysis", "recency": 365},
-                {"q": f"economic indicators {mt} {refined_subs} GDP inflation employment 2024 2025 data", "recency": 365}
+                {"q": f"site:pib.gov.in OR site:gov.in {mt} {refined_subs} Indian economy recent news report 2024 2025", "recency": 365},
+                {"q": f"site:arthapedia.in OR site:vikaspedia.in {mt} {refined_subs} economic concept for UPSC analysis", "recency": 1500},
+                {"q": f"site:investopedia.com {mt} {refined_subs} economic term definition and core principles", "recency": 1500},
+                {"q": f"recent economic policy {mt} {refined_subs} India budget RBI inflation 2024 2025 analysis", "recency": 365}
             ])
             if "Monetary Policy" in major_domain or "Fiscal Policy" in major_domain:
                 all_queries.extend([
@@ -922,11 +923,11 @@ def build_current_search_queries(topic_clusters: List[Dict[str, Any]]) -> List[D
             ])
 
         elif "polity" in subject_lower or "polity" in major_domain.lower() or any(d in major_domain for d in ["Constitutional Framework", "Union Government", "State & Local", "Judiciary", "Electoral Processes", "Governance"]):
-            # Polity Logic
+            # Polity Logic - Prioritizing Yojana and Kurukshetra for analysis
             all_queries.extend([
                 {"q": f"site:gov.in OR site:prsindia.org {mt} {refined_subs} constitutional provisions UPSC", "recency": 1500},
-                {"q": f"{mt} {refined_subs} constitutional analysis static concepts", "recency": 1500},
-                {"q": f"recent governance updates {mt} {refined_subs} government notifications 2024 2025", "recency": 365}
+                {"q": f"Yojana Magazine OR Kurukshetra Magazine {mt} {refined_subs} summary analysis 2024 2025 governance", "recency": 730},
+                {"q": f"recent governance updates {mt} {refined_subs} government notifications 2024 2025 prsindia", "recency": 365}
             ])
             if "Constitutional Framework" in major_domain:
                 all_queries.extend([
