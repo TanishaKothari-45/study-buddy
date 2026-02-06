@@ -54,6 +54,7 @@ const GEOGRAPHY_DOMAINS: Record<string, string[]> = {
         "Mapping and Cartography"
     ]
 };
+
 // UPSC History taxonomy
 const HISTORY_DOMAINS: Record<string, string[]> = {
     "Indian Heritage and Culture": [
@@ -93,9 +94,53 @@ const HISTORY_DOMAINS: Record<string, string[]> = {
 
 };
 
+
+const ECONOMY_DOMAINS: Record<string, string[]> = {
+    "Basic Economic Concepts": ["GDP & GNP", "National Income Accounting", "Supply & Demand", "Elasticity", "Market Structures"],
+    "Macroeconomics & Policy": ["Inflation and Deflation", "Monetary Policy (RBI/MPC/Repo Rate)", "Fiscal Policy (Deficit, FRBM)", "Balance of Payments & Exchange Rates", "Budget & Economic Survey"],
+    "Indian Economy & Development": ["Economic Planning in India", "Poverty & Unemployment", "Sustainable Development", "Inclusive Growth", "Sectoral Growth (Agri/Industry/Services)"],
+    "Banking & Finance": ["RBI Functions", "Commercial Banking", "Financial Markets", "Non-Banking Financial Companies", "Financial Inclusion"],
+    "Taxation & Public Finance": ["Direct vs Indirect Taxes", "Goods and Services Tax (GST)", "Tax Buoyancy & Structure", "Union vs State Tax Distribution", "Fiscal Federalism"],
+    "External Sector & Global Economy": ["Trade & Tariff Policy", "WTO, IMF, World Bank", "Foreign Capital & Investment", "Export-Import Dynamics", "Currency Markets"],
+    "Contemporary Economic Issues": ["Inflation Trends & Data (CPI/WPI)", "Banking Reforms", "MSMEs & Economic Initiatives", "Digital Public Infrastructure", "Economic Impacts of Policy Announcements"]
+};
+
+const SCIENCE_TECH_DOMAINS: Record<string, string[]> = {
+    "Fundamental Science Concepts": ["Physics Basics (Energy, Forces, Waves)", "Chemistry Basics (Atoms, Molecules, Reactions)", "Biology Basics (Cells, Genetics, Ecology)", "Scientific Principles (Newtonian, Thermodynamics)", "Measurement & Units"],
+    "Space & Defence Technology": ["ISRO Missions (Chandrayaan, etc.)", "Satellite Technologies (PSLV, GSLV)", "Navigation Systems (GPS/GNSS)", "Defence Technologies (Missiles, Radar)", "Space Research Organisations"],
+    "Information & Communication Tech": ["Cybersecurity Fundamentals", "Artificial Intelligence & Machine Learning", "Blockchain & Distributed Ledgers", "Internet of Things (IoT)", "5G/6G and Communications"],
+    "Biotechnology & Health Tech": ["Genetic Engineering", "Biotech Applications", "Vaccines & Immunology Basics", "Human Genome & DNA/RNA", "Biotech in Agriculture/Medicine"],
+    "Emerging Technologies": ["Quantum Computing", "Nanotechnology", "Robotics & Automation", "Data Science & Analytics", "Green Energy Technologies"],
+    "Applied Science & Research": ["Environmental Technologies", "Material Science", "Renewable Energy Systems", "Scientific Research Findings", "Innovation Trends"]
+};
+
+const ENVIRONMENT_ECOLOGY_DOMAINS: Record<string, string[]> = {
+    "Ecology & Ecosystems": ["Ecosystem Concepts", "Energy Flow & Food Webs", "Biogeochemical Cycles", "Species Interactions", "Ecological Succession"],
+    "Biodiversity & Conservation": ["Biodiversity Hotspots", "Protected Areas (Parks/Reserves)", "Endangered Species", "Conservation Strategies", "IUCN/National Designations"],
+    "Pollution & Environmental Issues": ["Air, Water, Soil Pollution", "Noise Pollution", "Ocean & Marine Pollution", "Hazardous Waste", "Pollution Control Measures"],
+    "Climate Change & Global Frameworks": ["Greenhouse Effect", "Paris Agreement", "UNFCCC", "Nationally Determined Contributions", "Climate Adaptation & Mitigation"],
+    "Environmental Laws & Policies": ["Environment Protection Act", "Forest Conservation Act", "Wildlife Protection Act", "EIA/CRZ Notifications", "Water & Air Quality Standards"],
+    "Natural Resource Management": ["Water Resource Management", "Soil & Land Use", "Forest & Wildlife", "Mineral Resource Governance", "Sustainable Development Goals"],
+    "Contemporary Environmental Issues": ["Climate Summits", "National Missions (e.g., Namami Gange)", "Species Discovery/Threat News", "Disaster Impact on Ecology", "New Policy Developments"]
+};
+
+const POLITY_DOMAINS: Record<string, string[]> = {
+    "Constitutional Framework": ["Preamble", "Basic Structure Doctrine", "Fundamental Rights", "Directive Principles (DPSP)", "Fundamental Duties"],
+    "Union Government": ["President", "Prime Minister & Council of Ministers", "Parliament (Rajya Sabha & Lok Sabha)", "Union Executive", "Union Legislature"],
+    "State & Local Governance": ["State Executive & Legislature", "Governor", "Panchayati Raj Institutions", "Municipal Governance", "Centre–State Relations"],
+    "Judiciary & Legal Institutions": ["Supreme Court", "High Courts", "Judicial Review", "Writ Jurisdiction", "Tribunals & Legal Bodies"],
+    "Electoral Processes & Reforms": ["Election Commission", "Electoral Laws", "Delimitation", "Political Parties", "Election Finance"],
+    "Governance & Public Policy": ["Public Administration", "Policy Formulation", "Accountability Mechanisms", "Civil Services", "Legislative Procedures"],
+    "Contemporary Governance Issues": ["New Constitutional Amendments", "Governance Reforms", "Citizenship Laws", "Centre–State Legal Issues", "Judicial Pronouncements Impacting Governance"]
+};
+
 const SUBJECT_DOMAINS: Record<string, Record<string, string[]>> = {
     "Geography": GEOGRAPHY_DOMAINS,
-    "History": HISTORY_DOMAINS
+    "History": HISTORY_DOMAINS,
+    "Economy": ECONOMY_DOMAINS,
+    "Science & Tech": SCIENCE_TECH_DOMAINS,
+    "Environment & Ecology": ENVIRONMENT_ECOLOGY_DOMAINS,
+    "Polity": POLITY_DOMAINS
 };
 
 type JobStatus = 'idle' | 'pending' | 'processing' | 'completed' | 'failed';
@@ -435,11 +480,13 @@ export default function MockTestPage() {
                                         <SelectValue placeholder="Select Subject" />
                                     </SelectTrigger>
                                     <SelectContent className="bg-card z-50">
-                                        <SelectItem value="Geography">Geography</SelectItem>
-                                        <SelectItem value="History">History</SelectItem>
+                                        {Object.keys(SUBJECT_DOMAINS).map((subject) => (
+                                            <SelectItem key={subject} value={subject}>{subject}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
+
 
                         </div>
 

@@ -40,6 +40,60 @@ HISTORY_RELATED_DOMAINS = {
 RELATED_DOMAINS = {**GEOGRAPHY_RELATED_DOMAINS, **HISTORY_RELATED_DOMAINS}
 
 
+# Cross-domain relationships mapping for Economy
+ECONOMY_RELATED_DOMAINS = {
+    "Basic Economic Concepts": ["Macroeconomics & Policy", "Indian Economy & Development"],
+    "Macroeconomics & Policy": ["Basic Economic Concepts", "Banking & Finance", "Taxation & Public Finance"],
+    "Indian Economy & Development": ["Basic Economic Concepts", "Contemporary Economic Issues", "External Sector & Global Economy"],
+    "Banking & Finance": ["Macroeconomics & Policy", "Indian Economy & Development"],
+    "Taxation & Public Finance": ["Macroeconomics & Policy", "Indian Economy & Development"],
+    "External Sector & Global Economy": ["Macroeconomics & Policy", "Indian Economy & Development"],
+    "Contemporary Economic Issues": ["Macroeconomics & Policy", "Indian Economy & Development"]
+}
+
+# Cross-domain relationships mapping for Science & Tech
+SCIENCE_TECH_RELATED_DOMAINS = {
+    "Fundamental Science Concepts": ["Applied Science & Research", "Biotechnology & Health Tech"],
+    "Space & Defence Technology": ["Fundamental Science Concepts", "Information & Communication Tech"],
+    "Information & Communication Tech": ["Emerging Technologies", "Space & Defence Technology"],
+    "Biotechnology & Health Tech": ["Fundamental Science Concepts", "Applied Science & Research"],
+    "Emerging Technologies": ["Information & Communication Tech", "Applied Science & Research"],
+    "Applied Science & Research": ["Fundamental Science Concepts", "Emerging Technologies"]
+}
+
+# Cross-domain relationships mapping for Environment & Ecology
+ENVIRONMENT_ECOLOGY_RELATED_DOMAINS = {
+    "Ecology & Ecosystems": ["Biodiversity & Conservation", "Natural Resource Management"],
+    "Biodiversity & Conservation": ["Ecology & Ecosystems", "Environment & Ecology"],
+    "Pollution & Environmental Issues": ["Climate Change & Global Frameworks", "Environmental Laws & Policies"],
+    "Climate Change & Global Frameworks": ["Pollution & Environmental Issues", "Contemporary Environmental Issues"],
+    "Environmental Laws & Policies": ["Pollution & Environmental Issues", "Natural Resource Management"],
+    "Natural Resource Management": ["Ecology & Ecosystems", "Environmental Laws & Policies"],
+    "Contemporary Environmental Issues": ["Climate Change & Global Frameworks", "Biodiversity & Conservation"]
+}
+
+# Cross-domain relationships mapping for Polity
+POLITY_RELATED_DOMAINS = {
+    "Constitutional Framework": ["Judiciary & Legal Institutions", "Union Government"],
+    "Union Government": ["State & Local Governance", "Constitutional Framework"],
+    "State & Local Governance": ["Union Government", "Governance & Public Policy"],
+    "Judiciary & Legal Institutions": ["Constitutional Framework", "Governance & Public Policy"],
+    "Electoral Processes & Reforms": ["Constitutional Framework", "Union Government"],
+    "Governance & Public Policy": ["Union Government", "Contemporary Governance Issues"],
+    "Contemporary Governance Issues": ["Governance & Public Policy", "Constitutional Framework"]
+}
+
+# Combined for backward compatibility
+RELATED_DOMAINS = {
+    **GEOGRAPHY_RELATED_DOMAINS, 
+    **HISTORY_RELATED_DOMAINS,
+    **ECONOMY_RELATED_DOMAINS,
+    **SCIENCE_TECH_RELATED_DOMAINS,
+    **ENVIRONMENT_ECOLOGY_RELATED_DOMAINS,
+    **POLITY_RELATED_DOMAINS
+}
+
+
 def build_query_text(
     major_domain: Optional[str] = None, 
     sub_domain: Optional[str] = None, 

@@ -1,0 +1,147 @@
+{
+    "metadata": {
+        "subject": "Environment and Ecology",
+        "total_patterns": 6,
+        "description": "UPSC Prelims Environment & Ecology question grammar dataset for few-shot prompting and style conditioning."
+    },
+    "patterns": [
+        {
+            "id": "ENV1",
+            "title": "Concept Definition / Single-Choice",
+            "explanation": "Tests core ecological and environmental concepts like biomes, ecosystems, pollution types.",
+            "example_questions": [
+                {
+                    "question": "Which one of the following best describes an ecosystem?",
+                    "options": [
+                        "(a) A group of organisms of the same species",
+                        "(b) A community of organisms interacting with each other and their environment",
+                        "(c) A genetic pool of a population",
+                        "(d) A food chain only"
+                    ],
+                    "correct_answer": "b",
+                    "pattern_notes": "Tests the foundational ecological concept.",
+                    "distractor_rationales": {
+                        "(a)": "Only species grouping, not environment interaction.",
+                        "(c)": "Genetic pool is unrelated.",
+                        "(d)": "Food chain is part of ecosystem, not definition."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ENV2",
+            "title": "Multi-Statement Evaluation",
+            "explanation": "Evaluates ecological, environmental and pollution statements.",
+            "example_questions": [
+                {
+                    "question": "Consider the following:\n1. Ozone in the stratosphere absorbs harmful UV radiation.\n2. Ground-level ozone is a greenhouse gas.\n3. Ozone depletion leads to higher skin cancer risks.\nWhich statements are correct?",
+                    "options": [
+                        "(a) 1 and 2 only",
+                        "(b) 1 and 3 only",
+                        "(c) 2 and 3 only",
+                        "(d) All three"
+                    ],
+                    "correct_answer": "b",
+                    "pattern_notes": "Tests understanding of ozone roles at different levels.",
+                    "distractor_rationales": {
+                        "(a)": "Statement 3 also correct.",
+                        "(c)": "Statement 2 is incorrect in this context.",
+                        "(d)": "Statement 2 is incorrect."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ENV3",
+            "title": "Match-the-Pair",
+            "explanation": "Pairs environmental terms with definitions or features.",
+            "example_questions": [
+                {
+                    "question": "Match the following:\nList I\n1. CFCs\n2. Greenhouse Gas\n3. BOD\n\nList II\n(a) Oxygen depletion indicator\n(b) Methane\n(c) Ozone depleting substance\nSelect the correct answer:",
+                    "options": [
+                        "(a) 1–c, 2–b, 3–a",
+                        "(b) 1–b, 2–a, 3–c",
+                        "(c) 1–a, 2–c, 3–b",
+                        "(d) 1–c, 2–a, 3–b"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Associates environment pollutants with categories.",
+                    "distractor_rationales": {
+                        "(b)": "Misaligned pairs.",
+                        "(c)": "Incorrect mapping.",
+                        "(d)": "Wrong second pair."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ENV4",
+            "title": "Assertion–Reason Type",
+            "explanation": "Tests relationships between environmental processes and outcomes.",
+            "example_questions": [
+                {
+                    "question": "Assertion (A): Coral bleaching increases with rising sea temperatures.\nReason (R): Corals expel symbiotic algae when stressed by high temperature.\nWhich is correct?",
+                    "options": [
+                        "(a) A and R correct and R explains A",
+                        "(b) Both correct but R not explain A",
+                        "(c) A correct but R incorrect",
+                        "(d) Both incorrect"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Standard ecology process linking cause and effect.",
+                    "distractor_rationales": {
+                        "(b)": "Reason correctly explains assertion.",
+                        "(c)": "Reason is correct.",
+                        "(d)": "Both statements are correct."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ENV5",
+            "title": "Fact-Based / Direct MCQ",
+            "explanation": "Straight ecological/environmental facts.",
+            "example_questions": [
+                {
+                    "question": "Which one of the following is a renewable energy source?",
+                    "options": [
+                        "(a) Coal",
+                        "(b) Natural Gas",
+                        "(c) Solar Power",
+                        "(d) Nuclear Energy"
+                    ],
+                    "correct_answer": "c",
+                    "pattern_notes": "Renewable vs non-renewable energy knowledge.",
+                    "distractor_rationales": {
+                        "(a)": "Non-renewable fossil fuel.",
+                        "(b)": "Non-renewable fuel.",
+                        "(d)": "Energy source but not renewable in the strict sense."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ENV6",
+            "title": "Current-Linked Environment MCQ",
+            "explanation": "Uses recent environmental developments (summits, policy, indices) to test core ecology.",
+            "example_questions": [
+                {
+                    "question": "Recently, India submitted its updated Nationally Determined Contributions (NDCs) under the Paris Agreement. NDCs are related to:",
+                    "options": [
+                        "(a) Trade tariff commitments",
+                        "(b) Climate change mitigation goals",
+                        "(c) Space cooperation agreements",
+                        "(d) Monetary policy targets"
+                    ],
+                    "correct_answer": "b",
+                    "pattern_notes": "Links policy action with environmental conceptual test.",
+                    "distractor_rationales": {
+                        "(a)": "Irrelevant to NDCs.",
+                        "(c)": "Out of environmental scope.",
+                        "(d)": "Economic policy unrelated."
+                    }
+                }
+            ]
+        }
+    ]
+}

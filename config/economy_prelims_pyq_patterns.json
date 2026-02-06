@@ -1,0 +1,163 @@
+{
+    "metadata": {
+        "subject": "Economy",
+        "total_patterns": 6,
+        "description": "UPSC Prelims Economy question grammar dataset for few-shot prompting and style conditioning."
+    },
+    "patterns": [
+        {
+            "id": "E1",
+            "title": "Concept Definition / Single-Choice",
+            "explanation": "Tests core economic concepts such as GDP, inflation, fiscal terms, policy instruments, etc.",
+            "example_questions": [
+                {
+                    "question": "Which one of the following best describes Gross Domestic Product (GDP)?",
+                    "options": [
+                        "(a) Total value of goods and services produced by Indian residents abroad",
+                        "(b) Total value of intermediate goods produced in the economy",
+                        "(c) Market value of all final goods and services produced within a country in a year",
+                        "(d) Total export earnings of a country"
+                    ],
+                    "correct_answer": "c",
+                    "pattern_notes": "Tests precise definition of GDP; distractors reflect related but incorrect macro indicators.",
+                    "distractor_rationales": {
+                        "(a)": "Measures production abroad, not within a country.",
+                        "(b)": "Intermediate goods are excluded to avoid double counting.",
+                        "(d)": "Exports are just a component of GDP."
+                    }
+                },
+                {
+                    "question": "Which one of the following best describes ‘Fiscal Deficit’?",
+                    "options": [
+                        "(a) Excess of revenue receipts over revenue expenditure",
+                        "(b) Shortfall of revenue receipts compared to total expenditure",
+                        "(c) Excess of capital receipts over capital expenditure",
+                        "(d) Shortfall of current accounts in balance of payments"
+                    ],
+                    "correct_answer": "b",
+                    "pattern_notes": "Checks understanding of fiscal deficit in budget context.",
+                    "distractor_rationales": {
+                        "(a)": "Revenue surplus, not correct.",
+                        "(c)": "Capital account concept, not fiscal deficit.",
+                        "(d)": "Balance of payments concept, unrelated."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "E2",
+            "title": "Multi-Statement Evaluation",
+            "explanation": "Evaluates understanding across multiple economic facts and relationships.",
+            "example_questions": [
+                {
+                    "question": "Consider the following statements:\n1. Inflation targeting is a monetary policy tool.\n2. GST is a direct tax.\n3. Repo rate is set by the RBI.\nHow many of the above statements are correct?",
+                    "options": [
+                        "(a) Only one",
+                        "(b) Only two",
+                        "(c) All three",
+                        "(d) None"
+                    ],
+                    "correct_answer": "b",
+                    "pattern_notes": "Tests inflation targeting, tax classification, and monetary policy instruments.",
+                    "distractor_rationales": {
+                        "(a)": "Two statements are correct — 1 and 3.",
+                        "(c)": "Statement 2 is incorrect; GST is indirect tax.",
+                        "(d)": "Statements 1 and 3 are correct."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "E3",
+            "title": "Match-the-Pair Questions",
+            "explanation": "Pairs economic terms with definitions or institutions with functions.",
+            "example_questions": [
+                {
+                    "question": "Match the following:\nList I\n1. Reserve Bank of India\n2. Securities and Exchange Board of India\n3. Finance Commission\n\nList II\n(a) Regulates stock markets\n(b) Recommends distribution of taxes between centre and states\n(c) Conducts monetary policy\nSelect the correct answer:",
+                    "options": [
+                        "(a) 1–c, 2–a, 3–b",
+                        "(b) 1–b, 2–c, 3–a",
+                        "(c) 1–a, 2–b, 3–c",
+                        "(d) 1–c, 2–b, 3–a"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Tests link between institutions and roles in Indian economy.",
+                    "distractor_rationales": {
+                        "(b)": "Incorrect pairings of roles.",
+                        "(c)": "Misalignment between institutions and functions.",
+                        "(d)": "Swaps functions incorrectly."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "E4",
+            "title": "Assertion–Reason Type (Linkage)",
+            "explanation": "Tests cause–effect and policy logic in economic context.",
+            "example_questions": [
+                {
+                    "question": "Assertion (A): Increasing the repo rate can help reduce inflation.\nReason (R): A higher repo rate makes borrowing cheaper, increasing demand.\nWhich of the following is correct?",
+                    "options": [
+                        "(a) Both A and R are correct and R explains A",
+                        "(b) Both A and R are correct but R does not explain A",
+                        "(c) A is correct but R is incorrect",
+                        "(d) Both are incorrect"
+                    ],
+                    "correct_answer": "c",
+                    "pattern_notes": "Tests relationship between monetary policy actions and inflation.",
+                    "distractor_rationales": {
+                        "(a)": "Reason is opposite of correct logic.",
+                        "(b)": "Inflation logic exists but explanation is wrong.",
+                        "(d)": "Assertion is correct; reason is incorrect."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "E5",
+            "title": "Graph/Data Interpretation (Optional)",
+            "explanation": "Tests interpretation of simple economic indicators or trends. (Can be textual in absence of visuals.)",
+            "example_questions": [
+                {
+                    "question": "If a country’s GDP growth rate declines steadily over four consecutive quarters, which of the following may be true?",
+                    "options": [
+                        "(a) Unemployment is likely decreasing",
+                        "(b) Consumer spending is rising sharply",
+                        "(c) Investment demand may be contracting",
+                        "(d) Exports must have increased"
+                    ],
+                    "correct_answer": "c",
+                    "pattern_notes": "Tests macroeconomic trend interpretation; distractors reflect incorrect causality.",
+                    "distractor_rationales": {
+                        "(a)": "Unemployment likely rising.",
+                        "(b)": "GDP fall unlikely with sharp consumption rise.",
+                        "(d)": "Exports may not increase with GDP fall."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "E6",
+            "title": "Current-Linked Economy MCQ",
+            "explanation": "Uses recent economic developments as context to test static economic concepts.",
+            "example_questions": [
+                {
+                    "question": "Recently, the RBI raised the policy repo rate to curb inflationary pressures. Which of the following is a direct consequence of this move?",
+                    "options": [
+                        "(a) Lower cost of credit for borrowers",
+                        "(b) Increased liquidity in the banking system",
+                        "(c) Tendency for reduced consumer demand",
+                        "(d) Automatic reduction in fiscal deficit"
+                    ],
+                    "correct_answer": "c",
+                    "pattern_notes": "Tests linkage between contemporary monetary policy action and static economic effect.",
+                    "distractor_rationales": {
+                        "(a)": "Higher repo rate makes borrowing costlier.",
+                        "(b)": "Liquidity tends to fall.",
+                        "(d)": "Fiscal deficit not directly tied to repo change."
+                    }
+                }
+            ]
+        }
+    ]
+}

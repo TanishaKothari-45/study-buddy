@@ -8,58 +8,36 @@ from typing import Optional, Dict, Any, List
 
 # Path to the patterns configuration
 # study-buddy/backend/app/utils/mock_test_prompting.py -> study-buddy/
+# Base directory for config files
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-PATTERNS_PATH = BASE_DIR / "config" / "geography_prelims_pyq_patterns.json"
 
-def load_pyq_patterns() -> Dict[str, Any]:
-    """Load the enhanced UPSC Prelims patterns from JSON."""
+def load_pyq_patterns(subject: str = "Geography") -> Dict[str, Any]:
+    """Load the enhanced UPSC Prelims patterns from JSON for a given subject."""
+    filename = "geography_prelims_pyq_patterns.json"
+    if subject == "History":
+        filename = "history_prelims_pyq_patterns.json"
+    elif subject == "Economy":
+        filename = "economy_prelims_pyq_patterns.json"
+    elif "Science" in subject:
+        filename = "science_technology_prelims_pyq_patterns.json"
+    elif "Environment" in subject:
+        filename = "environment_ecology_prelims_pyq_patterns.json"
+    elif "Polity" in subject:
+        filename = "polity_prelims_pyq_patterns.json"
+        
+    patterns_path = BASE_DIR / "config" / filename
     try:
-        if PATTERNS_PATH.exists():
-            with open(PATTERNS_PATH, "r", encoding="utf-8") as f:
+        if patterns_path.exists():
+            with open(patterns_path, "r", encoding="utf-8") as f:
                 return json.load(f)
     except Exception as e:
-        print(f"Error loading patterns: {e}")
+        print(f"Error loading patterns for {subject}: {e}")
     return {"patterns": []}
 
-PYQ_PATTERNS_DATA = load_pyq_patterns()
-
-def format_patterns_for_prompt() -> str:
+def format_patterns_for_prompt(subject: str = "Geography") -> str:
     """Format the patterns JSON into a readable string for the prompt."""
-    if not PYQ_PATTERNS_DATA.get("patterns"):
-        return "No specific patterns available."
-    
-    formatted = "UPSC QUESTION PATTERN EXAMPLES & LOGIC:\n\n"
-    for p in PYQ_PATTERNS_DATA["patterns"]:
-        formatted += f"Pattern {p['id']}: {p['title']}\n"
-        formatted += f"Logic: {p['explanation']}\n"
-        if "examples" in p:
-            for ex in p["examples"][:1]:  # Just one example per pattern for the framework
-                formatted += f"Sample Trap: {ex.get('pattern_notes', 'N/A')}\n"
-        formatted += "---\n"
-    return formatted
-
-# ===========================================
-# UPSC MOCK TEST PROMPT SYSTEM (Refactored)
-# ===========================================
-
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-PATTERNS_PATH = BASE_DIR / "config" / "geography_prelims_pyq_patterns.json"
-
-def load_pyq_patterns() -> Dict[str, Any]:
-    """Load the enhanced UPSC Prelims patterns from JSON."""
-    try:
-        if PATTERNS_PATH.exists():
-            with open(PATTERNS_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
-    except Exception as e:
-        print(f"Error loading patterns: {e}")
-    return {"patterns": []}
-
-PYQ_PATTERNS_DATA = load_pyq_patterns()
-
-def format_patterns_for_prompt() -> str:
-    """Format the patterns JSON into a readable string for the prompt."""
-    patterns = PYQ_PATTERNS_DATA.get("patterns", [])
+    data = load_pyq_patterns(subject)
+    patterns = data.get("patterns", [])
     if not patterns:
         return ""
     
@@ -292,6 +270,7 @@ GENERAL RULES FOR LINKAGE & DISTRACTOR DESIGN
 ---
 """
 
+# Handle framework selection and pattern integration dynamically in get_cognitive_framework or assemble_upsc_prompt
 FRAMEWORK_HISTORY = """COGNITIVE FRAMEWORK
 
 1. Examination Intent
@@ -369,10 +348,285 @@ FRAMEWORK_HISTORY = """COGNITIVE FRAMEWORK
 
 """
 
+FRAMEWORK_ECONOMY = """COGNITIVE FRAMEWORK
+
+1. Examination Intent
+   • UPSC Prelims Economy tests **core economic concepts, policy interpretation, macro & microeconomic reasoning, and application of national data with policy context**. It also evaluates how aspirants connect basic theory with real-world economic indicators and policy outcomes.  
+   • Questions often blend static fundamentals (GDP, inflation, deficits, banking) with **current economic developments, budgets, and official data releases**. • Questions are framed to require **reasoned elimination** and not just rote recall of facts. :contentReference[oaicite:0]{index=0}  
+
+2. Topic Coverage & Domain Balance
+   • Include balanced coverage of key UPSC Prelims economy areas: Basic Concepts, Macroeconomics, Microeconomics, Fiscal & Monetary Policy, Banking & Finance, Public Finance, External Sector and Sectoral components.  
+   • Each question should *anchor* a concept in economic logic — e.g., how a policy change affects inflation, employment, trade, or public finance. :contentReference[oaicite:1]{index=0}  
+
+3. Core Question Types & Generation Rules
+
+   A) **Direct Concept / Definition**
+      - Test precise understanding of economics terms (e.g., GDP vs GVA, fiscal deficit, etc.).
+      - Distractors should reflect *related economic concepts* that are close but incorrect.
+
+   B) **Multi-Statement Evaluation**
+      - Use multiple statements linking theory (e.g., inflation types) with policy outcomes or indicator effects.
+      - Include statements that test both economics definitions and real economic behaviour.
+
+   C) **Match-the-Pair**
+      - Pair institutions with functions (RBI → monetary policy; SEBI → markets), indicators with explanations, or policy measures with effects.
+      - Distractors should be plausible but incorrect linkages drawn from adjacent economic roles.
+
+   D) **Assertion–Reason**
+      - Test cause–effect logic in economic relationships (e.g., repo rate changes → demand effects).
+      - Ensure options cover all logical combinations of A and R correctness.
+
+   E) **Data/Indicator Interpretation**
+      - Frame simple interpretation of economic trends, macro data changes, or policy announcements.
+      - Distractors should include *mis-applied logical inferences* (e.g., assuming causation where only correlation exists).
+
+   F) **Current-Linked Economy Application**
+      - Use recent economic developments (budget proposals, RBI policy changes, official reports) as triggers but test *static economic logic*.
+      - Avoid questions on only news headlines without grounding in economic principles.
+
+4. Distractor Engineering
+   • Distractors must be:
+     – **Plausible within economic logic** (e.g., misinterpret GDP vs GNP understanding).  
+     – **Non-redundant**: each wrong option must reflect a *distinct incorrect economic reasoning*.  
+     – **Elimination-testable**: use static economic principles to eliminate incorrect choices.
+
+   • Typical distractor sources:
+     – Confusion between macro indicators (GDP vs GVA).  
+     – Policy impact mis-attributions (e.g., assuming increased spending always reduces inflation).  
+     – Mistaken institutional roles (e.g., SEBI managing RBI functions).
+
+5. Difficulty Calibration
+   • **Easy:** Core definitions and straightforward policy–term connections.  
+   • **Medium:** Multi-statement with some reasoning, data interpretation with modest elimination logic.  
+   • **Hard:** Assertion–Reason or application questions requiring *integration of static concept + current event/indicator trends*.
+
+6. Static vs Current Use
+   • Economy has a *dynamic current component* (budgets, surveys, RBI policy) but always link it to *static economic concepts* to test reasoning.  
+   • Do not frame questions that simply repeat news facts — they must *require understanding* of how these news items affect economic logic.
+
+7. Explanation Standards
+   • Provide concise yet comprehensive explanations outlining:
+     – Why the correct option is correct based on economic theory and data logic.  
+     – Why other options are incorrect due to flawed economic reasoning or misapplication.
+
+8. Output Structure & Consistency
+   • Each question must include: “question”, “options”, “correct_answer”, “explanation”, and a “source” with topic/sub-domain.  
+   • Avoid repetition of facts; emphasize *diversity of economic logic within a test*.
+
+9. Prompt Framing Guidance
+   • “Craft questions that blend static economic definitions with real policy outcomes and data interpretation.”  
+   • “Ensure distractors reflect common misconceptions in economic reasoning.”  
+   • “Use official data context and policy developments to *trigger* questions, but not as standalone news trivia.”  
+"""
+FRAMEWORK_POLITY = """COGNITIVE FRAMEWORK
+
+1. Examination Intent
+   • UPSC Polity tests **constitutional provisions, institutional structures, law-making processes, governance mechanisms, and their application** to real governance scenarios.  
+   • Questions often ask for precise application of constitutional text and logic rather than mere definitions. :contentReference[oaicite:1]{index=1}
+
+2. Topic Coverage & Domain Balance
+   • Include coverage of Constitution basics, union/state structures, judiciary, electoral mechanisms, federalism, governance reforms, and recent developments in polity.  
+   • Tie static constitutional principles with scenarios requiring application of provisions.
+
+3. Core Question Types & Generation Rules
+
+   A) **Direct Polity MCQ**
+      - Test definitions, constitutional articles, institutional roles.
+      - Distractors should reflect *similar but incorrect constitutional interpretations*.
+
+   B) **Multi-Statement Polity Logic**
+      - Combine several statements involving constitutional provisions and governance mechanisms.
+      - Each statement should require *nuanced understanding*.
+
+   C) **Match-the-Pair**
+      - Link parts/articles of Constitution with provisions, institutions with functions.
+      - Distractors should be plausible yet incorrect associations.
+
+   D) **Assertion–Reason**
+      - Test cause–effect or explanation logic in governance (e.g., why a provision exists).
+      - Ensure all combinations of correctness are presented in options.
+
+   E) **Fact-Based Governance MCQ**
+      - Directly test governance roles, appointment powers, etc., using static constitutional text.
+
+   F) **Current-Linked Polity MCQ**
+      - Use recent amendments, ordinance enactments, or commission reports as context but test *underlying constitutional logic*.
+
+4. Distractor Engineering
+   • Distractors must:
+     – Be *constitutionally plausible but incorrect*.  
+     – Reflect common misconceptions about powers, functions, and provisions.  
+     – Permit *elimination based on constitutional logic*.
+
+   • Example distractor types:
+     – Mis-assignment of powers (President vs PM).  
+     – Incorrect constitutional article references.  
+     – Misinterpretation of federal structures.
+
+5. Difficulty Calibration
+   • **Easy:** Direct constitutional facts.  
+   • **Medium:** Multi-statement or match requiring careful elimination.  
+   • **Hard:** Assertion–Reason with deep constitutional implications and current context integration.
+
+6. Static vs Current Use
+   • Static constitutional provisions are the core; current developments (ordinances, reforms) add *contextual application requirements*.  
+   • Avoid trivia based solely on news headlines; always tie back to constitutional text or logic.
+
+7. Explanation Standards
+   • Provide clear reasoning using constitutional provisions and judicial interpretation to justify the correct answer and eliminate other options.
+
+8. Output Structure & Consistency
+   • Each question must include “source” mapping to the relevant Constitution/ governance sub-domain.  
+   • Ensure varied sub-domain coverage in each test set.
+
+9. Prompt Framing Rules
+   • “Link governance scenarios with constitutional logic in questions.”  
+   • “Use distractors that only fail through precise constitutional interpretation not vague misunderstandings.”  
+"""
+FRAMEWORK_ENVIRONMENT = """COGNITIVE FRAMEWORK
+
+1. Examination Intent
+   • UPSC Prelims Environment & Ecology tests **ecological principles, biodiversity, environmental laws and policies, pollution science, and global environmental frameworks**.  
+   • Questions often integrate *static ecological concepts* with emerging environmental policy and global treaty contexts. :contentReference[oaicite:5]{index=5}
+
+2. Topic Coverage & Domain Balance
+   • Include ecology basics, ecosystem structure, biogeochemical cycles, biodiversity & conservation, pollution & mitigation, climate change frameworks, and environmental legislation.  
+   • Questions should require candidates to *apply static ecological knowledge* with understanding of environment issues and policies.
+
+3. Core Question Types & Generation Rules
+
+   A) **Direct Environment MCQ**
+      - Test static ecology definitions and environmental science principles.
+      - Distractors should reflect *related ecological concepts but incorrect in outcome or definition*.
+
+   B) **Multi-Statement Environment Logic**
+      - Combine statements involving ecological processes, pollution types and effects.
+      - Each statement should require *reasoned evaluation*.
+
+   C) **Match-the-Pair**
+      - Pair environmental terms with features, laws with their provisions, or treaties with goals.
+      - Distractors should be plausible but incorrect associations.
+
+   D) **Assertion–Reason in Ecology**
+      - Test biological / environmental cause–effect relationships (e.g., greenhouse gas effect vs climate trends).
+      - Ensure all possible answer combinations are available.
+
+   E) **Fact-Based Environment MCQ**
+      - Directly test static facts about environment, biodiversity hotspots, law provisions.
+
+   F) **Current-Linked Environment MCQ**
+      - Use recent environmental news (policy announcements, summit outcomes, treaties) as trigger to test *static ecological understanding*.
+
+4. Distractor Engineering
+   • Distractors must:
+     – Be rooted in *plausible ecological concepts or legal interpretations*.  
+     – Reflect common misconceptions (e.g., ozone vs greenhouse gases).  
+     – Permit elimination through clear environmental logic.
+
+   • Example distractor themes:
+     – Confusion between ecosystem levels (e.g., food web vs food chain).  
+     – Mis-association of laws and their mandates.  
+     – Incorrect treaty provisions.
+
+5. Difficulty Calibration
+   • **Easy:** Static ecological definitions.  
+   • **Medium:** Multi-statement with moderate reasoning.  
+   • **Hard:** Assertion–Reason or current context requiring comprehensive elimination.
+
+6. Static vs Current Use
+   • Static ecology basics are core; current environmental developments (policy, summits, agreements) should be used as *application triggers* not trivia.
+
+7. Explanation Standards
+   • Explanations must connect ecological process or legal context with reasoning for correct and incorrect options.
+
+8. Output Structure & Consistency
+   • Each question includes “source” mapping to environment sub-domain.  
+   • Each test should represent diverse ecological and policy sub-domains.
+
+9. Prompt Framing Rules
+   • “Frame questions that require application of core ecological theory to real environmental issues.”  
+   • “Use current environmental developments as a contextual layer over static identity of processes or laws.”  
+"""
+FRAMEWORK_SCIENCE_TECH = """COGNITIVE FRAMEWORK
+
+1. Examination Intent
+   • Science & Technology in UPSC Prelims tests **fundamental scientific principles + ability to apply them contextually** to modern technological developments (space, biotech, IT, etc.).  
+   • Questions should assess conceptual clarity and application logic (e.g., why a scientific principle leads to an outcome). Technology questions are often *application-oriented* rather than highly technical. :contentReference[oaicite:28]{index=0}
+
+2. Topic Coverage & Domain Balance
+   • Include basics from physics, chemistry, biology where relevant, and *modern technology domains* such as space missions, information technology, biotechnology, nanotechnology, and cybersecurity.  
+   • Contextual triggers from *recent scientific advances and innovation achievements* should connect to static principles.
+
+3. Core Question Types & Generation Rules
+
+   A) **Direct Concept / Definition**
+      - Test static science fundamentals (e.g., semiconductor conduction, ecological terms).
+      - Distractors reflect subtle conceptual misunderstandings.
+
+   B) **Multi-Statement Evaluation**
+      - Use combinations of statements involving scientific ordering, spectrum, properties, etc.
+      - Each statement should test *distinct scientific logic*.
+
+   C) **Match-the-Pair**
+      - Pair technologies with applications or discoveries with principles.
+      - Distractors should be *incorrect but plausible* matches.
+
+   D) **Assertion–Reason**
+      - Test scientific cause–effect (e.g., technology advancement → impact due to physics/engineering principles).
+      - Ensure all logical option combinations are represented.
+
+   E) **Application / Data Interpretation**
+      - Use simple, real-world scenarios requiring conceptual interpretation.
+      - Distractors should challenge elimination reasoning.
+
+   F) **Current-Linked Tech MCQ**
+      - Use recent tech contexts (AI governance, space achievements, biotech innovations) as triggers; test *underlying principles or implications*.
+
+4. Distractor Engineering
+   • Distractors must:
+     – Be scientifically plausible and reflect *common misconceptions*.  
+     – Avoid technical jargon that requires specialist expertise.  
+     – Facilitate elimination by conceptual reasoning.
+
+   • Typical distractor sources:
+     – Mis-application of laws (e.g., mixing properties of electromagnetic spectrum).  
+     – Confusion between similar tech definitions (AI vs ML).  
+     – Incorrect cause–effect reasoning.
+
+5. Difficulty Calibration
+   • **Easy:** Static concept definitions.  
+   • **Medium:** Multi-statement or match with some reasoning.  
+   • **Hard:** Assertion–Reason and technology application using current contexts.
+
+6. Static vs Current Use
+   • Base questions on static science principles; use current technological developments to *test applied understanding*.  
+   • Do not ask standalone current news facts — tie them back to *static scientific explanation*.
+
+7. Explanation Standards
+   • Explanations must connect the scientific principle to the correct choice and dissect why each distractor is flawed conceptually.
+
+8. Output Structure & Consistency
+   • Maintain consistent JSON format with “source” mapping to topic/sub-domain.  
+   • Ensure question sets cover diverse science sub-areas in a single mock test.
+
+9. Prompt Guidance
+   • “Frame questions that visibly test foundational science principles applied to modern technological contexts.”  
+   • “Use recent scientific developments to anchor application questions tied to core concepts.”  
+"""
+
+
 def get_cognitive_framework(subject: str) -> str:
     """Return the cognitive framework for the given subject."""
     if subject == "History":
         return FRAMEWORK_HISTORY
+    elif subject == "Economy":
+        return FRAMEWORK_ECONOMY
+    elif "Science" in subject:
+        return FRAMEWORK_SCIENCE_TECH
+    elif "Polity" in subject:
+        return FRAMEWORK_POLITY
+    elif "Environment" in subject:
+        return FRAMEWORK_ENVIRONMENT
     # Default to Geography
     return FRAMEWORK_GEOGRAPHY
 
@@ -407,29 +661,15 @@ def assemble_upsc_prompt(
     Returns:
         Complete prompt string ready for LLM
     """
-    # 1. Load Subject-Specific Patterns
-    pattern_file = "history_prelims_pyq_patterns.json" if subject == "History" else "geography_prelims_pyq_patterns.json"
-    
-    # We reload patterns here to ensure subject specificity
-    # In a high-perf scenario, we'd cache these, but for now this is safe
-    patterns_path = BASE_DIR / "config" / pattern_file
-    
-    patterns_text = ""
-    if patterns_path.exists():
-        try:
-            with open(patterns_path, "r", encoding="utf-8") as f:
-                pdata = json.load(f)
-                patterns = pdata.get("patterns", [])
-                if patterns:
-                    patterns_text = "### Additional UPSC Question Patterns:\n"
-                    for p in patterns:
-                        patterns_text += f"- **{p.get('title', 'Pattern')}**: {p.get('explanation', '')}\n"
-        except Exception as e:
-            print(f"Error loading patterns for {subject}: {e}")
-
-    # 2. Get Frameworks
+    # 1. Get Subject-Specific System Prompt
     system_prompt = get_system_prompt(subject)
-    cognitive_framework = get_cognitive_framework(subject) + "\n" + patterns_text
+    
+    # 2. Get Subject-Specific Cognitive Framework and append Patterns
+    cognitive_framework = get_cognitive_framework(subject)
+    patterns_text = format_patterns_for_prompt(subject)
+    
+    if patterns_text:
+        cognitive_framework += "\n\n" + patterns_text
 
     # Pass full contexts without trimming (enforced by bucket selection logic)
     content_text = retrieved_static_text if retrieved_static_text else "No content material available."

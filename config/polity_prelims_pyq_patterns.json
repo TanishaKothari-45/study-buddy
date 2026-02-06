@@ -1,0 +1,147 @@
+{
+    "metadata": {
+        "subject": "Polity and Governance",
+        "total_patterns": 6,
+        "description": "UPSC Prelims Polity question grammar dataset for few-shot prompting and style conditioning."
+    },
+    "patterns": [
+        {
+            "id": "P1",
+            "title": "Concept Definition / Single-Choice",
+            "explanation": "Tests precise constitutional concepts, governance terms, institutions and functions.",
+            "example_questions": [
+                {
+                    "question": "Which one of the following best describes the 'basic structure' doctrine?",
+                    "options": [
+                        "(a) Doctrine that all amendments can be freely made",
+                        "(b) Limits the power of judicial review",
+                        "(c) Principles that Parliament cannot alter even by constitutional amendment",
+                        "(d) Defines the structure of Parliament"
+                    ],
+                    "correct_answer": "c",
+                    "pattern_notes": "Tests understanding of a key constitutional doctrine.",
+                    "distractor_rationales": {
+                        "(a)": "Opposite of the doctrine.",
+                        "(b)": "Judicial review still exists.",
+                        "(d)": "Not correct definition."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "P2",
+            "title": "Multi-Statement Evaluation",
+            "explanation": "Evaluates multiple statements related to constitutional provisions or governance processes.",
+            "example_questions": [
+                {
+                    "question": "Consider these statements:\n1. India follows a quasi-federal structure.\n2. Rajya Sabha is the permanent house.\n3. Money bills can be introduced only in Rajya Sabha.\nWhich are correct?",
+                    "options": [
+                        "(a) 1 and 2 only",
+                        "(b) 2 only",
+                        "(c) 1 and 3 only",
+                        "(d) None"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Checks federal structure, permanence of houses, and money bill rules.",
+                    "distractor_rationales": {
+                        "(b)": "Statement 1 is correct too.",
+                        "(c)": "Statement 3 is incorrect (money bills in Lok Sabha).",
+                        "(d)": "Statements 1 and 2 are correct."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "P3",
+            "title": "Match-the-Pair",
+            "explanation": "Tests association between polity terms and features, e.g., Fundamental Duties → Articles.",
+            "example_questions": [
+                {
+                    "question": "Match the following:\nList I\n1. Fundamental Rights\n2. Directive Principles\n3. Fundamental Duties\n\nList II\n(a) Part III of Constitution\n(b) Part IVA\n(c) Part IV\nSelect correct answer:",
+                    "options": [
+                        "(a) 1–a, 2–c, 3–b",
+                        "(b) 1–b, 2–a, 3–c",
+                        "(c) 1–c, 2–b, 3–a",
+                        "(d) 1–a, 2–b, 3–c"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Links parts of the Constitution to their provisions.",
+                    "distractor_rationales": {
+                        "(b)": "Incorrect mapping.",
+                        "(c)": "Wrong associations.",
+                        "(d)": "Incorrect rows."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "P4",
+            "title": "Assertion–Reason Type",
+            "explanation": "Tests logical connection of governance facts.",
+            "example_questions": [
+                {
+                    "question": "Assertion (A): The Supreme Court of India can review its own judgement.\nReason (R): Review jurisdiction is provided under the Constitution itself.\nWhich is correct?",
+                    "options": [
+                        "(a) A and R are correct and R explains A",
+                        "(b) Both correct but R not explain A",
+                        "(c) A correct but R incorrect",
+                        "(d) Both incorrect"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Tests understanding of judicial review and review jurisdiction.",
+                    "distractor_rationales": {
+                        "(b)": "Review jurisdiction does explain capability.",
+                        "(c)": "Reason is correct.",
+                        "(d)": "Both statements are correct."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "P5",
+            "title": "Fact-Based / Direct MCQ",
+            "explanation": "Direct queries on polity facts.",
+            "example_questions": [
+                {
+                    "question": "Who appoints the Chief Election Commissioner of India?",
+                    "options": [
+                        "(a) Parliament",
+                        "(b) Prime Minister",
+                        "(c) President",
+                        "(d) Supreme Court Chief Justice"
+                    ],
+                    "correct_answer": "c",
+                    "pattern_notes": "Tests direct knowledge of constitutional appointment.",
+                    "distractor_rationales": {
+                        "(a)": "Not correct; appointment by President.",
+                        "(b)": "Prime Minister advises, not appoints.",
+                        "(d)": "Incorrect."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "P6",
+            "title": "Current-Linked Polity MCQ",
+            "explanation": "Links recent governance developments to static provisions.",
+            "example_questions": [
+                {
+                    "question": "Recently, the President gave assent to an ordinance related to educational policy. An ordinance can remain in force for a maximum period of:",
+                    "options": [
+                        "(a) 6 weeks from reassembly",
+                        "(b) 6 months from promulgation",
+                        "(c) 12 months from commencement",
+                        "(d) 6 weeks after President’s address"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Integrates a current context with constitutional knowledge.",
+                    "distractor_rationales": {
+                        "(b)": "Incorrect duration.",
+                        "(c)": "Not correct period.",
+                        "(d)": "Irrelevant."
+                    }
+                }
+            ]
+        }
+    ]
+}

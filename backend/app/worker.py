@@ -334,7 +334,8 @@ async def generate_mock_test_task(
     job_id: str,
     num_questions: int,
     topics: List[str],
-    api_key: str
+    api_key: str,
+    subject: str = "Geography"
 ):
     """
     Generate mock test questions using FULL pipeline.
@@ -368,7 +369,8 @@ async def generate_mock_test_task(
             pyq_chunks, content_chunks = hybrid_retrieve_for_mock_test(
                 pinecone_handler=pinecone_handler,
                 topics=topics,
-                num_questions=num_questions
+                num_questions=num_questions,
+                subject=subject
             )
             logger.info(f"✅ [JOB {job_id}] Retrieved {len(content_chunks)} content chunks, {len(pyq_chunks)} PYQ chunks")
         except Exception as e:
@@ -394,7 +396,9 @@ async def generate_mock_test_task(
                 topics=topics,
                 api_key=api_key,
                 job_id=job_id,
-                job_store=job_store
+                job_store=job_store,
+                pyq_chunks=pyq_chunks,
+                subject=subject
             )
             logger.info(f"✅ [JOB {job_id}] Generated {len(all_questions)} total questions")
         except Exception as e:

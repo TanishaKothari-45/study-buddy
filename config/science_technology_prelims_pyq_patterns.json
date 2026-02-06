@@ -1,0 +1,147 @@
+{
+    "metadata": {
+        "subject": "Science and Technology",
+        "total_patterns": 6,
+        "description": "UPSC Prelims Science & Technology question grammar dataset for few-shot prompting and style conditioning."
+    },
+    "patterns": [
+        {
+            "id": "ST1",
+            "title": "Concept Definition / Single-Choice",
+            "explanation": "Tests core STEM concepts, definitions, and technology principles.",
+            "example_questions": [
+                {
+                    "question": "Which one of the following best describes a semiconductor?",
+                    "options": [
+                        "(a) A material with very high electrical conductivity",
+                        "(b) A material with electrical conductivity between that of a conductor and an insulator",
+                        "(c) A material that cannot conduct electricity at any temperature",
+                        "(d) A superconducting material at room temperature"
+                    ],
+                    "correct_answer": "b",
+                    "pattern_notes": "Tests basic physics/material science concept; distractors reflect common misunderstandings.",
+                    "distractor_rationales": {
+                        "(a)": "Describes conductors, not semiconductors.",
+                        "(c)": "False — semiconductors do conduct under conditions.",
+                        "(d)": "Superconductors are different and not at room temperature."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ST2",
+            "title": "Multi-Statement Evaluation",
+            "explanation": "Evaluates multiple statements involving scientific facts or technology attributes.",
+            "example_questions": [
+                {
+                    "question": "Consider the following statements:\n1. Radio waves have shorter wavelength than X-rays.\n2. Infrared radiation lies between visible light and microwaves.\n3. Gamma rays have the highest frequency in the electromagnetic spectrum.\nWhich of the statements given above is/are correct?",
+                    "options": [
+                        "(a) 1 and 2 only",
+                        "(b) 2 and 3 only",
+                        "(c) 1 and 3 only",
+                        "(d) All three"
+                    ],
+                    "correct_answer": "b",
+                    "pattern_notes": "Tests understanding of electromagnetic spectrum ordering.",
+                    "distractor_rationales": {
+                        "(a)": "Statement 1 is incorrect (radio waves longer than X-rays).",
+                        "(c)": "Statement 1 is incorrect.",
+                        "(d)": "Statement 1 is incorrect."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ST3",
+            "title": "Match-the-Pair",
+            "explanation": "Tests association between technologies and applications or scientists and discoveries.",
+            "example_questions": [
+                {
+                    "question": "Match the following:\nList I\n1. CRISPR\n2. LIGO\n3. GPS\n\nList II\n(a) Gravitational wave detection\n(b) Genome editing technology\n(c) Satellite-based positioning system\nSelect the correct answer:",
+                    "options": [
+                        "(a) 1–b, 2–a, 3–c",
+                        "(b) 1–a, 2–b, 3–c",
+                        "(c) 1–c, 2–a, 3–b",
+                        "(d) 1–b, 2–c, 3–a"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Associates modern technology names with applications.",
+                    "distractor_rationales": {
+                        "(b)": "Misassigns CRISPR and LIGO.",
+                        "(c)": "Incorrect alignments.",
+                        "(d)": "Completely incorrect permutations."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ST4",
+            "title": "Assertion–Reason Type",
+            "explanation": "Tests linkage between scientific cause and effect or principles.",
+            "example_questions": [
+                {
+                    "question": "Assertion (A): 5G technology offers higher data rates than 4G.\nReason (R): 5G uses higher frequency bands compared to 4G.\nWhich of the following is correct?",
+                    "options": [
+                        "(a) Both A and R are correct and R explains A",
+                        "(b) Both A and R are correct but R does not explain A",
+                        "(c) A is correct but R is incorrect",
+                        "(d) Both are incorrect"
+                    ],
+                    "correct_answer": "a",
+                    "pattern_notes": "Tests cause–effect between technology upgrade and frequency utilization.",
+                    "distractor_rationales": {
+                        "(b)": "R does explain A (higher frequency → more bandwidth).",
+                        "(c)": "R is correct.",
+                        "(d)": "Both statements are correct."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ST5",
+            "title": "Application / Data Interpretation",
+            "explanation": "Tests ability to interpret simple scientific data or apply principles to scenarios.",
+            "example_questions": [
+                {
+                    "question": "An astronaut in space experiences weightlessness because:",
+                    "options": [
+                        "(a) There is no gravity in space",
+                        "(b) The astronaut is moving too fast",
+                        "(c) The astronaut is in free fall around Earth",
+                        "(d) Earth’s gravity is zero at orbital height"
+                    ],
+                    "correct_answer": "c",
+                    "pattern_notes": "Common physics application question; distractors reflect typical misconceptions.",
+                    "distractor_rationales": {
+                        "(a)": "Gravity exists everywhere; not zero.",
+                        "(b)": "Speed alone doesn’t cause weightlessness.",
+                        "(d)": "Gravity decreases but not zero."
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ST6",
+            "title": "Current-Linked Tech MCQ",
+            "explanation": "Uses recent technology context to test foundational concepts.",
+            "example_questions": [
+                {
+                    "question": "Recent advancements in quantum computing emphasize qubit coherence. What is a qubit in this context?",
+                    "options": [
+                        "(a) A classical binary bit",
+                        "(b) A quantum bit that can exist in superposition",
+                        "(c) A data packet in networks",
+                        "(d) A hardware register in CPUs"
+                    ],
+                    "correct_answer": "b",
+                    "pattern_notes": "Links current research discussion with basic quantum computing concepts.",
+                    "distractor_rationales": {
+                        "(a)": "Classical bit, not quantum.",
+                        "(c)": "Irrelevant to quantum computing.",
+                        "(d)": "Hardware register is not a qubit."
+                    }
+                }
+            ]
+        }
+    ]
+}

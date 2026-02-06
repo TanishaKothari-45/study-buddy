@@ -352,6 +352,13 @@ def hybrid_retrieve_for_mock_test(
     
     logger.info(f"🎯 [BUCKET_RETRIEVE] Starting retrieval: major_domain={major_domain}, sub_domain={sub_domain}, questions={num_questions}")
     
+    # 🎯 [OPTIMIZATION] Skip Pinecone retrieval for subjects without indexed data
+    # Only Geography and History have vector data currently.
+    indexed_subjects = ["geography", "history"]
+    if subject.lower() not in indexed_subjects and subject.lower() != "general":
+        logger.info(f"⏩ [BUCKET_RETRIEVE] Skipping Pinecone retrieval for '{subject}' (No vector data yet). Bypassing to search-only grounding.")
+        return [], []
+        
     # 🎯 Optimize: Compute embedding once for reuse
     # This saves 3-4 OpenAI API calls per generation
     logger.info("⚡ Generating query embedding once for reuse...")
@@ -643,9 +650,21 @@ def hybrid_retrieve_for_mock_test(
     return pyq_chunks, final_content
 
 @router.get("/domains")
-async def get_geography_domains():
-    """Get the geography domain structure for dropdowns"""
-    return {"domains": GEOGRAPHY_DOMAINS}
+async def get_subject_domains(subject: str = "Geography"):
+    """Get the domain structure for dropdowns for a specific subject"""
+    # Standardize subject name for lookup
+    subj_map = {
+        "geography": "Geography",
+        "history": "History",
+        "economy": "Economy",
+        "science & tech": "Science & Tech",
+        "environment & ecology": "Environment & Ecology",
+        "polity": "Polity"
+    }
+    
+    std_subject = subj_map.get(subject.lower(), subject)
+    domains = SUBJECT_DOMAINS.get(std_subject, GEOGRAPHY_DOMAINS)
+    return {"domains": domains}
 
 @router.post("/generate", response_model=MockTestResponse)
 async def generate_mock_test(request: Request, test_request: MockTestRequest):
@@ -820,36 +839,128 @@ def build_current_search_queries(topic_clusters: List[Dict[str, Any]]) -> List[D
         # 2. Focused Query Templates
         # We generate 3 queries per topic: Qualitative, Quantitative, and Static Core
         
-        if "physical" in major_domain:
+        # Determine Subject (from major_domain if needed)
+        subject_lower = cluster.get("subject", "").lower()
+        
+        if "physical" in major_domain or "geography" in subject_lower:
+            if "physical" in major_domain:
+                all_queries.extend([
+                    {"q": f"recent extreme events or anomalies {mt} {refined_subs} 2024 2025 official analysis", "recency": 365},
+                    {"q": f"latest study research {mt} {refined_subs} geography climate Indian global impact 2024 2025", "recency": 365},
+                    {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} standard textbook core principles geography UPSC", "recency": 1500}
+                ])
+            elif "human" in major_domain or "economic" in major_domain:
+                all_queries.extend([
+                    {"q": f"recent data statistics {mt} {refined_subs} India global 2024 2025 official report", "recency": 365},
+                    {"q": f"government policy schemes {mt} {refined_subs} India 2024 2025 analysis", "recency": 365},
+                    {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} core concepts human and economic geography UPSC", "recency": 1500}
+                ])
+            elif "indian" in major_domain:
+                all_queries.extend([
+                    {"q": f"Ministry/ Committee report {mt} {refined_subs} India 2024 2025 data", "recency": 365},
+                    {"q": f"recent developments/ policies {mt} {refined_subs} India geography 2024 2025", "recency": 365},
+                    {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} Indian geography core static facts standard reference", "recency": 1500}
+                ])
+            elif "world" in major_domain:
+                all_queries.extend([
+                    {"q": f"global trends major events {mt} {refined_subs} world geography 2024 2025 report", "recency": 365},
+                    {"q": f"international treaties summits {mt} {refined_subs} 2024 2025 official impact", "recency": 365},
+                    {"q": f"site:gov.in OR site:org {mt} {refined_subs} world geography mapping and static core concepts", "recency": 1500}
+                ])
+            else:
+                all_queries.extend([
+                    {"q": f"recent empirical trends {mt} {refined_subs} India/Global 2024 2025 verified", "recency": 365},
+                    {"q": f"policy governance {mt} {refined_subs} climate action development 2024 2025 report", "recency": 365},
+                    {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} core concepts standard syllabus UPSC", "recency": 1500}
+                ])
+        
+        elif "economy" in subject_lower or "economy" in major_domain.lower() or any(d in major_domain for d in ["Basic Economic Concepts", "Macroeconomics", "Indian Economy", "Banking", "Taxation", "External Sector"]):
+            # Economy Logic
             all_queries.extend([
-                {"q": f"recent extreme events or anomalies {mt} {refined_subs} 2024 2025 official analysis", "recency": 365},
-                {"q": f"latest study research {mt} {refined_subs} geography climate Indian global impact 2024 2025", "recency": 365},
-                {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} standard textbook core principles geography UPSC", "recency": 1500}
+                {"q": f"site:gov.in OR site:niti.gov.in {mt} {refined_subs} Indian economy core concepts UPSC", "recency": 1500},
+                {"q": f"recent economic policy {mt} {refined_subs} India budget RBI inflation report analysis", "recency": 365},
+                {"q": f"economic indicators {mt} {refined_subs} GDP inflation employment 2024 2025 data", "recency": 365}
             ])
-        elif "human" in major_domain or "economic" in major_domain:
+            if "Monetary Policy" in major_domain or "Fiscal Policy" in major_domain:
+                all_queries.extend([
+                    {"q": f"RBI {mt} {refined_subs} policy decision 2024 2025 official bulletins", "recency": 365},
+                    {"q": f"Ministry of Finance {mt} {refined_subs} budget statements analysis", "recency": 365},
+                    {"q": f"{mt} {refined_subs} macroeconomic concept definitions UPSC standard", "recency": 1500}
+                ])
+            if "Banking & Finance" in major_domain:
+                all_queries.extend([
+                    {"q": f"recent banking regulation {mt} {refined_subs} RBI circulars 2024 2025", "recency": 365},
+                    {"q": f"{mt} {refined_subs} financial inclusion and markets report India 2024 2025", "recency": 365},
+                    {"q": f"site:gov.in {mt} {refined_subs} banking glossary concept static UPSC", "recency": 1500}
+                ])
+
+        elif "science" in subject_lower or "science" in major_domain.lower() or any(d in major_domain for d in ["Fundamental Science", "Space & Defence", "Information & Communication", "Biotechnology", "Emerging Tech", "Applied Science"]):
+            # Science & Tech Logic
             all_queries.extend([
-                {"q": f"recent data statistics {mt} {refined_subs} India global 2024 2025 official report", "recency": 365},
-                {"q": f"government policy schemes {mt} {refined_subs} India 2024 2025 analysis", "recency": 365},
-                {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} core concepts human and economic geography UPSC", "recency": 1500}
+                {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} core science principles UPSC", "recency": 1500},
+                {"q": f"{mt} {refined_subs} fundamental science concepts explained", "recency": 1500},
+                {"q": f"recent scientific discovery {mt} {refined_subs} 2024 2025 research", "recency": 365}
             ])
-        elif "indian" in major_domain:
-            all_queries.extend([
-                {"q": f"Ministry/ Committee report {mt} {refined_subs} India 2024 2025 data", "recency": 365},
-                {"q": f"recent developments/ policies {mt} {refined_subs} India geography 2024 2025", "recency": 365},
-                {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} Indian geography core static facts standard reference", "recency": 1500}
-            ])
-        elif "world" in major_domain:
-            all_queries.extend([
-                {"q": f"global trends major events {mt} {refined_subs} world geography 2024 2025 report", "recency": 365},
-                {"q": f"international treaties summits {mt} {refined_subs} 2024 2025 official impact", "recency": 365},
-                {"q": f"site:gov.in OR site:org {mt} {refined_subs} world geography mapping and static core concepts", "recency": 1500}
-            ])
-        elif "history" in major_domain or "ancient" in major_domain or "medieval" in major_domain or "modern" in major_domain:
+            if "Space & Defence Technology" in major_domain:
+                all_queries.extend([
+                    {"q": f"ISRO mission {mt} {refined_subs} official updates 2024 2025", "recency": 365},
+                    {"q": f"defence technology {mt} {refined_subs} modern developments UPSC analysis", "recency": 365},
+                    {"q": f"{mt} {refined_subs} satellite tech principles static explanation", "recency": 1500}
+                ])
+            if "Information & Communication Tech" in major_domain or "Emerging Technologies" in major_domain:
+                all_queries.extend([
+                    {"q": f"{mt} {refined_subs} artificial intelligence 2024 2025 policy research", "recency": 365},
+                    {"q": f"{mt} {refined_subs} cybersecurity blockchain basics UPSC static", "recency": 1500},
+                    {"q": f"{mt} {refined_subs} quantum computing or nanotech overview", "recency": 1500}
+                ])
+
+        elif "history" in subject_lower or any(d in major_domain.lower() for d in ["history", "ancient", "medieval", "modern"]):
             all_queries.extend([
                 {"q": f"recent archaeological heritage news {mt} {refined_subs} 2024 2025 reports", "recency": 365},
                 {"q": f"historical analysis scholarly trends {mt} {refined_subs} Indian history 2024 2025", "recency": 365},
                 {"q": f"site:ncert.nic.in OR site:gov.in {mt} {refined_subs} history core static facts standard authors UPSC", "recency": 1500}
             ])
+
+        elif "polity" in subject_lower or "polity" in major_domain.lower() or any(d in major_domain for d in ["Constitutional Framework", "Union Government", "State & Local", "Judiciary", "Electoral Processes", "Governance"]):
+            # Polity Logic
+            all_queries.extend([
+                {"q": f"site:gov.in OR site:prsindia.org {mt} {refined_subs} constitutional provisions UPSC", "recency": 1500},
+                {"q": f"{mt} {refined_subs} constitutional analysis static concepts", "recency": 1500},
+                {"q": f"recent governance updates {mt} {refined_subs} government notifications 2024 2025", "recency": 365}
+            ])
+            if "Constitutional Framework" in major_domain:
+                all_queries.extend([
+                    {"q": f"{mt} {refined_subs} fundamental rights directive principles UPSC explanation", "recency": 1500},
+                    {"q": f"Supreme Court judgement {mt} {refined_subs} constitutional interpretation 2024 2025", "recency": 365},
+                    {"q": f"{mt} {refined_subs} constitutional amendment and landmark cases static UPSC", "recency": 1500}
+                ])
+            if "Electoral Processes & Reforms" in major_domain:
+                all_queries.extend([
+                    {"q": f"Election Commission {mt} {refined_subs} guidelines 2024 2025 official", "recency": 365},
+                    {"q": f"{mt} {refined_subs} electoral laws reforms analysis", "recency": 365},
+                    {"q": f"{mt} {refined_subs} election procedure static UPSC concepts", "recency": 1500}
+                ])
+
+        elif "environment" in subject_lower or "environment" in major_domain.lower() or any(d in major_domain for d in ["Ecology", "Biodiversity", "Pollution", "Climate Change", "Environmental Laws", "Natural Resource"]):
+            # Environment Logic
+            all_queries.extend([
+                {"q": f"site:moef.gov.in OR site:gov.in {mt} {refined_subs} ecology biodiversity core static UPSC", "recency": 1500},
+                {"q": f"{mt} {refined_subs} ecological principle environment basics explained", "recency": 1500},
+                {"q": f"recent environment news {mt} {refined_subs} climate change biodiversity 2024 2025", "recency": 365}
+            ])
+            if "Climate Change & Global Frameworks" in major_domain:
+                all_queries.extend([
+                    {"q": f"{mt} {refined_subs} Paris Agreement NDCs UNFCCC updates 2024 2025", "recency": 365},
+                    {"q": f"{mt} {refined_subs} greenhouse gas mitigation policies analysis", "recency": 365},
+                    {"q": f"{mt} {refined_subs} climate science fundamentals UPSC", "recency": 1500}
+                ])
+            if "Biodiversity & Conservation" in major_domain:
+                all_queries.extend([
+                    {"q": f"{mt} {refined_subs} biodiversity hotspots protected areas updates 2024 2025", "recency": 365},
+                    {"q": f"{mt} {refined_subs} species conservation status environmental protection", "recency": 365},
+                    {"q": f"{mt} {refined_subs} biodiversity definitions ecosystem static UPSC", "recency": 1500}
+                ])
+        
         else:
             all_queries.extend([
                 {"q": f"recent empirical trends {mt} {refined_subs} India/Global 2024 2025 verified", "recency": 365},
@@ -907,15 +1018,52 @@ async def generate_single_batch(
                 seen_mt.add(mt)
                 unique_clusters.append(cluster)
         
-        # 🧪 Topic-Based Research Fallback: If no clusters from metadata, use provided topics
-        if not unique_clusters and topics:
-            logger.info(f"🧪 [BATCH {batch_num}] No metadata clusters found. Using provided topics for research grounding.")
-            for t in topics:
-                unique_clusters.append({
-                    "micro_topic": t,
-                    "sub_topics": [],
-                    "major_domain": subject # Use subject as fallback domain
-                })
+        # 🧪 Topic-Based Research Fallback: If no clusters from metadata, use provided topics or subject taxonomy
+        if not unique_clusters:
+            logger.info(f"🧪 [BATCH {batch_num}] No metadata clusters found. Implementing synthetic topic clustering fallback.")
+            
+            # Case A: User provided specific topics (e.g., "Monetary Policy")
+            # We filter out the subject name itself if it's in topics to get real topics
+            real_topics = [t for t in topics if t.lower() != subject.lower()]
+            
+            if real_topics:
+                for t in real_topics:
+                    unique_clusters.append({
+                        "micro_topic": t,
+                        "sub_topics": [],
+                        "major_domain": subject # Use subject as fallback domain
+                    })
+            else:
+                # Case B: No specific topics or only subject name - use taxonomy sweep
+                # This is critical for subjects without vector data (Economy, etc.)
+                subj_taxonomy = SUBJECT_DOMAINS.get(subject, {})
+                if subj_taxonomy:
+                    # Pick a few diverse major domains
+                    major_domains = list(subj_taxonomy.keys())
+                    random.shuffle(major_domains)
+                    
+                    # Target MAX_RESEARCH_TOPICS
+                    target_count = max(5, (num_questions // 2) + 2)
+                    
+                    for i in range(min(target_count, len(major_domains))):
+                        major = major_domains[i]
+                        sub_list = subj_taxonomy[major]
+                        # Pick a random sub-topic for specificity
+                        sub = random.choice(sub_list) if sub_list else ""
+                        
+                        unique_clusters.append({
+                            "micro_topic": sub or major,
+                            "sub_topics": [major] if sub else [],
+                            "major_domain": major
+                        })
+                    logger.info(f"   🧬 Synthesized {len(unique_clusters)} topics from {subject} taxonomy for research.")
+                else:
+                    # Final fallback to subject name
+                    unique_clusters.append({
+                        "micro_topic": subject,
+                        "sub_topics": [],
+                        "major_domain": subject
+                    })
         
         # Limit unique clusters dynamically based on number of questions
         # Rule: For 10 questions -> ~7 topics. For 5 questions -> 5 topics.
@@ -931,6 +1079,10 @@ async def generate_single_batch(
             logger.info(f"   Research Topic {i+1}: micro_topic='{cluster['micro_topic']}', sub_topics={cluster['sub_topics']}")
         
         logger.info(f"🔍 [BATCH {batch_num}] Building search queries from {len(unique_clusters)} unique clusters...")
+        # Add subject to each cluster for query building
+        for cluster in unique_clusters:
+            cluster["subject"] = subject
+            
         search_queries = build_current_search_queries(unique_clusters)
         logger.info(f"✅ [BATCH {batch_num}] Generated {len(search_queries)} search queries ({len(search_queries)//3} topics × 3 queries):")
         for i, sq in enumerate(search_queries[:9]):  # Show first 9 queries (3 topics)
@@ -1111,7 +1263,8 @@ async def generate_micro_batches(
     api_key: str,
     job_id: str,
     job_store,
-    pyq_chunks: List[Dict] = None
+    pyq_chunks: List[Dict] = None,
+    subject: str = "Geography"
 ) -> List[Dict]:
     """
     Generate questions in micro-batches with parallel execution
@@ -1161,7 +1314,8 @@ async def generate_micro_batches(
                 topics=topics,
                 api_key=api_key,
                 job_id=job_id,
-                pyq_chunks=pyq_chunks
+                pyq_chunks=pyq_chunks,
+                subject=subject
             )
 
             # Update job progress
@@ -1494,6 +1648,7 @@ async def generate_async(
             job_id=job_id,
             num_questions=test_request.num_questions,
             topics=test_request.topics,
+            subject=test_request.subject,
             api_key=api_key
         )
 
