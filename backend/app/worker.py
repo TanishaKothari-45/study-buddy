@@ -1506,9 +1506,11 @@ async def generate_improved_answer_task(
         # ============================================================
         # STEP 1: Run retrieval pipeline
         # ============================================================
-        # Determine if we should skip vector search (Run for Geography and History)
-        skip_vector_search = True
-        allowed_subjects = ["geography", "history"]
+        # Determine strict Pinecone usage based on subject
+        # Default: Enable retrieval for ALL subjects (Blacklist approach)
+        # Exception: Skip for Science & Tech and Ethics (no vector data yet)
+        skip_vector_search = False
+        blacklist_subjects = ["science", "science & tech", "science & technology", "ethics"]
         
         if paper_and_subject_identification:
             p_dom = paper_and_subject_identification.get("primary_domain", "")
@@ -1523,14 +1525,15 @@ async def generate_improved_answer_task(
             else:
                 s_dom_str = str(s_dom).lower()
 
-            # Check for allowed subjects in subject_domain (priority) or primary/secondary
-            for allowed in allowed_subjects:
-                if allowed in sub_dom_str or allowed in p_dom_str:
-                    skip_vector_search = False
+            # Check if any blacklisted subject is present in domains
+            for blacklisted in blacklist_subjects:
+                if blacklisted in sub_dom_str or blacklisted in p_dom_str:
+                    logger.info(f"⏩ [JOB {job_id}] Skipping Pinecone retrieval for '{blacklisted}' (Blacklisted).")
+                    skip_vector_search = True
                     break
         
         if skip_vector_search:
-            logger.info(f"⏩ [JOB {job_id}] Skipping Pinecone retrieval (Domain not in {allowed_subjects})")
+            logger.info(f"⏩ [JOB {job_id}] Skipping Pinecone retrieval (Subject in Blacklist)")
 
         logger.info(f"📚 [JOB {job_id}] STEP 1: Running retrieval pipeline (Skipping Current Affairs for Integrated Tool)...")
         pipeline_result = await run_enriched_pipeline(
@@ -1880,15 +1883,21 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         
         
         # Determine strict Pinecone usage based on subject
-        # Enable retrieval for subjects that have content in Pinecone
-        allowed_subjects = ["geography", "history", "agriculture", "disaster", "disaster management", "environment"]
-        skip_vector_search = True # Default to skip
+        # Default: Enable retrieval for ALL subjects (Blacklist approach)
+        # Exception: Skip for Science & Tech and Ethics (no vector data yet)
+        blacklist_subjects = ["science", "science & tech", "science & technology", "ethics"]
+        skip_vector_search = False # Default to ENABLE (unlike before)
         
-        if subject and subject.lower() in allowed_subjects:
-             skip_vector_search = False
-             logger.info(f"✅ Subject '{subject}' allowed for retrieval. Enabling Pinecone vector search.")
-        else:
-             logger.info(f"⏩ Subject '{subject}' not in allowed list {allowed_subjects}. Skipping Pinecone search & embedding.")
+        if subject:
+            subject_lower = subject.lower()
+            for blacklisted in blacklist_subjects:
+                if blacklisted in subject_lower:
+                    skip_vector_search = True
+                    logger.info(f"⏩ Subject '{subject}' is blacklisted for retrieval. Skipping Pinecone search.")
+                    break
+        
+        if not skip_vector_search:
+             logger.info(f"✅ Subject '{subject}' allowed for retrieval. Enabling Pinecone search.")
 
         # ============================================================
         # PHASE 2: ALIGNED RETRIEVAL & NEWS PIPELINE
