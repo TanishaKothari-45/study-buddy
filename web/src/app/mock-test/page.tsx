@@ -80,7 +80,6 @@ export default function MockTestPage() {
 
     // Configuration State (local - doesn't need persistence)
     const [numQuestions, setNumQuestions] = useState("5");
-    const [difficulty, setDifficulty] = useState("medium");
     const [selectedDomain, setSelectedDomain] = useState<string>("");
     const [selectedSubDomain, setSelectedSubDomain] = useState<string>("");
     const [customTopic, setCustomTopic] = useState("");
@@ -187,7 +186,6 @@ export default function MockTestPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     num_questions: parseInt(numQuestions),
-                    difficulty,
                     topics: topics
                 }),
             });
@@ -338,7 +336,7 @@ export default function MockTestPage() {
             <div className="flex items-center justify-between">
                 <div className="flex flex-col space-y-2">
                     <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                        Prelims Mock Test
+                        Prelims Geography Mock Test
                     </h1>
                     <p className="text-muted-foreground">
                         Generate AI-powered mock tests based on your study materials and UPSC patterns.
@@ -377,19 +375,6 @@ export default function MockTestPage() {
                                 </Select>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label>Difficulty Level</Label>
-                                <Select value={difficulty} onValueChange={setDifficulty}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select difficulty" />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-card z-50">
-                                        <SelectItem value="easy">Easy (Conceptual)</SelectItem>
-                                        <SelectItem value="medium">Medium (Standard)</SelectItem>
-                                        <SelectItem value="hard">Hard (Complex/Applied)</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
                         </div>
 
                         {/* Topic Selection */}
@@ -547,7 +532,7 @@ export default function MockTestPage() {
                                             {qIdx + 1}
                                         </span>
                                         <div className="space-y-1">
-                                            <CardTitle className="text-base font-medium leading-relaxed">
+                                            <CardTitle className="text-base font-medium leading-relaxed whitespace-pre-line">
                                                 {q.question}
                                             </CardTitle>
                                             {submitted && (

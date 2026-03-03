@@ -53,7 +53,7 @@ def get_examples(topic: Optional[str] = None, pattern: Optional[str] = None, n: 
         file_path: Optional custom path to dataset.
     
     Returns:
-        List of example dictionaries [{question, options, answer, topic, year}, ...]
+        List of example dictionaries [{question, options, correct_answer, topic, year}, ...]
     """
     data = load_pattern_data(file_path)
     patterns = data.get("patterns", [])
@@ -62,8 +62,11 @@ def get_examples(topic: Optional[str] = None, pattern: Optional[str] = None, n: 
     for p in patterns:
         if pattern and p["id"].lower() != pattern.lower():
             continue
-        for ex in p["example_questions"]:
+        # Support both old 'example_questions' and new 'examples' key
+        examples_list = p.get("examples", p.get("example_questions", []))
+        for ex in examples_list:
             if topic:
+                # Topic might be missing in new format, check safely
                 if topic.lower() in ex.get("topic", "").lower():
                     matches.append(ex)
             else:
@@ -72,7 +75,7 @@ def get_examples(topic: Optional[str] = None, pattern: Optional[str] = None, n: 
     if not matches:
         # fallback to random from all
         for p in patterns:
-            matches.extend(p["example_questions"])
+            matches.extend(p.get("examples", p.get("example_questions", [])))
     
     random.shuffle(matches)
     return matches[:n]
@@ -90,12 +93,27 @@ def format_fewshot(examples: List[Dict], pattern_title: Optional[str] = None) ->
     """
     lines = []
     for i, ex in enumerate(examples):
+        # Handle both 'answer' and 'correct_answer'
+        answer = ex.get("correct_answer", ex.get("answer", "N/A"))
+        
         q_block = (
             f"Example {i+1}{f' ({pattern_title})' if pattern_title else ''}:\n"
             f"{ex['question']}\n" +
             "\n".join(ex["options"]) +
-            f"\n✅ Correct Answer: ({ex['answer']})\n📘 Topic: {ex['topic']} (Year: {ex['year']})"
+            f"\n✅ Correct Answer: ({answer})"
         )
+        
+        # Add topic/year if available
+        meta_parts = []
+        if ex.get("topic"): meta_parts.append(f"Topic: {ex['topic']}")
+        if ex.get("year"): meta_parts.append(f"Year: {ex['year']}")
+        if meta_parts:
+            q_block += f"\n📘 {' ('.join(meta_parts) + ')' if len(meta_parts) > 1 else meta_parts[0]}"
+            
+        # Add pattern notes if available (new format)
+        if ex.get("pattern_notes"):
+            q_block += f"\n💡 Pattern Note: {ex['pattern_notes']}"
+            
         lines.append(q_block)
     return "\n\n---\n\n".join(lines)
 

@@ -41,7 +41,6 @@ class QuestionProvenance(BaseModel):
     # Context
     batch_id: str  # Which batch this came from
     job_id: str  # Which generation job
-    difficulty: str
     topics_requested: List[str]
     
     # User feedback (populated later)
@@ -90,7 +89,6 @@ class QuestionBank:
                 
                 batch_id TEXT,
                 job_id TEXT,
-                difficulty TEXT,
                 topics_requested TEXT,  -- JSON array
                 
                 user_rating INTEGER,
@@ -101,7 +99,6 @@ class QuestionBank:
         # Create indexes for common queries
         conn.execute("CREATE INDEX IF NOT EXISTS idx_job_id ON questions(job_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_domains ON questions(source_domains)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_difficulty ON questions(difficulty)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_quality ON questions(quality_score)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_generated_at ON questions(generated_at)")
         
@@ -118,9 +115,9 @@ class QuestionBank:
                     generated_at, model_used, prompt_tokens, completion_tokens, total_cost,
                     source_chunks, source_domains, pyq_examples_used,
                     validation_passed, quality_score,
-                    batch_id, job_id, difficulty, topics_requested,
+                    batch_id, job_id, topics_requested,
                     user_rating, reported_issue
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 provenance.question_id,
                 provenance.question_text,
@@ -139,7 +136,6 @@ class QuestionBank:
                 provenance.quality_score,
                 provenance.batch_id,
                 provenance.job_id,
-                provenance.difficulty,
                 json.dumps(provenance.topics_requested),
                 provenance.user_rating,
                 provenance.reported_issue
@@ -199,7 +195,6 @@ class QuestionBank:
     def get_high_quality_questions(
         self,
         domain: Optional[str] = None,
-        difficulty: Optional[str] = None,
         min_quality: float = 0.7,
         limit: int = 10
     ) -> List[QuestionProvenance]:
@@ -216,10 +211,6 @@ class QuestionBank:
             if domain:
                 query += " AND source_domains LIKE ?"
                 params.append(f'%"{domain}"%')
-            
-            if difficulty:
-                query += " AND difficulty = ?"
-                params.append(difficulty)
             
             query += " ORDER BY quality_score DESC LIMIT ?"
             params.append(limit)
@@ -258,9 +249,9 @@ class QuestionBank:
             
             # By difficulty
             cursor = conn.execute("""
-                SELECT difficulty, COUNT(*) 
+                SELECT job_id, COUNT(*) 
                 FROM questions 
-                GROUP BY difficulty
+                GROUP BY job_id
             """)
             by_difficulty = dict(cursor.fetchall())
             
@@ -276,7 +267,6 @@ class QuestionBank:
             
             return {
                 "total_questions": total,
-                "by_difficulty": by_difficulty,
                 "avg_quality_score": round(avg_quality, 3),
                 "total_cost": round(total_cost, 4)
             }
@@ -306,10 +296,9 @@ class QuestionBank:
             quality_score=row[14] or 0.0,
             batch_id=row[15],
             job_id=row[16],
-            difficulty=row[17],
-            topics_requested=json.loads(row[18]) if row[18] else [],
-            user_rating=row[19],
-            reported_issue=row[20]
+            topics_requested=json.loads(row[17]) if row[17] else [],
+            user_rating=row[18],
+            reported_issue=row[19]
         )
 
 

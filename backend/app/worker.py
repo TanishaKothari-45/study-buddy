@@ -334,7 +334,6 @@ async def generate_mock_test_task(
     job_id: str,
     num_questions: int,
     topics: List[str],
-    difficulty: str,
     api_key: str
 ):
     """
@@ -346,8 +345,7 @@ async def generate_mock_test_task(
 
     await set_job_status(redis, job_id, "processing",
                          num_questions=num_questions,
-                         topics=topics,
-                         difficulty=difficulty)
+                         topics=topics)
 
     try:
         await check_cancellation(ctx, job_id)
@@ -357,7 +355,8 @@ async def generate_mock_test_task(
             hybrid_retrieve_for_mock_test,
             generate_micro_batches,
             semantic_deduplicate,
-            fill_gaps_targeted
+            fill_gaps_targeted,
+            format_mock_test_response
         )
         from .core.config import settings
 
@@ -369,8 +368,7 @@ async def generate_mock_test_task(
             pyq_chunks, content_chunks = hybrid_retrieve_for_mock_test(
                 pinecone_handler=pinecone_handler,
                 topics=topics,
-                num_questions=num_questions,
-                difficulty=difficulty
+                num_questions=num_questions
             )
             logger.info(f"✅ [JOB {job_id}] Retrieved {len(content_chunks)} content chunks, {len(pyq_chunks)} PYQ chunks")
         except Exception as e:
@@ -393,7 +391,6 @@ async def generate_mock_test_task(
             all_questions = await generate_micro_batches(
                 all_chunks=all_chunks,
                 num_questions=num_questions,
-                difficulty=difficulty,
                 topics=topics,
                 api_key=api_key,
                 job_id=job_id,
@@ -434,7 +431,6 @@ async def generate_mock_test_task(
                 gap_fill = await fill_gaps_targeted(
                     current_questions=unique_questions,
                     target=num_questions,
-                    difficulty=difficulty,
                     topics=topics,
                     api_key=api_key,
                     job_id=job_id,
@@ -456,42 +452,12 @@ async def generate_mock_test_task(
         import random
         random.shuffle(unique_questions)
 
-        # Convert to final format
-        final_questions = []
-        for i, q in enumerate(unique_questions):
-            final_questions.append({
-                "question": q.get("question", ""),
-                "options": q.get("options", []),
-                "correct_answer": q.get("correct_answer", "A"),
-                "explanation": q.get("explanation", ""),
-                "source": {
-                    "filename": "Generated",
-                    "chapter": "Mock Test",
-                    "section": f"Question {i+1}",
-                    "question_id": f"{job_id}_q{i+1}",
-                    "topics": topics,
-                    "difficulty": difficulty
-                }
-            })
-
-        # Build result
-        result = {
-            "questions": final_questions,
-            "total_marks": len(final_questions) * 2,
-            "time_allowed": f"{len(final_questions) * 1.2:.0f} minutes",
-            "instructions": [
-                "Attempt all questions.",
-                f"Each question carries 2 marks.",
-                f"Total marks: {len(final_questions) * 2}.",
-                "Negative marking: -0.67 marks (1/3 of 2 marks) for each wrong answer.",
-                "No marks deducted for unanswered questions.",
-                "Choose the most appropriate option.",
-                "Questions are based on your uploaded study materials."
-            ]
-        }
+        # Use unified formatter for consistency
+        mock_response = format_mock_test_response(unique_questions, job_id, topics)
+        result = mock_response.model_dump()
 
         await set_job_result(redis, job_id, result)
-        logger.info(f"✅ [JOB {job_id}] Completed - {len(final_questions)} questions generated")
+        logger.info(f"✅ [JOB {job_id}] Completed - {len(mock_response.questions)} questions generated")
 
     except asyncio.CancelledError:
         await set_job_error(redis, job_id, "Cancelled by user")

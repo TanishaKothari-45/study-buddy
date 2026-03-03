@@ -163,6 +163,28 @@ class GeminiClient:
             }
             
             if response_schema:
+                # If it's a Pydantic model class, convert to JSON schema dict
+                if hasattr(response_schema, 'model_json_schema'):
+                    response_schema = response_schema.model_json_schema()
+                
+                # Clean schema recursively to remove keys Gemini doesn't support
+                def clean_schema(obj):
+                    if isinstance(obj, dict):
+                        # Remove keys that cause Gemini API to fail
+                        obj.pop('additionalProperties', None)
+                        obj.pop('title', None)
+                        obj.pop('default', None)
+                        
+                        for v in obj.values():
+                            clean_schema(v)
+                    elif isinstance(obj, list):
+                        for item in obj:
+                            clean_schema(item)
+                
+                # Clean if it's a dict now
+                if isinstance(response_schema, dict):
+                    clean_schema(response_schema)
+                
                 config_dict["response_mime_type"] = "application/json"
                 config_dict["response_schema"] = response_schema
             

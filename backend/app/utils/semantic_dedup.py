@@ -34,10 +34,10 @@ async def semantic_deduplicate(
         # Extract question texts
         texts = [q.get("question", "") for q in questions]
         
-        # Batch embed all questions (single API call)
-        logger.info(f"   📝 Embedding {len(texts)} questions...")
+        # Batch embed all questions using SentenceTransformers (local, free, fast)
+        logger.info(f"   📝 Embedding {len(texts)} questions using SentenceTransformers...")
         # Run synchronous embedding in thread pool to avoid blocking event loop
-        embeddings = await asyncio.to_thread(embedder.get_embeddings, texts)
+        embeddings = await asyncio.to_thread(embedder.get_sbert_embeddings, texts)
         
         if not embeddings or len(embeddings) != len(questions):
             logger.warning("⚠️ Embedding failed, falling back to hash-based deduplication")

@@ -14,29 +14,33 @@ logger = logging.getLogger(__name__)
 # Database URL Selection
 # ===========================================
 
-if IS_CLOUD_RUN and settings.DATABASE_URL:
-    # Cloud Run: Use PostgreSQL via Cloud SQL
+if settings.DATABASE_URL:
+    # Use provided Database URL (Postgres or other)
     SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
 
-    # Cloud SQL connection configuration
+    # Pool configuration (optimized for Cloud Run/External access)
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL,
         pool_size=5,
         max_overflow=2,
         pool_timeout=30,
-        pool_recycle=1800,  # Recycle connections every 30 minutes
-        pool_pre_ping=True,  # Enable connection health checks
+        pool_recycle=1800,
+        pool_pre_ping=True,
     )
-    logger.info("✅ Using PostgreSQL (Cloud SQL) for database")
+    logger.info(f"✅ Using Remote/Cloud Database: {SQLALCHEMY_DATABASE_URL.split('@')[-1] if '@' in SQLALCHEMY_DATABASE_URL else SQLALCHEMY_DATABASE_URL}")
+elif IS_CLOUD_RUN and settings.DATABASE_URL:
+    # Fallback for Cloud Run (already covered by first block, but keeping logic clear)
+    SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
 else:
-    # Local development: Use SQLite
-    SQLALCHEMY_DATABASE_URL = f"sqlite:///{settings.DB_DIR}/sql_app.db"
+    # Local development: Use the existing content_store.db as the unified database
+    # This ensures we have both 'chunks' and other tables in one place.
+    SQLALCHEMY_DATABASE_URL = f"sqlite:///{settings.DB_DIR}/content_store.db"
 
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL,
         connect_args={"check_same_thread": False}  # SQLite-specific
     )
-    logger.info("✅ Using SQLite for database (local development)")
+    logger.info(f"✅ Using {SQLALCHEMY_DATABASE_URL} as the unified local database")
 
 # ===========================================
 # Session Configuration
