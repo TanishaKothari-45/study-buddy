@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, PenTool, BookOpen, FileText, CheckCircle, AlertCircle, ChevronDown, Minimize2, RefreshCw, History } from "lucide-react";
+import { PenTool, BookOpen, FileText, CheckCircle, AlertCircle, ChevronDown, Minimize2, RefreshCw, History } from "lucide-react";
+import { PageLoader, InlineLoader } from "@/components/ui/loader";
 import {
     Select,
     SelectContent,
@@ -451,7 +452,7 @@ export default function MainsAnswerPage() {
                             disabled={history.length === 0 && !isLoadingHistory}
                         >
                             {isLoadingHistory ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <InlineLoader />
                             ) : (
                                 <History className="h-4 w-4" />
                             )}
@@ -589,8 +590,8 @@ export default function MainsAnswerPage() {
                                             >
                                                 {loading ? (
                                                     <>
-                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                        {getStatusMessage()}
+                                                        <InlineLoader className="mr-2" />
+                                                        Generating...
                                                     </>
                                                 ) : jobStatus === 'completed' && result ? (
                                                     <>
@@ -768,13 +769,10 @@ export default function MainsAnswerPage() {
                     )}
 
                     {!result && loading && (
-                        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg bg-muted/30 text-center">
-                            <Loader2 className="h-16 w-16 text-primary animate-spin mb-4" />
-                            <h3 className="text-lg font-medium text-foreground">{getStatusMessage()}</h3>
-                            <p className="text-muted-foreground max-w-sm mt-2">
-                                Please wait while we generate a comprehensive answer with relevant sources.
-                            </p>
-                        </div>
+                        <PageLoader
+                            text={getStatusMessage() || "Generating comprehensive answer..."}
+                            className="border-2 border-dashed border-[var(--card-border)] rounded-xl bg-[var(--bg-secondary)]/50 p-12"
+                        />
                     )}
                 </div>
             </div>
@@ -800,9 +798,9 @@ export default function MainsAnswerPage() {
                     </DialogHeader>
 
                     {historyModalLoading && (
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Loading cached answer...
+                        <div className="flex items-center gap-2 text-muted-foreground p-4">
+                            <InlineLoader />
+                            <span>Loading cached answer...</span>
                         </div>
                     )}
 

@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, Plus, Save, Database, X } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertCircle, Plus, Save, Database, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PageLoader, InlineLoader } from "@/components/ui/loader";
 import { API_URL } from "@/lib/api";
 import { authFetch, showToast } from "@/lib/authHandler";
 
@@ -248,9 +249,7 @@ export default function TrainingDataPage() {
                 {/* List Tab */}
                 <TabsContent value="list" className="space-y-4">
                     {loading ? (
-                        <div className="flex justify-center p-12">
-                            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                        </div>
+                        <PageLoader text="Loading training examples..." />
                     ) : examples.length === 0 ? (
                         <div className="text-center p-12 border-2 border-dashed rounded-lg bg-gray-50">
                             <Database className="h-10 w-10 text-gray-400 mx-auto mb-3" />
@@ -355,7 +354,7 @@ export default function TrainingDataPage() {
                                             >
                                                 {extracting ? (
                                                     <>
-                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        <InlineLoader className="mr-2" />
                                                         Extracting Text...
                                                     </>
                                                 ) : (
@@ -432,7 +431,7 @@ export default function TrainingDataPage() {
                                     <Button onClick={handleSubmit} className="w-full bg-green-600 hover:bg-green-700" disabled={submitting}>
                                         {submitting ? (
                                             <>
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                <InlineLoader className="mr-2" />
                                                 Saving...
                                             </>
                                         ) : (

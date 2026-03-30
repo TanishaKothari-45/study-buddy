@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 const buttonVariants = cva(
   [
     "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium",
-    "transition-all duration-150 ease-in-out",
+    "transition-all duration-200 ease-out",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2",
     "disabled:pointer-events-none disabled:opacity-40 cursor-pointer",
     "active:scale-[0.97]",
@@ -16,13 +16,13 @@ const buttonVariants = cva(
       variant: {
         // Warm amber primary
         default:
-          "bg-amber-600 text-white hover:bg-amber-700 shadow-amber-sm",
+          "bg-amber-600 text-white hover:bg-amber-700 shadow-amber-sm hover:shadow-md hover:-translate-y-0.5",
         // Soft warm border
         outline:
-          "border border-[var(--card-border)] bg-[var(--bg)] text-[var(--text)] hover:bg-[var(--bg-secondary)] hover:border-[var(--text-faint)]",
+          "border border-[var(--card-border)] bg-[var(--bg)] text-[var(--text)] hover:bg-[var(--bg-secondary)] hover:border-[var(--text-faint)] shadow-sm hover:shadow hover:-translate-y-0.5",
         // Warm secondary
         secondary:
-          "bg-[var(--bg-secondary)] text-[var(--text)] hover:bg-[var(--bg-tertiary)]",
+          "bg-[var(--bg-secondary)] text-[var(--text)] hover:bg-[var(--bg-tertiary)] hover:-translate-y-0.5",
         // Ghost
         ghost:
           "text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text)]",

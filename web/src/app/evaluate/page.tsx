@@ -8,7 +8,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { fetchApi, API_URL } from "@/lib/api";
-import { Upload, FileText, CheckCircle, AlertCircle, Loader2, BookOpen, RefreshCw } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertCircle, BookOpen, RefreshCw } from "lucide-react";
+import { InlineLoader } from "@/components/ui/loader";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
@@ -724,8 +725,8 @@ export default function EvaluatePage() {
                                     >
                                         {loading ? (
                                             <>
-                                                <Loader2 className="mr-2 h-5 w-5 animate-spin text-amber-200" />
-                                                {statusMessage}
+                                                <InlineLoader className="mr-2 h-5 w-5 text-amber-200" />
+                                                Processing request...
                                             </>
                                         ) : result ? (
                                             <>

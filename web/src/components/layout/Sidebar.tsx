@@ -146,7 +146,11 @@ export function Sidebar() {
                         >
                             {/* Active indicator */}
                             {isActive && (
-                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-amber-600 rounded-full" />
+                                <motion.div
+                                    layoutId="sidebarActiveIndicator"
+                                    className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[var(--accent)] rounded-r-md"
+                                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                />
                             )}
 
                             {isNavigating ? (
