@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
 import { ChatMessage } from '../types';
+import { CHAT_STORE_KEY, CHAT_MAX_PERSISTED_MESSAGES } from '@/lib/constants';
 
 // Only persist messages and session - input/loading stays local
 interface ChatState {
@@ -41,11 +42,14 @@ export const useChatStore = create<ChatState>()(
                     ),
                 })),
 
-                appendToMessageContent: (id, content) => set((state) => ({
-                    messages: state.messages.map((msg) =>
-                        msg.id === id ? { ...msg, content: msg.content + content } : msg
-                    ),
-                })),
+                // F3: O(1) lookup instead of O(n) map — avoids recreating all message objects on every chunk
+                appendToMessageContent: (id, chunk) => set((state) => {
+                    const idx = state.messages.findIndex((m) => m.id === id);
+                    if (idx === -1) return state;
+                    const updated = [...state.messages];
+                    updated[idx] = { ...updated[idx], content: updated[idx].content + chunk };
+                    return { messages: updated };
+                }),
 
                 setMessageSources: (id, sources) => set((state) => ({
                     messages: state.messages.map((msg) =>
@@ -59,12 +63,12 @@ export const useChatStore = create<ChatState>()(
                 }),
             }),
             {
-                name: 'geography-chat-storage',
+                name: CHAT_STORE_KEY, // C3: single source of truth
                 storage: createJSONStorage(() => localStorage),
                 version: 1,
-                // Optionally limit stored messages to prevent localStorage bloat
+                // C2: use named constant instead of magic number 50
                 partialize: (state) => ({
-                    messages: state.messages.slice(-50), // Keep last 50 messages
+                    messages: state.messages.slice(-CHAT_MAX_PERSISTED_MESSAGES),
                     sessionId: state.sessionId,
                 }),
                 // Migrate function to handle version transitions

@@ -7,6 +7,14 @@ import { API_URL } from "@/lib/api";
 import { useMainsAnswerStore, useChatStore, useMockTestStore, useEvaluateAnswerStore } from "@/stores";
 import { getReturnUrl, clearReturnUrl } from "@/lib/authHandler";
 import type { User as SupabaseUser, Session } from "@supabase/supabase-js";
+import {
+    MAINS_ANSWER_STORE_KEY,
+    MOCK_TEST_STORE_KEY,
+    CHAT_STORE_KEY,
+    EVALUATE_ANSWER_STORE_KEY,
+    LOCAL_GEMINI_API_KEY,
+} from "@/lib/constants"; // C2+C3: named constants
+
 
 interface UserProfile {
     id: string;
@@ -36,7 +44,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [isApiKeyValid, setIsApiKeyValid] = useState<'unknown' | 'valid' | 'invalid'>('unknown');
+    // TODO: REVERT FOR PROD — remove the localStorage seed below; restore: useState<...>('unknown')
+    // No-auth India mode: seed isApiKeyValid from localStorage so UI doesn't flash 'unknown' on load
+    const [isApiKeyValid, setIsApiKeyValid] = useState<'unknown' | 'valid' | 'invalid'>(() => {
+        // No-auth India mode: check localStorage for a pre-saved API key
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('gemini_api_key') ? 'valid' : 'unknown';
+        }
+        return 'unknown';
+    });
+
     const verifyRetryCountRef = useRef(0); // Track verification retry attempts
     const router = useRouter();
     const supabase = createClient();
@@ -80,9 +97,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                     await fetchUserProfile(newSession.user, newSession.access_token);
 
-                    // Get return URL and redirect
-                    const returnUrl = getReturnUrl();
-                    clearReturnUrl();
+                    // REDIRECT DISABLED — Supabase banned in India; API key check only
+                    // const returnUrl = getReturnUrl();
+                    // clearReturnUrl();
 
                     // Clear stores on new login
                     useMainsAnswerStore.getState().clear();
@@ -91,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     useMockTestStore.getState().resetTest();
                     useEvaluateAnswerStore.getState().reset();
 
-                    router.push(returnUrl);
+                    // router.push(returnUrl);
                 } else if (event === 'SIGNED_OUT') {
                     setUser(null);
                     setIsApiKeyValid('unknown');
@@ -207,11 +224,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const logout = async () => {
-        // Clear all persisted store data
-        localStorage.removeItem("geography-mains-answer-storage");
-        localStorage.removeItem("geography-mock-test-storage");
-        localStorage.removeItem("geography-chat-storage");
-        localStorage.removeItem("geography-evaluate-answer-storage");
+        // Clear all persisted store data (C3: use exported constants as source of truth)
+        localStorage.removeItem(MAINS_ANSWER_STORE_KEY);
+        localStorage.removeItem(MOCK_TEST_STORE_KEY);
+        localStorage.removeItem(CHAT_STORE_KEY);
+        localStorage.removeItem(EVALUATE_ANSWER_STORE_KEY);
+        localStorage.removeItem(LOCAL_GEMINI_API_KEY);
+
 
         // Reset stores to initial state
         useMainsAnswerStore.getState().clear();
@@ -223,7 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await supabase.auth.signOut();
         setUser(null);
         setSession(null);
-        router.push("/login");
+        // router.push("/login"); // REDIRECT DISABLED — Supabase banned in India
     };
 
     const refreshUser = React.useCallback(async (skipVerification: boolean = false) => {
@@ -234,6 +253,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, [supabase.auth]);
 
     const verifyApiKey = React.useCallback(async (): Promise<boolean> => {
+        // No-auth India mode: if a local API key exists in localStorage, treat it as valid
+        if (typeof window !== 'undefined' && localStorage.getItem('gemini_api_key')) {
+            setIsApiKeyValid('valid');
+            return true;
+        }
+
         const token = await getSessionToken();
         if (!token) return false;
 
@@ -267,6 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return false;
         }
     }, []);
+
 
     const getToken = React.useCallback(async (): Promise<string | null> => {
         return getSessionToken();

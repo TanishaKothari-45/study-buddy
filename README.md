@@ -15,8 +15,8 @@ An AI-powered UPSC Geography study companion with RAG-based Q&A, mock test gener
 
 ```bash
 # Terminal 1: Backend API (Port 8001)
-cd backend
 source venv/bin/activate  # or: python -m venv venv && source venv/bin/activate
+cd backend
 pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
@@ -31,8 +31,9 @@ npm install
 npm start
 
 # Terminal 4: Worker (Port 8002)
-cd backend
+
 source venv/bin/activate  # or: python -m venv venv && source venv/bin/activate
+cd backend
 python -m app.worker
 ```
 

@@ -1,20 +1,24 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { flushSync } from "react-dom";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Send, User, Bot, Loader2, BookOpen, AlertCircle, Plus, GraduationCap } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
 import { cn } from "@/lib/utils";
 import { TypewriterEffect } from "@/components/ui/typewriter-effect";
 import { useChatStore } from "@/stores";
 import { API_URL } from "@/lib/api";
 import { authFetch, showToast } from "@/lib/authHandler";
+
+// N2: Lazy-load heavy deps (~1.6MB total) so they don't block the initial render
+const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
+import remarkGfm from "remark-gfm";
+import type { Components } from "react-markdown";
+import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
+
 
 export default function ChatPage() {
     // Persisted state from store
@@ -34,9 +38,13 @@ export default function ChatPage() {
     const [mounted, setMounted] = useState(false);
     const [subject, setSubject] = useState<string>("Geography");
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    // F1: AbortController to cancel in-flight streams on re-send or unmount
+    const abortRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
         setMounted(true);
+        // F1: Abort any dangling stream on unmount
+        return () => { abortRef.current?.abort(); };
     }, []);
 
     const scrollToBottom = () => {
@@ -77,10 +85,16 @@ export default function ChatPage() {
         };
         addMessage(botMessage);
 
+        // F1: Cancel any previous in-flight stream before starting a new one
+        abortRef.current?.abort();
+        abortRef.current = new AbortController();
+        const signal = abortRef.current.signal;
+
         try {
             // Use streaming endpoint
             const res = await authFetch(`${API_URL}/query/stream`, {
                 method: "POST",
+                signal,
                 headers: {
                     "Content-Type": "application/json",
                 },
@@ -121,10 +135,9 @@ export default function ChatPage() {
                             if (data.type === "sources") {
                                 setMessageSources(botMessageId, data.sources);
                             } else if (data.type === "content") {
-                                // Append content chunk
-                                flushSync(() => {
-                                    appendToMessageContent(botMessageId, data.content);
-                                });
+                                // Append content chunk — React 18 auto-batches this in async context
+                                appendToMessageContent(botMessageId, data.content);
+
                             } else if (data.type === "done") {
                                 break;
                             } else if (data.type === "error") {
@@ -137,6 +150,7 @@ export default function ChatPage() {
                 }
             }
         } catch (error) {
+            if ((error as Error)?.name === 'AbortError') return; // navigation away — ignore
             const message = error instanceof Error ? error.message : "Chat error occurred";
             showToast(message, "error");
             updateMessageContent(botMessageId, "Sorry, I encountered an error while processing your request. Please try again.");

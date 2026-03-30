@@ -199,10 +199,13 @@ export default function MockTestPage() {
         };
     }, []);
 
-    // Proactively show banner if key is missing or invalid
+    // Proactively show banner if key is missing or invalid (only when logged in)
     useEffect(() => {
         if (user && (user.has_gemini_api_key === false || isApiKeyValid === 'invalid')) {
-            setShowBanner(true);
+            // TODO: REVERT FOR PROD — remove hasLocalKey check; restore: if (user && (...)) setShowBanner(true);
+            // Only show banner if no local key is set (no-auth India mode)
+            const hasLocalKey = typeof window !== 'undefined' && !!localStorage.getItem('gemini_api_key');
+            if (!hasLocalKey) setShowBanner(true);
         }
     }, [user, isApiKeyValid]);
 
@@ -227,7 +230,11 @@ export default function MockTestPage() {
 
     const generateTest = async () => {
         // Strict guard: check if user has Gemini API key
-        if (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid') {
+        // TODO: REVERT FOR PROD — remove the hasLocalKey bypass below and restore:
+        //   if (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid') {
+        // No-auth India mode: if a local key exists in localStorage, skip this check
+        const hasLocalKey = typeof window !== 'undefined' && !!localStorage.getItem('gemini_api_key');
+        if (!hasLocalKey && (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid')) {
             const msg = isApiKeyValid === 'invalid'
                 ? "Your Gemini API key is invalid. Please update it in Settings."
                 : "Please set your Gemini API key in Settings before generating a test.";
@@ -335,7 +342,10 @@ export default function MockTestPage() {
                     const result = jobData.result || {};
                     const questions = result.questions || [];
 
-                    console.log("Mock Test Result:", result);
+                    if (process.env.NODE_ENV === 'development') {
+                        console.log("Mock Test Result:", result);
+                    }
+
 
                     if (questions.length === 0) {
                         setJobStatus('failed');

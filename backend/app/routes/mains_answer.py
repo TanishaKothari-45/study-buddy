@@ -25,9 +25,12 @@ from ..utils.current_affairs_fetcher import fetch_current_affairs_for_question, 
 from ..utils.map_proxy import parse_and_generate_maps, check_map_service_health
 from ..utils.cache_manager import get_cache_manager
 from ..utils.answer_compressor import compress_answer
-from ..utils.user_api_key import get_gemini_api_key_for_request
+from ..utils.user_api_key import get_gemini_api_key_for_request, get_direct_api_key_from_request
 from ..core.config import settings
-from ..core.deps import get_current_user, get_redis_client
+# TODO: REVERT FOR PROD — change get_current_user_optional → get_current_user on all 3 usages below
+# (lines ~227, ~381, ~416 in this file). Also restore: Optional[UserProfile] → UserProfile in param types.
+from ..core.deps import get_current_user_optional, get_redis_client
+
 from ..core.user_profile import UserProfile
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -224,14 +227,14 @@ async def check_connection(request: Request):
 async def generate_mains_answer(
     request: Request,
     mains_request: MainsAnswerRequest,
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: Optional[UserProfile] = Depends(get_current_user_optional)
 ):
     """
     Enqueue Mains Answer generation.
     Returns job_id for polling.
     """
     try:
-        user_id = str(current_user.id) if current_user.id else current_user.email
+        user_id = str(current_user.id) if current_user and current_user.id else "anonymous"
 
         # 1. Check if we already have a specialized cached answer (fast return)
         # However, for polling consistency, we might just let the worker handle cache too,
@@ -279,7 +282,8 @@ async def generate_mains_answer(
 
         # 2. Get API Key
         try:
-            gemini_api_key = get_gemini_api_key_for_request(current_user)
+            direct_key = get_direct_api_key_from_request(request)
+            gemini_api_key = get_gemini_api_key_for_request(current_user, direct_key)
             if not gemini_api_key or not gemini_api_key.strip():
                 gemini_api_key = GEMINI_API_KEY
         except Exception:
@@ -377,7 +381,7 @@ async def get_mains_answer_history(
     limit: int = 20,
     offset: int = 0,
     search: str = "",
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: Optional[UserProfile] = Depends(get_current_user_optional)
 ):
     """
     Get user's history of mains answers from Redis.
@@ -385,7 +389,7 @@ async def get_mains_answer_history(
     """
     try:
         cache = get_cache_manager()
-        user_id = str(current_user.id) if current_user.id else current_user.email
+        user_id = str(current_user.id) if current_user and current_user.id else "anonymous"
 
         history, total, has_more = cache.get_user_history(user_id, limit=limit, offset=offset, search=search or None)
         return {
@@ -412,7 +416,7 @@ async def get_mains_answer_history(
 async def get_cached_mains_answer(
     question: str,
     word_count: int = 500,
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: Optional[UserProfile] = Depends(get_current_user_optional)
 ):
     """
     Return a cached mains answer (no regeneration).

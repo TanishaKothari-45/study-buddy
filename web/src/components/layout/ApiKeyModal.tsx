@@ -4,13 +4,31 @@ import React, { useState, useEffect } from "react";
 import { Key, ExternalLink, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { showToast } from "@/lib/authHandler";
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+
+// localStorage key for the API key in no-auth (India) mode
+export const LOCAL_API_KEY_STORAGE_KEY = "gemini_api_key";
+
+/** Read the stored API key from localStorage (no-auth mode). */
+export function getLocalApiKey(): string | null {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(LOCAL_API_KEY_STORAGE_KEY) || null;
+}
+
+/** Save the API key to localStorage (no-auth mode). */
+export function setLocalApiKey(key: string) {
+    localStorage.setItem(LOCAL_API_KEY_STORAGE_KEY, key);
+}
+
+/** Remove the API key from localStorage (no-auth mode). */
+export function clearLocalApiKey() {
+    localStorage.removeItem(LOCAL_API_KEY_STORAGE_KEY);
+}
 
 interface ApiKeyModalProps {
     isOpen: boolean;
@@ -19,50 +37,23 @@ interface ApiKeyModalProps {
 }
 
 export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProps) {
-    const { getToken, isApiKeyValid, setIsApiKeyValid, refreshUser } = useAuth();
-    const [isUpdating, setIsUpdating] = useState(false);
-    const [hasApiKey, setHasApiKey] = useState(false);
+    const { setIsApiKeyValid } = useAuth();
     const [apiKey, setApiKey] = useState("");
     const [showKey, setShowKey] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [hasApiKey, setHasApiKey] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
-    const statusRetryCountRef = React.useRef(0);
-
-    const checkApiKeyStatus = React.useCallback(async () => {
-        if (statusRetryCountRef.current >= 2) {
-            console.warn("Stopping API key status check in modal after 2 failures");
-            return;
-        }
-
-        try {
-            const token = await getToken();
-            if (!token) return;
-
-            const response = await fetch(`${API_URL}/api-key/status`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setHasApiKey(data.has_api_key);
-                statusRetryCountRef.current = 0; // Reset on success
-            } else {
-                statusRetryCountRef.current += 1;
-            }
-        } catch (err) {
-            statusRetryCountRef.current += 1;
-            console.error("Failed to check API key status in modal:", err);
-        }
-    }, [getToken]);
-
+    // Check localStorage on open
     useEffect(() => {
         if (isOpen) {
-            checkApiKeyStatus();
+            const stored = getLocalApiKey();
+            setHasApiKey(!!stored);
         }
-    }, [isOpen, checkApiKeyStatus]);
+    }, [isOpen]);
 
     const handleSaveApiKey = async () => {
         if (!apiKey.trim()) {
@@ -80,36 +71,26 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
         setSuccess(null);
 
         try {
-            const token = await getToken();
-            if (!token) {
-                setError("Please log in to save your API key");
-                return;
-            }
-
-            const response = await fetch(`${API_URL}/api-key/set`, {
+            // Use no-auth validate endpoint — key is stored in localStorage, not server-side
+            const response = await fetch(`${API_URL}/api-key/validate-no-auth`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ api_key: apiKey }),
             });
 
             if (response.ok) {
+                // Store in localStorage for no-auth mode
+                setLocalApiKey(apiKey);
                 setHasApiKey(true);
-                setIsApiKeyValid('valid');
+                setIsApiKeyValid("valid");
                 setApiKey("");
                 setShowKey(false);
                 setIsUpdating(false);
-                // Skip verification on refresh since we just validated the key
-                // This avoids race condition with Supabase DB propagation
-                refreshUser(true);
                 if (onApiKeyChange) onApiKeyChange();
-                // Only close if it was a fresh key setup, otherwise keep open to show success
                 if (!hasApiKey) onClose();
             } else {
                 const errorData = await response.json();
-                setError(errorData.detail || "Failed to save API key");
+                setError(errorData.detail || "Failed to validate API key");
             }
         } catch {
             setError("Network error. Please try again.");
@@ -118,43 +99,16 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
         }
     };
 
-    const handleDeleteApiKey = async () => {
+    const handleDeleteApiKey = () => {
         if (!window.confirm("Are you sure you want to delete your API key? All AI features will be disabled.")) {
             return;
         }
-
-        setIsDeleting(true);
-        setError(null);
-
-        try {
-            const token = await getToken();
-            if (!token) {
-                setError("Please log in to delete your API key");
-                return;
-            }
-
-            const response = await fetch(`${API_URL}/api-key/delete`, {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            if (response.ok) {
-                setHasApiKey(false);
-                setIsApiKeyValid('unknown');
-                refreshUser();
-                if (onApiKeyChange) onApiKeyChange();
-                // Don't close, just show the set view
-                setIsUpdating(false);
-                setApiKey("");
-            } else {
-                const errorData = await response.json();
-                setError(errorData.detail || "Failed to delete API key");
-            }
-        } catch {
-            setError("Network error. Please try again.");
-        } finally {
-            setIsDeleting(false);
-        }
+        clearLocalApiKey();
+        setHasApiKey(false);
+        setIsApiKeyValid("unknown");
+        setIsUpdating(false);
+        setApiKey("");
+        if (onApiKeyChange) onApiKeyChange();
     };
 
     if (!isOpen) return null;
@@ -179,20 +133,11 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
                         <>
                             <div className="p-4 rounded-lg border border-green-200 dark:border-green-900/30">
                                 <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                                    {isApiKeyValid === 'valid' ? (
-                                        <>
-                                            <CheckCircle2 className="h-5 w-5 shrink-0" />
-                                            <span className="text-sm font-semibold">API Key is configured</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
-                                            <span className="text-sm font-semibold text-red-500">API Key is invalid</span>
-                                        </>
-                                    )}
+                                    <CheckCircle2 className="h-5 w-5 shrink-0" />
+                                    <span className="text-sm font-semibold">API Key is configured</span>
                                 </div>
                                 <p className="text-sm text-green-600 dark:text-green-500 mt-2">
-                                    {isApiKeyValid === 'valid' ? "All AI features are enabled and working." : "Please update your API key to enable AI features."}
+                                    All AI features are enabled and working.
                                 </p>
                             </div>
 
@@ -266,20 +211,6 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
                                     </button>
                                 </div>
                             )}
-
-                            {!isUpdating && isApiKeyValid !== 'valid' && (
-                                <div className="p-4 rounded-lg border border-red-200 dark:border-red-900/30">
-                                    <div className="flex items-start gap-2">
-                                        <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-                                        <div className="text-sm">
-                                            <p className="font-semibold text-red-400">Your key is invalid</p>
-                                            <p className="text-red-400 mt-1">
-                                                Please update your key to continue using AI features. You can get a new one from Google AI Studio.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
                         </>
                     ) : (
                         <>
@@ -325,9 +256,9 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
                                 <div className="flex items-start gap-2">
                                     <AlertCircle className="h-5 w-5 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
                                     <div className="text-sm">
-                                        <p className="font-semibold mb-1 text-purple-400">🔒 Your key is encrypted</p>
+                                        <p className="font-semibold mb-1 text-purple-400">Your key is stored locally</p>
                                         <p className="text-purple-400">
-                                            We encrypt your API key before storage. It&apos;s never stored in plain text.
+                                            Your API key is stored in your browser and sent directly with each request. It is never stored on our servers.
                                         </p>
                                         <a
                                             href="https://aistudio.google.com/app/apikey"
@@ -347,7 +278,7 @@ export function ApiKeyModal({ isOpen, onClose, onApiKeyChange }: ApiKeyModalProp
                                 disabled={isSaving || !apiKey.trim()}
                                 className="w-full px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white text-sm font-semibold rounded-xl transition-colors"
                             >
-                                {isSaving ? "Saving..." : "Save API Key"}
+                                {isSaving ? "Validating..." : "Save API Key"}
                             </button>
                         </>
                     )}

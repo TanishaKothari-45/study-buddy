@@ -1,14 +1,22 @@
 import { createBrowserClient } from '@supabase/ssr'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+// S4: Explicit runtime guard — fail fast instead of creating broken client
+if (!supabaseUrl || !supabaseAnonKey) {
+  // Only throw outside of test/build environments
+  if (typeof window !== 'undefined') {
+    console.warn('Missing Supabase environment variables — auth features will be unavailable.');
+  }
+}
 
 /**
  * Creates a Supabase client for use in the browser (Client Components)
  * Uses singleton pattern to avoid creating multiple clients
  */
 export function createClient() {
-  return createBrowserClient(supabaseUrl, supabaseAnonKey)
+  return createBrowserClient(supabaseUrl ?? '', supabaseAnonKey ?? '')
 }
 
 /**

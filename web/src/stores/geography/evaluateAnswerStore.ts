@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
 import { EvaluationResult, ImprovedAnswerResult, JobStatus } from '../types';
+import { EVALUATE_ANSWER_STORE_KEY } from '@/lib/constants';
 
 interface EvaluateAnswerState {
     // Form State
@@ -135,7 +136,7 @@ export const useEvaluateAnswerStore = create<EvaluateAnswerState>()(
                 }),
             }),
             {
-                name: 'geography-evaluate-answer-storage',
+                name: EVALUATE_ANSWER_STORE_KEY, // C3: single source of truth
                 storage: createJSONStorage(() => localStorage),
                 version: 2, // Bump version for new fields
                 partialize: (state) => ({

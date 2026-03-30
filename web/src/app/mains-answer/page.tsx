@@ -15,15 +15,19 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import ReactMarkdown from "react-markdown";
+import dynamic from "next/dynamic";
 import remarkGfm from "remark-gfm";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
+// N2: Lazy-load react-markdown (~200KB) to not block first paint
+const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
+
 import { useMainsAnswerStore } from "@/stores";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/context/AuthContext";
 import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
 import api, { ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
+import { POLL_INTERVAL_MS, POLL_RETRY_INTERVAL_MS } from "@/lib/constants"; // C2
 
 interface MainsAnswerResponse {
     question: string;
@@ -92,6 +96,8 @@ export default function MainsAnswerPage() {
 
     // Polling Ref to avoid closure staleness
     const activeJobId = useRef<string | null>(null);
+    // F5: Store timer ID so we can cancel it on unmount (prevents memory leak)
+    const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Sync ref with store
     useEffect(() => {
@@ -103,6 +109,10 @@ export default function MainsAnswerPage() {
         if (jobId && (jobStatus === 'pending' || jobStatus === 'processing' || jobStatus === 'queued')) {
             pollStatus(jobId);
         }
+        // F5: Cleanup — cancel any in-flight poll timer on unmount
+        return () => {
+            if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+        };
     }, []);
 
     // Proactively show banner removed - on-demand only
@@ -241,12 +251,14 @@ export default function MainsAnswerPage() {
                 if (data.status === 'processing' && jobStatus !== 'processing') setJobStatus('processing');
 
                 // Continue polling
-                setTimeout(() => pollStatus(id), 2000);
+                pollTimerRef.current = setTimeout(() => pollStatus(id), POLL_INTERVAL_MS); // C2
+
             }
         } catch (err) {
             if (activeJobId.current !== id) return;
             console.error("Polling error:", err);
-            setTimeout(() => pollStatus(id), 3000);
+            pollTimerRef.current = setTimeout(() => pollStatus(id), POLL_RETRY_INTERVAL_MS); // C2
+
         }
     };
 
@@ -275,7 +287,11 @@ export default function MainsAnswerPage() {
         clear();
 
         // Strict guard: check if user has Gemini API key
-        if (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid') {
+        // TODO: REVERT FOR PROD — remove the hasLocalKey bypass below and restore:
+        //   if (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid') {
+        // No-auth India mode: if a local key exists in localStorage, skip this check
+        const hasLocalKey = typeof window !== 'undefined' && !!localStorage.getItem('gemini_api_key');
+        if (!hasLocalKey && (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid')) {
             // Prioritize "missing key" message over "invalid" just in case state is mixed
             const msg = (user && user.has_gemini_api_key === false)
                 ? "Please set your Gemini API key in Settings before generating an answer."

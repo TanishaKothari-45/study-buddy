@@ -189,7 +189,7 @@ async function extractErrorMessage(response: Response): Promise<string> {
  * Smart handling: only logs out on genuine session expiration,
  * not on external API key errors surfaced as 401 (which shouldn't happen but we log to verify).
  */
-async function handle401Error(url: string, response?: Response) {
+export async function handle401Error(url: string, response?: Response) {
     if (isRedirecting) return;
 
     let errorMessage = "Session expired";
@@ -223,30 +223,28 @@ async function handle401Error(url: string, response?: Response) {
         return;
     }
 
-    isRedirecting = true;
+    // REDIRECT DISABLED — Supabase banned in India; API key check only
+    // isRedirecting = true;
 
-    // Store current path for redirect after login
-    const currentPath = window.location.pathname + window.location.search;
-    const excludedPaths = ['/login', '/signup', '/register', '/auth', '/forgot-password'];
+    // // Store current path for redirect after login
+    // const currentPath = window.location.pathname + window.location.search;
+    // const excludedPaths = ['/login', '/signup', '/register', '/auth', '/forgot-password'];
 
-    if (!excludedPaths.some(path => currentPath.startsWith(path))) {
-        storeReturnUrl(currentPath);
-    }
+    // if (!excludedPaths.some(path => currentPath.startsWith(path))) {
+    //     storeReturnUrl(currentPath);
+    // }
 
-    // Show toast notification
+    // Show toast notification (keep this part - useful error feedback)
     if (globalToastHandler) {
-        globalToastHandler('Your session has expired. Redirecting to login...', 'warning');
+        globalToastHandler('Authentication error. Please check your API key.', 'warning');
     }
 
-    // Note: With Supabase, session clearing is handled by signOut()
-    // The redirect will take user to login page
-
-    // Redirect after 3 seconds
-    setTimeout(() => {
-        window.location.href = '/login';
-        // Reset flag after redirect starts
-        setTimeout(() => { isRedirecting = false; }, 1000);
-    }, 3000);
+    // // Redirect after 3 seconds
+    // setTimeout(() => {
+    //     window.location.href = '/login';
+    //     // Reset flag after redirect starts
+    //     setTimeout(() => { isRedirecting = false; }, 1000);
+    // }, 3000);
 }
 
 /**
@@ -330,6 +328,15 @@ export async function apiClient<T = unknown>(
         const token = await getAuthToken();
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
+        }
+        // TODO: REVERT FOR PROD — remove the localStorage injection below (lines ~333-338).
+        // When auth is restored, the key comes from the Supabase user profile via the backend.
+        // No-auth India mode: inject API key from localStorage as X-Gemini-API-Key
+        if (typeof window !== 'undefined') {
+            const localKey = localStorage.getItem('gemini_api_key');
+            if (localKey) {
+                headers['X-Gemini-API-Key'] = localKey;
+            }
         }
     }
 

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
 import { MainsAnswerResponse, JobStatus } from '../types';
 import api from '../../lib/apiClient';
+import { MAINS_ANSWER_STORE_KEY } from '@/lib/constants';
 
 // History item for previous Q&As
 interface HistoryItem {
@@ -138,7 +139,7 @@ export const useMainsAnswerStore = create<MainsAnswerState>()(
                 }),
             }),
             {
-                name: 'geography-mains-answer-storage',
+                name: MAINS_ANSWER_STORE_KEY, // C3: single source of truth
                 storage: createJSONStorage(() => localStorage),
                 version: 6, // Persist form inputs, job tracking, and current result (only one at a time due to clear())
                 partialize: (state) => ({

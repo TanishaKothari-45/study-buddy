@@ -25,8 +25,9 @@ export function Header() {
         }
     };
 
+    // REDIRECT DISABLED — open API key modal directly instead of going to /login
     const handleLoginClick = () => {
-        router.push("/login");
+        setIsApiKeyModalOpen(true);
     };
 
     return (

@@ -11,7 +11,10 @@ from pydantic import BaseModel, Field
 from typing import Optional
 import logging
 
+# TODO: REVERT FOR PROD — get_current_user_optional is used by validate-no-auth endpoint (~line 65).
+# Change that endpoint back to require get_current_user if unauthenticated access should be blocked.
 from ..core.deps import get_current_user, get_current_user_optional
+
 from ..core.encryption import get_api_key_encryptor
 from ..core.user_profile import (
     UserProfile,
@@ -225,6 +228,37 @@ def validate_key_only(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid API key."
         )
+
+
+@router.post("/validate-no-auth")
+def validate_key_no_auth(request: ApiKeySetRequest):
+    """
+    Validate a Gemini API key WITHOUT requiring authentication.
+    Used in no-auth India mode where Supabase is inaccessible.
+    The key is validated against Gemini but NOT stored server-side;
+    the frontend stores it in localStorage.
+    """
+    api_key = request.api_key.strip()
+    if not api_key.startswith("AI"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid API key format. Gemini API keys typically start with 'AI'"
+        )
+
+    if validate_gemini_key(api_key):
+        encryptor = get_api_key_encryptor()
+        masked = encryptor.mask_api_key(api_key, visible_chars=4)
+        return {
+            "success": True,
+            "message": "API key is valid",
+            "masked_key": masked
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The API key is invalid or unauthorized. Please check your key at https://aistudio.google.com/app/apikey"
+        )
+
 
 @router.get("/verify", response_model=ApiKeySetResponse)
 def verify_current_key(

@@ -92,3 +92,7 @@ docs/analysis/*.json
 
 
 backend/map_storage/
+
+.agent/
+
+package-lock.json

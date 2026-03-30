@@ -1,354 +1,389 @@
         {
-    "GS1": {
-        "paper_name": "General Studies Paper I",
-        "domains": {
-            "Indian_Heritage_and_Culture": {
-                "topics": [
-                    "Indian culture covering the salient aspects of Art Forms, Literature and Architecture from ancient to modern times",
-                    "Salient features of Indian Art Forms",
-                    "Indian literature traditions",
-                    "Architecture in India"
-                ]
+            "GS1": {
+                "paper_name": "General Studies Paper I",
+                "domains": {
+                    "Indian_Heritage_and_Culture": {
+                        "topics": [
+                            "Art Forms (dance, music, sculpture)",
+                            "Architecture — Harappan, Buddhist, Hindu temples, Indo-Islamic",
+                            "Literature & Language Traditions — Sanskrit, Prakrit, regional literatures",
+                            "Religious & Philosophical Streams (Hindu, Buddhist, Jain)",
+                            "Performing & Folk Traditions (classical dance forms, puppetry, martial arts)"
+                        ]
+                    },
+                    "Ancient_Indian_History": {
+                        "topics": [
+                            "Prehistoric Cultures – Stone Ages (Palaeolithic, Mesolithic, Neolithic)",
+                            "Indus Valley Civilization – urban planning, economy, decline",
+                            "Vedic Period – society, economy, polity",
+                            "Mahajanapadas & Second Urbanisation",
+                            "Major Empires – Mauryas, Guptas",
+                            "Religion, Philosophy & Society – Buddhism, Jainism, caste dynamics",
+                            "Economy & Trade – agrarian systems, trade networks",
+                            "Science & Technology / Education"
+                        ]
+                    },
+                    "Medieval_Indian_History": {
+                        "topics": [
+                            "Early Medieval Polities – Post-Gupta regional states",
+                            "Delhi Sultanate – administration, economy, society",
+                            "Mughal Empire – consolidation, policies, decline",
+                            "Regional Kingdoms – Vijayanagara, Bahmani, Rajput states, Deccan sultanates",
+                            "Socio-Cultural Movements – Bhakti & Sufi movements",
+                            "Architecture & Art – Indo-Islamic styles",
+                            "Economic and Agrarian Trends"
+                        ]
+                    },
+                    "Modern_Indian_History": {
+                        "topics": [
+                            "European Penetration & Colonial Expansion",
+                            "Administrative & Economic Policies (Land revenue systems, Drain of wealth)",
+                            "Social & Religious Reform Movements (Brahmo Samaj, Arya Samaj etc.)",
+                            "Revolt of 1857 – causes, nature, consequences",
+                            "Freedom Movement (1885–1947) – Growth of Congress, Gandhian movements, Revolutionary activities",
+                            "Partition & Independence – Mountbatten Plan, communal politics"
+                        ]
+                    },
+                    "Post_Independence_India": {
+                        "topics": [
+                            "Consolidation & Reorganization of States",
+                            "Domestic Political Developments",
+                            "Economic & Social Transformations",
+                            "Foreign Policy & International Relations (e.g., Nehru era policies)",
+                            "Challenges of nation-building"
+                        ]
+                    },
+                    "World_History": {
+                        "topics": [
+                            "Industrial Revolution & Its Impact",
+                            "French Revolution & Napoleonic Era",
+                            "Nationalism in Europe – Unification of Italy/Germany",
+                            "Colonialism & Imperialism – global patterns",
+                            "American Revolution & Nation-State Emergence",
+                            "World Wars I & II – causes, outcomes, global change",
+                            "Russian Revolution & Communist Ideology",
+                            "Inter-War Period & Great Depression",
+                            "Cold War & Decolonisation",
+                            "Post-Cold War World – globalisation, rise of China, Middle East conflicts"
+                        ]
+                    },
+                    "Indian_Society": {
+                        "topics": [
+                            "Salient features of Indian society",
+                            "Diversity of India",
+                            "Role of women and women's organization",
+                            "Population and associated issues",
+                            "Poverty and developmental issues",
+                            "Urbanization, problems and remedies",
+                            "Effects of globalization on Indian society",
+                            "Social empowerment",
+                            "Communalism",
+                            "Regionalism",
+                            "Secularism"
+                        ]
+                    },
+                    "Physical_Geography": {
+                        "topics": [
+                            "Salient features of world's physical geography",
+                            "Geomorphology",
+                            "Climatology",
+                            "Oceanography",
+                            "Biogeography",
+                            "Hydrogeography (water bodies and ice-caps)"
+                        ]
+                    },
+                    "World_Geography": {
+                        "topics": [
+                            "Distribution of key natural resources across the world (including South Asia and Indian subcontinent)",
+                            "Factors responsible for the location of primary, secondary and tertiary sector industries in various parts of the world (including India)",
+                            "Important geophysical phenomena such as earthquakes, tsunamis, volcanic activity, cyclones",
+                            "Geographical features and their location",
+                            "Changes in critical geographical features",
+                            "Effects of such changes on flora and fauna"
+                        ]
+                    }
+                }
             },
-            "Modern_Indian_History": {
-                "topics": [
-                    "Modern Indian history from about the middle of the eighteenth century until the present",
-                    "Significant events, personalities, issues of modern Indian history",
-                    "The Freedom Struggle — its various stages and important contributors/contributions from different parts of the country"
-                ]
+            "GS2": {
+                "paper_name": "General Studies Paper II",
+                "domains": {
+                    "Indian_Constitution": {
+                        "topics": [
+                            "Historical underpinnings",
+                            "Evolution",
+                            "Features",
+                            "Amendments",
+                            "Significant provisions",
+                            "Basic structure",
+                            "Comparison of the Indian constitutional scheme with that of other countries"
+                        ]
+                    },
+                    "Federal_Structure": {
+                        "topics": [
+                            "Functions and responsibilities of the Union and the States",
+                            "Issues and challenges pertaining to the federal structure",
+                            "Devolution of powers and finances up to local levels and challenges"
+                        ]
+                    },
+                    "Separation_of_Powers": {
+                        "topics": [
+                            "Separation of powers between various organs Dispute redressal mechanisms and institutions"
+                        ]
+                    },
+                    "Parliament_and_State_Legislatures": {
+                        "topics": [
+                            "Structure",
+                            "Functioning",
+                            "Conduct of business",
+                            "Powers and privileges",
+                            "Issues arising out of these"
+                        ]
+                    },
+                    "Executive_and_Judiciary": {
+                        "topics": [
+                            "Structure, organization and functioning of the Executive and Judiciary",
+                            "Ministries and Departments of the Government"
+                        ]
+                    },
+                    "Representation_of_People": {
+                        "topics": [
+                            "Salient features of the Representation of People's Act"
+                        ]
+                    },
+                    "Constitutional_Bodies": {
+                        "topics": [
+                            "Appointment to various Constitutional posts",
+                            "Powers, functions and responsibilities of various Constitutional Bodies"
+                        ]
+                    },
+                    "Statutory_and_Regulatory_Bodies": {
+                        "topics": [
+                            "Statutory, regulatory and various quasi-judicial bodies",
+                            "Pressure Groups and formal/informal associations and their role in the Polity"
+                        ]
+                    },
+                    "Government_Policies": {
+                        "topics": [
+                            "Government policies and interventions for development in various sectors",
+                            "Issues arising out of their design and implementation"
+                        ]
+                    },
+                    "Development_Processes": {
+                        "topics": [
+                            "Development processes and the development industry",
+                            "Role of NGOs, SHGs, various groups and associations",
+                            "Donors, charities, institutional and other stakeholders"
+                        ]
+                    },
+                    "Social_Justice": {
+                        "topics": [
+                            "Welfare schemes for vulnerable sections of the population by the Centre and States",
+                            "Performance of these schemes, Mechanisms, laws, institutions and Bodies constituted for the protection and betterment of vulnerable sections",
+                            "Issues relating to development and management of Social Sector/Services",
+                            "Health",
+                            "Education",
+                            "Human Resources",
+                            "Issues relating to poverty and hunger"
+                        ]
+                    },
+                    "Governance": {
+                        "topics": [
+                            "Important aspects of governance",
+                            "Transparency and accountability",
+                            "E-governance- applications, models, successes, limitations, and potential",
+                            "Citizens charters",
+                            "Transparency and accountability and institutional and other measures",
+                            "Role of civil services in a democracy"
+                        ]
+                    },
+                    "International_Relations": {
+                        "topics": [
+                            "India and its neighborhood relations",
+                            "Bilateral, regional and global groupings and agreements involving India and/or affecting India's interests",
+                            "Effect of policies and politics of developed and developing countries on India's interests",
+                            "Indian diaspora",
+                            "Important International institutions, agencies and fora and their structure, mandate"
+                        ]
+                    }
+                }
             },
-            "Post_Independence_India": {
-                "topics": [
-                    "Post-independence consolidation and reorganization within the country"
-                ]
+            "GS3": {
+                "paper_name": "General Studies Paper III",
+                "domains": {
+                    "Indian_Economy": {
+                        "topics": [
+                            "Indian economy and issues relating to planning",
+                            "Mobilization of resources",
+                            "Growth",
+                            "Development",
+                            "Employment",
+                            "Inclusive growth and issues arising from it",
+                            "Government budgeting"
+                        ]
+                    },
+                    "Agriculture": {
+                        "topics": [
+                            "Major crops",
+                            "Cropping patterns in various parts of the country",
+                            "Different types of irrigation and irrigation systems",
+                            "Storage, transport and marketing of agricultural produce ,Issues and related constraints",
+                            "E-technology in the aid of farmers",
+                            "Issues related to direct and indirect farm subsidies",
+                            "Minimum support prices",
+                            "Public Distribution System- objectives, functioning, limitations, revamping",
+                            "Issues of buffer stocks and food security",
+                            "Technology missions",
+                            "Economics of animal-rearing"
+                        ]
+                    },
+                    "Food_Processing": {
+                        "topics": [
+                            "Food processing and related industries in India- scope and significance",
+                            "Location",
+                            "Upstream and downstream requirements",
+                            "Supply chain management"
+                        ]
+                    },
+                    "Land_Reforms": {
+                        "topics": [
+                            "Land reforms in India"
+                        ]
+                    },
+                    "Industrial_Policy": {
+                        "topics": [
+                            "Effects of liberalization on the economy",
+                            "Changes in industrial policy and their effects on industrial growth"
+                        ]
+                    },
+                    "Infrastructure": {
+                        "topics": [
+                            "Energy",
+                            "Ports",
+                            "Roads",
+                            "Airports",
+                            "Railways"
+                        ]
+                    },
+                    "Investment_Models": {
+                        "topics": [
+                            "Investment models"
+                        ]
+                    },
+                    "Science_and_Technology": {
+                        "topics": [
+                            "Science and Technology- developments and their applications and effects in everyday life",
+                            "Achievements of Indians in science and technology",
+                            "Indigenization of technology and developing new technology",
+                            "Awareness in the fields of IT, Space, Computers, robotics, nano-technology, bio-technology",
+                            "Issues relating to intellectual property rights"
+                        ]
+                    },
+                    "Environment_and_Ecology": {
+                        "topics": [
+                            "Conservation",
+                            "Environmental pollution and degradation",
+                            "Environmental impact assessment"
+                        ]
+                    },
+                    "Disaster_Management": {
+                        "topics": [
+                            "Disaster and disaster management"
+                        ]
+                    },
+                    "Internal_Security": {
+                        "topics": [
+                            "Linkages between development and spread of extremism",
+                            "Role of external state and non-state actors in creating challenges to internal security",
+                            "Challenges to internal security through communication networks",
+                            "Role of media and social networking sites in internal security challenges",
+                            "Basics of cyber security",
+                            "Money-laundering and its prevention",
+                            "Security challenges and their management in border areas",
+                            "Linkages of organized crime with terrorism",
+                            "Various Security forces and agencies and their mandate"
+                        ]
+                    }
+                }
             },
-            "World_History": {
-                "topics": [
-                    "History of the world from the 18th century",
-                    "Events such as the Industrial Revolution",
-                    "World wars",
-                    "Redrawal of national boundaries",
-                    "Colonization and decolonization",
-                    "Political philosophies like communism, capitalism, socialism",
-                    "Their forms and effect on society"
-                ]
-            },
-            "Indian_Society": {
-                "topics": [
-                    "Salient features of Indian society",
-                    "Diversity of India",
-                    "Role of women and women's organization",
-                    "Population and associated issues",
-                    "Poverty and developmental issues",
-                    "Urbanization, problems and remedies",
-                    "Effects of globalization on Indian society",
-                    "Social empowerment",
-                    "Communalism",
-                    "Regionalism",
-                    "Secularism"
-                ]
-            },
-            "Physical_Geography": {
-                "topics": [
-                    "Salient features of world's physical geography",
-                    "Geomorphology",
-                    "Climatology",
-                    "Oceanography",
-                    "Biogeography"
-                ]
-            },
-            "World_Geography": {
-                "topics": [
-                    "Distribution of key natural resources across the world (including South Asia and Indian subcontinent)",
-                    "Factors responsible for the location of primary, secondary and tertiary sector industries in various parts of the world (including India)",
-                    "Important geophysical phenomena such as earthquakes, tsunamis, volcanic activity, cyclones",
-                    "Geographical features and their location",
-                    "Changes in critical geographical features (including water bodies and ice-caps)",
-                    "Effects of such changes on flora and fauna"
-                ]
+            "GS4": {
+                "paper_name": "General Studies Paper IV",
+                "domains": {
+                    "Ethics_and_Human_Interface": {
+                        "topics": [
+                            "Essence, determinants and consequences of Ethics in human actions",
+                            "Dimensions of ethics",
+                            "Ethics in private and public relationships"
+                        ]
+                    },
+                    "Human_Values": {
+                        "topics": [
+                            "Human Values - lessons from the lives and teachings of great leaders, reformers and administrators",
+                            "Role of family, society and educational institutions in inculcating values"
+                        ]
+                    },
+                    "Attitude": {
+                        "topics": [
+                            "Content, structure, function",
+                            "Its influence and relation with thought and behaviour",
+                            "Moral and political attitudes",
+                            "Social influence and persuasion"
+                        ]
+                    },
+                    "Aptitude_and_Foundational_Values": {
+                        "topics": [
+                            "Aptitude and foundational values for Civil Service",
+                            "Integrity",
+                            "Impartiality",
+                            "Non-partisanship",
+                            "Objectivity",
+                            "Dedication to public service",
+                            "Empathy",
+                            "Tolerance",
+                            "Compassion towards the weaker-sections"
+                        ]
+                    },
+                    "Emotional_Intelligence": {
+                        "topics": [
+                            "Emotional intelligence-concepts",
+                            "Their utilities and application in administration and governance"
+                        ]
+                    },
+                    "Moral_Thinkers": {
+                        "topics": [
+                            "Contributions of moral thinkers and philosophers from India and world"
+                        ]
+                    },
+                    "Public_Service_Ethics": {
+                        "topics": [
+                            "Public/Civil service values and Ethics in Public administration: Status and problems",
+                            "Ethical concerns and dilemmas in government and private institutions",
+                            "Laws, rules, regulations and conscience as sources of ethical guidance",
+                            "Accountability and ethical governance",
+                            "Strengthening of ethical and moral values in governance",
+                            "Ethical issues in international relations and funding",
+                            "Corporate governance"
+                        ]
+                    },
+                    "Probity_in_Governance": {
+                        "topics": [
+                            "Concept of public service",
+                            "Philosophical basis of governance and probity",
+                            "Information sharing and transparency in government",
+                            "Right to Information",
+                            "Codes of Ethics",
+                            "Codes of Conduct",
+                            "Citizen's Charters",
+                            "Work culture",
+                            "Quality of service delivery",
+                            "Utilization of public funds",
+                            "Challenges of corruption"
+                        ]
+                    },
+                    "Case_Studies": {
+                        "topics": [
+                            "Case Studies on above issues"
+                        ]
+                    }
+                }
             }
         }
-    },
-    "GS2": {
-        "paper_name": "General Studies Paper II",
-        "domains": {
-            "Indian_Constitution": {
-                "topics": [
-                    "Historical underpinnings",
-                    "Evolution",
-                    "Features",
-                    "Amendments",
-                    "Significant provisions",
-                    "Basic structure",
-                    "Comparison of the Indian constitutional scheme with that of other countries"
-                ]
-            },
-            "Federal_Structure": {
-                "topics": [
-                    "Functions and responsibilities of the Union and the States",
-                    "Issues and challenges pertaining to the federal structure",
-                    "Devolution of powers and finances up to local levels and challenges"
-                ]
-            },
-            "Separation_of_Powers": {
-                "topics": [
-                    "Separation of powers between various organs Dispute redressal mechanisms and institutions"
-                ]
-            },
-            "Parliament_and_State_Legislatures": {
-                "topics": [
-                    "Structure",
-                    "Functioning",
-                    "Conduct of business",
-                    "Powers and privileges",
-                    "Issues arising out of these"
-                ]
-            },
-            "Executive_and_Judiciary": {
-                "topics": [
-                    "Structure, organization and functioning of the Executive and Judiciary",
-                    "Ministries and Departments of the Government"
-                ]
-            },
-            "Representation_of_People": {
-                "topics": [
-                    "Salient features of the Representation of People's Act"
-                ]
-            },
-            "Constitutional_Bodies": {
-                "topics": [
-                    "Appointment to various Constitutional posts",
-                    "Powers, functions and responsibilities of various Constitutional Bodies"
-                ]
-            },
-            "Statutory_and_Regulatory_Bodies": {
-                "topics": [
-                    "Statutory, regulatory and various quasi-judicial bodies",
-                    "Pressure Groups and formal/informal associations and their role in the Polity"
-                ]
-            },
-            "Government_Policies": {
-                "topics": [
-                    "Government policies and interventions for development in various sectors",
-                    "Issues arising out of their design and implementation"
-                ]
-            },
-            "Development_Processes": {
-                "topics": [
-                    "Development processes and the development industry",
-                    "Role of NGOs, SHGs, various groups and associations",
-                    "Donors, charities, institutional and other stakeholders"
-                ]
-            },
-            "Social_Justice": {
-                "topics": [
-                    "Welfare schemes for vulnerable sections of the population by the Centre and States",
-                    "Performance of these schemes, Mechanisms, laws, institutions and Bodies constituted for the protection and betterment of vulnerable sections",
-                    "Issues relating to development and management of Social Sector/Services",
-                    "Health",
-                    "Education",
-                    "Human Resources",
-                    "Issues relating to poverty and hunger"
-                ]
-            },
-            "Governance": {
-                "topics": [
-                    "Important aspects of governance",
-                    "Transparency and accountability",
-                    "E-governance- applications, models, successes, limitations, and potential",
-                    "Citizens charters",
-                    "Transparency and accountability and institutional and other measures",
-                    "Role of civil services in a democracy"
-                ]
-            },
-            "International_Relations": {
-                "topics": [
-                    "India and its neighborhood relations",
-                    "Bilateral, regional and global groupings and agreements involving India and/or affecting India's interests",
-                    "Effect of policies and politics of developed and developing countries on India's interests",
-                    "Indian diaspora",
-                    "Important International institutions, agencies and fora and their structure, mandate"
-                ]
-            }
-        }
-    },
-    "GS3": {
-        "paper_name": "General Studies Paper III",
-        "domains": {
-            "Indian_Economy": {
-                "topics": [
-                    "Indian economy and issues relating to planning",
-                    "Mobilization of resources",
-                    "Growth",
-                    "Development",
-                    "Employment",
-                    "Inclusive growth and issues arising from it",
-                    "Government budgeting"
-                ]
-            },
-            "Agriculture": {
-                "topics": [
-                    "Major crops",
-                    "Cropping patterns in various parts of the country",
-                    "Different types of irrigation and irrigation systems",
-                    "Storage, transport and marketing of agricultural produce ,Issues and related constraints",
-                    "E-technology in the aid of farmers",
-                    "Issues related to direct and indirect farm subsidies",
-                    "Minimum support prices",
-                    "Public Distribution System- objectives, functioning, limitations, revamping",
-                    "Issues of buffer stocks and food security",
-                    "Technology missions",
-                    "Economics of animal-rearing"
-                ]
-            },
-            "Food_Processing": {
-                "topics": [
-                    "Food processing and related industries in India- scope and significance",
-                    "Location",
-                    "Upstream and downstream requirements",
-                    "Supply chain management"
-                ]
-            },
-            "Land_Reforms": {
-                "topics": [
-                    "Land reforms in India"
-                ]
-            },
-            "Industrial_Policy": {
-                "topics": [
-                    "Effects of liberalization on the economy",
-                    "Changes in industrial policy and their effects on industrial growth"
-                ]
-            },
-            "Infrastructure": {
-                "topics": [
-                    "Energy",
-                    "Ports",
-                    "Roads",
-                    "Airports",
-                    "Railways"
-                ]
-            },
-            "Investment_Models": {
-                "topics": [
-                    "Investment models"
-                ]
-            },
-            "Science_and_Technology": {
-                "topics": [
-                    "Science and Technology- developments and their applications and effects in everyday life",
-                    "Achievements of Indians in science and technology",
-                    "Indigenization of technology and developing new technology",
-                    "Awareness in the fields of IT, Space, Computers, robotics, nano-technology, bio-technology",
-                    "Issues relating to intellectual property rights"
-                ]
-            },
-            "Environment_and_Ecology": {
-                "topics": [
-                    "Conservation",
-                    "Environmental pollution and degradation",
-                    "Environmental impact assessment"
-                ]
-            },
-            "Disaster_Management": {
-                "topics": [
-                    "Disaster and disaster management"
-                ]
-            },
-            "Internal_Security": {
-                "topics": [
-                    "Linkages between development and spread of extremism",
-                    "Role of external state and non-state actors in creating challenges to internal security",
-                    "Challenges to internal security through communication networks",
-                    "Role of media and social networking sites in internal security challenges",
-                    "Basics of cyber security",
-                    "Money-laundering and its prevention",
-                    "Security challenges and their management in border areas",
-                    "Linkages of organized crime with terrorism",
-                    "Various Security forces and agencies and their mandate"
-                ]
-            }
-        }
-    },
-    "GS4": {
-        "paper_name": "General Studies Paper IV",
-        "domains": {
-            "Ethics_and_Human_Interface": {
-                "topics": [
-                    "Essence, determinants and consequences of Ethics in human actions",
-                    "Dimensions of ethics",
-                    "Ethics in private and public relationships"
-                ]
-            },
-            "Human_Values": {
-                "topics": [
-                    "Human Values - lessons from the lives and teachings of great leaders, reformers and administrators",
-                    "Role of family, society and educational institutions in inculcating values"
-                ]
-            },
-            "Attitude": {
-                "topics": [
-                    "Content, structure, function",
-                    "Its influence and relation with thought and behaviour",
-                    "Moral and political attitudes",
-                    "Social influence and persuasion"
-                ]
-            },
-            "Aptitude_and_Foundational_Values": {
-                "topics": [
-                    "Aptitude and foundational values for Civil Service",
-                    "Integrity",
-                    "Impartiality",
-                    "Non-partisanship",
-                    "Objectivity",
-                    "Dedication to public service",
-                    "Empathy",
-                    "Tolerance",
-                    "Compassion towards the weaker-sections"
-                ]
-            },
-            "Emotional_Intelligence": {
-                "topics": [
-                    "Emotional intelligence-concepts",
-                    "Their utilities and application in administration and governance"
-                ]
-            },
-            "Moral_Thinkers": {
-                "topics": [
-                    "Contributions of moral thinkers and philosophers from India and world"
-                ]
-            },
-            "Public_Service_Ethics": {
-                "topics": [
-                    "Public/Civil service values and Ethics in Public administration: Status and problems",
-                    "Ethical concerns and dilemmas in government and private institutions",
-                    "Laws, rules, regulations and conscience as sources of ethical guidance",
-                    "Accountability and ethical governance",
-                    "Strengthening of ethical and moral values in governance",
-                    "Ethical issues in international relations and funding",
-                    "Corporate governance"
-                ]
-            },
-            "Probity_in_Governance": {
-                "topics": [
-                    "Concept of public service",
-                    "Philosophical basis of governance and probity",
-                    "Information sharing and transparency in government",
-                    "Right to Information",
-                    "Codes of Ethics",
-                    "Codes of Conduct",
-                    "Citizen's Charters",
-                    "Work culture",
-                    "Quality of service delivery",
-                    "Utilization of public funds",
-                    "Challenges of corruption"
-                ]
-            },
-            "Case_Studies": {
-                "topics": [
-                    "Case Studies on above issues"
-                ]
-            }
-        }
-    }
-}

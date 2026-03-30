@@ -10,6 +10,7 @@ import { ToastProvider, useToast } from "@/components/ui/toast";
 import { setGlobalToastHandler as setAuthToastHandler } from "@/lib/authHandler";
 import { setGlobalToastHandler as setApiToastHandler } from "@/lib/apiClient";
 import { storeReturnUrl } from "@/lib/authHandler";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Public routes that don't require authentication
 const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password", "/auth/callback"];
@@ -20,16 +21,15 @@ function ProtectedContent({ children }: { children: React.ReactNode }) {
     const { user, isLoading } = useAuth();
     const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
 
-    React.useEffect(() => {
-        // Don't redirect while loading auth state
-        if (isLoading) return;
-
-        // If not authenticated and trying to access a protected route, redirect to login
-        if (!user && !isPublicRoute) {
-            storeReturnUrl(pathname);
-            router.push("/login");
-        }
-    }, [user, isLoading, isPublicRoute, pathname, router]);
+    // TODO: REVERT FOR PROD — uncomment the block below to restore login redirect.
+    // AUTH CHECK DISABLED — skip login redirect (no-auth India mode)
+    // React.useEffect(() => {
+    //     if (isLoading) return;
+    //     if (!user && !isPublicRoute) {
+    //         storeReturnUrl(pathname);
+    //         router.push("/login");
+    //     }
+    // }, [user, isLoading, isPublicRoute, pathname, router]);
 
     // Show loading state while checking auth
     if (isLoading) {
@@ -43,17 +43,9 @@ function ProtectedContent({ children }: { children: React.ReactNode }) {
         );
     }
 
-    // If not authenticated and on protected route, show loading while redirecting
-    if (!user && !isPublicRoute) {
-        return (
-            <div className="flex h-screen items-center justify-center bg-background">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-                    <p className="text-sm text-muted-foreground">Redirecting to login...</p>
-                </div>
-            </div>
-        );
-    }
+    // TODO: REVERT FOR PROD — uncomment the line below to restore the redirect guard.
+    // AUTH CHECK DISABLED — always render content regardless of auth state
+    // if (!user && !isPublicRoute) { return <div>Redirecting...</div>; }
 
     // Render public routes or authenticated content
     if (isPublicRoute) {
@@ -86,7 +78,9 @@ function ClientWrapperContent({ children }: { children: React.ReactNode }) {
     return (
         <AuthProvider>
             <NavigationProgress />
-            <ProtectedContent>{children}</ProtectedContent>
+            <ErrorBoundary>
+                <ProtectedContent>{children}</ProtectedContent>
+            </ErrorBoundary>
         </AuthProvider>
     );
 }

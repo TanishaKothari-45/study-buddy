@@ -52,6 +52,21 @@ export default function ApiKeyBanner({ onKeySet, showBanner = true }: ApiKeyBann
         let isMounted = true;
 
         const loadStatus = async () => {
+            // TODO: REVERT FOR PROD — remove the localStorage early-return below.
+            // When auth is restored, key status should only come from the Supabase /api-key/status endpoint.
+            // No-auth India mode: check localStorage first
+            if (typeof window !== 'undefined') {
+                const localKey = localStorage.getItem('gemini_api_key');
+                if (localKey) {
+                    if (isMounted) {
+                        setHasApiKey(true);
+                        setIsAuthenticated(true); // Treat local key as "authenticated enough"
+                        setIsLoading(false);
+                    }
+                    return;
+                }
+            }
+
             // Prevent infinite retry loops
             if (statusRetryCountRef.current >= 2) {
                 console.warn("Stopping API key status checks after 2 failures");

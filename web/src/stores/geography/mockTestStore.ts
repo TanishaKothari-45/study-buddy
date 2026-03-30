@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
 import { MockTestResponse, JobStatus } from '../types';
+import { MOCK_TEST_STORE_KEY } from '@/lib/constants';
 
 // Only persist: test data, answers, job info for resuming
 interface MockTestState {
@@ -80,7 +81,7 @@ export const useMockTestStore = create<MockTestState>()(
                 }),
             }),
             {
-                name: 'geography-mock-test-storage',
+                name: MOCK_TEST_STORE_KEY, // C3: single source of truth
                 storage: createJSONStorage(() => localStorage),
                 version: 1,
                 // Only persist what's necessary

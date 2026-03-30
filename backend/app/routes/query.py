@@ -27,8 +27,12 @@ import asyncio
 # Global default (fallback)
 GEMINI_API_KEY_SYSTEM = settings_gemini_key.GEMINI_API_KEY
 
-from ..core.deps import get_current_user, get_redis_client
+# TODO: REVERT FOR PROD — change get_current_user_optional → get_current_user on all 3 usages below
+# (lines ~51, ~157 in this file). Also restore: Optional[UserProfile] → UserProfile in the param type.
+from ..core.deps import get_current_user_optional, get_redis_client
+
 from ..core.user_profile import UserProfile
+from ..utils.user_api_key import get_gemini_api_key_for_request, get_direct_api_key_from_request
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +51,7 @@ router = APIRouter()
 async def generate_answer(
     request: Request,
     query_request: QueryRequest,
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: Optional[UserProfile] = Depends(get_current_user_optional)
 ):
     """
     Enqueue Mains Answer generation.
@@ -58,7 +62,8 @@ async def generate_answer(
 
         # 1. Get Gemini Key
         try:
-            gemini_api_key = get_gemini_api_key_for_request(current_user)
+            direct_key = get_direct_api_key_from_request(request)
+            gemini_api_key = get_gemini_api_key_for_request(current_user, direct_key)
             if not gemini_api_key or not gemini_api_key.strip():
                 gemini_api_key = GEMINI_API_KEY_SYSTEM
         except Exception:
@@ -152,7 +157,7 @@ async def cancel_query(job_id: str):
 async def stream_chat(
     request: Request,
     chat_request: ChatRequest,
-    current_user: UserProfile = Depends(get_current_user)
+    current_user: Optional[UserProfile] = Depends(get_current_user_optional)
 ):
     """
     Streaming chat endpoint with RAG (Retrieval Augmented Generation).
@@ -167,7 +172,8 @@ async def stream_chat(
     
     # Get Gemini API key upfront
     try:
-        gemini_api_key = get_gemini_api_key_for_request(current_user)
+        direct_key = get_direct_api_key_from_request(request)
+        gemini_api_key = get_gemini_api_key_for_request(current_user, direct_key)
         if not gemini_api_key or not gemini_api_key.strip():
             gemini_api_key = GEMINI_API_KEY_SYSTEM
     except Exception:

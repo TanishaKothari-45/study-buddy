@@ -250,7 +250,11 @@ export default function EvaluatePage() {
         e.preventDefault();
 
         // Strict guard for API key
-        if (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid') {
+        // TODO: REVERT FOR PROD — remove the hasLocalKey bypass below and restore:
+        //   if (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid') {
+        // No-auth India mode: if a local key exists in localStorage, skip this check
+        const hasLocalKey = typeof window !== 'undefined' && !!localStorage.getItem('gemini_api_key');
+        if (!hasLocalKey && (!user || user.has_gemini_api_key === false || isApiKeyValid === 'invalid')) {
             // Prioritize "missing key" message over "invalid" just in case state is mixed
             const msg = (user && user.has_gemini_api_key === false)
                 ? "Please set your Gemini API key in Settings before evaluating."
