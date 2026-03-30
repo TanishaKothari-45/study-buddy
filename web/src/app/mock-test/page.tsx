@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Play, CheckCircle, XCircle, RefreshCw, Clock, BookOpen, ClipboardList, AlertCircle } from "lucide-react";
+import { Play, CheckCircle, XCircle, RefreshCw, Clock, BookOpen, ClipboardList, AlertCircle } from "lucide-react";
+import { InlineLoader } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import { markdownComponents, urlTransform } from "@/components/ui/mermaid";
@@ -17,6 +18,7 @@ import { useMockTestStore } from "@/stores";
 import { authFetch, showToast } from "@/lib/authHandler";
 import { useAuth } from "@/context/AuthContext";
 import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 // UPSC Geography Taxonomy (Mirrors backend/app/utils/metadata_enricher.py)
 const GEOGRAPHY_DOMAINS: Record<string, string[]> = {
@@ -431,375 +433,385 @@ export default function MockTestPage() {
     const getOptionLabel = (index: number) => String.fromCharCode(65 + index); // 0->A, 1->B...
 
     return (
-        <div className="p-8 max-w-5xl mx-auto space-y-8">
-            <ApiKeyBanner showBanner={showBanner} onKeySet={() => setShowBanner(false)} />
-            <div className="flex items-center justify-between">
-                <div className="flex flex-col space-y-2">
-                    <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                        Prelims Mock Test
-                    </h1>
-                    <p className="text-muted-foreground">
-                        Generate AI-powered mock tests based on your study materials and UPSC patterns.
-                    </p>
-                </div>
-                {testData && (
-                    <Button variant="outline" size="sm" onClick={resetTest} className="text-muted-foreground hover:text-primary">
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        New Test
+        <PageContainer
+            title="Interactive mock test"
+            description="Take a custom mock test tailored to your preferred domains and topics."
+        >
+            <div className="w-full space-y-8">
+                {/* API Key Banner */}
+                <ApiKeyBanner showBanner={showBanner} onKeySet={() => setShowBanner(false)} />
+
+                {/* Main Content Actions */}
+                <div className="flex items-center justify-end gap-3 w-full mb-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={resetTest}
+                        className="flex items-center gap-2"
+                        disabled={loading && !submitted}
+                    >
+                        <RefreshCw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
+                        Reset Test
                     </Button>
-                )}
-            </div>
+                </div>
 
-            {!testData ? (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Configure Test</CardTitle>
-                        <CardDescription>Customize your mock test parameters.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="grid gap-6 md:grid-cols-2">
-                            {/* Basic Settings */}
-                            <div className="space-y-2">
-                                <Label>Number of Questions</Label>
-                                <Select value={numQuestions} onValueChange={setNumQuestions}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select count" />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-card z-50">
-                                        <SelectItem value="5">5 Questions (Quick)</SelectItem>
-                                        <SelectItem value="10">10 Questions</SelectItem>
-                                        <SelectItem value="20">20 Questions</SelectItem>
-                                        <SelectItem value="50">50 Questions (Full Subject)</SelectItem>
-                                        <SelectItem value="100">100 Questions (Full Mock)</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {/* Subject Selection */}
-                            <div className="space-y-2">
-                                <Label>Subject</Label>
-                                <Select
-                                    value={selectedSubject}
-                                    onValueChange={(val) => {
-                                        setSelectedSubject(val);
-                                        setSelectedDomain(""); // Reset domain when subject changes
-                                        setSelectedSubDomain("");
-                                    }}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select Subject" />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-card z-50">
-                                        {Object.keys(SUBJECT_DOMAINS).map((subject) => (
-                                            <SelectItem key={subject} value={subject}>{subject}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-
-                        </div>
-
-                        {/* Topic Selection */}
-                        <div className="space-y-4 border-t pt-4">
-                            <Label className="text-base">Topic Selection</Label>
-
-                            <div className="grid gap-6 md:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label className="text-xs text-muted-foreground">Major Domain</Label>
-                                    <Select
-                                        value={selectedDomain}
-                                        onValueChange={(val) => {
-                                            setSelectedDomain(val);
-                                            setSelectedSubDomain(""); // Reset subdomain when domain changes
-                                        }}
-                                    >
+                {!testData ? (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Configure test</CardTitle>
+                            <CardDescription>Customize your mock test parameters.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {/* Basic Settings */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Number of questions</Label>
+                                    <Select value={numQuestions} onValueChange={setNumQuestions}>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select Major Domain" />
+                                            <SelectValue placeholder="Select count" />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-card z-50">
-                                            {selectedSubject && SUBJECT_DOMAINS[selectedSubject] ? (
-                                                Object.keys(SUBJECT_DOMAINS[selectedSubject]).map((domain) => (
-                                                    <SelectItem key={domain} value={domain}>{domain}</SelectItem>
-                                                ))
-                                            ) : (
-                                                <SelectItem value="none" disabled>Select Subject First</SelectItem>
-                                            )}
+                                        <SelectContent className="bg-[var(--card)] z-50">
+                                            <SelectItem value="5">5 questions (quick)</SelectItem>
+                                            <SelectItem value="10">10 questions</SelectItem>
+                                            <SelectItem value="20">20 questions</SelectItem>
+                                            <SelectItem value="50">50 questions</SelectItem>
+                                            <SelectItem value="100">100 questions (full mock)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label className="text-xs text-muted-foreground">Sub-Domain (Optional)</Label>
+                                {/* Subject Selection */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Subject</Label>
                                     <Select
-                                        value={selectedSubDomain}
-                                        onValueChange={setSelectedSubDomain}
-                                        disabled={!selectedDomain}
+                                        value={selectedSubject}
+                                        onValueChange={(val) => {
+                                            setSelectedSubject(val);
+                                            setSelectedDomain(""); // Reset domain when subject changes
+                                            setSelectedSubDomain("");
+                                        }}
                                     >
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select Specific Topic" />
+                                            <SelectValue placeholder="Select subject" />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-card z-50">
-                                            <SelectItem value="all">All Sub-topics</SelectItem>
-                                            {selectedSubject && selectedDomain && SUBJECT_DOMAINS[selectedSubject]?.[selectedDomain]?.map((sub) => (
-                                                <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                                        <SelectContent className="bg-[var(--card)] z-50">
+                                            {Object.keys(SUBJECT_DOMAINS).map((subject) => (
+                                                <SelectItem key={subject} value={subject}>{subject}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
                             </div>
 
-                            <div className="relative">
-                                <div className="absolute inset-0 flex items-center">
-                                    <span className="w-full border-t" />
-                                </div>
-                                <div className="relative flex justify-center text-xs uppercase">
-                                    <span className="bg-card px-2 text-muted-foreground">Or</span>
-                                </div>
-                            </div>
+                            {/* Topic Selection */}
+                            <div className="space-y-4 pt-5 border-t border-[var(--card-border)]">
+                                <Label className="text-sm font-semibold text-[var(--text)]">Topic Selection</Label>
 
-                            <div className="space-y-2">
-                                <Label>Custom Topic</Label>
-                                <Input
-                                    placeholder="e.g., El Nino, Coral Reefs, Industrial Location Theory"
-                                    value={customTopic}
-                                    onChange={(e) => setCustomTopic(e.target.value)}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Type a specific topic to override the dropdown selection.
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Progress Indicator */}
-                        {loading && (
-                            <div className="space-y-4 pt-4 border-t animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="font-medium">{statusMessage}</span>
-                                    <span className="text-muted-foreground">{progress}%</span>
-                                </div>
-                                <Progress value={progress} className="h-2" />
-                                <div className="flex justify-center pt-2">
-                                    <Button variant="destructive" size="sm" onClick={handleCancel}>
-                                        Cancel Generation
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Error Message */}
-                        {error && (
-                            <Alert variant="destructive" className="mt-4">
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Error</AlertTitle>
-                                <AlertDescription>{error}</AlertDescription>
-                            </Alert>
-                        )}
-
-                    </CardContent>
-                    <CardFooter>
-                        <Button onClick={generateTest} disabled={loading} className="w-full md:w-auto">
-                            {loading ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Generating...
-                                </>
-                            ) : (
-                                <>
-                                    <Play className="mr-2 h-4 w-4" />
-                                    Start Mock Test
-                                </>
-                            )}
-                        </Button>
-                    </CardFooter>
-                </Card>
-            ) : (
-                <div className="space-y-6">
-                    {/* Test Header / Results */}
-                    <Card className={cn("border-l-4", submitted ? (score >= 0 ? "border-l-green-500" : "border-l-destructive") : "border-l-primary")}>
-                        <CardHeader className="pb-2">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <CardTitle>{submitted ? "Test Results" : "Mock Test In Progress"}</CardTitle>
-                                    <CardDescription className="flex items-center gap-4 mt-1">
-                                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {testData.time_allowed}</span>
-                                        <span>•</span>
-                                        <span>Total Marks: {testData.total_marks}</span>
-                                    </CardDescription>
-                                </div>
-                                {submitted && (
-                                    <div className="text-right">
-                                        <div className="text-3xl font-bold">{score}</div>
-                                        <div className="text-xs text-muted-foreground">Your Score</div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Major domain</Label>
+                                        <Select
+                                            value={selectedDomain}
+                                            onValueChange={(val) => {
+                                                setSelectedDomain(val);
+                                                setSelectedSubDomain(""); // Reset subdomain when domain changes
+                                            }}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select major domain" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-[var(--card)] z-50">
+                                                {selectedSubject && SUBJECT_DOMAINS[selectedSubject] ? (
+                                                    Object.keys(SUBJECT_DOMAINS[selectedSubject]).map((domain) => (
+                                                        <SelectItem key={domain} value={domain}>{domain}</SelectItem>
+                                                    ))
+                                                ) : (
+                                                    <SelectItem value="none" disabled>Select subject first</SelectItem>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
-                                )}
-                            </div>
-                        </CardHeader>
-                        {!submitted && (
-                            <CardContent>
-                                <div className="bg-accent/50 text-accent-foreground text-sm p-3 rounded-md">
-                                    <strong>Instructions:</strong>
-                                    <ul className="list-disc list-inside mt-1 space-y-0.5">
-                                        {testData.instructions.map((inst, i) => (
-                                            <li key={i}>{inst}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            </CardContent>
-                        )}
-                    </Card>
 
-                    {/* Questions List */}
-                    <div className="space-y-6">
-                        {testData.questions.map((q, qIdx) => (
-                            <Card key={qIdx} className={cn("transition-all", submitted ? (userAnswers[qIdx] === q.correct_answer ? "ring-1 ring-green-500" : userAnswers[qIdx] ? "ring-1 ring-destructive" : "") : "")}>
-                                <CardHeader className="pb-2">
-                                    <div className="flex gap-3">
-                                        <span className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-muted text-muted-foreground font-bold text-sm">
-                                            {qIdx + 1}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Sub-domain (optional)</Label>
+                                        <Select
+                                            value={selectedSubDomain}
+                                            onValueChange={setSelectedSubDomain}
+                                            disabled={!selectedDomain}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select specific topic" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-[var(--card)] z-50">
+                                                <SelectItem value="all">All sub-topics</SelectItem>
+                                                {selectedSubject && selectedDomain && SUBJECT_DOMAINS[selectedSubject]?.[selectedDomain]?.map((sub) => (
+                                                    <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <div className="relative pt-2 pb-2">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <span className="w-full border-t border-[var(--card-border)]" />
+                                    </div>
+                                    <div className="relative flex justify-center text-xs uppercase tracking-widest font-medium">
+                                        <span className="bg-[var(--card)] px-3 text-[var(--text-faint)]">or</span>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-sm font-medium text-[var(--text)]">Custom topic</Label>
+                                    <Input
+                                        placeholder="e.g. El Nino, Coral Reefs, Industrial Location Theory"
+                                        value={customTopic}
+                                        onChange={(e) => setCustomTopic(e.target.value)}
+                                    />
+                                    <p className="text-xs text-[var(--text-muted)]">
+                                        Type a specific topic to override the dropdown selection.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Progress Indicator */}
+                            {loading && (
+                                <div className="space-y-3 pt-5 border-t border-[var(--card-border)] animate-fade-up">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="font-medium text-[var(--text)] flex items-center gap-2">
+                                            <InlineLoader className="text-amber-600" />
+                                            {statusMessage}
                                         </span>
-                                        <div className="space-y-1">
-                                            <CardTitle className="text-base font-medium leading-relaxed whitespace-pre-line">
-                                                {q.question}
-                                            </CardTitle>
-                                            {submitted && (
-                                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                    <BookOpen className="h-3 w-3" />
-                                                    Source: {q.source.filename} {q.source.chapter && `(${q.source.chapter})`}
-                                                </div>
-                                            )}
-                                        </div>
+                                        <span className="text-[var(--text-muted)] font-medium text-xs">{progress}%</span>
                                     </div>
-                                </CardHeader>
-                                <CardContent className="pl-14 space-y-3">
-                                    <RadioGroup
-                                        value={userAnswers[qIdx] || ""}
-                                        onValueChange={(val) => handleAnswerSelect(qIdx, val)}
-                                        disabled={submitted}
-                                    >
-                                        {q.options.map((option, optIdx) => {
-                                            const optionLabel = getOptionLabel(optIdx);
-                                            let optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-transparent hover:bg-accent/50 transition-colors cursor-pointer";
+                                    <Progress value={progress} />
+                                    <div className="flex justify-start">
+                                        <Button variant="ghost" size="sm" onClick={handleCancel} className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 text-xs h-8">
+                                            Cancel generation
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
 
-                                            if (submitted) {
-                                                if (optionLabel === q.correct_answer) {
-                                                    // Correct answer: Light green background, dark green text
-                                                    optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-green-100 bg-green-20 text-green-800 dark:bg-green-600/20 dark:border-green-800 dark:text-green-600";
-                                                } else if (userAnswers[qIdx] === optionLabel) {
-                                                    // Wrong answer: Light red background, dark red text
-                                                    optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-red-100 bg-red-20 text-red-800 dark:bg-red-600/20 dark:border-red-800 dark:text-red-500";
-                                                }
-                                            } else if (userAnswers[qIdx] === optionLabel) {
-                                                optionClass = "flex items-center space-x-2 p-3 rounded-lg border border-primary/20 bg-primary/5";
-                                            }
+                            {/* Error Message */}
+                            {error && (
+                                <Alert variant="destructive" className="mt-4">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertTitle>Error</AlertTitle>
+                                    <AlertDescription>{error}</AlertDescription>
+                                </Alert>
+                            )}
 
-                                            return (
-                                                <div key={optIdx} className={optionClass} onClick={() => !submitted && handleAnswerSelect(qIdx, optionLabel)}>
-                                                    <RadioGroupItem value={optionLabel} id={`q${qIdx}-opt${optIdx}`} />
-                                                    <div className={cn(
-                                                        "w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-medium transition-all",
-                                                        submitted && optionLabel === q.correct_answer ? "bg-green-600 border-green-600 text-white" :
-                                                            submitted && userAnswers[qIdx] === optionLabel ? "bg-red-400 border-red-400 text-white" :
-                                                                userAnswers[qIdx] === optionLabel ? "bg-accent border-accent text-white" : "border-border text-muted-foreground"
-                                                    )}>
-                                                        {userAnswers[qIdx] === optionLabel && !submitted && <div className="w-3 h-3 rounded-full bg-white" />}
-                                                        {submitted || userAnswers[qIdx] !== optionLabel ? optionLabel : ""}
-                                                    </div>
-                                                    <Label htmlFor={`q${qIdx}-opt${optIdx}`} className="flex-1 cursor-pointer font-normal">
-                                                        {option}
-                                                    </Label>
-                                                    {submitted && optionLabel === q.correct_answer && <CheckCircle className="h-4 w-4 text-green-600" />}
-                                                    {submitted && userAnswers[qIdx] === optionLabel && optionLabel !== q.correct_answer && <XCircle className="h-4 w-4 text-red-600" />}
-                                                </div>
-                                            );
-                                        })}
-                                    </RadioGroup>
-
+                        </CardContent>
+                        <CardFooter>
+                            <Button onClick={generateTest} disabled={loading} className="w-full md:w-auto">
+                                {loading ? (
+                                    <>
+                                        <InlineLoader className="mr-2" />
+                                        Generating...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Play className="mr-2 h-4 w-4" />
+                                        Start Mock Test
+                                    </>
+                                )}
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                ) : (
+                    <div className="space-y-6">
+                        {/* Test Header / Results */}
+                        <Card className={cn("border-t-4 shadow-sm", submitted ? (score >= 0 ? "border-t-amber-500" : "border-t-red-500") : "border-t-amber-600")}>
+                            <CardHeader className="pb-3 border-b border-[var(--card-border)] bg-[var(--bg-secondary)] rounded-t-xl">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <CardTitle className="text-xl font-bold text-[var(--text)]">{submitted ? "Test results" : "Mock test in progress"}</CardTitle>
+                                        <CardDescription className="flex items-center gap-3 mt-2 text-[var(--text-muted)] font-medium">
+                                            <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-amber-600" /> {testData.time_allowed}</span>
+                                            <span className="text-[var(--text-faint)]">•</span>
+                                            <span>Total marks: {testData.total_marks}</span>
+                                        </CardDescription>
+                                    </div>
                                     {submitted && (
-                                        <div className="mt-4 p-4 bg-muted/30 rounded-lg text-sm space-y-2 border border-border">
-                                            <p className="font-semibold text-foreground">Explanation:</p>
-                                            <div className="text-muted-foreground leading-relaxed">
-                                                <ReactMarkdown
-                                                    components={markdownComponents}
-                                                    urlTransform={urlTransform}
-                                                >
-                                                    {q.explanation}
-                                                </ReactMarkdown>
-                                            </div>
+                                        <div className="text-right">
+                                            <div className="text-3xl font-bold text-[var(--text)]">{score}</div>
+                                            <div className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)] mt-1">Your score</div>
                                         </div>
                                     )}
+                                </div>
+                            </CardHeader>
+                            {!submitted && (
+                                <CardContent className="pt-4">
+                                    <div className="bg-amber-50 dark:bg-amber-900/10 text-amber-900 dark:text-amber-200 text-sm p-4 rounded-lg border border-amber-200 dark:border-amber-800">
+                                        <strong className="font-semibold uppercase tracking-wide text-xs">Instructions</strong>
+                                        <ul className="list-disc list-outside ml-4 mt-2 space-y-1 text-sm opacity-90">
+                                            {testData.instructions.map((inst, i) => (
+                                                <li key={i} className="pl-1">{inst}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
                                 </CardContent>
-                            </Card>
-                        ))}
-                    </div>
+                            )}
+                        </Card>
 
-                    <div className="flex justify-between items-center pt-6 pb-12">
-                        <Button variant="outline" onClick={resetTest}>
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Generate New Test
-                        </Button>
-                        {!submitted && (
-                            <Button onClick={submitTest} className="px-8">
-                                Submit Test
-                            </Button>
-                        )}
-                    </div>
-
-                    {/* Score Summary Card (Bottom) */}
-                    {submitted && (
-                        <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 pb-12">
-                            <Card className="overflow-hidden border-2 border-primary/10 shadow-lg">
-                                <div className="bg-primary/5 p-6 border-b border-primary/10">
-                                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                                        <div>
-                                            <h3 className="text-2xl font-bold text-primary">Performance Summary</h3>
-                                            <p className="text-muted-foreground">Here is how you performed on this test</p>
+                        {/* Questions List */}
+                        <div className="space-y-6">
+                            {testData.questions.map((q, qIdx) => (
+                                <Card key={qIdx} className={cn("transition-all duration-300", submitted ? (userAnswers[qIdx] === q.correct_answer ? "ring-1 ring-amber-500 border-amber-200 dark:border-amber-800" : userAnswers[qIdx] ? "ring-1 ring-red-500 border-red-200 dark:border-red-800" : "") : "")}>
+                                    <CardHeader className="pb-3 border-b border-[var(--card-border)] bg-[var(--bg-secondary)] rounded-t-xl">
+                                        <div className="flex gap-4">
+                                            <span className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-[var(--bg-tertiary)] text-[var(--text)] font-semibold text-sm border border-[var(--card-border)] shadow-sm">
+                                                {qIdx + 1}
+                                            </span>
+                                            <div className="space-y-1.5 pt-0.5">
+                                                <CardTitle className="text-base font-medium leading-relaxed whitespace-pre-line text-[var(--text)]">
+                                                    {q.question}
+                                                </CardTitle>
+                                                {submitted && (
+                                                    <div className="flex items-center gap-2 text-xs font-medium text-[var(--text-muted)] mt-2">
+                                                        <BookOpen className="h-3.5 w-3.5 text-amber-600" />
+                                                        Source: {q.source.filename} {q.source.chapter && `(${q.source.chapter})`}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-4 bg-background p-4 rounded-xl border shadow-sm">
-                                            <div className="text-right">
-                                                <div className="text-sm text-muted-foreground font-medium uppercase tracking-wider">Total Score</div>
-                                                <div className={cn("text-3xl font-black", score >= 0 ? "text-green-600" : "text-red-600")}>
-                                                    {score.toFixed(2)}
-                                                    <span className="text-lg text-muted-foreground font-medium ml-1">/ {testData.total_marks}</span>
+                                    </CardHeader>
+                                    <CardContent className="p-6 md:p-8 space-y-4">
+                                        <RadioGroup
+                                            value={userAnswers[qIdx] || ""}
+                                            onValueChange={(val) => handleAnswerSelect(qIdx, val)}
+                                            disabled={submitted}
+                                            className="space-y-3"
+                                        >
+                                            {q.options.map((option, optIdx) => {
+                                                const optionLabel = getOptionLabel(optIdx);
+                                                let optionClass = "flex items-center space-x-3 p-4 rounded-xl border border-[var(--card-border)] bg-[var(--card)] hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer";
+                                                let dotClass = "border-[var(--card-border)] text-[var(--text-muted)]";
+
+                                                if (submitted) {
+                                                    if (optionLabel === q.correct_answer) {
+                                                        // Correct answer
+                                                        optionClass = "flex items-center space-x-3 p-4 rounded-xl border border-amber-200 bg-amber-50/50 text-amber-900 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-100";
+                                                        dotClass = "bg-amber-600 border-amber-600 text-white";
+                                                    } else if (userAnswers[qIdx] === optionLabel) {
+                                                        // Wrong answer
+                                                        optionClass = "flex items-center space-x-3 p-4 rounded-xl border border-red-200 bg-red-50 text-red-900 dark:bg-red-900/20 dark:border-red-800 dark:text-red-100";
+                                                        dotClass = "bg-red-500 border-red-500 text-white";
+                                                    }
+                                                } else if (userAnswers[qIdx] === optionLabel) {
+                                                    optionClass = "flex items-center space-x-3 p-4 rounded-xl border border-amber-300 bg-amber-50/30 dark:border-amber-700 dark:bg-amber-900/20";
+                                                    dotClass = "bg-amber-600 border-amber-600 text-white";
+                                                }
+
+                                                return (
+                                                    <div key={optIdx} className={optionClass} onClick={() => !submitted && handleAnswerSelect(qIdx, optionLabel)}>
+                                                        <RadioGroupItem value={optionLabel} id={`q${qIdx}-opt${optIdx}`} className="sr-only" />
+                                                        <div className={cn(
+                                                            "w-6 h-6 rounded-full border-2 flex items-center justify-center text-xs font-semibold transition-all flex-shrink-0",
+                                                            dotClass
+                                                        )}>
+                                                            {submitted || userAnswers[qIdx] !== optionLabel ? optionLabel : ""}
+                                                        </div>
+                                                        <Label htmlFor={`q${qIdx}-opt${optIdx}`} className="flex-1 cursor-pointer font-normal text-sm leading-relaxed">
+                                                            {option}
+                                                        </Label>
+                                                        {submitted && optionLabel === q.correct_answer && <CheckCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />}
+                                                        {submitted && userAnswers[qIdx] === optionLabel && optionLabel !== q.correct_answer && <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />}
+                                                    </div>
+                                                );
+                                            })}
+                                        </RadioGroup>
+
+                                        {submitted && (
+                                            <div className="mt-6 p-5 bg-[var(--bg-secondary)] rounded-xl border border-[var(--card-border)] animate-fade-up">
+                                                <h4 className="font-semibold text-sm text-[var(--text)] mb-3 flex items-center gap-2">
+                                                    <ClipboardList className="h-4 w-4 text-amber-600" />
+                                                    Explanation
+                                                </h4>
+                                                <div className="prose prose-sm max-w-none text-[var(--text-muted)] dark:prose-invert">
+                                                    <ReactMarkdown
+                                                        components={markdownComponents}
+                                                        urlTransform={urlTransform}
+                                                    >
+                                                        {q.explanation}
+                                                    </ReactMarkdown>
                                                 </div>
                                             </div>
-                                            <div className={cn("h-12 w-12 rounded-full flex items-center justify-center text-xl font-bold",
-                                                score >= (testData.total_marks * 0.4) ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                                            )}>
-                                                {Math.round((score / testData.total_marks) * 100)}%
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <CardContent className="p-6">
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div className="p-4 rounded-lg bg-muted/50 border flex flex-col items-center justify-center text-center space-y-1">
-                                            <div className="text-3xl font-bold">{testData.questions.length}</div>
-                                            <div className="text-xs text-muted-foreground uppercase font-medium">Total Questions</div>
-                                        </div>
-                                        <div className="p-4 rounded-lg bg-blue-50 border border-blue-100 dark:bg-blue-900/20 dark:border-blue-800 flex flex-col items-center justify-center text-center space-y-1">
-                                            <div className="text-3xl font-bold text-blue-700 dark:text-blue-400">{Object.keys(userAnswers).length}</div>
-                                            <div className="text-xs text-blue-600/80 dark:text-blue-400/80 uppercase font-medium">Attempted</div>
-                                        </div>
-                                        <div className="p-4 rounded-lg bg-green-50 border border-green-100 dark:bg-green-900/20 dark:border-green-800 flex flex-col items-center justify-center text-center space-y-1">
-                                            <div className="text-3xl font-bold text-green-700 dark:text-green-400">
-                                                {testData.questions.filter((q, i) => userAnswers[i] === q.correct_answer).length}
-                                            </div>
-                                            <div className="text-xs text-green-600/80 dark:text-green-400/80 uppercase font-medium">Correct</div>
-                                        </div>
-                                        <div className="p-4 rounded-lg bg-red-50 border border-red-100 dark:bg-red-900/20 dark:border-red-800 flex flex-col items-center justify-center text-center space-y-1">
-                                            <div className="text-3xl font-bold text-red-700 dark:text-red-400">
-                                                {Object.keys(userAnswers).length - testData.questions.filter((q, i) => userAnswers[i] === q.correct_answer).length}
-                                            </div>
-                                            <div className="text-xs text-red-600/80 dark:text-red-400/80 uppercase font-medium">Wrong</div>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            ))}
                         </div>
-                    )}
-                </div>
-            )}
-        </div>
+
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-8 pb-12">
+                            <Button variant="outline" onClick={resetTest} className="w-full sm:w-auto min-w-[160px]">
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Generate new test
+                            </Button>
+                            {!submitted && (
+                                <Button onClick={submitTest} size="lg" className="w-full sm:w-auto min-w-[160px]">
+                                    Submit test
+                                </Button>
+                            )}
+                        </div>
+
+                        {/* Score Summary Card (Bottom) */}
+                        {submitted && (
+                            <div className="animate-fade-up pb-12">
+                                <Card className="overflow-hidden border-2 border-amber-600/20 shadow-amber-sm">
+                                    <div className="bg-amber-50/50 dark:bg-amber-900/10 p-6 sm:p-8 border-b border-[var(--card-border)]">
+                                        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                                            <div className="text-center md:text-left">
+                                                <h3 className="text-2xl font-bold text-[var(--text)]">Performance summary</h3>
+                                                <p className="text-[var(--text-muted)] mt-1">Here is how you performed on this test</p>
+                                            </div>
+                                            <div className="flex items-center gap-6 bg-[var(--card)] p-5 rounded-2xl border border-[var(--card-border)] shadow-sm w-full md:w-auto justify-center md:justify-end">
+                                                <div className="text-right">
+                                                    <div className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-widest mb-1">Total Score</div>
+                                                    <div className={cn("text-4xl font-bold tracking-tight", score >= 0 ? "text-amber-600" : "text-red-600")}>
+                                                        {score.toFixed(2)}
+                                                        <span className="text-xl text-[var(--text-faint)] font-medium ml-1">/ {testData.total_marks}</span>
+                                                    </div>
+                                                </div>
+                                                <div className={cn("h-16 w-16 rounded-full flex items-center justify-center text-xl font-bold border-4",
+                                                    score >= (testData.total_marks * 0.4) ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-red-50 text-red-600 border-red-100"
+                                                )}>
+                                                    {Math.round((score / testData.total_marks) * 100)}%
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <CardContent className="p-6 sm:p-8">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+                                            <div className="p-5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--card-border)] flex flex-col items-center justify-center text-center space-y-2">
+                                                <div className="text-4xl font-bold text-[var(--text)]">{testData.questions.length}</div>
+                                                <div className="text-xs text-[var(--text-muted)] uppercase font-semibold tracking-wide">Total Qs</div>
+                                            </div>
+                                            <div className="p-5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--card-border)] flex flex-col items-center justify-center text-center space-y-2">
+                                                <div className="text-4xl font-bold text-[var(--text)]">{Object.keys(userAnswers).length}</div>
+                                                <div className="text-xs text-[var(--text-muted)] uppercase font-semibold tracking-wide">Attempted</div>
+                                            </div>
+                                            <div className="p-5 rounded-xl bg-amber-50/50 border border-amber-200 dark:bg-amber-900/10 dark:border-amber-800/50 flex flex-col items-center justify-center text-center space-y-2">
+                                                <div className="text-4xl font-bold text-amber-600">
+                                                    {testData.questions.filter((q, i) => userAnswers[i] === q.correct_answer).length}
+                                                </div>
+                                                <div className="text-xs text-amber-700 dark:text-amber-400 uppercase font-semibold tracking-wide">Correct</div>
+                                            </div>
+                                            <div className="p-5 rounded-xl bg-red-50 border border-red-100 dark:bg-red-900/10 dark:border-red-900/50 flex flex-col items-center justify-center text-center space-y-2">
+                                                <div className="text-4xl font-bold text-red-600">
+                                                    {Object.keys(userAnswers).length - testData.questions.filter((q, i) => userAnswers[i] === q.correct_answer).length}
+                                                </div>
+                                                <div className="text-xs text-red-700 dark:text-red-400 uppercase font-semibold tracking-wide">Wrong</div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </PageContainer>
     )
 }

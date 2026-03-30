@@ -19,6 +19,7 @@ import { EvaluationResultCard } from "@/components/evaluate/EvaluationResultCard
 import { apiClient, ApiError, api, showToast } from "@/lib/apiClient";
 import { useEvaluateAnswerStore } from "@/stores";
 import { useAuth } from "@/context/AuthContext";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 // Helper function to format text with line breaks around ** markers for better readability
 const formatBlueprintText = (text: string): string => {
@@ -384,35 +385,30 @@ export default function EvaluatePage() {
     };
 
     return (
-        <div className="p-8 max-w-7xl mx-auto space-y-8">
-            <ApiKeyBanner
-                showBanner={showBanner}
-                onKeySet={() => {
-                    setShowBanner(false);
-                    setError("");
-                    // Skip verification since the key was just validated during save
-                    refreshUser(true);
-                }}
-            />
+        <PageContainer
+            title="Evaluate answer"
+            description="Upload your handwritten answer for AI-powered evaluation and improvement."
+        >
+            <div className="w-full space-y-8">
+                <ApiKeyBanner
+                    showBanner={showBanner}
+                    onKeySet={() => {
+                        setShowBanner(false);
+                        setError("");
+                        // Skip verification since the key was just validated during save
+                        refreshUser(true);
+                    }}
+                />
 
-            <div className="flex flex-col space-y-2">
-                <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                    Evaluate Answer
-                </h1>
-                <p className="text-muted-foreground">
-                    Upload your handwritten answer for AI-powered evaluation and improvement.
-                </p>
-            </div>
-
-            <div className="grid gap-8">
+                <div className="grid gap-8">
                 {/* Input Section */}
                 <div className="lg:col-span-2 space-y-6">
-                    <Card>
-                        <CardHeader>
+                    <Card className="border-[var(--card-border)] shadow-sm">
+                        <CardHeader className="border-b border-[var(--card-border)] bg-[var(--bg-secondary)] rounded-t-xl pb-4">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <CardTitle>Upload & Configure</CardTitle>
-                                    <CardDescription>Provide your answer details</CardDescription>
+                                    <CardTitle className="text-xl font-bold text-[var(--text)]">Upload & configure</CardTitle>
+                                    <CardDescription className="text-[var(--text-muted)] mt-1">Provide your answer details</CardDescription>
                                 </div>
                                 {result && (
                                     <Button
@@ -422,16 +418,16 @@ export default function EvaluatePage() {
                                         className="flex items-center gap-2"
                                     >
                                         <RefreshCw className="h-4 w-4" />
-                                        New Evaluation
+                                        New evaluation
                                     </Button>
                                 )}
                             </div>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="pt-6">
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 {/* Evaluation Mode Selection - At the top */}
-                                <Label className="text-sm font-medium mb-2">Evaluation Mode</Label>
-                                <div className="space-y-3 p-4 border rounded-lg bg-card">
+                                <Label className="text-sm font-semibold text-[var(--text)] uppercase tracking-wide mb-2 block">Evaluation mode</Label>
+                                <div className="space-y-3 p-5 border border-[var(--card-border)] rounded-xl bg-[var(--bg-secondary)]">
 
                                     <RadioGroup
                                         value={evaluationMode}
@@ -445,35 +441,36 @@ export default function EvaluatePage() {
                                                 setUseStandardFormat(false);
                                             }
                                         }}
-                                        className="flex flex-start space-x-2"
+                                        className="flex flex-start gap-6"
                                     >
                                         <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="single" id="single" />
-                                            <Label htmlFor="single" className="cursor-pointer text-foreground">
-                                                Single Answer
+                                            <RadioGroupItem value="single" id="single" className="text-amber-600 border-[var(--card-border)] focus:border-amber-600 focus:ring-amber-600/20" />
+                                            <Label htmlFor="single" className="cursor-pointer font-medium text-[var(--text)]">
+                                                Single answer
                                             </Label>
                                         </div>
                                         <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="batch" id="batch" />
-                                            <Label htmlFor="batch" className="cursor-pointer text-foreground">
-                                                Multiple Answers
+                                            <RadioGroupItem value="batch" id="batch" className="text-amber-600 border-[var(--card-border)] focus:border-amber-600 focus:ring-amber-600/20" />
+                                            <Label htmlFor="batch" className="cursor-pointer font-medium text-[var(--text)]">
+                                                Multiple answers
                                             </Label>
                                         </div>
                                     </RadioGroup>
 
                                     {evaluationMode === "batch" && (
-                                        <div className="mt-3 pt-3 border-t space-y-2">
+                                        <div className="mt-4 pt-4 border-t border-[var(--card-border)] space-y-2">
                                             <div className="flex items-center space-x-2">
                                                 <Checkbox
                                                     id="standard-format"
                                                     checked={useStandardFormat}
                                                     onCheckedChange={(checked) => setUseStandardFormat(checked === true)}
+                                                    className="border-[var(--card-border)] data-[state=checked]:bg-amber-600 data-[state=checked]:text-white"
                                                 />
-                                                <Label htmlFor="standard-format" className="cursor-pointer text-sm">
+                                                <Label htmlFor="standard-format" className="cursor-pointer text-sm font-medium text-[var(--text)]">
                                                     Use UPSC standard format
                                                 </Label>
                                             </div>
-                                            <p className="text-xs text-muted-foreground ml-6">
+                                            <p className="text-xs text-[var(--text-muted)] ml-6">
                                                 2 pages for Q1-10 (10 marks), 3 pages for Q11-20 (15 marks)
                                             </p>
                                         </div>
@@ -482,39 +479,39 @@ export default function EvaluatePage() {
 
                                 {/* Batch Mode: Question Input Options */}
                                 {evaluationMode === "batch" && (
-                                    <div className="space-y-4 p-4 border rounded-lg bg-secondary/50">
-                                        <Label className="text-sm font-medium">Question Reference (Optional but Recommended)</Label>
-                                        <p className="text-xs text-muted-foreground mb-3">
+                                    <div className="space-y-4 p-5 border border-[var(--card-border)] rounded-xl bg-[var(--bg-secondary)]">
+                                        <Label className="text-sm font-semibold uppercase tracking-wide text-[var(--text)]">Question reference <span className="text-[var(--text-muted)] lowercase font-normal tracking-normal">(optional but recommended)</span></Label>
+                                        <p className="text-[13px] text-[var(--text-muted)] mb-3 leading-relaxed">
                                             Provide questions to improve answer detection accuracy. Choose one option:
                                         </p>
 
                                         {/* Option 1: Upload Question File */}
-                                        <div className="space-y-2">
-                                            <Label className="text-sm font-medium">Option 1: Upload Question File</Label>
+                                        <div className="space-y-3">
+                                            <Label className="text-sm font-medium text-[var(--text)]">Option 1: Upload question file</Label>
                                             <div className="flex items-center justify-center w-full">
                                                 <label
                                                     htmlFor="question-file"
                                                     className={cn(
-                                                        "flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-lg cursor-pointer bg-white hover:bg-gray-50 transition-colors",
-                                                        questionFile ? "border-green-500 bg-green-50" : "border-gray-300"
+                                                        "flex flex-col items-center justify-center w-full h-24 border-2 border-dashed rounded-xl cursor-pointer bg-[var(--card)] hover:bg-[var(--bg-tertiary)] transition-colors",
+                                                        questionFile ? "border-amber-500 bg-amber-50/10" : "border-[var(--card-border)]"
                                                     )}
                                                 >
                                                     <div className="flex flex-col items-center justify-center pt-3 pb-3">
                                                         {questionFile ? (
                                                             <>
-                                                                <CheckCircle className="w-6 h-6 mb-1 text-green-500" />
-                                                                <p className="text-xs text-green-700 font-medium truncate max-w-[200px]">
+                                                                <CheckCircle className="w-6 h-6 mb-1 text-amber-600" />
+                                                                <p className="text-xs text-amber-900 font-medium truncate max-w-[200px] dark:text-amber-500">
                                                                     {questionFile.name}
                                                                 </p>
-                                                                <p className="text-xs text-green-600">Click to change</p>
+                                                                <p className="text-[11px] text-amber-600/80 mt-1">Click to change</p>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <FileText className="w-6 h-6 mb-1 text-gray-400" />
-                                                                <p className="text-xs text-gray-500">
-                                                                    <span className="font-semibold">Click to upload</span> question paper
+                                                                <FileText className="w-6 h-6 mb-2 text-[var(--text-faint)]" />
+                                                                <p className="text-xs text-[var(--text-muted)]">
+                                                                    <span className="font-semibold text-[var(--text)]">Click to upload</span> question paper
                                                                 </p>
-                                                                <p className="text-xs text-gray-400">PDF or Image (MAX. 10MB)</p>
+                                                                <p className="text-[11px] text-[var(--text-faint)] mt-1">PDF or image (MAX. 10MB)</p>
                                                             </>
                                                         )}
                                                     </div>
@@ -548,12 +545,12 @@ export default function EvaluatePage() {
                                         </div>
 
                                         {/* Option 2: Manual Question Input */}
-                                        <div className="space-y-2 pt-2 border-t">
+                                        <div className="space-y-4 pt-4 border-t border-[var(--card-border)]">
                                             <div className="flex items-center justify-between">
-                                                <Label className="text-sm font-medium">Option 2: Enter Questions Manually</Label>
+                                                <Label className="text-sm font-medium text-[var(--text)]">Option 2: Enter questions manually</Label>
                                                 {!questionFile && (
                                                     <div className="flex items-center gap-2">
-                                                        <Label className="text-xs text-muted-foreground">Number of questions:</Label>
+                                                        <Label className="text-[13px] text-[var(--text-muted)]">Number of questions:</Label>
                                                         <Input
                                                             type="number"
                                                             min="1"
@@ -573,17 +570,17 @@ export default function EvaluatePage() {
                                                                 }
                                                                 setQuestionTexts(newTexts);
                                                             }}
-                                                            className="w-20 h-8 text-sm"
+                                                            className="w-20 text-sm h-9 bg-[var(--card)]"
                                                         />
                                                     </div>
                                                 )}
                                             </div>
                                             {!questionFile && numQuestions > 0 && (
-                                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                                <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
                                                     {questionTexts.map((text, idx) => (
-                                                        <div key={idx} className="space-y-1">
-                                                            <Label className="text-xs text-muted-foreground">
-                                                                Question {idx + 1}:
+                                                        <div key={idx} className="space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">
+                                                                Question {idx + 1}
                                                             </Label>
                                                             <Input
                                                                 placeholder={`Enter question ${idx + 1} text...`}
@@ -593,7 +590,7 @@ export default function EvaluatePage() {
                                                                     newTexts[idx] = e.target.value;
                                                                     setQuestionTexts(newTexts);
                                                                 }}
-                                                                className="text-sm"
+                                                                className="text-sm bg-[var(--card)]"
                                                             />
                                                         </div>
                                                     ))}
@@ -604,49 +601,49 @@ export default function EvaluatePage() {
                                 )}
 
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    <label className="text-sm font-semibold text-[var(--text)] block uppercase tracking-wide leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                                         {evaluationMode === "batch" ? (
                                             <>
-                                                Answer PDF File <span className="text-red-500">*</span>{" "}
-                                                <span className="text-xs text-muted-foreground font-normal">(Multiple answers in one PDF)</span>
+                                                Answer PDF file <span className="text-amber-600">*</span>{" "}
+                                                <span className="text-[11px] text-[var(--text-muted)] font-normal lowercase tracking-normal">(multiple answers in one PDF)</span>
                                             </>
                                         ) : (
-                                            "Answer Files (PDF/Images) - Multiple pages supported"
+                                            "Answer files (PDF/Images) - multiple pages supported"
                                         )}
                                     </label>
                                     {evaluationMode === "batch" && (
-                                        <p className="text-xs text-red-600">
+                                        <p className="text-xs text-amber-600 font-medium">
                                             ⚠️ It supports PDF format only. Please convert to PDF before uploading.
                                         </p>
                                     )}
-                                    <div className="flex items-center justify-center w-full">
+                                    <div className="flex items-center justify-center w-full mt-2">
                                         <label
                                             htmlFor="dropzone-file"
                                             className={cn(
-                                                "flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors",
-                                                files.length > 0 ? "border-green-500 bg-green-50" : "border-gray-300"
+                                                "flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors",
+                                                files.length > 0 ? "border-amber-500 bg-amber-50/10" : "border-[var(--card-border)]"
                                             )}
                                         >
                                             <div className="flex flex-col items-center justify-center pt-5 pb-6">
                                                 {files.length > 0 ? (
                                                     <>
-                                                        <CheckCircle className="w-8 h-8 mb-2 text-green-500" />
-                                                        <p className="mb-2 text-sm text-green-700 font-medium">
+                                                        <CheckCircle className="w-8 h-8 mb-2 text-amber-600" />
+                                                        <p className="mb-2 text-sm text-[var(--text)] font-semibold">
                                                             {files.length} file{files.length > 1 ? 's' : ''} selected
                                                         </p>
                                                         {evaluationMode === "batch" ? (
-                                                            <p className="text-xs text-green-600">PDF file ready</p>
+                                                            <p className="text-[13px] text-amber-600/90 font-medium">PDF file ready</p>
                                                         ) : (
-                                                            <p className="text-xs text-green-600">Click to add more</p>
+                                                            <p className="text-[13px] text-amber-600/90 font-medium">Click to add more</p>
                                                         )}
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <Upload className="w-8 h-8 mb-2 text-gray-400" />
-                                                        <p className="mb-2 text-sm text-gray-500">
-                                                            <span className="font-semibold">Click to upload</span> or drag and drop
+                                                        <Upload className="w-8 h-8 mb-3 text-[var(--text-faint)]" />
+                                                        <p className="mb-2 text-sm text-[var(--text-muted)]">
+                                                            <span className="font-semibold text-[var(--text)]">Click to upload</span> or drag and drop
                                                         </p>
-                                                        <p className="text-xs text-gray-500">
+                                                        <p className="text-[13px] text-[var(--text-faint)]">
                                                             {evaluationMode === "batch"
                                                                 ? "PDF only (MAX. 50MB)"
                                                                 : "PDF, PNG, JPG (MAX. 10MB each)"}
@@ -667,20 +664,20 @@ export default function EvaluatePage() {
 
                                     {/* File List */}
                                     {files.length > 0 && (
-                                        <div className="mt-3 space-y-2 max-h-40 overflow-y-auto">
+                                        <div className="mt-4 space-y-2 max-h-48 overflow-y-auto pr-2">
                                             {files.map((file, index) => (
-                                                <div key={index} className="flex items-center justify-between p-2 bg-white border rounded-md">
-                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                        <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                                                        <span className="text-sm truncate">{file.name}</span>
-                                                        <span className="text-xs text-gray-400 flex-shrink-0">({(file.size / 1024).toFixed(1)} KB)</span>
+                                                <div key={index} className="flex items-center justify-between p-3 bg-[var(--bg-secondary)] border border-[var(--card-border)] rounded-lg">
+                                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                        <FileText className="h-4 w-4 text-amber-600/70 flex-shrink-0" />
+                                                        <span className="text-sm font-semibold text-[var(--text)] truncate">{file.name}</span>
+                                                        <span className="text-[13px] text-[var(--text-faint)] font-medium flex-shrink-0">({(file.size / 1024).toFixed(1)} KB)</span>
                                                     </div>
                                                     <Button
                                                         type="button"
                                                         variant="ghost"
                                                         size="sm"
                                                         onClick={() => removeFile(index)}
-                                                        className="h-6 w-6 p-0 flex-shrink-0"
+                                                        className="h-7 w-7 p-0 flex-shrink-0 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-full"
                                                     >
                                                         ×
                                                     </Button>
@@ -692,14 +689,15 @@ export default function EvaluatePage() {
 
                                 {/* Single Mode: Question Input */}
                                 {evaluationMode === "single" && (
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium">Question (Optional)</label>
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-semibold text-[var(--text)] uppercase tracking-wide">Question <span className="text-[var(--text-muted)] lowercase font-normal tracking-normal">(optional)</span></label>
                                         <Input
                                             placeholder="Enter the question text..."
                                             value={question}
                                             onChange={(e) => setQuestion(e.target.value)}
+                                            className="bg-[var(--card)] text-[var(--text)] border-[var(--card-border)]"
                                         />
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="text-[13px] text-[var(--text-muted)] font-medium mt-1">
                                             If left blank, AI will try to identify it from the file.
                                         </p>
                                     </div>
@@ -713,24 +711,29 @@ export default function EvaluatePage() {
                                     </div>
                                 )}
 
-                                <div className="flex gap-2">
+                                <div className="flex gap-3 pt-2">
                                     <Button
                                         type="submit"
-                                        className="w-full h-12 text-lg font-semibold border-2 border-primary/20 hover:border-primary/50 transition-all duration-300"
+                                        className={cn(
+                                            "w-full h-12 text-base font-bold transition-all duration-300 shadow-sm",
+                                            result
+                                                ? "bg-amber-600 hover:bg-amber-700 text-white"
+                                                : ""
+                                        )}
                                         disabled={loading || files.length === 0}
                                     >
                                         {loading ? (
                                             <>
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                <Loader2 className="mr-2 h-5 w-5 animate-spin text-amber-200" />
                                                 {statusMessage}
                                             </>
                                         ) : result ? (
                                             <>
-                                                <CheckCircle className="mr-2 h-4 w-4" />
-                                                {evaluationMode === "batch" ? "Batch Evaluated" : "Evaluated"}
+                                                <CheckCircle className="mr-2 h-5 w-5" />
+                                                {evaluationMode === "batch" ? "Batch evaluated" : "Evaluated"}
                                             </>
                                         ) : (
-                                            evaluationMode === "batch" ? "Evaluate Batch Answers" : "Evaluate Answer"
+                                            evaluationMode === "batch" ? "Evaluate batch answers" : "Evaluate answer"
                                         )}
                                     </Button>
 
@@ -753,19 +756,19 @@ export default function EvaluatePage() {
                 {/* Results Section */}
                 <div className="lg:col-span-2 space-y-6">
                     {result ? (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="space-y-6 pt-2 animate-fade-up">
                             {/* Global Reset Button in Results Header */}
-                            <div className="flex justify-between items-center bg-white p-4 rounded-lg border shadow-sm">
-                                <h2 className="text-xl font-semibold text-foreground">
-                                    {evaluationMode === "batch" ? "Batch Evaluation Results" : "Evaluation Result"}
+                            <div className="flex justify-between items-center bg-[var(--bg-secondary)] p-4 md:p-5 rounded-xl border border-[var(--card-border)] shadow-sm">
+                                <h2 className="text-xl font-bold text-[var(--text)]">
+                                    {evaluationMode === "batch" ? "Batch evaluation results" : "Evaluation result"}
                                 </h2>
                                 <Button
                                     variant="outline"
                                     onClick={handleReset}
-                                    className="flex items-center gap-2 border-primary/20 hover:border-primary/50"
+                                    className="flex items-center gap-2 border-[var(--card-border)] text-[var(--text-muted)] hover:text-[var(--text)]"
                                 >
                                     <RefreshCw className="h-4 w-4" />
-                                    New Evaluation
+                                    New evaluation
                                 </Button>
                             </div>
 
@@ -806,18 +809,19 @@ export default function EvaluatePage() {
                             )}
                         </div>
                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-center p-12 border-2 border-dashed rounded-lg bg-gray-50/50">
-                            <div className="bg-white p-4 rounded-full shadow-sm mb-4">
-                                <FileText className="h-8 w-8 text-gray-400" />
+                        <div className="h-full flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-[var(--card-border)] rounded-xl bg-[var(--bg-secondary)]/50 min-h-[300px]">
+                            <div className="bg-[var(--card)] p-4 rounded-full shadow-sm mb-5 border border-[var(--card-border)]">
+                                <FileText className="h-8 w-8 text-amber-600/60" />
                             </div>
-                            <h3 className="text-lg font-medium text-gray-900">No Evaluation Yet</h3>
-                            <p className="text-muted-foreground max-w-sm mt-2">
+                            <h3 className="text-lg font-bold text-[var(--text)]">No evaluation yet</h3>
+                            <p className="text-[15px] text-[var(--text-muted)] max-w-sm mt-3 leading-relaxed">
                                 Upload your answer sheet on the left to receive detailed AI feedback and an improved model answer.
                             </p>
                         </div>
                     )}
                 </div>
             </div>
-        </div>
+            </div>
+        </PageContainer>
     );
 }

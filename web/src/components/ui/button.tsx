@@ -4,25 +4,40 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
+  [
+    "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium",
+    "transition-all duration-150 ease-in-out",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2",
+    "disabled:pointer-events-none disabled:opacity-40 cursor-pointer",
+    "active:scale-[0.97]",
+  ].join(" "),
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        // Warm amber primary
+        default:
+          "bg-amber-600 text-white hover:bg-amber-700 shadow-amber-sm",
+        // Soft warm border
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+          "border border-[var(--card-border)] bg-[var(--bg)] text-[var(--text)] hover:bg-[var(--bg-secondary)] hover:border-[var(--text-faint)]",
+        // Warm secondary
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+          "bg-[var(--bg-secondary)] text-[var(--text)] hover:bg-[var(--bg-tertiary)]",
+        // Ghost
+        ghost:
+          "text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text)]",
+        // Destructive
+        destructive:
+          "bg-red-600 text-white hover:bg-red-700",
+        // Text link
+        link:
+          "text-amber-600 underline-offset-4 hover:underline hover:text-amber-700 p-0 h-auto",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
-        icon: "h-10 w-10",
+        default: "h-9 px-4 py-2",
+        sm:      "h-8 px-3 text-xs rounded-md",
+        lg:      "h-11 px-6 rounded-lg text-base",
+        icon:    "h-9 w-9",
       },
     },
     defaultVariants: {

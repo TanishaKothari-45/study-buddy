@@ -24,6 +24,7 @@ const ReactMarkdown = dynamic(() => import("react-markdown"), { ssr: false });
 import { useMainsAnswerStore } from "@/stores";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/context/AuthContext";
+import { PageContainer } from "@/components/layout/PageContainer";
 import ApiKeyBanner from "@/components/layout/ApiKeyBanner";
 import api, { ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
@@ -411,8 +412,11 @@ export default function MainsAnswerPage() {
     }, [gsPaper, subject, setSubject]);
 
     return (
-        <>
-            <div className="p-8 max-w-5xl mx-auto space-y-8">
+        <PageContainer
+            title="Let's write your answer"
+            description="Provide a question and we'll craft a structured, comprehensive answer with relevant datasets and diagrams."
+        >
+            <div className="w-full space-y-8">
                 {/* API Key Banner */}
                 <ApiKeyBanner
                     showBanner={showBanner}
@@ -424,111 +428,101 @@ export default function MainsAnswerPage() {
                     }}
                 />
 
-                {/* Header with New Answer and History buttons */}
-                <div className="flex items-start justify-between">
-                    <div className="flex flex-col space-y-2">
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                            Mains Answer Generation
-                        </h1>
-                        <p className="text-muted-foreground">
-                            Generate comprehensive, structured UPSC Mains answers with current affairs integration.
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {result && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => clear()}
-                                className="flex items-center gap-2"
-                            >
-                                <RefreshCw className="h-4 w-4" />
-                                New Answer
-                            </Button>
-                        )}
-                        {/* History button - always visible */}
-                        <div className="relative" ref={historyRef}>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setHistoryOpen(!historyOpen)}
-                                className="flex items-center gap-2"
-                                disabled={history.length === 0 && !isLoadingHistory}
-                            >
-                                {isLoadingHistory ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <History className="h-4 w-4" />
-                                )}
-                                History {history.length > 0 && `(${history.length})`}
-                            </Button>
-                            {historyOpen && history.length > 0 && (
-                                <div className="absolute right-0 top-full mt-2 w-96 rounded-md shadow-2xl z-50 max-h-[420px] overflow-hidden border bg-popover backdrop-blur-md text-popover-foreground flex flex-col">
-                                    <div className="p-3 border-b font-semibold text-sm text-popover-foreground bg-popover rounded-t-lg">
-                                        Previous Answers (Redises)
-                                    </div>
-                                    <div className="p-2 border-b bg-popover">
-                                        <Input
-                                            placeholder="Search previous questions..."
-                                            value={historySearch}
-                                            onChange={(e) => {
-                                                setHistorySearch(e.target.value);
-                                            }}
-                                            className="bg-popover! text-popover-foreground"
-                                        />
-                                    </div>
-                                    <div className="overflow-y-auto max-h-80 bg-popover">
-                                        {history.map((item) => (
-                                            <button
-                                                key={item.id}
-                                                onClick={() => handleHistoryClick(item)}
-                                                className="w-full text-left p-4 hover:bg-accent hover:text-accent-foreground border-b last:border-b-0 transition-colors bg-popover text-popover-foreground"
-                                            >
-                                                <p className="text-sm font-medium line-clamp-2">{item.question}</p>
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    {item.word_count || "250"} words • {new Date(item.timestamp).toLocaleDateString()}
-                                                </p>
-                                            </button>
-                                        ))}
-                                        {history.length === 0 && !isLoadingHistory && (
-                                            <div className="p-4 text-sm text-muted-foreground bg-popover">No results</div>
-                                        )}
-                                    </div>
-                                    <div className="p-2 border-t bg-popover flex items-center justify-between">
-                                        <span className="text-xs text-muted-foreground">
-                                            Showing {history.length} item{history.length === 1 ? "" : "s"}
-                                        </span>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={!historyHasMore || isLoadingHistory}
-                                            onClick={() => fetchHistory({ reset: false })}
-                                        >
-                                            {isLoadingHistory ? "Loading..." : historyHasMore ? "Load more" : "All loaded"}
-                                        </Button>
-                                    </div>
-                                </div>
+                {/* Actions: New Answer and History */}
+                <div className="flex items-center justify-end gap-3 w-full mb-2">
+                    {result && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => clear()}
+                            className="flex items-center gap-2"
+                        >
+                            <RefreshCw className="h-4 w-4" />
+                            New Answer
+                        </Button>
+                    )}
+                    {/* History button - always visible */}
+                    <div className="relative" ref={historyRef}>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setHistoryOpen(!historyOpen)}
+                            className="flex items-center gap-2"
+                            disabled={history.length === 0 && !isLoadingHistory}
+                        >
+                            {isLoadingHistory ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <History className="h-4 w-4" />
                             )}
-                        </div>
+                            History {history.length > 0 && `(${history.length})`}
+                        </Button>
+                        {historyOpen && history.length > 0 && (
+                            <div className="absolute right-0 top-full mt-2 w-96 rounded-md shadow-2xl z-50 max-h-[420px] overflow-hidden border bg-popover backdrop-blur-md text-popover-foreground flex flex-col">
+                                <div className="p-3 border-b font-semibold text-sm text-popover-foreground bg-popover rounded-t-lg">
+                                    Previous Answers (Redises)
+                                </div>
+                                <div className="p-2 border-b bg-popover">
+                                    <Input
+                                        placeholder="Search previous questions..."
+                                        value={historySearch}
+                                        onChange={(e) => {
+                                            setHistorySearch(e.target.value);
+                                        }}
+                                        className="bg-popover! text-popover-foreground"
+                                    />
+                                </div>
+                                <div className="overflow-y-auto max-h-80 bg-popover">
+                                    {history.map((item) => (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => handleHistoryClick(item)}
+                                            className="w-full text-left p-4 hover:bg-accent hover:text-accent-foreground border-b last:border-b-0 transition-colors bg-popover text-popover-foreground"
+                                        >
+                                            <p className="text-sm font-medium line-clamp-2">{item.question}</p>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                {item.word_count || "250"} words • {new Date(item.timestamp).toLocaleDateString()}
+                                            </p>
+                                        </button>
+                                    ))}
+                                    {history.length === 0 && !isLoadingHistory && (
+                                        <div className="p-4 text-sm text-muted-foreground bg-popover">No results</div>
+                                    )}
+                                </div>
+                                <div className="p-2 border-t bg-popover flex items-center justify-between">
+                                    <span className="text-xs text-muted-foreground">
+                                        Showing {history.length} item{history.length === 1 ? "" : "s"}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={!historyHasMore || isLoadingHistory}
+                                        onClick={() => fetchHistory({ reset: false })}
+                                    >
+                                        {isLoadingHistory ? "Loading..." : historyHasMore ? "Load more" : "All loaded"}
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="space-y-8">
                     {/* Input Section */}
                     <Card>
-                        <CardHeader>
-                            <CardTitle>1. Question Details</CardTitle>
-                            <CardDescription>Enter the question and requirements.</CardDescription>
+                        <CardHeader className="pb-4 border-b border-[var(--card-border)] bg-[var(--bg-secondary)] rounded-t-xl">
+                            <CardTitle className="text-xl font-bold text-[var(--text)]">1. Question details</CardTitle>
+                            <CardDescription className="text-[var(--text-muted)] mt-1">Enter the question and requirements.</CardDescription>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="pt-6">
                             <form onSubmit={handleGenerate} className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <Label>GS Paper Context</Label>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">GS paper context</Label>
                                         <Select value={gsPaper} onValueChange={setGsPaper}>
                                             <SelectTrigger>
-                                                <SelectValue placeholder="Select GS Paper (Optional)" />
+                                                <SelectValue placeholder="Select GS paper (optional)" />
                                             </SelectTrigger>
-                                            <SelectContent>
+                                            <SelectContent className="bg-[var(--card)] z-50">
                                                 <SelectItem value="GS1">GS1</SelectItem>
                                                 <SelectItem value="GS2">GS2</SelectItem>
                                                 <SelectItem value="GS3">GS3</SelectItem>
@@ -536,13 +530,13 @@ export default function MainsAnswerPage() {
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>Subject Domain</Label>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide">Subject domain</Label>
                                         <Select value={subject} onValueChange={setSubject}>
                                             <SelectTrigger>
-                                                <SelectValue placeholder="Select Subject (Optional)" />
+                                                <SelectValue placeholder="Select subject (optional)" />
                                             </SelectTrigger>
-                                            <SelectContent>
+                                            <SelectContent className="bg-[var(--card)] z-50">
                                                 {availableSubjects.map((subj) => (
                                                     <SelectItem key={subj} value={subj}>
                                                         {subj}
@@ -553,22 +547,22 @@ export default function MainsAnswerPage() {
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="question">Question</Label>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="question" className="text-sm font-semibold text-[var(--text)]">Question</Label>
                                     <Textarea
                                         id="question"
-                                        placeholder="e.g., Discuss the impact of climate change on Indian agriculture..."
-                                        className="min-h-[100px]"
+                                        placeholder="e.g. Discuss the impact of climate change on Indian agriculture..."
+                                        className="min-h-[120px] resize-y text-base"
                                         value={question}
                                         onChange={(e) => setQuestion(e.target.value)}
                                         disabled={loading}
                                     />
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="word-count">Word Limit</Label>
-                                    <div className="flex flex-row items-center gap-4">
-                                        <div className="relative w-full md:w-48">
+                                <div className="space-y-3 pt-2">
+                                    <Label htmlFor="word-count" className="text-sm font-semibold text-[var(--text)]">Word limit</Label>
+                                    <div className="flex flex-col md:flex-row md:items-start gap-6">
+                                        <div className="relative w-full md:w-56">
                                             <Input
                                                 id="word-count"
                                                 type="number"
@@ -579,10 +573,10 @@ export default function MainsAnswerPage() {
                                                 onChange={(e) => setWordCount(e.target.value)}
                                                 disabled={loading}
                                             />
-                                            <p className="text-xs text-muted-foreground absolute top-full left-0 pt-1 w-max">Standard limits: 150, 250 words</p>
+                                            <p className="text-[13px] text-[var(--text-muted)] mt-2">Standard limits: 150, 250 words</p>
                                         </div>
 
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-3">
                                             <Button
                                                 type="submit"
                                                 className={cn(
@@ -655,35 +649,37 @@ export default function MainsAnswerPage() {
 
                     {/* Output Section */}
                     {result && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
+                        <div className="space-y-6 pt-4 animate-fade-up">
 
                             {/* Question Title Card */}
-                            <Card className="bg-muted/30">
-                                <CardHeader className="pb-4">
-                                    <CardTitle className="text-lg font-medium leading-relaxed">
-                                        {result.question}
+                            <Card className="bg-[var(--bg-secondary)] border-[var(--card-border)] shadow-none">
+                                <CardHeader className="py-5 px-6">
+                                    <CardTitle className="text-lg font-semibold leading-relaxed text-[var(--text)]">
+                                        Q: {result.question}
                                     </CardTitle>
                                 </CardHeader>
                             </Card>
 
                             {/* Compressed Answer Accordion (shown if compression was applied) */}
                             {result.compressed_answer && (
-                                <Card>
+                                <Card className="border-[var(--card-border)] shadow-sm">
                                     <button
                                         type="button"
                                         onClick={() => setShowCompressed(!showCompressed)}
-                                        className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors border-b cursor-pointer"
+                                        className="w-full flex items-center justify-between p-5 text-left hover:bg-[var(--bg-secondary)] transition-colors border-b border-[var(--card-border)] rounded-t-xl"
                                     >
-                                        <span className="font-medium text-foreground flex items-center gap-2">
-                                            <Minimize2 className="h-4 w-4 text-blue-500" />
-                                            Compressed Answer
+                                        <span className="font-semibold text-[var(--text)] flex items-center gap-2">
+                                            <Minimize2 className="h-4 w-4 text-amber-600" />
+                                            Concise answer
                                         </span>
-                                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showCompressed ? 'rotate-180' : ''}`} />
+                                        <ChevronDown className={`h-4 w-4 text-[var(--text-muted)] transition-transform ${showCompressed ? 'rotate-180' : ''}`} />
                                     </button>
                                     {showCompressed && (
-                                        <CardContent className="p-6">
-                                            <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary">
+                                        <CardContent className="p-6 md:p-8">
+                                            <div className="prose prose-sm md:prose-base max-w-none text-[var(--text)] prose-p:leading-relaxed dark:prose-invert 
+                                                prose-headings:text-[var(--text)] prose-headings:font-bold prose-headings:mt-8 prose-headings:mb-4
+                                                prose-h3:text-lg prose-h4:text-base prose-strong:text-[var(--text)]
+                                                prose-ul:my-4 prose-li:my-1 prose-a:text-amber-600 prose-a:no-underline hover:prose-a:underline">
                                                 <ReactMarkdown
                                                     remarkPlugins={[remarkGfm]}
                                                     components={markdownComponents}
@@ -698,20 +694,23 @@ export default function MainsAnswerPage() {
                             )}
 
                             {/* Original Answer Accordion */}
-                            <Card className={result.compressed_answer ? "border-dashed" : ""}>
+                            <Card className={cn("border-[var(--card-border)] shadow-sm", result.compressed_answer ? "border-dashed" : "")}>
                                 <button
                                     type="button"
                                     onClick={() => setShowOriginal(!showOriginal)}
-                                    className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/30 transition-colors border-b cursor-pointer"
+                                    className="w-full flex items-center justify-between p-5 text-left hover:bg-[var(--bg-secondary)] transition-colors border-b border-[var(--card-border)] rounded-t-xl"
                                 >
-                                    <span className="font-medium text-foreground">
-                                        {result.compressed_answer ? "Original Answer" : "Generated Answer"} ({result.word_count_actual} words)
+                                    <span className="font-semibold text-[var(--text)]">
+                                        {result.compressed_answer ? "Comprehensive answer" : "Generated answer"} <span className="text-[var(--text-muted)] font-normal text-sm">({result.word_count_actual} words)</span>
                                     </span>
-                                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${(showOriginal || !result.compressed_answer) ? 'rotate-180' : ''}`} />
+                                    <ChevronDown className={`h-4 w-4 text-[var(--text-muted)] transition-transform ${(showOriginal || !result.compressed_answer) ? 'rotate-180' : ''}`} />
                                 </button>
                                 {(showOriginal || !result.compressed_answer) && (
-                                    <CardContent className="p-6">
-                                        <div className="prose prose-sm md:prose-base max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-primary">
+                                    <CardContent className="p-6 md:p-8">
+                                        <div className="prose prose-sm md:prose-base max-w-none text-[var(--text)] prose-p:leading-relaxed dark:prose-invert 
+                                            prose-headings:text-[var(--text)] prose-headings:font-bold prose-headings:mt-8 prose-headings:mb-4
+                                            prose-h3:text-lg prose-h4:text-base prose-strong:text-[var(--text)]
+                                            prose-ul:my-4 prose-li:my-1 prose-a:text-amber-600 prose-a:no-underline hover:prose-a:underline">
                                             <ReactMarkdown
                                                 remarkPlugins={[remarkGfm]}
                                                 components={markdownComponents}
@@ -726,24 +725,27 @@ export default function MainsAnswerPage() {
 
                             {/* References Card */}
                             {result.sources.length > 0 && (
-                                <Card>
-                                    <CardContent className="pt-6">
-                                        <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                                            <BookOpen className="h-4 w-4" />
+                                <Card className="border-[var(--card-border)] shadow-sm bg-[var(--bg-secondary)]">
+                                    <CardContent className="p-6">
+                                        <h4 className="text-sm font-semibold text-[var(--text)] mb-4 flex items-center gap-2 uppercase tracking-wide">
+                                            <BookOpen className="h-4 w-4 text-amber-600" />
                                             References
                                         </h4>
-                                        <div className="grid gap-2 sm:grid-cols-2">
+                                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                             {result.sources.map((source, idx) => (
-                                                <div key={idx} className="bg-muted/50 p-2 rounded text-xs border text-muted-foreground">
-                                                    <p className="font-medium text-foreground truncate" title={source.filename}>
-                                                        {source.filename}
+                                                <div key={idx} className="bg-[var(--card)] p-3 rounded-lg text-xs border border-[var(--card-border)] group hover:border-amber-300 transition-colors">
+                                                    <p className="font-semibold text-[var(--text)] truncate" title={source.filename}>
+                                                        {source.filename.replace('.pdf', '')}
                                                     </p>
-                                                    <div className="flex gap-2 mt-0.5">
+                                                    <div className="flex gap-2 mt-1.5 text-[var(--text-muted)] font-medium">
                                                         {source.page_number && <span>Page {source.page_number}</span>}
                                                         {source.chapter && (
-                                                            <span className="truncate max-w-[150px]" title={source.chapter}>
-                                                                {source.chapter}
-                                                            </span>
+                                                            <>
+                                                                {source.page_number && <span className="text-[var(--text-faint)]">•</span>}
+                                                                <span className="truncate" title={source.chapter}>
+                                                                    {source.chapter}
+                                                                </span>
+                                                            </>
                                                         )}
                                                     </div>
                                                 </div>
@@ -880,6 +882,6 @@ export default function MainsAnswerPage() {
                     )}
                 </DialogContent>
             </Dialog>
-        </>
+        </PageContainer>
     );
 }

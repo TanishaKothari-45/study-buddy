@@ -9,61 +9,69 @@ const config: Config = {
     ],
     theme: {
         extend: {
+            fontFamily: {
+                jakarta: ["var(--font-jakarta)", "system-ui", "sans-serif"],
+                inter: ["var(--font-inter)", "system-ui", "sans-serif"],
+            },
             colors: {
-                // Base colors mapped to CSS variables
-                background: 'hsl(var(--bg))',
-                foreground: 'hsl(var(--text))',
+                // Semantic Tailwind aliases mapping to CSS variables
+                background:  "var(--bg)",
+                foreground:  "var(--text)",
 
                 card: {
-                    DEFAULT: 'hsl(var(--card))',
-                    foreground: 'hsl(var(--text))'
+                    DEFAULT:    "var(--card)",
+                    foreground: "var(--text)",
                 },
                 popover: {
-                    DEFAULT: 'hsl(var(--card))',
-                    foreground: 'hsl(var(--text))'
+                    DEFAULT:    "var(--card)",
+                    foreground: "var(--text)",
                 },
                 primary: {
-                    DEFAULT: 'hsl(var(--accent))',
-                    foreground: 'hsl(var(--bg))'
+                    DEFAULT:    "var(--accent)",
+                    foreground: "#FAFAF8",
                 },
                 secondary: {
-                    DEFAULT: 'hsl(var(--bg-secondary))',
-                    foreground: 'hsl(var(--text))'
+                    DEFAULT:    "var(--bg-secondary)",
+                    foreground: "var(--text)",
                 },
                 muted: {
-                    DEFAULT: 'hsl(var(--bg-secondary))',
-                    foreground: 'hsl(var(--text-muted))'
+                    DEFAULT:    "var(--bg-secondary)",
+                    foreground: "var(--text-muted)",
                 },
                 accent: {
-                    DEFAULT: 'hsl(var(--accent))',
-                    foreground: 'hsl(var(--bg))'
+                    DEFAULT:    "var(--accent)",
+                    foreground: "#FAFAF8",
                 },
                 destructive: {
-                    DEFAULT: 'hsl(var(--destructive))', // Keeping standard destructive for now or mapping to accent
-                    foreground: 'hsl(var(--bg))'
+                    DEFAULT:    "var(--destructive)",
+                    foreground: "#FAFAF8",
                 },
-                border: 'hsl(var(--card-border))',
-                input: 'hsl(var(--input-bg))',
-                ring: 'hsl(var(--accent))',
+                border:  "var(--card-border)",
+                input:   "var(--input-bg)",
+                ring:    "var(--accent)",
 
-                // Custom specific names from request for direct usage if needed
-                bg: "hsl(var(--bg))",
-                "bg-secondary": "hsl(var(--bg-secondary))",
-                "card-border": "hsl(var(--card-border))",
-                text: "hsl(var(--text))",
-                "text-muted": "hsl(var(--text-muted))",
-                "accent-hover": "hsl(var(--accent-hover))",
-                "sidebar-bg": "hsl(var(--sidebar-bg))",
-                "sidebar-active": "hsl(var(--sidebar-active))",
-                "input-bg": "hsl(var(--input-bg))",
-                "input-border": "hsl(var(--input-border))",
+                // Direct aliases for convenience
+                "bg-secondary":  "var(--bg-secondary)",
+                "bg-tertiary":   "var(--bg-tertiary)",
+                "text-muted":    "var(--text-muted)",
+                "text-faint":    "var(--text-faint)",
+                "accent-hover":  "var(--accent-hover)",
+                "accent-light":  "var(--accent-light)",
+                "sidebar-bg":    "var(--sidebar-bg)",
+                "sidebar-active":"var(--sidebar-active)",
             },
             borderRadius: {
-                lg: 'var(--radius)',
-                md: 'calc(var(--radius) - 2px)',
-                sm: 'calc(var(--radius) - 4px)'
-            }
-        }
+                lg: "var(--radius)",
+                md: "calc(var(--radius) - 2px)",
+                sm: "calc(var(--radius) - 4px)",
+            },
+            boxShadow: {
+                "warm-sm": "0 1px 3px rgba(28,25,23,0.08), 0 1px 2px rgba(28,25,23,0.04)",
+                "warm-md": "0 4px 12px rgba(28,25,23,0.08), 0 2px 4px rgba(28,25,23,0.04)",
+                "warm-lg": "0 10px 32px rgba(28,25,23,0.10), 0 4px 8px rgba(28,25,23,0.04)",
+                "amber-sm": "0 1px 3px rgba(217,119,6,0.15)",
+            },
+        },
     },
     plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
 };

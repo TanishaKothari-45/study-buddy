@@ -1,161 +1,185 @@
 @import "tailwindcss";
 
 @theme {
-  --radius: 0.5rem;
+  --radius: 0.75rem;
 }
 
+/* ── Advanced Mentor Design System (Pastel Pink/Orange & Deep Charcoal) ────────────────────────────── */
+
 :root {
-  /* Light Theme - Oatmilk × Japanese Minimal */
-  --bg: 40 33% 98%;
-  /* Oatmilk */
-  --bg-secondary: 40 30% 96%;
-  /* Slightly darker oat */
+  /* Light Theme — soft peach/pink tinted backgrounds, deep charcoal text */
+  --bg:             #FFFDFB;
+  --bg-secondary:   #FFF5F3; /* very faint pastel pink/peach */
+  --bg-tertiary:    #FEEDE7; /* soft orange/pink blend */
 
-  --card: 40 30% 97%;
-  --card-border: 25 20% 85%;
+  --card:           #FFFFFF;
+  --card-border:    #FCE7F3; /* pink-100 */
 
-  --text: 24 16% 32%;
-  /* Soft warm brown */
-  --text-muted: 24 10% 46%;
+  --text:           #2D2323; /* soft deep charcoal/aubergine for headings/base text */
+  --text-muted:     #78716C;
+  --text-faint:     #A8A29E;
 
-  --accent: 18 70% 55%;
-  /* Soft Coral/Copper */
-  --accent-hover: 18 75% 48%;
+  --accent:         #FB7185; /* pastel rose-400 (pink) */
+  --accent-hover:   #F43F5E; /* rose-500 */
+  --accent-light:   #FCE7F3; /* pink-100 */
 
-  --sidebar-bg: 40 30% 96%;
-  --sidebar-active: 30 30% 90%;
+  --sidebar-bg:     #FFF5F3;
+  --sidebar-active: #FEEDE7;
+  --sidebar-border: #FCE7F3;
 
-  --input-bg: 40 30% 97%;
-  --input-border: 25 15% 80%;
+  --input-bg:       #FFFFFF;
+  --input-border:   #FBCFE8; /* pink-200 */
 
-  --modal-overlay: 30 20% 20% / 0.6;
-  --modal-bg: 40 30% 97%;
+  --modal-overlay:  rgba(45, 35, 35, 0.4);
+  --modal-bg:       #FFFDFB;
 
-  --destructive: 0 84.2% 60.2%;
+  --success:        #10B981; /* emerald-500 */
+  --error:          #F43F5E; /* rose-500 */
+  --warning:        #F97316; /* orange-500 */
+  --info:           #3B82F6; /* blue-500 */
+
+  --destructive:    #F43F5E;
 }
 
 .dark {
-  /* Dark Theme - Charcoal × Gold Luxury */
-  --bg: 220 15% 10%;
-  /* Charcoal */
-  --bg-secondary: 220 12% 14%;
+  /* Dark Theme — warm dark tones */
+  --bg:             #1A1515; /* deep warm brown/black */
+  --bg-secondary:   #241C1C;
+  --bg-tertiary:    #2E2222;
 
-  --card: 220 12% 13%;
-  --card-border: 40 10% 20%;
+  --card:           #241C1C;
+  --card-border:    #3F2E2E;
 
-  --text: 40 20% 90%;
-  /* Warm off-white */
-  --text-muted: 40 15% 70%;
+  --text:           #FEF6F6; /* pinkish off-white */
+  --text-muted:     #D4C8C8;
+  --text-faint:     #A89999;
 
-  --accent: 35 75% 55%;
-  /* Gold/Amber Glow */
-  --accent-hover: 35 80% 48%;
+  --accent:         #FB7185; /* rose-400 */
+  --accent-hover:   #FDA4AF; /* rose-300 */
+  --accent-light:   #881337; /* rose-900 */
 
-  --sidebar-bg: 220 12% 12%;
-  --sidebar-active: 220 10% 18%;
+  --sidebar-bg:     #1A1515;
+  --sidebar-active: #2E2222;
+  --sidebar-border: #3F2E2E;
 
-  --input-bg: 220 12% 14%;
-  --input-border: 35 10% 40%;
+  --input-bg:       #1A1515;
+  --input-border:   #3F2E2E;
 
-  --modal-overlay: 220 20% 5% / 0.75;
-  --modal-bg: 220 12% 13%;
+  --modal-overlay:  rgba(10, 8, 8, 0.8);
+  --modal-bg:       #1A1515;
 
-  --destructive: 0 62.8% 30.6%;
+  --destructive:    #EF4444;
 }
 
-* {
-  border-color: hsl(var(--card-border));
+/* ── Base Reset ──────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  border-color: var(--card-border);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background-color: hsl(var(--bg));
-  color: hsl(var(--text));
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  line-height: 1.625;
 }
 
-/* Ensure dropdowns and popovers have solid backgrounds */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-lora), var(--font-jakarta), serif;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+/* ── Dropdown / Popover solid backgrounds ────────────────────── */
+
 [data-radix-popper-content-wrapper] {
   --tw-bg-opacity: 1 !important;
 }
 
 [role="listbox"],
 [data-radix-select-content] {
-  background-color: hsl(var(--card)) !important;
+  background-color: var(--card) !important;
+  border: 1px solid var(--card-border) !important;
 }
 
-/* Answer Content Styling */
+/* ── Prose / Answer Content ──────────────────────────────────── */
+
 h3 {
-  font-weight: 700;
-  font-size: 1.1rem;
+  font-weight: 600;
+  font-size: 1.125rem;
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
-  color: hsl(var(--text));
 }
 
-/* Bullet points in answers */
 ul {
   margin: 0.5rem 0;
-  padding-left: 1.5rem;
+  padding-left: 1.25rem;
 }
 
 li {
-  margin: 0.5rem 0;
-  line-height: 1.6;
+  margin: 0.375rem 0;
+  line-height: 1.7;
 }
 
-/* Bold text in bullets (main idea) */
 li strong {
   font-weight: 600;
-  color: hsl(var(--text));
+  color: var(--text);
 }
 
-/* Mermaid Diagram Wrapper */
+/* ── Mermaid Diagram ─────────────────────────────────────────── */
+
 .mermaid-wrapper {
   margin: 1.5rem 0;
   border-radius: 12px;
-  border: 1px solid hsl(var(--card-border));
-  background: hsl(var(--bg-secondary));
+  border: 1px solid var(--card-border);
+  background: var(--bg-secondary);
   overflow: hidden;
 }
 
-/* Zoom Controls */
 .mermaid-controls {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border-bottom: 1px solid hsl(var(--card-border));
-  background: hsl(var(--card));
+  border-bottom: 1px solid var(--card-border);
+  background: var(--card);
 }
 
 .mermaid-control-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 6px;
-  border: 1px solid hsl(var(--card-border));
-  background: hsl(var(--bg));
-  color: hsl(var(--text));
+  border: 1px solid var(--card-border);
+  background: var(--bg);
+  color: var(--text);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .mermaid-control-btn:hover {
-  background: hsl(var(--accent));
-  color: hsl(var(--bg));
-  border-color: hsl(var(--accent));
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
 
 .mermaid-zoom-level {
   font-size: 12px;
   font-weight: 600;
-  color: hsl(var(--text-muted));
+  color: var(--text-muted);
   min-width: 45px;
   text-align: center;
 }
 
-/* Diagram Container (scrollable/pannable area) */
 .mermaid-container {
   overflow: auto;
   max-height: 500px;
@@ -165,7 +189,6 @@ li strong {
   align-items: flex-start;
 }
 
-/* The actual diagram */
 .mermaid-diagram {
   display: inline-block;
   transition: transform 0.1s ease-out;
@@ -180,34 +203,31 @@ li strong {
   min-width: 300px;
 }
 
-/* Ensure text is readable - larger fonts */
 .mermaid-diagram text,
 .mermaid-diagram tspan {
-  font-size: 16px !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
-  fill: #111827 !important;
-  letter-spacing: 0.01em !important;
+  fill: #1C1917 !important;
 }
 
 .mermaid-diagram .nodeLabel,
 .mermaid-diagram .edgeLabel {
-  font-size: 16px !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
-  color: #111827 !important;
+  color: #1C1917 !important;
 }
 
 .mermaid-diagram .label {
-  font-size: 16px !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
 }
 
 .mermaid-diagram foreignObject div {
-  font-size: 16px !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
-  color: #111827 !important;
+  color: #1C1917 !important;
 }
 
-/* Node styling */
 .mermaid-diagram .node rect,
 .mermaid-diagram .node circle,
 .mermaid-diagram .node ellipse,
@@ -215,26 +235,62 @@ li strong {
   stroke-width: 1.5px !important;
 }
 
-/* Hide small nested rectangles */
 .mermaid-diagram rect[width="20"],
 .mermaid-diagram rect[width="30"],
 .mermaid-diagram rect[height="20"] {
   display: none !important;
 }
 
-/* Mobile adjustments */
+/* ── Page entry animation ────────────────────────────────────── */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.4s ease-out both;
+}
+
+.animate-fade-up-delay-1 { animation-delay: 80ms; }
+.animate-fade-up-delay-2 { animation-delay: 160ms; }
+.animate-fade-up-delay-3 { animation-delay: 240ms; }
+.animate-fade-up-delay-4 { animation-delay: 320ms; }
+.animate-fade-up-delay-5 { animation-delay: 400ms; }
+.animate-fade-up-delay-6 { animation-delay: 480ms; }
+
+/* ── Reduced motion ──────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Mobile adjustments ──────────────────────────────────────── */
+
 @media (max-width: 640px) {
   .mermaid-container {
     max-height: 400px;
   }
-  
+
   .mermaid-controls {
     padding: 6px 10px;
     gap: 6px;
   }
-  
+
   .mermaid-control-btn {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
   }
 }
