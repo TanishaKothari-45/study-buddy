@@ -390,7 +390,7 @@ async def generate_mock_test_task(
         # Step 2: Generate micro-batches
         logger.info(f"🔨 [JOB {job_id}] Step 2: Generating micro-batches")
         try:
-            all_questions = await generate_micro_batches(
+            all_questions, gap_subdomains = await generate_micro_batches(
                 all_chunks=all_chunks,
                 num_questions=num_questions,
                 topics=topics,
@@ -438,7 +438,8 @@ async def generate_mock_test_task(
                     topics=topics,
                     api_key=api_key,
                     job_id=job_id,
-                    pinecone_handler=pinecone_handler
+                    pinecone_handler=pinecone_handler,
+                    target_subdomains=gap_subdomains if gap_subdomains else None
                 )
                 unique_questions.extend(gap_fill)
                 logger.info(f"✅ [JOB {job_id}] After gap-fill: {len(unique_questions)} questions")

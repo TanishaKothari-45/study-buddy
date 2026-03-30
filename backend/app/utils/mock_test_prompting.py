@@ -630,6 +630,25 @@ def get_cognitive_framework(subject: str) -> str:
     # Default to Geography
     return FRAMEWORK_GEOGRAPHY
 
+def get_question_type_quota(num_questions: int, ca_available: bool) -> str:
+    """Return a strict per-type quota for the batch."""
+    if not ca_available:
+        return f"""QUESTION TYPE DISTRIBUTION (strict):
+- {num_questions // 3} Multi-statement evaluation questions
+- {num_questions // 5} Assertion-Reason questions  
+- {num_questions // 5} Match-the-pair questions
+- Remaining: Fact-based and spatial reasoning mixed"""
+    
+    # With current affairs available, assign CA linkage to specific types
+    return f"""QUESTION TYPE QUOTA (you MUST hit these counts exactly):
+- {num_questions * 3 // 10} Multi-statement: one statement in each MUST cite a 2024-2025 event from your search results
+- {num_questions * 2 // 10} Assertion-Reason: Assertion = a 2024-2025 current development, Reason = the static geographic/scientific explanation
+- {num_questions * 2 // 10} Match-the-pair: STATIC spatial/factual only — no current affairs
+- {num_questions * 2 // 10} Fact-based: static concept, one distractor uses a current data point to trap candidates
+- {num_questions * 1 // 10} Map/spatial reasoning: STATIC only
+
+CRITICAL: CA integration must be in the QUESTION STEM, not just the explanation."""   
+
 
 # Integrate patterns is now dynamic in the assembler
 
@@ -706,9 +725,9 @@ You MUST use your Google Search tool to research the following queries. These qu
 1. **Static Knowledge** - Subject concepts, processes, theories (Verified via search or context)
 2. **Current Affairs** - Recent events, policies, data (Verified via search)
 
-At least 40% of your questions MUST link current affairs with static concepts.
-
 """
+        ca_available = bool(retrieved_current_affairs)
+        research_instruction += get_question_type_quota(num_questions, ca_available) + "\n"
     
     # Format PYQ chunks for style learning
     pyq_examples_text = ""
@@ -776,8 +795,7 @@ Each question must follow this structure:
 
 Ensure:
 
-• 4–5 distinct question types across the test.
-• 1–2 questions combine static + current info (if current affairs available).
+• Follow the QUESTION TYPE QUOTA exactly (see STEP 2 above if search queries were provided).
 • Avoid keyword or fact repetition.
 • Tone and conciseness must match authentic UPSC.
 • Each explanation justifies correct and incorrect options.

@@ -2,6 +2,8 @@
 Batch Validation and Quality Checks for Mock Test Questions
 """
 import logging
+import math
+from collections import Counter, defaultdict
 from typing import List, Dict, Tuple, Any
 
 logger = logging.getLogger(__name__)
@@ -135,6 +137,94 @@ def calculate_quality_score(question: Dict[str, Any]) -> float:
     
     # Normalize to 0-1 range
     return min(score / 100, 1.0)
+
+
+def partition_with_diversity(
+    chunks: List[Dict],
+    batch_size: int = 10,
+    max_per_subdomain: int = 3,
+) -> List[Dict]:
+    """
+    Build a single batch by round-robin across sub-domains, capping each at
+    *max_per_subdomain* so no single sub-domain dominates the generation context.
+    Chunks that are consumed are popped from *subdomain_buckets* in-place so the
+    caller can feed the remainder into subsequent batches.
+    """
+    subdomain_buckets: Dict[str, List[Dict]] = defaultdict(list)
+    for chunk in chunks:
+        sd = chunk.get("metadata", {}).get("sub_domain", "Unknown")
+        subdomain_buckets[sd].append(chunk)
+
+    batch: List[Dict] = []
+    subdomain_counts: Dict[str, int] = defaultdict(int)
+
+    while len(batch) < batch_size:
+        added = False
+        for sd in list(subdomain_buckets.keys()):
+            sd_chunks = subdomain_buckets[sd]
+            if subdomain_counts[sd] < max_per_subdomain and sd_chunks:
+                batch.append(sd_chunks.pop(0))
+                subdomain_counts[sd] += 1
+                added = True
+                if len(batch) >= batch_size:
+                    break
+        if not added:
+            break
+
+    return batch
+
+
+def partition_all_batches(
+    all_chunks: List[Dict],
+    num_batches: int,
+    batch_size: int = 10,
+    max_per_subdomain: int = 3,
+) -> List[List[Dict]]:
+    """
+    Partition *all_chunks* into *num_batches* lists, each with sub-domain
+    diversity enforced.  Remaining chunks after all capped rounds are
+    distributed evenly so nothing is wasted.
+    """
+    pool = list(all_chunks)
+    batches: List[List[Dict]] = []
+
+    for _ in range(num_batches):
+        batch = partition_with_diversity(pool, batch_size, max_per_subdomain)
+        used_ids = {id(c) for c in batch}
+        pool = [c for c in pool if id(c) not in used_ids]
+        batches.append(batch)
+
+    if pool:
+        for i, chunk in enumerate(pool):
+            batches[i % num_batches].append(chunk)
+
+    sd_summary = {}
+    for idx, b in enumerate(batches):
+        dist = defaultdict(int)
+        for c in b:
+            dist[c.get("metadata", {}).get("sub_domain", "Unknown")] += 1
+        sd_summary[idx] = dict(dist)
+    logger.info(f"📊 Batch diversity distribution: {sd_summary}")
+
+    return batches
+
+
+def subdomain_entropy_score(questions: List[Dict[str, Any]]) -> float:
+    """
+    Normalized Shannon entropy (0-1) over sub-domain labels in a question set.
+    1.0 = perfectly uniform distribution; 0.0 = all questions from one sub-domain.
+    """
+    subdomains = [
+        q.get("source", {}).get("sub_domain", "Unknown") for q in questions
+    ]
+    counts = Counter(subdomains)
+    n = len(subdomains)
+    if n == 0:
+        return 0.0
+
+    entropy = -sum((c / n) * math.log2(c / n) for c in counts.values())
+    max_entropy = math.log2(len(counts)) if len(counts) > 1 else 1.0
+    return entropy / max_entropy if max_entropy > 0 else 0.0
 
 
 def score_batch(questions: List[Dict[str, Any]]) -> List[Tuple[Dict, float]]:

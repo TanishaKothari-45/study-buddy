@@ -94,5 +94,6 @@ docs/analysis/*.json
 backend/map_storage/
 
 .agent/
+.cursor/
 
 package-lock.json
