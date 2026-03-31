@@ -644,8 +644,8 @@ export default function MockTestPage() {
                             {!submitted && (
                                 <CardContent className="pt-4">
                                     <div className="bg-amber-50 dark:bg-amber-900/10 text-amber-900 dark:text-amber-200 text-sm p-4 rounded-lg border border-amber-200 dark:border-amber-800">
-                                        <strong className="font-semibold uppercase tracking-wide text-xs">Instructions</strong>
-                                        <ul className="list-disc list-outside ml-4 mt-2 space-y-1 text-sm opacity-90">
+                                        <strong className="font-semibold uppercase tracking-wide text-xs text-red-600">Instructions</strong>
+                                        <ul className="list-disc list-outside ml-4 mt-2 space-y-1 text-sm opacity-100 text-red-600">
                                             {testData.instructions.map((inst, i) => (
                                                 <li key={i} className="pl-1">{inst}</li>
                                             ))}

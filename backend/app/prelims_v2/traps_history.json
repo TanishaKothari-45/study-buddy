@@ -1,0 +1,204 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "source": "UPSC Prelims PYQ analysis 2014–2024 (10 years)",
+    "method": "web research + direct question analysis",
+    "last_updated": "2026-03",
+    "note": "Each trap has real PYQ examples. Use these in blueprint generation to inject specific trap strategies per skeleton."
+  },
+  "History": {
+    "_subject_patterns": {
+      "dominant_question_types": [
+        "match_pair",
+        "multi_statement",
+        "chronology",
+        "direct_fact"
+      ],
+      "avg_questions_per_paper": 14,
+      "difficulty_split": {
+        "easy": 0.3,
+        "medium": 0.45,
+        "hard": 0.25
+      },
+      "ca_linkage_rate": 0.15
+    },
+    "traps": [
+      {
+        "trap_id": "HIS_T01",
+        "name": "party_leader_wrong_match",
+        "description": "In match-the-pair, assigns a leader to the wrong political party — especially using founders vs prominent members.",
+        "mechanism": "Students know Rajagopalachari was prominent in Congress but forget he FOUNDED Swatantra Party. Narendra Dev is associated with Socialist movement but not the Swatantra Party.",
+        "real_pyq_example": "2024: Swatantra Party — Acharya Narendra Dev (WRONG, should be C. Rajagopalachari). Socialist Party — C. Rajagopalachari (WRONG, should be Acharya Narendra Dev / Jayaprakash Narayan).",
+        "how_to_generate": "Match 4 parties/movements to 4 leaders. Put 2 correct and 2 crossed (leader A matched with party B and vice versa). Use leaders who overlap across ideological movements.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Modern History",
+          "Independence Movement",
+          "Political Parties Post-Independence"
+        ],
+        "generation_rules": {
+          "format": "match_pair",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T02",
+        "name": "buddhist_text_author_swap",
+        "description": "Assigns a Buddhist/Jain/Ancient text to the wrong author or tradition.",
+        "mechanism": "Students know text names but not the specific sect, author, or language they belong to.",
+        "real_pyq_example": "2024: Works attributed to playwright Bhasa — Madhyama-vyayoga (correct). Kavyalankara (Bhamaha), Natyashastra (Bharata), Mahabhashya (Patanjali) — all real texts by different authors.",
+        "how_to_generate": "Pick any Sanskrit text or classical work. Give 4 real text names but only one is correctly attributed to the person in the question. Others are real texts by real but different authors.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Ancient History",
+          "Literature",
+          "Art & Culture"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "swap",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T03",
+        "name": "constituent_assembly_president_first_vs_later",
+        "description": "Confuses the Provisional President with the eventual President of Constituent Assembly — or confuses with Drafting Committee Chair.",
+        "mechanism": "Students know Dr. Rajendra Prasad was President of Constituent Assembly and B.R. Ambedkar chaired Drafting Committee. The Provisional President (Dr. Sachchidananda Sinha) is almost always unknown.",
+        "real_pyq_example": "2024: 'Who was Provisional President before Rajendra Prasad?' — Dr. Sachchidananda Sinha. Common wrong answers: Rajagopalachari, Ambedkar, T.T. Krishnamachari.",
+        "how_to_generate": "Ask about 'first' or 'provisional' holders of roles that later became associated with more famous people. Use the famous name as a distractor.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Modern History",
+          "Constituent Assembly",
+          "Constitutional History"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T04",
+        "name": "government_of_india_act_provision_reversal",
+        "description": "States a provision of GOI Act 1935 incorrectly — e.g., says defence/foreign affairs were under federal legislature when they were reserved for Governor-General.",
+        "mechanism": "Students know GOI 1935 had federation and residuary powers but get confused on what was 'reserved' vs 'transferred'.",
+        "real_pyq_example": "2024: Statement 1 (All-India Federation with provinces and princely states) — TRUE. Statement 2 (Defence and Foreign Affairs under federal legislature) — FALSE. These were reserved subjects under Governor-General.",
+        "how_to_generate": "Pick any colonial legislation (GOI 1919, 1935, Rowlatt Act). State 2 provisions, one of which misassigns who controlled a key subject.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Modern History",
+          "Colonial Legislation",
+          "Constitutional History"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "reversal",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T05",
+        "name": "ryotwari_zamindari_feature_swap",
+        "description": "Assigns a feature of Zamindari to Ryotwari or vice versa — especially regarding exemptions for bad harvest.",
+        "mechanism": "Students mix up the two settlement systems. Ryotwari had direct settlement with ryots, Zamindari had intermediaries.",
+        "real_pyq_example": "PYQ: 'Under Ryotwari Settlement, peasants were exempted from revenue payment in case of bad harvests' — this is actually a nuanced TRUE. The trap is students think only Zamindari had exemptions.",
+        "how_to_generate": "State a feature of one revenue settlement system and attribute it to the other. Or use a feature that sounds like it belongs to the more 'exploitative' system but actually belongs to the supposedly 'better' one.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Modern History",
+          "Colonial Economy",
+          "Land Revenue"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "swap",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T06",
+        "name": "buddhist_monk_text_tradition_wrong",
+        "description": "Names an Indian Buddhist monk and asks which text they wrote — confuses Theravada/Mahayana/Sarvastivada traditions.",
+        "mechanism": "Students know major Buddhist texts (Prajnaparamita, Visuddhimagga) but cannot match them to specific monks and schools.",
+        "real_pyq_example": "2024: Sanghabhuti — wrote commentary on Sarvastivada Vinaya. Distractors: Prajnaparamita Sutra (Mahayana), Visuddhimagga (Theravada), Lalitavistara (Mahayana biography of Buddha).",
+        "how_to_generate": "Name an obscure monk/scholar. Distractors = real texts from other traditions. Correct answer = the matching tradition's text.",
+        "difficulty": "very_hard",
+        "sub_domains": [
+          "Ancient History",
+          "Buddhism",
+          "Literature"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T07",
+        "name": "unesco_heritage_year_wrong",
+        "description": "Lists UNESCO World Heritage sites and asks which were added in a specific year — students confuse recent vs older listings.",
+        "mechanism": "Students know which sites ARE on the list but not the exact year of inscription.",
+        "real_pyq_example": "2024: Shantiniketan and Sacred Ensembles of Hoysalas were added in 2023 (answer = 2). Rani-ki-Vav (2014) and Mahabodhi Temple (2002) are old listings used as distractors.",
+        "how_to_generate": "Mix 2-3 recent inscriptions with 1-2 older well-known ones. Ask 'how many were added in year X'. Answer is never 'all four'.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Art & Culture",
+          "UNESCO Heritage",
+          "Current Affairs-History link"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T08",
+        "name": "exercise_military_wrong_country",
+        "description": "Names a bilateral military exercise and assigns it to the wrong country pair.",
+        "mechanism": "Students know exercise names but mix up which two countries participate, especially India-Sri Lanka vs India-Bangladesh vs India-Nepal.",
+        "real_pyq_example": "2024: Exercise Mitra Shakti 2023 — Statement 1 'between India and Bangladesh' — FALSE. It is India-Sri Lanka. Commenced at Aundh, Pune (TRUE). Counter-terrorism goal (TRUE). IAF part (TRUE).",
+        "how_to_generate": "Name any bilateral exercise (Mitra Shakti, Shakti, Yudh Abhyas, SLINEX). State the partner country wrong. India's south Asian neighbours are interchangeable in student memory.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Current Affairs",
+          "Defence Exercises",
+          "India's Foreign Relations"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      }
+    ]
+  }
+}

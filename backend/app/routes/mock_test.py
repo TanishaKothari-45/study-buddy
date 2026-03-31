@@ -1975,18 +1975,17 @@ async def generate_async(
         except Exception as e:
             logger.warning(f"⚠️ Failed to set initial Redis status: {e}")
 
-        # Enqueue job via Arq
+        # Enqueue job via Arq — uses V2 question-first pipeline
         await arq_pool.enqueue_job(
-            "generate_mock_test_task",
+            "generate_mock_test_v2_task",
             job_id=job_id,
             num_questions=test_request.num_questions,
             topics=test_request.topics,
-            subject=test_request.subject,
+            subject=test_request.subject if hasattr(test_request, "subject") else "Geography",
             api_key=api_key
         )
 
-        # Log task creation
-        logger.info(f"🎬 Enqueued job {job_id[:8]} to Arq worker")
+        logger.info(f"🆕 [V2] Enqueued job {job_id[:8]} — {test_request.num_questions}Q / {getattr(test_request, 'subject', 'Geography')}")
 
         # Estimate time
         estimated_seconds = math.ceil(test_request.num_questions / 40) * 60  # ~60s per 40 questions
@@ -2078,3 +2077,77 @@ async def cancel_mock_test(job_id: str):
         return {"message": "Cancellation requested"}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+# ============================================================================
+# V2 — QUESTION-FIRST PIPELINE ENDPOINT
+# ============================================================================
+
+@router.post("/v2/generate-async")
+async def generate_async_v2(
+    request: Request,
+    test_request: MockTestRequest,
+):
+    """
+    Question-first mock test pipeline (v2).
+
+    Enqueues `generate_mock_test_v2_task` in the Arq worker.
+    Polling and cancellation work via the same endpoints as v1:
+      GET  /mock-test/status/{job_id}
+      POST /mock-test/cancel/{job_id}
+    """
+    try:
+        if test_request.num_questions > 200:
+            raise HTTPException(400, "Maximum 200 questions allowed")
+
+        job_id = str(uuid4())
+
+        arq_pool = request.app.state.arq_pool
+        if not arq_pool:
+            raise HTTPException(500, "Job queue not initialized")
+
+        from ..gemini_core.settings_gemini_key import GEMINI_API_KEY
+        if not GEMINI_API_KEY:
+            raise HTTPException(400, "Gemini API key not configured")
+
+        # Set initial Redis keys (same schema as v1 — status endpoint reads these)
+        try:
+            client = get_redis_client()
+            await client.set(f"job_status:{job_id}", "queued", ex=3600)
+            await client.set(f"job_num_questions:{job_id}", str(test_request.num_questions), ex=3600)
+            await client.set(f"job_topics:{job_id}", ",".join(test_request.topics), ex=3600)
+            await client.close()
+        except Exception as e:
+            logger.warning(f"⚠️ [V2] Failed to set initial Redis status: {e}")
+
+        # Enqueue v2 task
+        await arq_pool.enqueue_job(
+            "generate_mock_test_v2_task",
+            job_id=job_id,
+            num_questions=test_request.num_questions,
+            topics=test_request.topics,
+            subject=test_request.subject,
+            api_key=GEMINI_API_KEY,
+        )
+
+        estimated_seconds = math.ceil(test_request.num_questions / 20) * 90  # ~90s per 20 questions (parallel)
+
+        logger.info(f"🆕 [V2] Enqueued job {job_id[:8]} — {test_request.num_questions}Q / {test_request.subject}")
+
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "pipeline_version": "v2",
+            "estimated_time_seconds": estimated_seconds,
+            "message": (
+                f"[V2 Question-First] Generating {test_request.num_questions} questions. "
+                f"Poll /mock-test/status/{job_id} for progress."
+            ),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ [V2] Failed to start async generation: {e}")
+        raise HTTPException(500, str(e))
+

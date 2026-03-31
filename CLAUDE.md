@@ -96,6 +96,7 @@ All endpoints versioned under `/api/v1/`:
 - Handle errors with custom exception classes, not bare try/except
 - Type hints on all function signatures
 - Keep route handlers thin — business logic goes in utils/services
+- always use python version 3.11.14
 
 ### TypeScript (Frontend)
 
@@ -114,7 +115,7 @@ All endpoints versioned under `/api/v1/`:
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
 
 ## Testing
-
+- always set node ie nvm use 22
 ```bash
 # Backend
 cd backend && pytest tests/

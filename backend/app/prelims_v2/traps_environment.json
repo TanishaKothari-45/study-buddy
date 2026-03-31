@@ -1,0 +1,159 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "source": "UPSC Prelims PYQ analysis 2014–2024 (10 years)",
+    "method": "web research + direct question analysis",
+    "last_updated": "2026-03",
+    "note": "Each trap has real PYQ examples. Use these in blueprint generation to inject specific trap strategies per skeleton."
+  },
+  "Environment": {
+    "_subject_patterns": {
+      "dominant_question_types": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact"
+      ],
+      "avg_questions_per_paper": 15,
+      "difficulty_split": {
+        "easy": 0.25,
+        "medium": 0.5,
+        "hard": 0.25
+      },
+      "ca_linkage_rate": 0.45
+    },
+    "traps": [
+      {
+        "trap_id": "ENV_T01",
+        "name": "low_cloud_warming_vs_cooling_effect",
+        "description": "States low clouds cause a COOLING effect — they actually cause WARMING by absorbing infrared radiation from Earth.",
+        "mechanism": "Students know high clouds (cirrus) cool by reflecting sunlight. They assume all clouds cool. Low clouds trap outgoing radiation = warming.",
+        "real_pyq_example": "2024: 'Low clouds have high absorption of infrared radiation from Earth's surface and thus cause a warming effect' — TRUE. Students who assumed clouds always cool marked this wrong.",
+        "how_to_generate": "Use cloud types (high/low/middle) and assign wrong radiation effects (reflection vs absorption, solar vs terrestrial radiation).",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Climate Change",
+          "Atmosphere",
+          "Radiation"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ENV_T02",
+        "name": "congo_basin_carbon_sink_lung_confusion",
+        "description": "Tests whether students know Congo Basin (not Amazon) is the world's largest carbon sink.",
+        "mechanism": "Amazon is called 'lungs of the Earth' in popular media. Congo Basin is actually the largest net carbon sink per scientific measurements.",
+        "real_pyq_example": "2024: DRC / Congo Basin — 'known as lungs of Africa, largest carbon sink in world, absorbing more carbon than Amazon' — correct per UPSC's answer.",
+        "how_to_generate": "Ask about superlatives for carbon sinks, biodiversity hotspots, or forest cover using either Amazon or Congo. Students will default to Amazon for most superlatives.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Biodiversity",
+          "Carbon Sinks",
+          "World Geography-Environment link"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ENV_T03",
+        "name": "cobalt_mining_byproduct_wrong",
+        "description": "States cobalt is primarily mined as a standalone mineral — it's actually a BYPRODUCT of copper and nickel mining.",
+        "mechanism": "Students know cobalt is used in batteries and DRC is the main producer, but don't know the extraction method (byproduct, not primary mine).",
+        "real_pyq_example": "2024: 'Cobalt is primarily mined as a byproduct of nickel and copper mining' — TRUE. Students who thought cobalt has dedicated mines marked this wrong.",
+        "how_to_generate": "Use any strategic/critical mineral (cobalt, lithium, rare earths). Ask about primary vs byproduct extraction. Many critical minerals are byproducts.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Mineral Resources",
+          "Critical Minerals",
+          "Economic Geography-Environment link"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ENV_T04",
+        "name": "ramsar_wetland_criteria_wrong",
+        "description": "States a specific criterion for Ramsar designation that is slightly wrong — especially the 20,000 waterbird threshold.",
+        "mechanism": "Students know Ramsar is about wetlands but not the exact criteria numbers and conditions.",
+        "real_pyq_example": "Recurring PYQ type: 'A wetland qualifies for Ramsar listing if it regularly supports 20,000 waterfowl' — this IS one of the criteria but students mark it wrong because they think it's arbitrary.",
+        "how_to_generate": "State the actual numerical criteria with a slight modification (10,000 instead of 20,000, 1% instead of actual threshold). Or swap Ramsar criteria with IUCN criteria.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Wetlands",
+          "International Conventions",
+          "Biodiversity"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ENV_T05",
+        "name": "treaty_body_wrong_secretariat",
+        "description": "Assigns the secretariat of an environmental convention to the wrong city/organisation.",
+        "mechanism": "CITES (Geneva), CBD (Montreal), UNFCCC (Bonn), Ramsar (Gland, Switzerland) — students mix up host cities.",
+        "real_pyq_example": "Recurring: 'CITES secretariat is located in' — options include Geneva, Nairobi, Montreal, Bonn. Students confuse with UNEP (Nairobi) or IPCC (Geneva).",
+        "how_to_generate": "Match environmental conventions to their secretariat cities. Include two that are in the same city or same country to increase confusion.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "International Environmental Law",
+          "Conventions and Treaties",
+          "Institutions"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ENV_T06",
+        "name": "ozone_vs_greenhouse_gas_confusion",
+        "description": "Claims ozone IS a greenhouse gas — it IS, but students think it's not because its main role is UV protection.",
+        "mechanism": "Students learn about ozone for UV protection and never connect it to greenhouse warming. But ozone IS a greenhouse gas in the troposphere.",
+        "real_pyq_example": "PYQ multi-statement type: 'Tropospheric ozone is a greenhouse gas' — TRUE. 'Stratospheric ozone is a greenhouse gas' — also technically true but less impactful. Students mark both wrong.",
+        "how_to_generate": "Use any gas that has dual or unexpected roles (ozone, water vapor, methane vs CO2 comparison by GWP). Ask about its classification in a way that requires knowing the secondary role.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Atmosphere",
+          "Climate Change",
+          "Air Pollution"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      }
+    ]
+  }
+}

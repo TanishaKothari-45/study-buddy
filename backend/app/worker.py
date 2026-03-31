@@ -2067,12 +2067,75 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
 
 
 # ============================================================
+# TASK: MOCK TEST GENERATION V2 (Question-First Pipeline)
+# ============================================================
+
+@trace_chain("mock_test_v2_pipeline")
+async def generate_mock_test_v2_task(
+    ctx,
+    job_id: str,
+    num_questions: int,
+    topics: List[str],
+    api_key: str,
+    subject: str = "Geography"
+):
+    """
+    Generate mock test questions using the new question-first v2 pipeline.
+    Stages: Blueprint → Skeleton Retrieval → Difficulty Injection
+             → Parallel Generation → Quality Gate → Gap Fill.
+    """
+    logger.info(f"🆕 [V2 JOB {job_id[:8]}] Starting question-first generation")
+    redis = ctx["redis"]
+
+    await set_job_status(redis, job_id, "processing",
+                         num_questions=num_questions,
+                         topics=topics)
+
+    try:
+        await check_cancellation(ctx, job_id)
+
+        from .prelims_v2.pipeline import run_v2_pipeline
+        from .gemini_core.gemini_client import GeminiClient
+        from .gemini_core.settings_gemini_key import GEMINI_API_KEY
+
+        pinecone_handler = ctx["pinecone_handler"]
+        gemini_client = get_gemini_client(ctx, GEMINI_API_KEY, settings.GEMINI_MODEL_PRO)
+
+        questions = await run_v2_pipeline(
+            job_id=job_id,
+            num_questions=num_questions,
+            topics=topics,
+            subject=subject,
+            pinecone_handler=pinecone_handler,
+            gemini_client=gemini_client,
+            redis=redis,
+        )
+
+        # Build result in same format as v1 so /status/{job_id} works unchanged
+        from .routes.mock_test import format_mock_test_response
+        mock_response = format_mock_test_response(questions, job_id, topics)
+        result = mock_response.model_dump()
+        result["pipeline_version"] = "v2"   # extra flag for debugging
+
+        await set_job_result(redis, job_id, result)
+        logger.info(f"✅ [V2 JOB {job_id[:8]}] Completed — {len(mock_response.questions)} questions")
+
+    except asyncio.CancelledError:
+        await set_job_error(redis, job_id, "Cancelled by user")
+    except Exception as e:
+        logger.error(f"❌ [V2 JOB {job_id[:8]}] Failed: {e}", exc_info=True)
+        await set_job_error(redis, job_id, error_handlers.clean_gemini_error(str(e)))
+    finally:
+        await redis.delete(f"cancel:{job_id}")
+
+
+# ============================================================
 # WORKER SETTINGS
 # ============================================================
 
 class WorkerSettings:
     """ARQ Worker configuration"""
-    functions = [generate_mock_test_task, evaluate_answer_task, evaluate_batch_answers_task, generate_improved_answer_task, generate_mains_answer_task]
+    functions = [generate_mock_test_task, generate_mock_test_v2_task, evaluate_answer_task, evaluate_batch_answers_task, generate_improved_answer_task, generate_mains_answer_task]
     redis_settings = REDIS_SETTINGS
     on_startup = startup
     on_shutdown = shutdown

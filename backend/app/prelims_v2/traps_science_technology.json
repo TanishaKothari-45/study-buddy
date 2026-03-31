@@ -1,0 +1,159 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "source": "UPSC Prelims PYQ analysis 2014–2024 (10 years)",
+    "method": "web research + direct question analysis",
+    "last_updated": "2026-03",
+    "note": "Each trap has real PYQ examples. Use these in blueprint generation to inject specific trap strategies per skeleton."
+  },
+  "Science_Technology": {
+    "_subject_patterns": {
+      "dominant_question_types": [
+        "direct_fact",
+        "multi_statement",
+        "application_based"
+      ],
+      "avg_questions_per_paper": 13,
+      "difficulty_split": {
+        "easy": 0.2,
+        "medium": 0.45,
+        "hard": 0.35
+      },
+      "ca_linkage_rate": 0.6
+    },
+    "traps": [
+      {
+        "trap_id": "SCI_T01",
+        "name": "isro_mission_wrong_objective",
+        "description": "Assigns the wrong primary objective to an ISRO mission — e.g., says Chandrayaan-3 targeted equatorial region vs south pole.",
+        "mechanism": "Students know mission names but not precise landing sites, instruments, or primary objectives.",
+        "real_pyq_example": "Pattern: 'Chandrayaan-3 landed near the lunar equator' — FALSE. It landed near the south pole (first mission to do so). Distractors include equatorial region and dark side of Moon.",
+        "how_to_generate": "Name any ISRO/DRDO mission. Give 3-4 statements about objectives/payloads/launch vehicles. Mix one wrong one (wrong orbit, wrong instrument, wrong objective).",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Space Technology",
+          "ISRO Missions",
+          "Current Affairs S&T"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "SCI_T02",
+        "name": "semiconductor_property_wrong",
+        "description": "States that semiconductor conductivity increases with temperature — TRUE, opposite of metals — students assume it behaves like metals.",
+        "mechanism": "Students know semiconductors are between conductors and insulators but assume conductivity goes down with heat like metals.",
+        "real_pyq_example": "PYQ type: 'Conductivity of semiconductors increases with rise in temperature' — TRUE. This is counterintuitive to students who compare with metals.",
+        "how_to_generate": "Use any physical property where semiconductors behave opposite to metals (conductivity, resistance, band gap). State the semiconductor property; students apply metal logic.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Fundamental Science",
+          "Physics",
+          "Technology"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "SCI_T03",
+        "name": "mRNA_vaccine_dna_integration_false",
+        "description": "States mRNA vaccines alter human DNA — FALSE. They use mRNA which does not enter cell nucleus and cannot integrate into DNA.",
+        "mechanism": "Students fear or believe the popular misconception that mRNA vaccines change genetic code.",
+        "real_pyq_example": "PYQ 2022 type: 'mRNA vaccines alter the genetic structure of the host' — FALSE. The mRNA degrades after producing spike protein and never touches nuclear DNA.",
+        "how_to_generate": "For any new technology (mRNA, CRISPR, nanotechnology), state the most common public misconception as a false statement. The correct science is the trap against the misconception.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Biotechnology",
+          "COVID-19 Science",
+          "Vaccines"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "SCI_T04",
+        "name": "ai_ml_dl_wrong_hierarchy",
+        "description": "States AI is a subset of ML, or that DL and ML are the same — correct hierarchy is AI ⊃ ML ⊃ DL.",
+        "mechanism": "Students confuse the relationship direction. AI is the broadest, ML is a type of AI, Deep Learning is a type of ML.",
+        "real_pyq_example": "PYQ type: 'Machine Learning is a subset of Artificial Intelligence' — TRUE. 'Deep Learning is a subset of Machine Learning' — TRUE. Trap: 'Artificial Intelligence is a subset of Machine Learning' — FALSE.",
+        "how_to_generate": "Draw the correct hierarchy (AI > ML > DL > NN). Swap the subset direction in one false statement. Use 'is a part of' vs 'contains' language.",
+        "difficulty": "easy",
+        "sub_domains": [
+          "Emerging Technologies",
+          "Artificial Intelligence",
+          "IT"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "SCI_T05",
+        "name": "5g_frequency_band_wrong",
+        "description": "States 5G operates on lower frequencies than 4G — FALSE. 5G uses higher frequency (mmWave) bands for speed, though it also uses sub-6GHz.",
+        "mechanism": "Students know 5G is faster but assume higher speed = lower frequency (like comparing AM/FM radio). Actually higher frequency = higher speed but lower range.",
+        "real_pyq_example": "PYQ type: 'Unlike 4G, 5G technology uses higher frequency radio waves' — TRUE. 'Higher frequency means better range' — FALSE (higher frequency = shorter range, more towers needed).",
+        "how_to_generate": "Use any connectivity technology (5G, satellite internet, WiFi bands). Test the frequency-speed-range relationship — students always confuse at least one of these.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Information Technology",
+          "Telecommunications",
+          "Emerging Technologies"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "SCI_T06",
+        "name": "quantum_entanglement_communication_speed",
+        "description": "States quantum entanglement allows faster-than-light communication — FALSE. Entanglement is real but cannot be used to transmit information faster than light.",
+        "mechanism": "Popular science presents entanglement as 'spooky action at a distance' which sounds like instant communication.",
+        "real_pyq_example": "PYQ type: 'Quantum entanglement can be used to transmit information faster than the speed of light' — FALSE. Entanglement allows correlated measurements but not information transfer.",
+        "how_to_generate": "Use any quantum technology concept (entanglement, superposition, quantum computing). State the popular misconception as a false statement.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Quantum Technology",
+          "Fundamental Science",
+          "Emerging Technologies"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      }
+    ]
+  }
+}

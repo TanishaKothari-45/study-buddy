@@ -1,0 +1,247 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "source": "UPSC Prelims PYQ analysis 2014–2024 (10 years)",
+    "method": "web research + direct question analysis",
+    "last_updated": "2026-03",
+    "note": "Each trap has real PYQ examples. Use these in blueprint generation to inject specific trap strategies per skeleton."
+  },
+  "Polity": {
+    "_subject_patterns": {
+      "dominant_question_types": [
+        "multi_statement",
+        "assertion_reason",
+        "direct_fact"
+      ],
+      "avg_questions_per_paper": 15,
+      "difficulty_split": {
+        "easy": 0.2,
+        "medium": 0.55,
+        "hard": 0.25
+      },
+      "ca_linkage_rate": 0.4
+    },
+    "traps": [
+      {
+        "trap_id": "POL_T01",
+        "name": "speaker_power_vs_president_power",
+        "description": "Assigns a power belonging to the Speaker (anti-defection, disqualification) to the President or Vice President.",
+        "mechanism": "Students know President has many powers and conflate constitutional roles.",
+        "real_pyq_example": "2025: 'If any question arises as to whether a Member has become subject to disqualification under Tenth Schedule, the President's decision shall be final' — FALSE. It's the Speaker/Chairman who decides, not the President.",
+        "how_to_generate": "Take any Speaker/Chairman exclusive power. Assign it to President in a false statement. Common pairs: Speaker vs President, Speaker vs SC, Governor vs President.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Parliament",
+          "Anti-Defection",
+          "Speaker Powers"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T02",
+        "name": "tenth_schedule_political_party_mention",
+        "description": "Claims 'political party' is NOT mentioned in the Constitution — it IS mentioned in the Tenth Schedule.",
+        "mechanism": "Students think 'political party' is a non-constitutional concept handled by RPA 1951.",
+        "real_pyq_example": "2025: 'There is no mention of the word political party in the Constitution of India' — FALSE. Tenth Schedule explicitly uses the term.",
+        "how_to_generate": "Take a term students assume is outside the Constitution (coalition, political party, election symbol). One will actually be in the Constitution somewhere.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Constitution",
+          "Anti-Defection",
+          "Tenth Schedule"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T03",
+        "name": "money_bill_rajya_sabha_powers",
+        "description": "States Rajya Sabha can reject a Money Bill OR that its suggested amendments must be accepted by Lok Sabha — both are false.",
+        "mechanism": "Students know Rajya Sabha has limited powers on Money Bills but mix up exactly what it CAN and CANNOT do.",
+        "real_pyq_example": "2024: Statement 3 — 'Rajya Sabha can either approve or suggest changes but cannot reject' — TRUE. Statement 4 — 'Amendments suggested by Rajya Sabha have to be accepted by Lok Sabha' — FALSE (Lok Sabha may or may not accept).",
+        "how_to_generate": "Use the exact wording from Constitution (Article 109, 110). Swap 'may accept' with 'must accept'. These qualifier flips are the core trap.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Parliament",
+          "Money Bill",
+          "Rajya Sabha Powers"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T04",
+        "name": "schedule_wrong_part",
+        "description": "Assigns a constitutional provision to the wrong Part or Schedule number.",
+        "mechanism": "Students know what is in which Part but confuse Part IX/IX-A/XVIII/XX numbers.",
+        "real_pyq_example": "2024: All three statements correct — Part IX-A (Municipalities), Part XVIII (Emergency), Part XX (Amendment). Trap was making students doubt one of them.",
+        "how_to_generate": "List 3 Part/Schedule numbers. Put 2 correct and 1 off by 1-2 (e.g., say Part XVII instead of XVIII for Emergency). OR make all 3 correct (answer = D) which students avoid.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Constitution",
+          "Schedules and Parts",
+          "Constitutional Provisions"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T05",
+        "name": "union_state_concurrent_list_wrong_placement",
+        "description": "Puts a subject in wrong list — e.g., Inter-State trade is Union List, but students think it's State or Concurrent.",
+        "mechanism": "Students know obvious items (defence = Union, police = State) but struggle with inter-State matters.",
+        "real_pyq_example": "2024: 'Inter-State quarantine is a Union subject' — TRUE (correct answer C). Traps: Inter-State trade (actually Concurrent, not State), Inter-State migration (Concurrent, not State).",
+        "how_to_generate": "Pick 'Inter-State X' subjects. Students assume Inter-State anything = Union. Some are Concurrent. Use the wrong list in the false option.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Federalism",
+          "Seventh Schedule",
+          "Union-State Relations"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T06",
+        "name": "cds_command_vs_coordinate",
+        "description": "Says CDS exercises 'military command' over Service Chiefs — CDS coordinates, advises, but does NOT command.",
+        "mechanism": "Students assume the most senior military officer must have command authority.",
+        "real_pyq_example": "2024: Statement 2 — 'CDS exercises military command over the three Service Chiefs' — FALSE. Correct duties: Permanent Chairman of Chiefs of Staff Committee (TRUE) + Principal Military Advisor to Defence Minister (TRUE).",
+        "how_to_generate": "Use roles that sound like command but are advisory (CDS, NSA, Cabinet Secretary). Insert 'command' in false statement, use 'coordinate/advise' in true one.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Defence",
+          "Military Institutions",
+          "Governance"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T07",
+        "name": "nari_shakti_act_implementation_trigger",
+        "description": "States provisions come into effect from the 18th Lok Sabha — false. Requires delimitation first, which has not happened.",
+        "mechanism": "Students know Act was passed but don't know the implementation pre-condition (delimitation).",
+        "real_pyq_example": "2024: Statement 1 — 'Provisions will come into effect from the 18th Lok Sabha' — FALSE. Statement 2 — '15 years duration' — TRUE. Statement 3 — 'SC Women seats within SC quota' — TRUE.",
+        "how_to_generate": "For any recent constitutional amendment or Act, ask about implementation conditions (commencement date, pre-conditions). The 'when does it kick in' is always a trap.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Constitutional Amendments",
+          "Recent Legislation",
+          "Women's Reservation"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T08",
+        "name": "writ_wrong_issuing_authority_or_target",
+        "description": "Describes what a writ does but assigns it to wrong authority or wrong target body.",
+        "mechanism": "Students confuse Mandamus/Prohibition/Certiorari — all are writs but issued against different bodies for different purposes.",
+        "real_pyq_example": "2024: Writ of Prohibition question — tests whether students know it's issued to inferior courts/tribunals to stop proceedings, not to government officers.",
+        "how_to_generate": "Take any writ (Habeas Corpus, Mandamus, Certiorari, Prohibition, Quo Warranto). State what a DIFFERENT writ does in the false option. Or say it can be issued against a body it CANNOT be issued against.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Judiciary",
+          "Fundamental Rights",
+          "Writs"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T09",
+        "name": "ethics_committee_complaint_eligibility",
+        "description": "States non-MP can file complaint against MP to Ethics Committee — only an MP can file such a complaint.",
+        "mechanism": "Students assume any citizen can complain about MP conduct, like with Lokpal.",
+        "real_pyq_example": "2024: Statement 2 — 'Only a Member of Lok Sabha can make a complaint about unethical conduct' — TRUE (this is the counterintuitive fact). Statement 3 — 'Cannot take up sub-judice matters' — TRUE.",
+        "how_to_generate": "For any parliamentary committee, ask about eligibility to file complaints, quorum rules, or what it cannot do. The restrictions are always the trap.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Parliament",
+          "Parliamentary Committees",
+          "Ethics"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T10",
+        "name": "lokpal_scope_exclusion",
+        "description": "States Lokpal cannot investigate PM, or that it covers Indian public servants posted abroad — both are tricky.",
+        "mechanism": "Lokpal CAN inquire into PM under certain conditions. It does NOT cover public servants posted outside India.",
+        "real_pyq_example": "2025: Statement IV — 'Lokpal cannot inquire into allegations against sitting PM' — FALSE. Lokpal can under specific circumstances. Statement I — 'applies to public servants of India but not those posted outside' — TRUE.",
+        "how_to_generate": "Use any oversight institution (Lokpal, CVC, CAG). Ask about who it covers and who it excludes. Reverse a well-known exclusion.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Anti-Corruption Institutions",
+          "Governance",
+          "Lokpal"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      }
+    ]
+  }
+}

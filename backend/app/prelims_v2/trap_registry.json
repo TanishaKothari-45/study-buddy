@@ -1,0 +1,1130 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "source": "UPSC Prelims PYQ analysis 2014\u20132024 (10 years)",
+    "method": "web research + direct question analysis",
+    "last_updated": "2026-03",
+    "note": "Each trap has real PYQ examples. Use these in blueprint generation to inject specific trap strategies per skeleton."
+  },
+  "Geography": {
+    "_subject_patterns": {
+      "dominant_question_types": [
+        "multi_statement",
+        "match_pair",
+        "assertion_reason",
+        "spatial_fact"
+      ],
+      "avg_questions_per_paper": 13,
+      "difficulty_split": {
+        "easy": 0.25,
+        "medium": 0.5,
+        "hard": 0.25
+      },
+      "ca_linkage_rate": 0.3
+    },
+    "traps": [
+      {
+        "trap_id": "GEO_T01",
+        "name": "river_lake_wrong_feeder",
+        "description": "Statement says River X feeds Lake Y \u2014 but X only passes through or is adjacent to Y, not the direct feeder. Or the feeder relationship is reversed.",
+        "mechanism": "Students memorise river names near lakes but not the exact hydrological relationship.",
+        "real_pyq_example": "2023: 'Krishna River directly feeds Kolleru Lake' \u2014 FALSE. Kolleru lies between Krishna and Godavari deltas but Krishna does not directly feed it. Jhelum passing through Wular Lake was TRUE.",
+        "how_to_generate": "Pick any Indian lake. Assign the nearest river as the feeder in a false statement. Use actual feeder in correct statement.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Indian Rivers",
+          "Indian Lakes",
+          "Drainage System"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T02",
+        "name": "country_border_length_swap",
+        "description": "Tests longest/shortest border between two countries \u2014 students confuse China-India with Canada-US.",
+        "mechanism": "Students assume India has long borders since it borders many countries. The Canada-US border is the world's longest, not China-India.",
+        "real_pyq_example": "2024: 'The longest border between any two countries is between China and India' \u2014 FALSE. Correct answer: Canada-USA.",
+        "how_to_generate": "Use superlatives (longest, shortest, highest, deepest) and swap with the second-most-famous answer.",
+        "difficulty": "easy",
+        "sub_domains": [
+          "World Geography",
+          "International Boundaries"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "swap",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T03",
+        "name": "sea_ocean_property_reversal",
+        "description": "Assigns a physical property (precipitation, salinity, no river inflow) to the wrong water body, or reverses a comparative property.",
+        "mechanism": "Students know properties in isolation but not the correct body they apply to.",
+        "real_pyq_example": "2024 Red Sea question: Both statements were actually correct \u2014 Red Sea has very little precipitation AND no river inflow. Trap was in the options (students expected one to be false).",
+        "how_to_generate": "State a true property of one sea for a different sea. Or use 'highest salinity' for Red Sea vs Dead Sea confusion.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Oceanography",
+          "World Geography",
+          "Seas and Gulfs"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "reversal",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T04",
+        "name": "troposphere_thickness_direction_error",
+        "description": "Reverses the direction of a gradient \u2014 e.g., troposphere is thicker at equator vs poles, temperature lapse rates.",
+        "mechanism": "Students know the concept but flip the direction under exam pressure.",
+        "real_pyq_example": "2024: 'Troposphere is thicker at the equator' \u2014 TRUE. Statement II explained it correctly via convectional currents. Trap was making students doubt Statement I because Statement II seemed to explain something they weren't sure about.",
+        "how_to_generate": "Take any gradient concept (temperature, pressure, thickness, density) and state the correct direction in one statement, reversed in another. Use A/R format.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Atmosphere",
+          "Climatology",
+          "Physical Geography"
+        ],
+        "generation_rules": {
+          "format": "assertion_reason",
+          "error_type": "reversal",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T05",
+        "name": "mineral_source_confusion",
+        "description": "Asks what mineral a rock/ore is a source of \u2014 confuses titanium with iron, cobalt with nickel, etc.",
+        "mechanism": "Students know ore names but not the exact metal extracted from each.",
+        "real_pyq_example": "2023: 'Ilmenite and rutile are rich sources of Titanium' \u2014 correct. Common trap: students think ilmenite = iron (ilmen = iron in some languages). 2024: DRC cobalt \u2014 primary byproduct of copper/nickel mining.",
+        "how_to_generate": "Give a mineral name + location. Options are 4 metals that are plausibly associated with that region or mineral family.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Economic Geography",
+          "Mineral Resources",
+          "Indian Resources"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T06",
+        "name": "india_vs_china_agricultural_stats",
+        "description": "Compares India-China on arable land, irrigated area, productivity \u2014 two of three stats are true, one flips.",
+        "mechanism": "India DOES have more arable land and higher irrigation share. But China has HIGHER productivity per hectare. Students assume India beats China on all three.",
+        "real_pyq_example": "2023: Three statements about India vs China agriculture \u2014 statements 1 and 2 correct, statement 3 (India productivity higher than China) FALSE. Appeared 2+ times in PYQs.",
+        "how_to_generate": "Use any India vs world comparison (ranks, shares, ratios). Put 2 correct and 1 reversed statement. Make the reversed one the one students are most likely to assume is true.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Human Geography",
+          "Agriculture",
+          "Indian Agriculture"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T07",
+        "name": "port_classification_first_largest",
+        "description": "Confuses 'first' (chronologically) with 'largest' \u2014 or 'public' with 'private' port classification.",
+        "mechanism": "Students memorise rankings without understanding classification criteria.",
+        "real_pyq_example": "2023: 'Kamarajar Port is first major port registered as a company' \u2014 TRUE. 'Mundra Port is largest privately owned' \u2014 TRUE. Students failed on the Kamarajar = company registration fact.",
+        "how_to_generate": "Pick ports/airports/stations. Use superlatives with specific criteria (first by which metric, largest by which measure, greenfield vs brownfield).",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Indian Geography",
+          "Transport",
+          "Economic Geography"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T08",
+        "name": "volcanic_eruption_products",
+        "description": "Lists volcanic products and asks which are ALL correct \u2014 students think nitrogen compounds are NOT volcanic products.",
+        "mechanism": "Students know lava, ash, sulphur. Nitrogen compounds (NOx) from volcanic eruptions are less memorised.",
+        "real_pyq_example": "2023: Pyroclastic debris, ash, nitrogen compounds, sulphur compounds \u2014 all four are volcanic products. Answer was 'all of the above' which students avoided.",
+        "how_to_generate": "Use 'all of the above' as the correct answer when one item seems unlikely. Science-geography overlap questions.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Physical Geography",
+          "Geomorphology",
+          "Volcanism"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T09",
+        "name": "tree_type_deciduous_vs_evergreen",
+        "description": "Classifies trees as deciduous/evergreen \u2014 one familiar tree (jackfruit) is evergreen, not deciduous, trapping students.",
+        "mechanism": "Teak is obviously deciduous. Jackfruit looks like a tropical tree so students assume evergreen \u2014 actually it IS evergreen. The trap is Mahua which is also deciduous.",
+        "real_pyq_example": "2023: Teak (deciduous), Mahua (deciduous), Jackfruit (evergreen) \u2014 answer was 'two are deciduous'.",
+        "how_to_generate": "Mix trees students know (teak, sal, neem) with less-known ones and ask how many are deciduous/evergreen. Include one that seems counterintuitive.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Natural Vegetation",
+          "Indian Geography",
+          "Ecology"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T10",
+        "name": "green_field_vs_brown_field_airport",
+        "description": "Asks which airports are greenfield (built on new land) vs brownfield (expansion of existing) \u2014 students assume all new-looking airports are greenfield.",
+        "mechanism": "Vijayawada airport LOOKS modern but is a very old airport expanded \u2014 brownfield. Students assume newness = greenfield.",
+        "real_pyq_example": "2023: Donyi Polo (greenfield, correct), Kushinagar (greenfield, correct), Vijayawada (brownfield, NOT greenfield) \u2014 trap caught students who assumed all three were greenfield.",
+        "how_to_generate": "List infrastructure projects. Include one that was recently upgraded/modernised but is actually old \u2014 that's the false greenfield claim.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Indian Geography",
+          "Transport Infrastructure",
+          "Economic Geography"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      }
+    ]
+  },
+  "Polity": {
+    "_subject_patterns": {
+      "dominant_question_types": [
+        "multi_statement",
+        "assertion_reason",
+        "direct_fact"
+      ],
+      "avg_questions_per_paper": 15,
+      "difficulty_split": {
+        "easy": 0.2,
+        "medium": 0.55,
+        "hard": 0.25
+      },
+      "ca_linkage_rate": 0.4
+    },
+    "traps": [
+      {
+        "trap_id": "POL_T01",
+        "name": "speaker_power_vs_president_power",
+        "description": "Assigns a power belonging to the Speaker (anti-defection, disqualification) to the President or Vice President.",
+        "mechanism": "Students know President has many powers and conflate constitutional roles.",
+        "real_pyq_example": "2025: 'If any question arises as to whether a Member has become subject to disqualification under Tenth Schedule, the President's decision shall be final' \u2014 FALSE. It's the Speaker/Chairman who decides, not the President.",
+        "how_to_generate": "Take any Speaker/Chairman exclusive power. Assign it to President in a false statement. Common pairs: Speaker vs President, Speaker vs SC, Governor vs President.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Parliament",
+          "Anti-Defection",
+          "Speaker Powers"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T02",
+        "name": "tenth_schedule_political_party_mention",
+        "description": "Claims 'political party' is NOT mentioned in the Constitution \u2014 it IS mentioned in the Tenth Schedule.",
+        "mechanism": "Students think 'political party' is a non-constitutional concept handled by RPA 1951.",
+        "real_pyq_example": "2025: 'There is no mention of the word political party in the Constitution of India' \u2014 FALSE. Tenth Schedule explicitly uses the term.",
+        "how_to_generate": "Take a term students assume is outside the Constitution (coalition, political party, election symbol). One will actually be in the Constitution somewhere.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Constitution",
+          "Anti-Defection",
+          "Tenth Schedule"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T03",
+        "name": "money_bill_rajya_sabha_powers",
+        "description": "States Rajya Sabha can reject a Money Bill OR that its suggested amendments must be accepted by Lok Sabha \u2014 both are false.",
+        "mechanism": "Students know Rajya Sabha has limited powers on Money Bills but mix up exactly what it CAN and CANNOT do.",
+        "real_pyq_example": "2024: Statement 3 \u2014 'Rajya Sabha can either approve or suggest changes but cannot reject' \u2014 TRUE. Statement 4 \u2014 'Amendments suggested by Rajya Sabha have to be accepted by Lok Sabha' \u2014 FALSE (Lok Sabha may or may not accept).",
+        "how_to_generate": "Use the exact wording from Constitution (Article 109, 110). Swap 'may accept' with 'must accept'. These qualifier flips are the core trap.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Parliament",
+          "Money Bill",
+          "Rajya Sabha Powers"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T04",
+        "name": "schedule_wrong_part",
+        "description": "Assigns a constitutional provision to the wrong Part or Schedule number.",
+        "mechanism": "Students know what is in which Part but confuse Part IX/IX-A/XVIII/XX numbers.",
+        "real_pyq_example": "2024: All three statements correct \u2014 Part IX-A (Municipalities), Part XVIII (Emergency), Part XX (Amendment). Trap was making students doubt one of them.",
+        "how_to_generate": "List 3 Part/Schedule numbers. Put 2 correct and 1 off by 1-2 (e.g., say Part XVII instead of XVIII for Emergency). OR make all 3 correct (answer = D) which students avoid.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Constitution",
+          "Schedules and Parts",
+          "Constitutional Provisions"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T05",
+        "name": "union_state_concurrent_list_wrong_placement",
+        "description": "Puts a subject in wrong list \u2014 e.g., Inter-State trade is Union List, but students think it's State or Concurrent.",
+        "mechanism": "Students know obvious items (defence = Union, police = State) but struggle with inter-State matters.",
+        "real_pyq_example": "2024: 'Inter-State quarantine is a Union subject' \u2014 TRUE (correct answer C). Traps: Inter-State trade (actually Concurrent, not State), Inter-State migration (Concurrent, not State).",
+        "how_to_generate": "Pick 'Inter-State X' subjects. Students assume Inter-State anything = Union. Some are Concurrent. Use the wrong list in the false option.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Federalism",
+          "Seventh Schedule",
+          "Union-State Relations"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T06",
+        "name": "cds_command_vs_coordinate",
+        "description": "Says CDS exercises 'military command' over Service Chiefs \u2014 CDS coordinates, advises, but does NOT command.",
+        "mechanism": "Students assume the most senior military officer must have command authority.",
+        "real_pyq_example": "2024: Statement 2 \u2014 'CDS exercises military command over the three Service Chiefs' \u2014 FALSE. Correct duties: Permanent Chairman of Chiefs of Staff Committee (TRUE) + Principal Military Advisor to Defence Minister (TRUE).",
+        "how_to_generate": "Use roles that sound like command but are advisory (CDS, NSA, Cabinet Secretary). Insert 'command' in false statement, use 'coordinate/advise' in true one.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Defence",
+          "Military Institutions",
+          "Governance"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T07",
+        "name": "nari_shakti_act_implementation_trigger",
+        "description": "States provisions come into effect from the 18th Lok Sabha \u2014 false. Requires delimitation first, which has not happened.",
+        "mechanism": "Students know Act was passed but don't know the implementation pre-condition (delimitation).",
+        "real_pyq_example": "2024: Statement 1 \u2014 'Provisions will come into effect from the 18th Lok Sabha' \u2014 FALSE. Statement 2 \u2014 '15 years duration' \u2014 TRUE. Statement 3 \u2014 'SC Women seats within SC quota' \u2014 TRUE.",
+        "how_to_generate": "For any recent constitutional amendment or Act, ask about implementation conditions (commencement date, pre-conditions). The 'when does it kick in' is always a trap.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Constitutional Amendments",
+          "Recent Legislation",
+          "Women's Reservation"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T08",
+        "name": "writ_wrong_issuing_authority_or_target",
+        "description": "Describes what a writ does but assigns it to wrong authority or wrong target body.",
+        "mechanism": "Students confuse Mandamus/Prohibition/Certiorari \u2014 all are writs but issued against different bodies for different purposes.",
+        "real_pyq_example": "2024: Writ of Prohibition question \u2014 tests whether students know it's issued to inferior courts/tribunals to stop proceedings, not to government officers.",
+        "how_to_generate": "Take any writ (Habeas Corpus, Mandamus, Certiorari, Prohibition, Quo Warranto). State what a DIFFERENT writ does in the false option. Or say it can be issued against a body it CANNOT be issued against.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Judiciary",
+          "Fundamental Rights",
+          "Writs"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T09",
+        "name": "ethics_committee_complaint_eligibility",
+        "description": "States non-MP can file complaint against MP to Ethics Committee \u2014 only an MP can file such a complaint.",
+        "mechanism": "Students assume any citizen can complain about MP conduct, like with Lokpal.",
+        "real_pyq_example": "2024: Statement 2 \u2014 'Only a Member of Lok Sabha can make a complaint about unethical conduct' \u2014 TRUE (this is the counterintuitive fact). Statement 3 \u2014 'Cannot take up sub-judice matters' \u2014 TRUE.",
+        "how_to_generate": "For any parliamentary committee, ask about eligibility to file complaints, quorum rules, or what it cannot do. The restrictions are always the trap.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Parliament",
+          "Parliamentary Committees",
+          "Ethics"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "POL_T10",
+        "name": "lokpal_scope_exclusion",
+        "description": "States Lokpal cannot investigate PM, or that it covers Indian public servants posted abroad \u2014 both are tricky.",
+        "mechanism": "Lokpal CAN inquire into PM under certain conditions. It does NOT cover public servants posted outside India.",
+        "real_pyq_example": "2025: Statement IV \u2014 'Lokpal cannot inquire into allegations against sitting PM' \u2014 FALSE. Lokpal can under specific circumstances. Statement I \u2014 'applies to public servants of India but not those posted outside' \u2014 TRUE.",
+        "how_to_generate": "Use any oversight institution (Lokpal, CVC, CAG). Ask about who it covers and who it excludes. Reverse a well-known exclusion.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Anti-Corruption Institutions",
+          "Governance",
+          "Lokpal"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      }
+    ]
+  },
+  "History": {
+    "_subject_patterns": {
+      "dominant_question_types": [
+        "match_pair",
+        "multi_statement",
+        "chronology",
+        "direct_fact"
+      ],
+      "avg_questions_per_paper": 14,
+      "difficulty_split": {
+        "easy": 0.3,
+        "medium": 0.45,
+        "hard": 0.25
+      },
+      "ca_linkage_rate": 0.15
+    },
+    "traps": [
+      {
+        "trap_id": "HIS_T01",
+        "name": "party_leader_wrong_match",
+        "description": "In match-the-pair, assigns a leader to the wrong political party \u2014 especially using founders vs prominent members.",
+        "mechanism": "Students know Rajagopalachari was prominent in Congress but forget he FOUNDED Swatantra Party. Narendra Dev is associated with Socialist movement but not the Swatantra Party.",
+        "real_pyq_example": "2024: Swatantra Party \u2014 Acharya Narendra Dev (WRONG, should be C. Rajagopalachari). Socialist Party \u2014 C. Rajagopalachari (WRONG, should be Acharya Narendra Dev / Jayaprakash Narayan).",
+        "how_to_generate": "Match 4 parties/movements to 4 leaders. Put 2 correct and 2 crossed (leader A matched with party B and vice versa). Use leaders who overlap across ideological movements.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Modern History",
+          "Independence Movement",
+          "Political Parties Post-Independence"
+        ],
+        "generation_rules": {
+          "format": "match_pair",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T02",
+        "name": "buddhist_text_author_swap",
+        "description": "Assigns a Buddhist/Jain/Ancient text to the wrong author or tradition.",
+        "mechanism": "Students know text names but not the specific sect, author, or language they belong to.",
+        "real_pyq_example": "2024: Works attributed to playwright Bhasa \u2014 Madhyama-vyayoga (correct). Kavyalankara (Bhamaha), Natyashastra (Bharata), Mahabhashya (Patanjali) \u2014 all real texts by different authors.",
+        "how_to_generate": "Pick any Sanskrit text or classical work. Give 4 real text names but only one is correctly attributed to the person in the question. Others are real texts by real but different authors.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Ancient History",
+          "Literature",
+          "Art & Culture"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "swap",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T03",
+        "name": "constituent_assembly_president_first_vs_later",
+        "description": "Confuses the Provisional President with the eventual President of Constituent Assembly \u2014 or confuses with Drafting Committee Chair.",
+        "mechanism": "Students know Dr. Rajendra Prasad was President of Constituent Assembly and B.R. Ambedkar chaired Drafting Committee. The Provisional President (Dr. Sachchidananda Sinha) is almost always unknown.",
+        "real_pyq_example": "2024: 'Who was Provisional President before Rajendra Prasad?' \u2014 Dr. Sachchidananda Sinha. Common wrong answers: Rajagopalachari, Ambedkar, T.T. Krishnamachari.",
+        "how_to_generate": "Ask about 'first' or 'provisional' holders of roles that later became associated with more famous people. Use the famous name as a distractor.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Modern History",
+          "Constituent Assembly",
+          "Constitutional History"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T04",
+        "name": "government_of_india_act_provision_reversal",
+        "description": "States a provision of GOI Act 1935 incorrectly \u2014 e.g., says defence/foreign affairs were under federal legislature when they were reserved for Governor-General.",
+        "mechanism": "Students know GOI 1935 had federation and residuary powers but get confused on what was 'reserved' vs 'transferred'.",
+        "real_pyq_example": "2024: Statement 1 (All-India Federation with provinces and princely states) \u2014 TRUE. Statement 2 (Defence and Foreign Affairs under federal legislature) \u2014 FALSE. These were reserved subjects under Governor-General.",
+        "how_to_generate": "Pick any colonial legislation (GOI 1919, 1935, Rowlatt Act). State 2 provisions, one of which misassigns who controlled a key subject.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Modern History",
+          "Colonial Legislation",
+          "Constitutional History"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "reversal",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T05",
+        "name": "ryotwari_zamindari_feature_swap",
+        "description": "Assigns a feature of Zamindari to Ryotwari or vice versa \u2014 especially regarding exemptions for bad harvest.",
+        "mechanism": "Students mix up the two settlement systems. Ryotwari had direct settlement with ryots, Zamindari had intermediaries.",
+        "real_pyq_example": "PYQ: 'Under Ryotwari Settlement, peasants were exempted from revenue payment in case of bad harvests' \u2014 this is actually a nuanced TRUE. The trap is students think only Zamindari had exemptions.",
+        "how_to_generate": "State a feature of one revenue settlement system and attribute it to the other. Or use a feature that sounds like it belongs to the more 'exploitative' system but actually belongs to the supposedly 'better' one.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Modern History",
+          "Colonial Economy",
+          "Land Revenue"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "swap",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T06",
+        "name": "buddhist_monk_text_tradition_wrong",
+        "description": "Names an Indian Buddhist monk and asks which text they wrote \u2014 confuses Theravada/Mahayana/Sarvastivada traditions.",
+        "mechanism": "Students know major Buddhist texts (Prajnaparamita, Visuddhimagga) but cannot match them to specific monks and schools.",
+        "real_pyq_example": "2024: Sanghabhuti \u2014 wrote commentary on Sarvastivada Vinaya. Distractors: Prajnaparamita Sutra (Mahayana), Visuddhimagga (Theravada), Lalitavistara (Mahayana biography of Buddha).",
+        "how_to_generate": "Name an obscure monk/scholar. Distractors = real texts from other traditions. Correct answer = the matching tradition's text.",
+        "difficulty": "very_hard",
+        "sub_domains": [
+          "Ancient History",
+          "Buddhism",
+          "Literature"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T07",
+        "name": "unesco_heritage_year_wrong",
+        "description": "Lists UNESCO World Heritage sites and asks which were added in a specific year \u2014 students confuse recent vs older listings.",
+        "mechanism": "Students know which sites ARE on the list but not the exact year of inscription.",
+        "real_pyq_example": "2024: Shantiniketan and Sacred Ensembles of Hoysalas were added in 2023 (answer = 2). Rani-ki-Vav (2014) and Mahabodhi Temple (2002) are old listings used as distractors.",
+        "how_to_generate": "Mix 2-3 recent inscriptions with 1-2 older well-known ones. Ask 'how many were added in year X'. Answer is never 'all four'.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Art & Culture",
+          "UNESCO Heritage",
+          "Current Affairs-History link"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "HIS_T08",
+        "name": "exercise_military_wrong_country",
+        "description": "Names a bilateral military exercise and assigns it to the wrong country pair.",
+        "mechanism": "Students know exercise names but mix up which two countries participate, especially India-Sri Lanka vs India-Bangladesh vs India-Nepal.",
+        "real_pyq_example": "2024: Exercise Mitra Shakti 2023 \u2014 Statement 1 'between India and Bangladesh' \u2014 FALSE. It is India-Sri Lanka. Commenced at Aundh, Pune (TRUE). Counter-terrorism goal (TRUE). IAF part (TRUE).",
+        "how_to_generate": "Name any bilateral exercise (Mitra Shakti, Shakti, Yudh Abhyas, SLINEX). State the partner country wrong. India's south Asian neighbours are interchangeable in student memory.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Current Affairs",
+          "Defence Exercises",
+          "India's Foreign Relations"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      }
+    ]
+  },
+  "Economy": {
+    "_subject_patterns": {
+      "dominant_question_types": [
+        "multi_statement",
+        "direct_concept",
+        "data_based"
+      ],
+      "avg_questions_per_paper": 16,
+      "difficulty_split": {
+        "easy": 0.2,
+        "medium": 0.5,
+        "hard": 0.3
+      },
+      "ca_linkage_rate": 0.5
+    },
+    "traps": [
+      {
+        "trap_id": "ECO_T01",
+        "name": "frbm_debt_ratio_component_swap",
+        "description": "Gives FRBM target debt-to-GDP ratio but swaps the Centre vs States component.",
+        "mechanism": "Students know the total is 60% but flip Centre (40%) and States (20%) shares.",
+        "real_pyq_example": "PYQ: 'FRBM Review Committee recommended debt/GDP of 60% comprising 40% Centre + 20% States' \u2014 TRUE. Statement 2: 'Central Govt has domestic liabilities of 21% vs States' 49%' \u2014 FALSE. Actual: Centre has higher domestic debt than states.",
+        "how_to_generate": "Use any two-component fiscal target (Centre/State, direct/indirect tax, domestic/external debt). Swap the magnitudes between components.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Fiscal Policy",
+          "FRBM",
+          "Public Finance"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "swap",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ECO_T02",
+        "name": "most_inflationary_policy_wrong_ranking",
+        "description": "Asks which policy is MOST inflationary \u2014 students confuse deficit monetisation with bank borrowing.",
+        "mechanism": "All four options are inflationary to some degree. Students must rank correctly: money creation > bank borrowing > public borrowing > debt repayment.",
+        "real_pyq_example": "PYQ: 'Which is likely MOST inflationary?' \u2014 Creation of new money to finance deficit (answer D). Students pick 'borrowing from banks' thinking it's the worst. Repayment of public debt is actually deflationary.",
+        "how_to_generate": "Use superlatives (most inflationary, least deflationary, most likely to cause crowding out). Options are all plausible economic mechanisms, ranked by students incorrectly.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Monetary Policy",
+          "Inflation",
+          "Macroeconomics"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ECO_T03",
+        "name": "black_money_primary_harm_wrong",
+        "description": "Asks what is the PRIMARY harm of black money \u2014 students think corruption/politics, correct answer is tax revenue loss.",
+        "mechanism": "Students associate black money with political corruption and social harm, but the economic primary harm is fiscal: lost tax revenue.",
+        "real_pyq_example": "PYQ: Primary harm of black money \u2014 'Loss of revenue to State Exchequer due to tax evasion' (answer D). Distractors: real estate diversion, luxury goods, political donations \u2014 all real effects but secondary.",
+        "how_to_generate": "Ask for PRIMARY/MOST SIGNIFICANT harm or cause when multiple effects are real. The institutionally/economically defined primary cause is always different from the socially visible one.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Indian Economy",
+          "Taxation",
+          "Black Money"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ECO_T04",
+        "name": "interest_coverage_ratio_wrong_use",
+        "description": "States Interest Coverage Ratio measures present risk of a firm \u2014 it actually measures EMERGING/FUTURE risk in Indian banking context.",
+        "mechanism": "The standard definition says ICR measures ability to pay interest (present). But UPSC framed it as 'evaluating emerging risk' \u2014 which is the banking context interpretation.",
+        "real_pyq_example": "PYQ: ICR helps in 'evaluating the emerging risk of a firm that a bank is going to give a loan to' \u2014 correct in UPSC's answer. 'Present risk' framing marked as incorrect.",
+        "how_to_generate": "Use financial ratios (ICR, current ratio, debt-equity ratio). Ask what the ratio 'helps understand' and distinguish present vs emerging vs historical risk.",
+        "difficulty": "very_hard",
+        "sub_domains": [
+          "Banking",
+          "Financial Ratios",
+          "Credit Risk"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ECO_T05",
+        "name": "edible_oil_import_vs_production",
+        "description": "States India imports more edible oil than it produces \u2014 TRUE \u2014 and that no customs duty is levied \u2014 FALSE (duty exists but is reduced).",
+        "mechanism": "India IS import dependent for edible oils. But government DOES levy customs duty (sometimes zero/reduced but not 'no duty at all').",
+        "real_pyq_example": "PYQ: Statement 1 (quantity imported > domestic production) \u2014 TRUE. Statement 2 (no customs duty on imported edible oils) \u2014 FALSE. This tests whether students confuse 'nil duty' periods with 'no duty policy'.",
+        "how_to_generate": "Pick any commodity where India is import-dependent. Statement 1: import level (true). Statement 2: policy claim about tariff (use absolute 'never' or 'always' which makes it false).",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Trade Policy",
+          "Agriculture",
+          "Indian Economy"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ECO_T06",
+        "name": "state_loan_consent_condition",
+        "description": "States any State requires Centre's consent for raising loans \u2014 actually only states that ALREADY OWE outstanding loans to Centre.",
+        "mechanism": "Students think Centre has general power to approve state borrowings. It only applies when there's an outstanding liability.",
+        "real_pyq_example": "PYQ: 'As per Constitution, it is mandatory for a State to take Central Government consent for raising any loan if the former owes any outstanding liabilities to the latter' \u2014 TRUE (Statement 3). The condition (outstanding liabilities) is the trap \u2014 students think it's unconditional.",
+        "how_to_generate": "State any constitutional power with a CONDITION. Remove the condition in the false version. The conditionality is always what makes the true answer correct.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Fiscal Federalism",
+          "State Finances",
+          "Constitutional Provisions"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "omission",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      }
+    ]
+  },
+  "Environment": {
+    "_subject_patterns": {
+      "dominant_question_types": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact"
+      ],
+      "avg_questions_per_paper": 15,
+      "difficulty_split": {
+        "easy": 0.25,
+        "medium": 0.5,
+        "hard": 0.25
+      },
+      "ca_linkage_rate": 0.45
+    },
+    "traps": [
+      {
+        "trap_id": "ENV_T01",
+        "name": "low_cloud_warming_vs_cooling_effect",
+        "description": "States low clouds cause a COOLING effect \u2014 they actually cause WARMING by absorbing infrared radiation from Earth.",
+        "mechanism": "Students know high clouds (cirrus) cool by reflecting sunlight. They assume all clouds cool. Low clouds trap outgoing radiation = warming.",
+        "real_pyq_example": "2024: 'Low clouds have high absorption of infrared radiation from Earth's surface and thus cause a warming effect' \u2014 TRUE. Students who assumed clouds always cool marked this wrong.",
+        "how_to_generate": "Use cloud types (high/low/middle) and assign wrong radiation effects (reflection vs absorption, solar vs terrestrial radiation).",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Climate Change",
+          "Atmosphere",
+          "Radiation"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ENV_T02",
+        "name": "congo_basin_carbon_sink_lung_confusion",
+        "description": "Tests whether students know Congo Basin (not Amazon) is the world's largest carbon sink.",
+        "mechanism": "Amazon is called 'lungs of the Earth' in popular media. Congo Basin is actually the largest net carbon sink per scientific measurements.",
+        "real_pyq_example": "2024: DRC / Congo Basin \u2014 'known as lungs of Africa, largest carbon sink in world, absorbing more carbon than Amazon' \u2014 correct per UPSC's answer.",
+        "how_to_generate": "Ask about superlatives for carbon sinks, biodiversity hotspots, or forest cover using either Amazon or Congo. Students will default to Amazon for most superlatives.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Biodiversity",
+          "Carbon Sinks",
+          "World Geography-Environment link"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ENV_T03",
+        "name": "cobalt_mining_byproduct_wrong",
+        "description": "States cobalt is primarily mined as a standalone mineral \u2014 it's actually a BYPRODUCT of copper and nickel mining.",
+        "mechanism": "Students know cobalt is used in batteries and DRC is the main producer, but don't know the extraction method (byproduct, not primary mine).",
+        "real_pyq_example": "2024: 'Cobalt is primarily mined as a byproduct of nickel and copper mining' \u2014 TRUE. Students who thought cobalt has dedicated mines marked this wrong.",
+        "how_to_generate": "Use any strategic/critical mineral (cobalt, lithium, rare earths). Ask about primary vs byproduct extraction. Many critical minerals are byproducts.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Mineral Resources",
+          "Critical Minerals",
+          "Economic Geography-Environment link"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ENV_T04",
+        "name": "ramsar_wetland_criteria_wrong",
+        "description": "States a specific criterion for Ramsar designation that is slightly wrong \u2014 especially the 20,000 waterbird threshold.",
+        "mechanism": "Students know Ramsar is about wetlands but not the exact criteria numbers and conditions.",
+        "real_pyq_example": "Recurring PYQ type: 'A wetland qualifies for Ramsar listing if it regularly supports 20,000 waterfowl' \u2014 this IS one of the criteria but students mark it wrong because they think it's arbitrary.",
+        "how_to_generate": "State the actual numerical criteria with a slight modification (10,000 instead of 20,000, 1% instead of actual threshold). Or swap Ramsar criteria with IUCN criteria.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Wetlands",
+          "International Conventions",
+          "Biodiversity"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ENV_T05",
+        "name": "treaty_body_wrong_secretariat",
+        "description": "Assigns the secretariat of an environmental convention to the wrong city/organisation.",
+        "mechanism": "CITES (Geneva), CBD (Montreal), UNFCCC (Bonn), Ramsar (Gland, Switzerland) \u2014 students mix up host cities.",
+        "real_pyq_example": "Recurring: 'CITES secretariat is located in' \u2014 options include Geneva, Nairobi, Montreal, Bonn. Students confuse with UNEP (Nairobi) or IPCC (Geneva).",
+        "how_to_generate": "Match environmental conventions to their secretariat cities. Include two that are in the same city or same country to increase confusion.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "International Environmental Law",
+          "Conventions and Treaties",
+          "Institutions"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "ENV_T06",
+        "name": "ozone_vs_greenhouse_gas_confusion",
+        "description": "Claims ozone IS a greenhouse gas \u2014 it IS, but students think it's not because its main role is UV protection.",
+        "mechanism": "Students learn about ozone for UV protection and never connect it to greenhouse warming. But ozone IS a greenhouse gas in the troposphere.",
+        "real_pyq_example": "PYQ multi-statement type: 'Tropospheric ozone is a greenhouse gas' \u2014 TRUE. 'Stratospheric ozone is a greenhouse gas' \u2014 also technically true but less impactful. Students mark both wrong.",
+        "how_to_generate": "Use any gas that has dual or unexpected roles (ozone, water vapor, methane vs CO2 comparison by GWP). Ask about its classification in a way that requires knowing the secondary role.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Atmosphere",
+          "Climate Change",
+          "Air Pollution"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      }
+    ]
+  },
+  "Science_Technology": {
+    "_subject_patterns": {
+      "dominant_question_types": [
+        "direct_fact",
+        "multi_statement",
+        "application_based"
+      ],
+      "avg_questions_per_paper": 13,
+      "difficulty_split": {
+        "easy": 0.2,
+        "medium": 0.45,
+        "hard": 0.35
+      },
+      "ca_linkage_rate": 0.6
+    },
+    "traps": [
+      {
+        "trap_id": "SCI_T01",
+        "name": "isro_mission_wrong_objective",
+        "description": "Assigns the wrong primary objective to an ISRO mission \u2014 e.g., says Chandrayaan-3 targeted equatorial region vs south pole.",
+        "mechanism": "Students know mission names but not precise landing sites, instruments, or primary objectives.",
+        "real_pyq_example": "Pattern: 'Chandrayaan-3 landed near the lunar equator' \u2014 FALSE. It landed near the south pole (first mission to do so). Distractors include equatorial region and dark side of Moon.",
+        "how_to_generate": "Name any ISRO/DRDO mission. Give 3-4 statements about objectives/payloads/launch vehicles. Mix one wrong one (wrong orbit, wrong instrument, wrong objective).",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Space Technology",
+          "ISRO Missions",
+          "Current Affairs S&T"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "SCI_T02",
+        "name": "semiconductor_property_wrong",
+        "description": "States that semiconductor conductivity increases with temperature \u2014 TRUE, opposite of metals \u2014 students assume it behaves like metals.",
+        "mechanism": "Students know semiconductors are between conductors and insulators but assume conductivity goes down with heat like metals.",
+        "real_pyq_example": "PYQ type: 'Conductivity of semiconductors increases with rise in temperature' \u2014 TRUE. This is counterintuitive to students who compare with metals.",
+        "how_to_generate": "Use any physical property where semiconductors behave opposite to metals (conductivity, resistance, band gap). State the semiconductor property; students apply metal logic.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Fundamental Science",
+          "Physics",
+          "Technology"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "SCI_T03",
+        "name": "mRNA_vaccine_dna_integration_false",
+        "description": "States mRNA vaccines alter human DNA \u2014 FALSE. They use mRNA which does not enter cell nucleus and cannot integrate into DNA.",
+        "mechanism": "Students fear or believe the popular misconception that mRNA vaccines change genetic code.",
+        "real_pyq_example": "PYQ 2022 type: 'mRNA vaccines alter the genetic structure of the host' \u2014 FALSE. The mRNA degrades after producing spike protein and never touches nuclear DNA.",
+        "how_to_generate": "For any new technology (mRNA, CRISPR, nanotechnology), state the most common public misconception as a false statement. The correct science is the trap against the misconception.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Biotechnology",
+          "COVID-19 Science",
+          "Vaccines"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "SCI_T04",
+        "name": "ai_ml_dl_wrong_hierarchy",
+        "description": "States AI is a subset of ML, or that DL and ML are the same \u2014 correct hierarchy is AI \u2283 ML \u2283 DL.",
+        "mechanism": "Students confuse the relationship direction. AI is the broadest, ML is a type of AI, Deep Learning is a type of ML.",
+        "real_pyq_example": "PYQ type: 'Machine Learning is a subset of Artificial Intelligence' \u2014 TRUE. 'Deep Learning is a subset of Machine Learning' \u2014 TRUE. Trap: 'Artificial Intelligence is a subset of Machine Learning' \u2014 FALSE.",
+        "how_to_generate": "Draw the correct hierarchy (AI > ML > DL > NN). Swap the subset direction in one false statement. Use 'is a part of' vs 'contains' language.",
+        "difficulty": "easy",
+        "sub_domains": [
+          "Emerging Technologies",
+          "Artificial Intelligence",
+          "IT"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "SCI_T05",
+        "name": "5g_frequency_band_wrong",
+        "description": "States 5G operates on lower frequencies than 4G \u2014 FALSE. 5G uses higher frequency (mmWave) bands for speed, though it also uses sub-6GHz.",
+        "mechanism": "Students know 5G is faster but assume higher speed = lower frequency (like comparing AM/FM radio). Actually higher frequency = higher speed but lower range.",
+        "real_pyq_example": "PYQ type: 'Unlike 4G, 5G technology uses higher frequency radio waves' \u2014 TRUE. 'Higher frequency means better range' \u2014 FALSE (higher frequency = shorter range, more towers needed).",
+        "how_to_generate": "Use any connectivity technology (5G, satellite internet, WiFi bands). Test the frequency-speed-range relationship \u2014 students always confuse at least one of these.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Information Technology",
+          "Telecommunications",
+          "Emerging Technologies"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "SCI_T06",
+        "name": "quantum_entanglement_communication_speed",
+        "description": "States quantum entanglement allows faster-than-light communication \u2014 FALSE. Entanglement is real but cannot be used to transmit information faster than light.",
+        "mechanism": "Popular science presents entanglement as 'spooky action at a distance' which sounds like instant communication.",
+        "real_pyq_example": "PYQ type: 'Quantum entanglement can be used to transmit information faster than the speed of light' \u2014 FALSE. Entanglement allows correlated measurements but not information transfer.",
+        "how_to_generate": "Use any quantum technology concept (entanglement, superposition, quantum computing). State the popular misconception as a false statement.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Quantum Technology",
+          "Fundamental Science",
+          "Emerging Technologies"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      }
+    ]
+  }
+}

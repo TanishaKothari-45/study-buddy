@@ -478,7 +478,55 @@ class GeminiClient:
         """
         response = await chat.send_message_async(message)
         return response.text
-    
+
+    async def search_and_summarise(
+        self,
+        queries: list,
+        context_hint: str = "",
+        temperature: float = 0.3,
+    ) -> str:
+        """
+        Run Google Search for CA-flagged questions and return a summarised text block.
+
+        Uses the first query as the primary search prompt (use_google_search=True)
+        and appends remaining queries to the prompt as supplementary context.
+
+        Args:
+            queries:      List of search query strings (1-3 recommended)
+            context_hint: Hint appended to the system prompt (e.g. subject/concept)
+            temperature:  Lower = more factual (default 0.3)
+
+        Returns:
+            Summarised text suitable for injection into the generation prompt.
+        """
+        if not queries:
+            return ""
+
+        primary_query = queries[0]
+        extra = " | ".join(queries[1:]) if len(queries) > 1 else ""
+
+        user_prompt = (
+            f"Search for current, factual information about: {primary_query}\n"
+            + (f"Also retrieve: {extra}\n" if extra else "")
+            + "\nSummarise the most recent and relevant facts in 200-300 words. "
+            "Focus on facts useful for a UPSC Prelims question. No opinion, no padding."
+        )
+        system_prompt = (
+            f"You are a UPSC current affairs analyst. {context_hint}. "
+            "Return only factual, verifiable information from search results."
+        )
+
+        try:
+            result = await self.generate_response(
+                user_prompt=user_prompt,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                use_google_search=True,
+            )
+            return result or ""
+        except Exception:
+            return ""
+
     async def _upload_file_async(self, file_path: str, mime_type: str) -> Dict[str, Any]:
         """
         Upload a file to Gemini Files API using native async.

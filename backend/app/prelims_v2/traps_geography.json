@@ -1,0 +1,247 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "source": "UPSC Prelims PYQ analysis 2014–2024 (10 years)",
+    "method": "web research + direct question analysis",
+    "last_updated": "2026-03",
+    "note": "Each trap has real PYQ examples. Use these in blueprint generation to inject specific trap strategies per skeleton."
+  },
+  "Geography": {
+    "_subject_patterns": {
+      "dominant_question_types": [
+        "multi_statement",
+        "match_pair",
+        "assertion_reason",
+        "spatial_fact"
+      ],
+      "avg_questions_per_paper": 13,
+      "difficulty_split": {
+        "easy": 0.25,
+        "medium": 0.5,
+        "hard": 0.25
+      },
+      "ca_linkage_rate": 0.3
+    },
+    "traps": [
+      {
+        "trap_id": "GEO_T01",
+        "name": "river_lake_wrong_feeder",
+        "description": "Statement says River X feeds Lake Y — but X only passes through or is adjacent to Y, not the direct feeder. Or the feeder relationship is reversed.",
+        "mechanism": "Students memorise river names near lakes but not the exact hydrological relationship.",
+        "real_pyq_example": "2023: 'Krishna River directly feeds Kolleru Lake' — FALSE. Kolleru lies between Krishna and Godavari deltas but Krishna does not directly feed it. Jhelum passing through Wular Lake was TRUE.",
+        "how_to_generate": "Pick any Indian lake. Assign the nearest river as the feeder in a false statement. Use actual feeder in correct statement.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Indian Rivers",
+          "Indian Lakes",
+          "Drainage System"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T02",
+        "name": "country_border_length_swap",
+        "description": "Tests longest/shortest border between two countries — students confuse China-India with Canada-US.",
+        "mechanism": "Students assume India has long borders since it borders many countries. The Canada-US border is the world's longest, not China-India.",
+        "real_pyq_example": "2024: 'The longest border between any two countries is between China and India' — FALSE. Correct answer: Canada-USA.",
+        "how_to_generate": "Use superlatives (longest, shortest, highest, deepest) and swap with the second-most-famous answer.",
+        "difficulty": "easy",
+        "sub_domains": [
+          "World Geography",
+          "International Boundaries"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "swap",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T03",
+        "name": "sea_ocean_property_reversal",
+        "description": "Assigns a physical property (precipitation, salinity, no river inflow) to the wrong water body, or reverses a comparative property.",
+        "mechanism": "Students know properties in isolation but not the correct body they apply to.",
+        "real_pyq_example": "2024 Red Sea question: Both statements were actually correct — Red Sea has very little precipitation AND no river inflow. Trap was in the options (students expected one to be false).",
+        "how_to_generate": "State a true property of one sea for a different sea. Or use 'highest salinity' for Red Sea vs Dead Sea confusion.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Oceanography",
+          "World Geography",
+          "Seas and Gulfs"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "reversal",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T04",
+        "name": "troposphere_thickness_direction_error",
+        "description": "Reverses the direction of a gradient — e.g., troposphere is thicker at equator vs poles, temperature lapse rates.",
+        "mechanism": "Students know the concept but flip the direction under exam pressure.",
+        "real_pyq_example": "2024: 'Troposphere is thicker at the equator' — TRUE. Statement II explained it correctly via convectional currents. Trap was making students doubt Statement I because Statement II seemed to explain something they weren't sure about.",
+        "how_to_generate": "Take any gradient concept (temperature, pressure, thickness, density) and state the correct direction in one statement, reversed in another. Use A/R format.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Atmosphere",
+          "Climatology",
+          "Physical Geography"
+        ],
+        "generation_rules": {
+          "format": "assertion_reason",
+          "error_type": "reversal",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T05",
+        "name": "mineral_source_confusion",
+        "description": "Asks what mineral a rock/ore is a source of — confuses titanium with iron, cobalt with nickel, etc.",
+        "mechanism": "Students know ore names but not the exact metal extracted from each.",
+        "real_pyq_example": "2023: 'Ilmenite and rutile are rich sources of Titanium' — correct. Common trap: students think ilmenite = iron (ilmen = iron in some languages). 2024: DRC cobalt — primary byproduct of copper/nickel mining.",
+        "how_to_generate": "Give a mineral name + location. Options are 4 metals that are plausibly associated with that region or mineral family.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Economic Geography",
+          "Mineral Resources",
+          "Indian Resources"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T06",
+        "name": "india_vs_china_agricultural_stats",
+        "description": "Compares India-China on arable land, irrigated area, productivity — two of three stats are true, one flips.",
+        "mechanism": "India DOES have more arable land and higher irrigation share. But China has HIGHER productivity per hectare. Students assume India beats China on all three.",
+        "real_pyq_example": "2023: Three statements about India vs China agriculture — statements 1 and 2 correct, statement 3 (India productivity higher than China) FALSE. Appeared 2+ times in PYQs.",
+        "how_to_generate": "Use any India vs world comparison (ranks, shares, ratios). Put 2 correct and 1 reversed statement. Make the reversed one the one students are most likely to assume is true.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Human Geography",
+          "Agriculture",
+          "Indian Agriculture"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T07",
+        "name": "port_classification_first_largest",
+        "description": "Confuses 'first' (chronologically) with 'largest' — or 'public' with 'private' port classification.",
+        "mechanism": "Students memorise rankings without understanding classification criteria.",
+        "real_pyq_example": "2023: 'Kamarajar Port is first major port registered as a company' — TRUE. 'Mundra Port is largest privately owned' — TRUE. Students failed on the Kamarajar = company registration fact.",
+        "how_to_generate": "Pick ports/airports/stations. Use superlatives with specific criteria (first by which metric, largest by which measure, greenfield vs brownfield).",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Indian Geography",
+          "Transport",
+          "Economic Geography"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T08",
+        "name": "volcanic_eruption_products",
+        "description": "Lists volcanic products and asks which are ALL correct — students think nitrogen compounds are NOT volcanic products.",
+        "mechanism": "Students know lava, ash, sulphur. Nitrogen compounds (NOx) from volcanic eruptions are less memorised.",
+        "real_pyq_example": "2023: Pyroclastic debris, ash, nitrogen compounds, sulphur compounds — all four are volcanic products. Answer was 'all of the above' which students avoided.",
+        "how_to_generate": "Use 'all of the above' as the correct answer when one item seems unlikely. Science-geography overlap questions.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Physical Geography",
+          "Geomorphology",
+          "Volcanism"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T09",
+        "name": "tree_type_deciduous_vs_evergreen",
+        "description": "Classifies trees as deciduous/evergreen — one familiar tree (jackfruit) is evergreen, not deciduous, trapping students.",
+        "mechanism": "Teak is obviously deciduous. Jackfruit looks like a tropical tree so students assume evergreen — actually it IS evergreen. The trap is Mahua which is also deciduous.",
+        "real_pyq_example": "2023: Teak (deciduous), Mahua (deciduous), Jackfruit (evergreen) — answer was 'two are deciduous'.",
+        "how_to_generate": "Mix trees students know (teak, sal, neem) with less-known ones and ask how many are deciduous/evergreen. Include one that seems counterintuitive.",
+        "difficulty": "medium",
+        "sub_domains": [
+          "Natural Vegetation",
+          "Indian Geography",
+          "Ecology"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      },
+      {
+        "trap_id": "GEO_T10",
+        "name": "green_field_vs_brown_field_airport",
+        "description": "Asks which airports are greenfield (built on new land) vs brownfield (expansion of existing) — students assume all new-looking airports are greenfield.",
+        "mechanism": "Vijayawada airport LOOKS modern but is a very old airport expanded — brownfield. Students assume newness = greenfield.",
+        "real_pyq_example": "2023: Donyi Polo (greenfield, correct), Kushinagar (greenfield, correct), Vijayawada (brownfield, NOT greenfield) — trap caught students who assumed all three were greenfield.",
+        "how_to_generate": "List infrastructure projects. Include one that was recently upgraded/modernised but is actually old — that's the false greenfield claim.",
+        "difficulty": "hard",
+        "sub_domains": [
+          "Indian Geography",
+          "Transport Infrastructure",
+          "Economic Geography"
+        ],
+        "generation_rules": {
+          "format": "multi_statement",
+          "error_type": "confusion",
+          "correct_count": 2,
+          "incorrect_count": 1
+        },
+        "query_bias": [],
+        "distractor_strategy": "use closely related options"
+      }
+    ]
+  }
+}
