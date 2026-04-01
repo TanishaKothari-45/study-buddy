@@ -1,294 +1,354 @@
-# UPSC Prelims V2 Pipeline — Exact Flow for 5 Questions
+# UPSC Prelims V2 Pipeline — Complete Flow (v4)
 
 > Subject: Geography → Climatology | `num_questions = 5`  
-> All numbers below are **exact** for a typical 5-question run.
+> All numbers are **exact** for a typical 5-question run.
 
 ---
 
-## High-Level Sequence
+## Architecture Overview
 
 ```
-User clicks "Start Mock Test"
-        ↓
-POST /mock-test/generate-async
-        ↓  (enqueues ARQ job)
-generate_mock_test_v2_task (worker.py)
-        ↓
-run_v2_pipeline (pipeline.py)
-        ├── Stage 0  Blueprint       — 1 Gemini Flash call
-        ├── Stage 1  Retrieval       — 1 embed batch + 5–10 Pinecone calls + 0–2 Google Search calls
-        ├── Stage 2  Difficulty      — pure Python, 0 API calls
-        ├── Stage 3  Generation      — 5 Gemini Pro calls (parallel, semaphore=5)
-        ├── Stage 4  Quality Gate    — cosine similarity, 0 API calls
-        └── Stage 5  Gap Fill        — 0–N Gemini Pro calls for failed questions
+POST /mock-test/generate-async  →  Arq worker  →  run_v2_pipeline()
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ Pre-pipeline: Load user concept ledger from Redis (if user_id)     │
+  └─────────────────────────────────────────────────────────────────────┘
+            ↓
+  ┌─ Stage 0 ──────────────────────────────────────────────────────────┐
+  │ Blueprint (v4 — Python pre-sampling + LLM slot completion)        │
+  │   Step 1: Python pre-samples concept, sub_concepts, trap, diff    │
+  │   Step 2: Gemini Flash assigns question_type + ca_event only      │
+  │   Fallback: rule-based fallback reuses pre-sampled slots          │
+  └─────────────────────────────────────────────────────────────────────┘
+            ↓  5 QuestionSkeletons
+  ┌─ Stage 1 ──────────────────────────────────────────────────────────┐
+  │ Retrieval (3-phase: over-fetch → re-rank → MMR)                   │
+  │   1. Batch embed all queries in 1 API call                        │
+  │   2. Over-fetch 3x from Pinecone per query                        │
+  │   3. Cross-encoder re-ranks to target_k                           │
+  │   4. Client-side MMR (λ=0.6) selects diverse final set            │
+  │   5. SQLite full-text enrichment                                  │
+  │   + Google Search for CA-flagged skeletons                        │
+  └─────────────────────────────────────────────────────────────────────┘
+            ↓  5 RetrievalResults (≤10 chunks each)
+  ┌─ Stage 2 ──────────────────────────────────────────────────────────┐
+  │ Difficulty + Trap Injection (pure Python, 0 API calls)            │
+  └─────────────────────────────────────────────────────────────────────┘
+            ↓  5 DifficultyBundles
+  ┌─ Stage 3 ──────────────────────────────────────────────────────────┐
+  │ Generation — 5 parallel Gemini Pro calls                          │
+  │   Temperature: easy=0.50, medium=0.75, hard=0.90                  │
+  └─────────────────────────────────────────────────────────────────────┘
+            ↓  5 V2GeneratedQuestions
+  ┌─ Stage 4 ──────────────────────────────────────────────────────────┐
+  │ Quality Gate (5 checks, embedding-powered)                        │
+  │   1. Structural   2. Trap presence   3. CA in stem                │
+  │   4. Distractor plausibility (cosine range 0.40–0.92)             │
+  │   5. Semantic dedup (cosine < 0.85)                               │
+  └─────────────────────────────────────────────────────────────────────┘
+            ↓
+  ┌─ Stage 5 ──────────────────────────────────────────────────────────┐
+  │ Gap Fill — regenerate failed questions, shuffle, return            │
+  └─────────────────────────────────────────────────────────────────────┘
+            ↓
+  ┌─ Post-pipeline: Save updated concept ledger to Redis              │
+  └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Stage 0 — Blueprint (1 Gemini Flash call)
+## Pre-Pipeline: User Concept Ledger
 
-### Input
-```
-num_questions : 5
-subject       : Geography
-domain        : Physical Geography
-subdomain     : Climatology
-concept_pool  : geography_climatology.json  (15 concepts, each with sub_concepts + trap_affinity + links_to)
-trap_registry : traps_geography.json        (10 traps: GEO_T01–GEO_T10)
-```
+If `user_id` is present in the request, loads `ledger:{user_id}:{subject}:{subdomain}` from Redis.
 
-### What the LLM receives
-A single system prompt (~3000 tokens) structured as:
-
-```
-CONCEPT: Monsoon
-  own sub_concepts: "Southwest monsoon onset mechanism" [aspect=process] ...
-  borrowable sub_concepts from other concepts:
-    FROM "Jet Streams" (set source_concept="Jet Streams"):
-      - "Subtropical westerly jet stream in winter over India" [aspect=process]
-      ...
-  VALID trap_ids for this concept: GEO_T06, GEO_T04
-  ca_trigger_types: "IMD below-normal monsoon forecast 2024"
-
-CONSTRAINTS:
-  num_questions: 5
-  difficulty: easy=1, medium=3, hard=1
-  ca_linked: exactly 1 question must have ca_linked=true
-
-RULES:
-  - trap_id MUST come from that concept's valid list
-  - Sub_concepts: pick 2–3, can borrow from any listed concept, set source_concept
-  ...
-```
-
-### Output — 5 `QuestionSkeleton` objects
 ```json
-[
-  {
-    "skeleton_id": "sk_001",
-    "concept": "Monsoon",
-    "question_type": "multi_statement",
-    "difficulty": "medium",
-    "trap_strategy": "GEO_T06",
-    "ca_flag": false,
-    "ca_event": "",
-    "sub_concepts": [
-      {"topic": "Southwest monsoon onset mechanism",          "aspect": "process",  "source_concept": ""},
-      {"topic": "Subtropical westerly jet stream in winter", "aspect": "impact",   "source_concept": "Jet Streams"}
-    ],
-    "linked_concept": null
+{
+  "concepts_seen": {
+    "Monsoon": {"count": 3, "traps_used": ["GEO_T04","GEO_T06"], "sub_concepts_used": ["SW monsoon onset"], "last_seen": "2026-03-30"}
   },
-  {
-    "skeleton_id": "sk_003",
-    "concept": "Tropical Cyclones",
-    "question_type": "multi_statement",
-    "difficulty": "medium",
-    "trap_strategy": "GEO_T03",
-    "ca_flag": true,
-    "ca_event": "Named cyclone landfall in Bay of Bengal with damage data 2024",
-    "sub_concepts": [
-      {"topic": "Sea surface temperature above 26°C",        "aspect": "mechanism","source_concept": ""},
-      {"topic": "Positive IOD enhancing Indian monsoon",     "aspect": "impact",   "source_concept": "Indian Ocean Dipole (IOD)"}
-    ]
-  }
-  // ... 3 more skeletons
-]
+  "traps_exhausted": ["GEO_T04"],
+  "total_questions_seen": 15
+}
 ```
 
-**API calls: 1** (Gemini Flash, ~3000 token prompt, ~800 token output)
+**Effect on Stage 0:**
+- Heavily-tested concepts (`count ≥ 2`) → weight reduced in random selection
+- Exhausted traps → excluded from trap candidate pool
+- Fresh concepts → boosted in weighted pool
+- TTL: 30 days, refreshed on every read/write
 
 ---
 
-## Stage 1 — Retrieval
+## Stage 0 — Blueprint (v4: Pre-Sampled Slots)
 
-### Step 1a: PYQ Style Examples (1 Pinecone call, shared)
+### What changed in v4
+Previously, the LLM chose everything (concept, sub_concepts, trap, question_type, difficulty). Now **Python controls diversity**, and the LLM only decides question_type + ca_event.
+
+### Step 1: Python Pre-Sampling (`_pre_sample_slots`)
+
+**Input:**
 ```
-query  : "UPSC Geography previous year questions"
-filter : {source_type: "pyq", subject: "Geography"}
-k      : 10
-fetch_k: 10   (no re-ranking)
-result : ~5–10 PYQ chunk objects (question + answer + explanation)
+concept_pool  : geography_climatology.json (14 concepts, dict-keyed, auto-normalised)
+trap_registry : traps_geography.json (10 traps)
+ledger        : user's past test history (optional)
+num_questions : 5
 ```
-These are passed as style reference to EVERY question's generation prompt.
+
+**What Python samples for each slot:**
+
+| Ingredient | How it's chosen |
+|---|---|
+| **Concept** | Priority-weighted random pool (`high=3x`, `medium=2x`, `low=1x`). Ledger downgrades heavily-seen concepts. Each concept capped at max 3 uses. Min 5 unique concepts enforced. |
+| **Difficulty** | Exact ratio from `SubjectConfig` (e.g. easy=1, medium=3, hard=1). Shuffled randomly. |
+| **Sub-concepts** | 2 random own sub_concepts per slot. Plus 0–1 linked sub_concept from a connected concept (probability: easy=0%, medium=40%, hard=80%). |
+| **Trap** | Filtered by concept's `trap_affinity`. Exhausted traps excluded. Least-used-this-session preferred. |
+| **CA flag** | `ca_linkage_rate` from config → typically 1–2 of 5 slots flagged. |
+
+**Output:** 5 slot dicts with all ingredients pre-assigned.
+
+### Step 2: LLM Completion (1 Gemini Flash call)
+
+The LLM receives a compact prompt showing pre-assigned slots and only fills:
+
+```json
+{
+  "completions": [
+    {
+      "id": "Q1",
+      "question_type": "multi_statement",
+      "ca_event": "IMD issued below-normal monsoon forecast for 2024...",
+      "linked_concept": null,
+      "swap_sub_concept": null
+    }
+  ]
+}
+```
+
+The LLM **can** swap one sub_concept if the combination is incoherent, but cannot add concepts or traps.
+
+### Fallback
+If Flash fails → `_rule_based_fallback()` reuses the **same pre-sampled slots**, assigns question_type by difficulty heuristic. Diversity is preserved even without LLM.
+
+**API calls: 1** (Gemini Flash) | **Output: 5 `QuestionSkeleton` objects**
 
 ---
 
-### Step 1b: Per-Skeleton Pinecone Retrieval
+## Stage 1 — Retrieval (3-Phase Pipeline)
 
-For **each skeleton**, we build one Pinecone query per unique `source_concept`:
+### Phase 1: Batch Embedding
 
-#### Example: `sk_001` (Monsoon, 2 source_concepts)
+All query texts across all sub-queries for a skeleton are embedded in **1 `embed_documents()` call**.
 
-| source_concept | topics joined | k | fetch_k |
-|---|---|---|---|
-| `Monsoon` (own) | `"Monsoon Southwest monsoon onset mechanism"` | 5 | 5 |
-| `Jet Streams` (borrowed) | `"Jet Streams Subtropical westerly jet stream in winter"` | 3 | 3 |
+```
+Skeleton sk_001 (Monsoon, 2 source_concepts):
+  Query 1: "Monsoon Monsoon Onset Monsoon Variability" (own, k=5)
+  Query 2: "Jet Streams Subtropical Jet"               (borrowed, k=3)
+  → embed_documents(["query1", "query2"]) → 2 vectors in 1 API call
+```
 
-**Batch embedding:** Both query texts embedded in **1 API call** (`embed_documents([q1, q2])` → 2 vectors from OpenAI).
+### Phase 2: Over-Fetch → Cross-Encoder Re-Rank (local model)
 
-**Pinecone calls:** 2 calls (one per query), each with pre-computed vector so no re-embedding inside the handler.
+For each query:
+1. **Over-fetch 3x:** `fetch_k = target_k × 3` (e.g. k=5 → fetch 15 candidates)
+2. **Cross-encoder re-rank:** `re_rank=True` → local `cross-encoder/ms-marco-MiniLM-L-6-v2` scores all 15 by relevance, returns top 5. **0 API calls — runs on CPU.**
+3. **Pre-computed vector:** `query_vector=vec` passed to handler → skips re-embedding
 
-**Filter applied:**
+```
+Query: "Monsoon Monsoon Onset Monsoon Variability"
+  Pinecone fetch_k=15 → 15 candidates
+  Cross-encoder re-rank → top 5 returned
+  Filter: {source_type: {$ne: "pyq"}, major_domain: {$in: ["Monsoon", "Geography"]}}
+```
+
+**Fuzzy fallback:** If < half target returned, retry without `major_domain` filter.
+
+### Phase 3: Client-Side MMR
+
+After all sub-queries complete, if total chunks > 10 (`_MAX_CHUNKS_TOTAL`):
+
 ```python
-{"source_type": {"$ne": "pyq"}, "major_domain": {"$in": ["Monsoon", "Geography"]}}
+pinecone_handler.mmr_select_from_chunks(
+    chunks      = all_chunks,      # e.g. 13 chunks from 2 queries
+    query_text  = combined_query,  # joined query texts
+    k           = 10,              # hard cap
+    lambda_mult = 0.6,             # 60% relevance, 40% diversity
+)
 ```
 
-**SQLite enrichment:** For each returned chunk, `content_store.get_chunk(chunk_id, filename)` fetches full text from local SQLite DB. Without this, only `content_preview` (first 200 chars) is available.
+This ensures the final 10 chunks are both relevant **and** diverse (no duplicate-ish chunks from overlapping queries).
 
-**Result for sk_001:**
-```
-8 chunks total (5 from Monsoon + 3 from Jet Streams)
-All 8 enriched with full text from SQLite
-```
+### Phase 4: SQLite Enrichment
 
----
+Each chunk → `content_store.get_chunk(chunk_id, filename)` → replaces `content_preview` (200 chars) with full text.
 
-#### Total Pinecone calls across 5 skeletons
+### CA Search (for CA-flagged skeletons)
 
-| Skeleton | Concept | # source_concepts | Pinecone calls | Chunks fetched |
+2 Google Search queries via `gemini_client.search_and_summarise()`:
+1. Event-anchored: `"IMD below-normal monsoon forecast 2024 Monsoon India 2024 2025 official"`
+2. Static grounding: `"site:ncert.nic.in OR site:gov.in Monsoon ..."`
+
+Returns ~1500–2500 chars of synthesised factual text.
+
+### Concrete Numbers per Skeleton
+
+| Source | Query count | fetch_k | After re-rank | After MMR |
 |---|---|---|---|---|
-| sk_001 | Monsoon | 2 | 2 | 8 |
-| sk_002 | Jet Streams | 1 | 1 | 5 |
-| sk_003 | Tropical Cyclones | 2 | 2 | 8 |
-| sk_004 | Rainfall Types | 2 | 2 | 8 |
-| sk_005 | El Niño / La Niña | 1 | 1 | 5 |
-| **Total** | | | **8** | **34** |
+| Own concept (k=5) | 1 | 15 | 5 | — |
+| Borrowed concept (k=3) | 1 | 9 | 3 | — |
+| **Per-skeleton total** | **2** | **24** | **8** | **≤10** |
 
-**Embedding API calls: 3** (batch per concurrent skeleton group — semaphore=10 so usually 1–3 batches)  
-**Pinecone API calls: 8** (same as above)
+### Total API Calls Across 5 Skeletons
 
----
-
-### Step 1c: CA Search (0–2 Google Search calls)
-
-Only for skeletons where `ca_flag = true`. In 5Q, typically **1–2 skeletons** are CA-flagged.
-
-#### Example: `sk_003` (Tropical Cyclones, ca_flag=true)
-
-Queries built from `ca_event`:
-```
-[1] "Named cyclone landfall Bay of Bengal with damage data 2024 Tropical Cyclones India 2024 2025 official"
-[2] "site:ncert.nic.in OR site:gov.in Tropical Cyclones Sea surface temperature above 26°C UPSC"
-```
-
-`gemini_client.search_and_summarise(queries)` fires:
-- 1 Gemini Pro call (`use_google_search=True`)
-- Gemini fetches 15–18 web results internally, synthesises them
-- Returns ~1500–2500 chars of summarised factual text
-
-**Output stored in `RetrievalResult.ca_context`.**
+| Call | Count | Notes |
+|---|---|---|
+| Embed batch | 2–3 | One per concurrent skeleton group |
+| Pinecone (with re-rank) | 6–10 | 1–2 queries per skeleton |
+| PYQ fetch (shared) | 1 | k=10, `source_type=pyq` |
+| CA Google Search | 0–2 | Only ca_flagged skeletons |
 
 ---
 
 ## Stage 2 — Difficulty + Trap Injection (0 API calls)
 
-Pure Python. For each skeleton:
+Pure Python, ~5ms total.
 
-1. Loads `traps_geography.json` once (cached in `_trap_cache`)
-2. Looks up `skeleton.trap_strategy` → finds the full `TrapRule` object
-3. Creates `DifficultyBundle(skeleton=sk, trap_rule=trap, difficulty_instruction=<prose>)`
-
-### What gets added
+For each skeleton → loads `TrapRule` from `traps_geography.json` → bundles into `DifficultyBundle`:
 
 ```python
-TrapRule(
-    trap_id   = "GEO_T06",
-    trap_name = "False Causation",
-    mechanism = "Student knows both facts but assumes one causes the other",
-    how_to_generate = "State A and B as true, imply A→B but make the reason subtly wrong",
-    real_pyq_example = "UPSC 2019: Monsoon and IOD question..."
+DifficultyBundle(
+    skeleton = QuestionSkeleton(...),
+    trap_rule = TrapRule(
+        trap_id    = "GEO_T06",
+        trap_name  = "False Causation",
+        mechanism  = "Student knows both facts, assumes wrong causal link",
+        how_to_generate = "State A and B as true, imply A→B but reason is subtly wrong",
+        real_pyq_example = "UPSC 2019: ..."
+    ),
+    difficulty_instruction = "At least one distractor must be partially true..."
 )
 ```
 
-**No API calls. ~5ms total.**
-
 ---
 
-## Stage 3 — Question Generation (5 Gemini Pro calls)
+## Stage 3 — Generation (5 Gemini Pro calls, parallel)
 
-One LLM call per skeleton. All 5 run concurrently (semaphore=5).
+All 5 run concurrently (semaphore=5).
 
-### Prompt structure per question (~2500–4000 tokens)
+### Temperature by Difficulty
+
+| Difficulty | Temperature | Rationale |
+|---|---|---|
+| Easy | 0.50 | Clean, predictable output |
+| Medium | 0.75 | Balanced |
+| Hard | 0.90 | Creative trap constructions |
+
+### Prompt Structure (~2500–4000 tokens)
 
 ```
-═══════════════════════════════════
 QUESTION SPECIFICATION
-  concept       : Monsoon
-  question_type : multi_statement
-  difficulty    : medium
-  sub_concepts to test:
-    - Southwest monsoon onset mechanism [aspect=process, own]
-    - Subtropical westerly jet stream in winter [aspect=impact, from Jet Streams]
+  concept, question_type, difficulty, sub_concepts
 
-═══════════════════════════════════
-SUBJECT FRAMEWORK
-  [Geography cognitive framework: spatial, causal, process-based reasoning...]
+SUBJECT COGNITIVE FRAMEWORK
+  [Geography: spatial, causal, process-based reasoning]
 
-═══════════════════════════════════
-DIFFICULTY: MEDIUM
-  - At least one distractor must be partially true
-  - Use qualifier traps: "always" vs "usually"...
+DIFFICULTY INSTRUCTION
+  [Prose rules matching the difficulty tier]
 
-═══════════════════════════════════
-TRAP STRATEGY TO USE: False Causation
-  Mechanism: Student knows both facts, assumes wrong causal link
-  How to build: State A and B as true, imply A→B but reason is subtly wrong
-  Real UPSC example: [...]
+TRAP STRATEGY
+  [Full TrapRule: mechanism + how_to_generate + real_pyq_example]
 
-═══════════════════════════════════
-STATIC CONTENT (factual grounding):
-[Chunk 1 — Monsoon]
-  The southwest monsoon arrives in Kerala typically in late May or early June...
-[Chunk 2 — Monsoon]
-  The ITCZ shifts northward during summer, the subtropical jet stream retreats...
-[Chunk 3 — Jet Streams]
-  The subtropical westerly jet stream at ~200 hPa level plays a critical role...
-...
-[8 chunks total, each SQLite-enriched, ~400–600 chars each]
+STATIC CONTENT (≤10 chunks, SQLite-enriched)
+  [Chunk 1 — Monsoon: "The southwest monsoon..."]
+  [Chunk 2 — Jet Streams: "The subtropical jet..."]
+  ...
 
-═══════════════════════════════════
-PYQ STYLE REFERENCE:
-  [2 PYQ examples matching multi_statement type]
+CA CONTEXT (if ca_flag)
+  [Google Search summary: 1500–2500 chars]
 
-═══════════════════════════════════
-OUTPUT FORMAT:
-{ "question": "...", "options": [...], "correct_answer": "B", "explanation": "..." }
+PYQ STYLE REFERENCE
+  [2 matching PYQ examples from Pinecone]
+
+OUTPUT FORMAT
+  {question, options, correct_answer, explanation, source}
 ```
 
 ### Output per skeleton
 ```json
 {
-  "question": "Consider the following statements regarding Indian monsoon:\n1. The onset of SW monsoon over Kerala is influenced by...\n2. The subtropical westerly jet stream shifts poleward before...\n3. ...\nWhich of the statements given above is/are correct?",
+  "question": "Consider the following statements regarding Indian monsoon...",
   "options": ["(a) 1 only", "(b) 1 and 2 only", "(c) 2 and 3 only", "(d) 1, 2 and 3"],
   "correct_answer": "B",
-  "explanation": "Statement 1 is correct because... Statement 2 is correct because... The trap here is Statement 3: students assume the jet stream causes monsoon onset directly (False Causation trap), but the actual mechanism is...",
+  "explanation": "Statement 1 is correct... The trap here is Statement 3 (False Causation)...",
   "source": {"concept": "Monsoon", "sub_domain": "Climatology", "trap_used": "GEO_T06"}
 }
 ```
 
-**API calls: 5** (Gemini Pro, ~2500–4000 token prompt, ~500–800 token output each)
+---
+
+## Stage 4 — Quality Gate (5 checks)
+
+### Check 1–3: Structural + Soft Checks (no API)
+
+| Check | Type | Fails pipeline? |
+|---|---|---|
+| **Structural** | 4 options, valid answer letter, question >30 chars, explanation >20 chars | **Hard fail** |
+| **Trap presence** | Trap keywords found in wrong options or explanation | Soft (marks `trap_verified`) |
+| **CA in stem** | CA event keywords appear in question stem | Soft (marks `ca_in_stem`) |
+
+### Check 4: Distractor Plausibility (local SBERT embeddings)
+
+Embeds all correct answers + all wrong options using local SentenceTransformer, then checks cosine similarity:
+
+```
+For each question:
+  correct_answer embedding ↔ each wrong option embedding
+  
+  sim > 0.92 → "near-copy" (bad: lazy copy-paste distractor)     → HARD FAIL
+  sim < 0.40 → "unrelated filler" (only if option ≥ 5 words)     → HARD FAIL
+  0.40–0.92  → "plausible but wrong" (good UPSC distractor)      → PASS ✅
+```
+
+Failed questions go to Stage 5 for regeneration.
+
+### Check 5: Semantic Dedup
+
+Embeds all question stems, checks pairwise cosine similarity:
+- `sim ≥ 0.85` between any two → drops the duplicate, sends to gap fill
+
+### API Calls: 0 (local SBERT model — no external API)
+
+The `_embed_texts()` helper auto-detects embedder type:
+- `Embedder` (custom class) → calls `get_embeddings()` → SBERT fallback for quality gate
+- LangChain wrapper → calls `embed_documents()`
 
 ---
 
-## Stage 4 — Quality Gate (0 API calls)
+## Stage 5 — Gap Fill & Shuffle (0–N API calls)
 
-For each generated question:
-- Checks `len(question) > 50`
-- Checks `correct_answer in {A, B, C, D}`
-- Checks `len(options) == 4`
-- (Optional) cosine similarity between question embedding and skeleton concept — flags if score < 0.3
-
-Passes: ~4–5 of 5  
-Failed IDs collected for Stage 5.
-
----
-
-## Stage 5 — Gap Fill (0 to N Gemini Pro calls)
-
-If Stage 4 passes ≥ `num_questions` → shuffles and returns.  
-If some failed → regenerates failed questions with a simpler prompt (no cross-concept borrowing, easy fallback).
+If all 5 pass → shuffle and return. Otherwise:
+- Downgrades failed skeletons to easier difficulty
+- Drops CA requirement
+- Regenerates with cached chunks (no re-retrieval)
 
 For a healthy run: **0 additional calls**.
+
+---
+
+## Post-Pipeline: Save Concept Ledger
+
+After Stage 5 completes, `merge_and_save_ledger()` writes updated history to Redis:
+
+```
+For each skeleton generated:
+  concepts_seen[concept].count += 1
+  concepts_seen[concept].traps_used += [trap_id]
+  concepts_seen[concept].sub_concepts_used += [topics]
+  
+Recalculate traps_exhausted (any trap used ≥ 3 times globally)
+Save to Redis: ledger:{user_id}:{subject}:{subdomain} (TTL 30 days)
+```
+
+**Next run:** Stage 0 reads this ledger → biases toward fresh concepts, excludes exhausted traps.
 
 ---
 
@@ -296,41 +356,40 @@ For a healthy run: **0 additional calls**.
 
 | API | Provider | Count | Notes |
 |---|---|---|---|
-| Blueprint | Gemini Flash | **1** | ~3000 token in, ~800 token out |
-| Embed (Pinecone queries) | OpenAI | **2–3** | Batch embed per concurrent group |
-| PYQ fetch | Pinecone | **1** | k=10, filter by source_type=pyq |
-| Chunk retrieval | Pinecone | **6–10** | 1–2 queries per skeleton |
-| SQLite enrichment | Local DB | **34** | One read per chunk, ~zero latency |
-| CA search | Gemini Pro + Google | **0–2** | Only for ca_flagged skeletons |
-| Question generation | Gemini Pro | **5** | One per skeleton, parallel |
-| **Total external calls** | | **15–22** | |
+| Blueprint (slots) | Gemini Flash | **1** | Compact prompt, ~1500 token in |
+| Embed (retrieval queries) | OpenAI | **2–3** | Batch per concurrent group |
+| PYQ fetch | Pinecone | **1** | k=10, shared |
+| Chunk retrieval | Pinecone | **6–10** | 3x overfetch, re-rank is local |
+| Cross-encoder re-rank | Local (CPU) | **0** | `ms-marco-MiniLM-L-6-v2` |
+| MMR selection | Local (CPU) | **0** | Client-side diversity filter |
+| CA search | Gemini + Google | **0–2** | CA-flagged only |
+| Question generation | Gemini Pro | **5** | Parallel, temp by difficulty |
+| Distractor check | Local SBERT | **0** | Cosine range 0.40–0.92 |
+| Dedup check | Local SBERT | **0** | Cosine < 0.85 |
+| Ledger load/save | Redis | **2** | GET + SET |
+| **Total external API** | | **~15–17** | |
 
 ---
 
-## Token budget per question (Stage 3)
+## Key Data Files
 
-| Section | Approx tokens |
-|---|---|
-| Specification + difficulty rules | ~300 |
-| Subject cognitive framework | ~400 |
-| Trap injection block | ~300 |
-| Static chunks (8 × 500 chars) | ~1000 |
-| CA context (if ca_flag) | ~400 |
-| PYQ style examples (2 × 300) | ~200 |
-| Output format template | ~150 |
-| **Total prompt** | **~2350–3000** |
-| Output (question + explanation) | ~500–800 |
-
----
-
-## Key Areas for Improvement
-
-| Area | Current | Improvement |
+| File | Location | Purpose |
 |---|---|---|
-| **Chunk quality** | Filter by major_domain only | Add sub_domain + aspect-aware filter |
-| **Cross-concept retrieval** | Fetches 3 chunks from borrowed concept | Could rank by semantic overlap with the specific sub_concept topic |
-| **CA context quality** | Google search summary | Could cache by ca_event hash to avoid re-fetching same event |
-| **Generation temperature** | 0.85 | Could lower for easy questions, raise for hard A/R |
-| **Quality gate** | Basic structural checks | Add semantic dedup — reject if cosine(question, previous_question) > 0.85 |
-| **Concept pool** | Climatology done | Polity, History, Economy concept pools needed |
-| **Fallback chunks** | content_preview if no SQLite | Improve SQLite coverage to reduce fallbacks |
+| `geography_climatology.json` | `prelims_v2/concept_pools/` | 14 concepts with sub_concepts, trap_affinity, links_to, priority |
+| `traps_geography.json` | `prelims_v2/` | 10 trap definitions (GEO_T01–T10) |
+| `history_prelims_pyq_patterns.json` | `config/` | PYQ pattern data for style reference |
+| `content_store.db` | `data/databases/` | SQLite full-text content (chunk enrichment) |
+
+---
+
+## Improvement Areas
+
+| Area | Current | Potential |
+|---|---|---|
+| **Concept pools** | Geography/Climatology done | Need Polity, History, Economy pools |
+| **Cross-encoder model** | Uses PineconeHandler's built-in | Could swap in a tuned cross-encoder |
+| **MMR fallback** | Hard cap at 10 chunks | Could vary by difficulty (easy=6, hard=12) |
+| **CA caching** | Each run re-fetches | Cache by `ca_event` hash for 24h |
+| **Distractor regen** | Hard fail → gap fill | Could do targeted distractor-only regen |
+| **Quality gate** | Embedding-based only | Could add an LLM judge pass for hard questions |
+| **SQLite coverage** | Some chunks miss full text | Improve ingestion to eliminate fallbacks |

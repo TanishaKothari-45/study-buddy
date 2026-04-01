@@ -52,8 +52,9 @@ init_memory_db()
 
 class MockTestRequest(BaseModel):
     num_questions: int = 5
-    topics: List[str] = []  # Optional topics to focus on
-    subject: str = "general"  # ncert, current_affairs, general
+    topics: List[str] = []        # Optional topics to focus on
+    subject: str = "general"      # ncert, current_affairs, general
+    user_id: Optional[str] = None  # Optional — enables per-user concept ledger for v2 pipeline
 
 class QuestionSource(BaseModel):
     topic: str
@@ -1982,7 +1983,8 @@ async def generate_async(
             num_questions=test_request.num_questions,
             topics=test_request.topics,
             subject=test_request.subject if hasattr(test_request, "subject") else "Geography",
-            api_key=api_key
+            api_key=api_key,
+            user_id=getattr(test_request, "user_id", None),
         )
 
         logger.info(f"🆕 [V2] Enqueued job {job_id[:8]} — {test_request.num_questions}Q / {getattr(test_request, 'subject', 'Geography')}")
@@ -2128,6 +2130,7 @@ async def generate_async_v2(
             topics=test_request.topics,
             subject=test_request.subject,
             api_key=GEMINI_API_KEY,
+            user_id=test_request.user_id,
         )
 
         estimated_seconds = math.ceil(test_request.num_questions / 20) * 90  # ~90s per 20 questions (parallel)

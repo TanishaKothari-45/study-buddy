@@ -154,22 +154,31 @@ def _cosine_sim(v1: List[float], v2: List[float]) -> float:
 
 def _embed_texts(embedder, texts: List[str]) -> List[List[float]]:
     """
-    Call the right embedding method regardless of embedder type:
-      - LangChain wrappers  → embed_documents()
-      - app.utils.Embedder  → get_embeddings()
-      - LangChain embed_query loop fallback
+    Embed texts for quality-gate checks (distractor plausibility + dedup).
+
+    Priority: local SBERT first (free, ~384 dims) → LangChain → OpenAI fallback.
+    Quality gate only needs relative cosine similarity, so dimension consistency
+    with Pinecone index is NOT required — local SBERT is ideal here.
     """
     if not texts:
         return []
+    # 1. Prefer local SentenceTransformer (free, no API call)
+    if hasattr(embedder, "get_sbert_embeddings"):
+        try:
+            return embedder.get_sbert_embeddings(texts)
+        except Exception:
+            pass  # fall through to next option
+    # 2. LangChain wrapper
     if hasattr(embedder, "embed_documents"):
         return embedder.embed_documents(texts)
+    # 3. Custom Embedder (tries OpenAI → SBERT internally)
     if hasattr(embedder, "get_embeddings"):
         return embedder.get_embeddings(texts)
+    # 4. Single-query loop fallback
     if hasattr(embedder, "embed_query"):
         return [embedder.embed_query(t) for t in texts]
     raise AttributeError(
-        f"Embedder {type(embedder).__name__} has no embed_documents / "
-        "get_embeddings / embed_query method"
+        f"Embedder {type(embedder).__name__} has no embedding method"
     )
 
 
