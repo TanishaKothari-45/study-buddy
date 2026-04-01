@@ -25,6 +25,7 @@ from typing import List, Optional
 from redis.asyncio import Redis
 
 from .models import V2GeneratedQuestion
+from .user_ledger import load_ledger, merge_and_save_ledger
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,13 @@ _STAGE_PROGRESS = {
 _GENERATION_CONCURRENCY = 5   # max parallel Gemini Pro calls in Stage 3
 _V2_DIR = Path(__file__).parent
 _CONFIG_DIR = _V2_DIR.parent.parent.parent / "config"
+
+# Lower temperature → more predictable/clean; higher → more creative trap constructions
+TEMPERATURE_BY_DIFFICULTY: dict = {
+    "easy":   0.50,
+    "medium": 0.75,
+    "hard":   0.90,
+}
 
 
 async def _set_progress(redis: Redis, job_id: str, stage: int) -> None:
@@ -96,6 +104,8 @@ async def _generate_one(
         pyq_chunks=pyq_chunks,
     )
 
+    temperature = TEMPERATURE_BY_DIFFICULTY.get(skeleton.difficulty, 0.75)
+
     async with semaphore:
         try:
             response_text = await gemini_client.generate_response(
@@ -104,7 +114,7 @@ async def _generate_one(
                     "You are a UPSC Prelims question setter. "
                     "Output ONLY a single valid JSON object. No markdown."
                 ),
-                temperature=0.85,
+                temperature=temperature,
             )
         except Exception as e:
             logger.error(f"[Stage3] Gemini call failed for {skeleton.skeleton_id}: {e}")
@@ -146,6 +156,7 @@ async def run_v2_pipeline(
     pinecone_handler,
     gemini_client,
     redis: Redis,
+    user_id: Optional[str] = None,
 ) -> List[dict]:
     """
     Full question-first v2 pipeline.
@@ -161,6 +172,17 @@ async def run_v2_pipeline(
 
     logger.info(f"[V2] Starting job {job_id[:8]} — {num_questions}Q / {subject}")
 
+    domain    = topics[0] if topics else subject
+    subdomain = topics[1] if len(topics) > 1 else (topics[0] if topics else subject)
+
+    # ── Load user concept ledger (optional — skipped if no user_id) ───────────
+    ledger = await load_ledger(redis, user_id or "", subject, subdomain) if user_id else None
+    if ledger:
+        logger.info(
+            f"[V2] Ledger loaded for user={user_id} — "
+            f"{ledger.get('total_questions_seen', 0)} questions seen previously"
+        )
+
     # ── Stage 0: Blueprint ────────────────────────────────────────────────────
     await _set_progress(redis, job_id, 0)
     await _check_cancel(redis, job_id)
@@ -170,8 +192,9 @@ async def run_v2_pipeline(
         topics=topics,
         subject=subject,
         gemini_client=gemini_client,
-        domain=topics[0] if topics else subject,
-        subdomain=topics[1] if len(topics) > 1 else (topics[0] if topics else subject),
+        domain=domain,
+        subdomain=subdomain,
+        ledger=ledger,
     )
     if not skeletons:
         raise RuntimeError("Blueprint generation failed: no skeletons produced")
@@ -321,4 +344,15 @@ async def run_v2_pipeline(
     )
 
     logger.info(f"[V2] Job {job_id[:8]} complete — {len(final_questions)} questions")
+
+    # ── Save updated concept ledger (fire-and-forget, non-critical) ───────────
+    if user_id and skeletons:
+        await merge_and_save_ledger(
+            redis     = redis,
+            user_id   = user_id,
+            subject   = subject,
+            subdomain = subdomain,
+            skeletons = skeletons,
+        )
+
     return final_questions

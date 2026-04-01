@@ -60,6 +60,7 @@ class V2GeneratedQuestion(BaseModel):
     trap_verified: bool = False
     ca_in_stem: bool = False                  # CA event appears in question stem (not explanation only)
     quality_score: float = 0.0
+    distractor_quality: float = 1.0          # fraction of wrong options in plausible similarity range
     # Source metadata
     sub_domain: str = ""
     difficulty: str = ""
@@ -71,6 +72,7 @@ class V2JobRequest(BaseModel):
     num_questions: int = 20
     topics: List[str] = []
     subject: str = "Geography"
+    user_id: Optional[str] = None  # enables per-user concept ledger
 
 
 # Valid question type slugs — enforced by Gemini response_schema

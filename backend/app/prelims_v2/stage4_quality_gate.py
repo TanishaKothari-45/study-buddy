@@ -2,10 +2,12 @@
 Stage 4 — Quality Gate
 
 Validates each generated question without LLM calls:
-1.  Trap presence   — at least one wrong option contains a trap-related keyword
-2.  CA in stem      — CA-flagged questions: CA event keywords appear in the question stem
-3.  Structural      — 4 options, valid correct_answer letter, non-empty explanation
-4.  Semantic dedup  — embedding-based cosine similarity < 0.85 against all prior questions
+1.  Structural      — 4 options, valid correct_answer letter, non-empty explanation
+2.  Trap presence   — at least one wrong option contains a trap-related keyword
+3.  CA in stem      — CA-flagged questions: CA event keywords appear in the question stem
+4.  Distractor plausibility — wrong options must sit in the "plausible but wrong" similarity
+                              range vs the correct answer (not near-copies, not unrelated fillers)
+5.  Semantic dedup  — embedding-based cosine similarity < 0.85 against all prior questions
 
 Returns (passed, failed_skeleton_ids) tuple.
 """
@@ -64,6 +66,21 @@ _GENERIC_TRAP_WORDS = [
     "only", "never", "always", "all", "none", "first", "last", "solely",
     "not", "except", "incorrect", "false"
 ]
+
+# ── Distractor plausibility thresholds ────────────────────────────────────────
+# Sweet spot for good UPSC distractors: similarity 0.55–0.85 (plausible but wrong).
+# Tuned conservatively: only flag extremes to avoid false positives.
+#   > _DISTRACTOR_TOO_SIMILAR  → near-copy of correct answer (copy-paste distractor)
+#   < _DISTRACTOR_TOO_DISTANT  → completely unrelated filler (only flagged for long options
+#                                 to avoid false positives from short placeholder text)
+_DISTRACTOR_TOO_SIMILAR  = 0.92
+_DISTRACTOR_TOO_DISTANT  = 0.40
+_DISTRACTOR_MIN_WORDS    = 5    # "too distant" check only applied to options with ≥ N words
+
+
+def _strip_option_prefix(opt: str) -> str:
+    """Strip leading option labels like 'A)', '(a)', 'A.', '(A) ' from option text."""
+    return re.sub(r"^\s*[\(\[]?[A-Da-d][\)\]\.]\s*", "", opt).strip()
 
 
 def _wrong_options(question: V2GeneratedQuestion) -> List[str]:
@@ -135,6 +152,27 @@ def _cosine_sim(v1: List[float], v2: List[float]) -> float:
     return dot / (n1 * n2)
 
 
+def _embed_texts(embedder, texts: List[str]) -> List[List[float]]:
+    """
+    Call the right embedding method regardless of embedder type:
+      - LangChain wrappers  → embed_documents()
+      - app.utils.Embedder  → get_embeddings()
+      - LangChain embed_query loop fallback
+    """
+    if not texts:
+        return []
+    if hasattr(embedder, "embed_documents"):
+        return embedder.embed_documents(texts)
+    if hasattr(embedder, "get_embeddings"):
+        return embedder.get_embeddings(texts)
+    if hasattr(embedder, "embed_query"):
+        return [embedder.embed_query(t) for t in texts]
+    raise AttributeError(
+        f"Embedder {type(embedder).__name__} has no embed_documents / "
+        "get_embeddings / embed_query method"
+    )
+
+
 async def run_quality_gate(
     questions: List[V2GeneratedQuestion],
     skeletons: List[QuestionSkeleton],
@@ -148,7 +186,8 @@ async def run_quality_gate(
     1. Structural validity
     2. Trap presence in wrong options / explanation
     3. CA event in question stem (for ca_flag=True)
-    4. Semantic deduplication (if embedder available)
+    4. Distractor plausibility — wrong options must be in plausible similarity range
+    5. Semantic deduplication against all prior passed questions
     """
     logger.info(f"🔍 [Stage 4] Running quality gate on {len(questions)} questions …")
 
@@ -174,16 +213,16 @@ async def run_quality_gate(
         q.trap_verified = trap_ok
         if not trap_ok:
             logger.debug(f"   ⚠️ {q.skeleton_id} — trap not detected in wrong options")
-            # Don't fail yet — trap verification is soft; mark and continue
+            # Soft check — mark but do not fail
 
         # 3. CA in stem
         ca_ok = _check_ca_in_stem(q, sk)
         q.ca_in_stem = ca_ok
         if sk.ca_flag and not ca_ok:
             logger.debug(f"   ⚠️ {q.skeleton_id} — CA event not found in stem")
-            # Also soft fail
+            # Soft check — mark but do not fail
 
-        # Quality score (0–1)
+        # Quality score (0–1); distractor_quality updated in step 4
         score = 0.5
         if trap_ok:
             score += 0.3
@@ -193,12 +232,97 @@ async def run_quality_gate(
 
         passed.append(q)
 
-    # 4. Semantic deduplication
+    # 4. Distractor plausibility check (batch embedding)
+    if embedder and passed:
+        logger.info(f"   🎯 Running distractor plausibility check on {len(passed)} questions …")
+        try:
+            # Collect all option texts (4 per question) in one flat list for a single embed call
+            correct_texts: List[str] = []
+            wrong_texts_per_q: List[List[str]] = []
+
+            for q in passed:
+                correct_idx = ord(q.correct_answer) - ord("A")
+                correct_raw = q.options[correct_idx] if correct_idx < len(q.options) else ""
+                correct_texts.append(_strip_option_prefix(correct_raw))
+
+                wrong_raw = [
+                    _strip_option_prefix(opt)
+                    for j, opt in enumerate(q.options)
+                    if j != correct_idx
+                ]
+                wrong_texts_per_q.append(wrong_raw)
+
+            # Flatten wrong option texts for one embed_documents batch call
+            flat_wrong: List[str] = []
+            flat_offsets: List[int] = []  # start index in flat_wrong for each question
+            for wrongs in wrong_texts_per_q:
+                flat_offsets.append(len(flat_wrong))
+                flat_wrong.extend(wrongs)
+
+            # Embed correct answers + all wrong options in two batches
+            correct_embs: List[List[float]] = await asyncio.to_thread(
+                _embed_texts, embedder, correct_texts
+            )
+            wrong_embs: List[List[float]] = await asyncio.to_thread(
+                _embed_texts, embedder, flat_wrong
+            ) if flat_wrong else []
+
+            distractor_failed: List[str] = []
+            for idx, q in enumerate(passed):
+                c_emb = correct_embs[idx]
+                start = flat_offsets[idx]
+                w_texts = wrong_texts_per_q[idx]
+                w_embs  = wrong_embs[start: start + len(w_texts)]
+
+                good = 0
+                bad  = 0
+                for w_text, w_emb in zip(w_texts, w_embs):
+                    sim = _cosine_sim(c_emb, w_emb)
+                    word_count = len(w_text.split())
+                    too_close = sim > _DISTRACTOR_TOO_SIMILAR
+                    # Only flag "too distant" for options with enough content to judge
+                    too_far   = sim < _DISTRACTOR_TOO_DISTANT and word_count >= _DISTRACTOR_MIN_WORDS
+                    if too_close or too_far:
+                        bad += 1
+                        reason = "near-copy" if too_close else f"unrelated (sim={sim:.2f})"
+                        logger.debug(
+                            f"   ⚠️ {q.skeleton_id} — bad distractor [{reason}]: "
+                            f"'{w_text[:60]}'"
+                        )
+                    else:
+                        good += 1
+
+                total_wrong = len(w_texts)
+                dq_score = round(good / total_wrong, 2) if total_wrong else 1.0
+                q.distractor_quality = dq_score
+
+                if bad > 0:
+                    # Any bad distractor triggers a hard fail — gap fill will regenerate
+                    distractor_failed.append(q.skeleton_id)
+                    logger.debug(
+                        f"   ❌ {q.skeleton_id} — distractor quality fail "
+                        f"({bad}/{total_wrong} bad distractors, score={dq_score})"
+                    )
+
+            if distractor_failed:
+                logger.info(
+                    f"   [4] Distractor check: {len(distractor_failed)} questions failed "
+                    f"({len(passed) - len(distractor_failed)} passed)"
+                )
+                failed_ids.extend(distractor_failed)
+                passed = [q for q in passed if q.skeleton_id not in set(distractor_failed)]
+            else:
+                logger.info(f"   [4] Distractor check: all {len(passed)} questions passed")
+
+        except Exception as e:
+            logger.warning(f"⚠️ [Stage 4] Distractor check failed: {e} — skipping")
+
+    # 5. Semantic deduplication
     if embedder and len(passed) > 1:
         logger.info(f"   🔗 Running embedding-based dedup on {len(passed)} questions …")
         try:
             texts = [q.question for q in passed]
-            embeddings = await asyncio.to_thread(embedder.embed_documents, texts)
+            embeddings = await asyncio.to_thread(_embed_texts, embedder, texts)
 
             kept: List[V2GeneratedQuestion] = []
             kept_embeddings: List[List[float]] = []

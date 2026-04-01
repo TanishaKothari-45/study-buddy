@@ -27,7 +27,9 @@ async def _retry_skeleton(
     subject: str,
 ) -> Optional[V2GeneratedQuestion]:
     """Retry generation for a single skeleton with lowered difficulty."""
-    from .stage3_generation import _generate_one
+    from .pipeline import _generate_one
+    from .stage1_retrieval import RetrievalResult
+    from .stage2_difficulty import inject_difficulty
 
     # Downgrade difficulty for retry
     sk = bundle.skeleton
@@ -39,18 +41,34 @@ async def _retry_skeleton(
         sk_relaxed = sk.model_copy(update={"ca_flag": False})
 
     # Rebuild instruction with relaxed difficulty
-    from .stage2_difficulty import inject_difficulty
     relaxed_bundles = inject_difficulty([sk_relaxed], subject=subject)
     relaxed_bundle = relaxed_bundles[0]
 
+    # Build a minimal RetrievalResult from the cached chunks (drop CA on retry)
+    retrieval_result = RetrievalResult(
+        skeleton_id    = sk.skeleton_id,
+        static_chunks  = chunk_map.get(sk.skeleton_id, []),
+        ca_context     = "",
+        ca_queries     = [],
+        retrieval_mode = "pinecone",
+    )
+
+    from pathlib import Path
+    _v2_dir = Path(__file__).parent
+    _cfg_dir = _v2_dir.parent.parent.parent / "config"
+    trap_registry_path = _v2_dir / f"traps_{subject.lower()}.json"
+    if not trap_registry_path.exists():
+        trap_registry_path = _cfg_dir / "trap_registry.json"
+
     semaphore = asyncio.Semaphore(1)
     return await _generate_one(
-        bundle=relaxed_bundle,
-        chunks=chunk_map.get(sk.skeleton_id, []),
-        ca_query=None,  # drop CA requirement on retry
-        gemini_client=gemini_client,
-        subject=subject,
-        semaphore=semaphore,
+        skeleton           = sk_relaxed,
+        retrieval_result   = retrieval_result,
+        bundle             = relaxed_bundle,
+        gemini_client      = gemini_client,
+        trap_registry_path = trap_registry_path,
+        pyq_chunks         = [],
+        semaphore          = semaphore,
     )
 
 

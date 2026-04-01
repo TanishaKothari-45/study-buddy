@@ -2077,7 +2077,8 @@ async def generate_mock_test_v2_task(
     num_questions: int,
     topics: List[str],
     api_key: str,
-    subject: str = "Geography"
+    subject: str = "Geography",
+    user_id: Optional[str] = None,
 ):
     """
     Generate mock test questions using the new question-first v2 pipeline.
@@ -2109,6 +2110,7 @@ async def generate_mock_test_v2_task(
             pinecone_handler=pinecone_handler,
             gemini_client=gemini_client,
             redis=redis,
+            user_id=user_id,
         )
 
         # Build result in same format as v1 so /status/{job_id} works unchanged

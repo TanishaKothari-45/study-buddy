@@ -265,6 +265,7 @@ def _build_prompt(
     concept_pool: list,
     trap_registry: dict,
     pyq_data: dict,
+    ledger: Optional[dict] = None,
 ) -> str:
     easy, medium, hard = _difficulty_counts(cfg, num_questions)
     ca_count = max(1, round(num_questions * cfg.ca_linkage_rate))
@@ -281,6 +282,10 @@ def _build_prompt(
     )
 
     type_ranges = _type_ranges_str(cfg, scale)
+
+    # Optional diversity constraints from user's concept ledger
+    from .user_ledger import build_diversity_constraints
+    diversity_block = build_diversity_constraints(ledger, concept_pool, num_questions)
 
     return f"""You are an expert UPSC Prelims question paper setter.
 Your task is to DESIGN a blueprint — NOT generate actual questions.
@@ -309,6 +314,7 @@ CONSTRAINTS
   question_type_ranges (min, max):
 {type_ranges}
 
+{diversity_block}
 ═══════════════════════════════════════════════
 RULES — FOLLOW STRICTLY
 
@@ -412,7 +418,10 @@ def _rule_based_fallback(
 
     for i in range(num_questions):
         c = concepts[i % len(concepts)]
-        valid_traps = _traps_for_concept(c, all_traps)
+        valid_traps = random.sample(
+    _traps_for_concept(c, all_traps),
+    k=min(2, len(_traps_for_concept(c, all_traps)))
+)
         # Pick least-used trap
         valid_traps_sorted = sorted(valid_traps, key=lambda t: trap_use.get(t["trap_id"], 0))
         trap = valid_traps_sorted[0] if valid_traps_sorted else {}
@@ -471,17 +480,26 @@ async def generate_blueprint(
     gemini_client,
     domain:        str = "",
     subdomain:     str = "",
+    ledger:        Optional[dict] = None,
 ) -> List[QuestionSkeleton]:
     """
     Stage 0: generate a structured question blueprint before any retrieval.
     Uses Gemini Flash with response_schema=BlueprintOutput.
     Falls back to rule-based generation if Flash call fails.
+
+    Args:
+        ledger: Optional user concept ledger from Redis. When present, diversity
+                constraints are appended to the prompt so the LLM avoids concepts
+                and traps the user has already seen heavily.
     """
     cfg       = get_subject_config(subject)
     domain    = domain    or cfg.subject
     subdomain = subdomain or (topics[0] if topics else cfg.subject)
 
-    logger.info(f"[Stage0] Blueprint: {num_questions}Q | {cfg.subject} > {domain} > {subdomain}")
+    logger.info(
+        f"[Stage0] Blueprint: {num_questions}Q | {cfg.subject} > {domain} > {subdomain}"
+        + (" [ledger active]" if ledger else "")
+    )
 
     trap_registry = _load_trap_registry(cfg)
     pyq_data      = _load_pyq_patterns(cfg)
@@ -512,6 +530,7 @@ async def generate_blueprint(
         concept_pool=concept_pool,
         trap_registry=trap_registry,
         pyq_data=pyq_data,
+        ledger=ledger,
     )
 
     from .gemini_utils import make_flash_client

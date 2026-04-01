@@ -11,8 +11,13 @@ Returns a RetrievalResult per skeleton — ready for Stage 2 prompt assembly.
 Chunk budget per skeleton:
   - Own concept sub_concepts     → 5 chunks (tight, high precision)
   - Each borrowed source_concept → 3 chunks (supporting context)
-  - Hard cap: 10 chunks total per skeleton
+  - Hard cap: 10 chunks total per skeleton (after MMR selection)
   - Tier 3 (web_only): 0 Pinecone chunks
+
+Retrieval pipeline per query (v2 enhanced):
+  1. Over-fetch: 3x the target k from Pinecone (higher recall)
+  2. Cross-encoder re-rank: re-rank_documents() scores all candidates by relevance
+  3. Client-side MMR: mmr_select_from_chunks(lambda=0.6) picks diverse final set
 """
 from __future__ import annotations
 
@@ -28,6 +33,10 @@ logger = logging.getLogger(__name__)
 _OWN_CONCEPT_K      = 5
 _BORROWED_CONCEPT_K = 3
 _MAX_CHUNKS_TOTAL   = 10
+
+# Retrieval quality constants
+_OVERFETCH_MULTIPLIER = 3    # fetch this many × k candidates before re-rank + MMR
+_MMR_LAMBDA           = 0.6  # relevance weight (0=max diversity, 1=max relevance)
 
 
 # ── Data classes ──────────────────────────────────────────────────────────────
@@ -167,37 +176,42 @@ async def _retrieve_from_pinecone(
         except Exception as e:
             logger.warning(f"[Stage1] Batch embedding failed, falling back to per-query: {e}")
 
-    # ── Per-query Pinecone call (using pre-computed vector) ───────────────────
+    # ── Per-query Pinecone call (over-fetch → cross-encoder re-rank) ─────────
     for i, q in enumerate(queries):
         filter_meta = {"source_type": {"$ne": "pyq"}}
         if retrieval_mode == "pinecone":
             filter_meta["major_domain"] = {"$in": [q["concept_filter"], subject]}
 
-        query_vec = vectors[i] if vectors[i] is not None else None
+        query_vec  = vectors[i] if vectors[i] is not None else None
+        target_k   = q["k"]
+        overfetch_k = target_k * _OVERFETCH_MULTIPLIER
 
         try:
+            # Fetch _OVERFETCH_MULTIPLIER x candidates, then cross-encoder re-ranks to target_k
             chunks = pinecone_handler.query_documents(
-                query_text    = q["query_text"],
-                k             = q["k"],
-                fetch_k       = q["k"],        # no over-fetch — exact count
-                filter_metadata = filter_meta,
-                use_content_store = False,     # we do enrichment ourselves below
-                query_vector  = query_vec,     # skip re-embedding inside handler
+                query_text        = q["query_text"],
+                k                 = target_k,
+                fetch_k           = overfetch_k,
+                re_rank           = True,
+                filter_metadata   = filter_meta,
+                use_content_store = False,
+                query_vector      = query_vec,
             )
         except Exception as e:
             logger.warning(f"[Stage1] Pinecone query failed for '{q['concept_filter']}': {e}")
             chunks = []
 
         # Fuzzy fallback if sparse (< half requested)
-        if len(chunks) < max(1, q["k"] // 2):
+        if len(chunks) < max(1, target_k // 2):
             try:
                 chunks = pinecone_handler.query_documents(
-                    query_text      = q["query_text"],
-                    k               = q["k"],
-                    fetch_k         = q["k"],
-                    filter_metadata = {"source_type": {"$ne": "pyq"}},
+                    query_text        = q["query_text"],
+                    k                 = target_k,
+                    fetch_k           = overfetch_k,
+                    re_rank           = True,
+                    filter_metadata   = {"source_type": {"$ne": "pyq"}},
                     use_content_store = False,
-                    query_vector    = query_vec,
+                    query_vector      = query_vec,
                 )
                 logger.debug(f"[Stage1] Fuzzy fallback: '{q['concept_filter']}' → {len(chunks)} chunks")
             except Exception as e:
@@ -230,10 +244,31 @@ async def _retrieve_from_pinecone(
             all_chunks.append(chunk)
 
         logger.info(
-            f"[Stage1] '{q['concept_filter'][:40]}' | k={q['k']} | "
+            f"[Stage1] '{q['concept_filter'][:40]}' | target_k={target_k} overfetch={overfetch_k} | "
             f"query='{q['query_text'][:55]}' "
             f"→ {len(chunks)} chunks, {enriched_count} SQLite-enriched"
         )
+
+    # ── Client-side MMR over combined multi-query pool ────────────────────────
+    # Combines chunks from all sub-queries for this skeleton and picks diverse set.
+    # Cross-encoder handled relevance per query above; MMR handles cross-query diversity.
+    if len(all_chunks) > _MAX_CHUNKS_TOTAL:
+        # Build a single representative query string for MMR relevance scoring
+        combined_query = " ".join(q["query_text"] for q in queries)[:200]
+        try:
+            all_chunks = pinecone_handler.mmr_select_from_chunks(
+                chunks      = all_chunks,
+                query_text  = combined_query,
+                k           = _MAX_CHUNKS_TOTAL,
+                lambda_mult = _MMR_LAMBDA,
+            )
+            logger.info(
+                f"[Stage1] MMR diversity selection: {len(all_chunks)} chunks "
+                f"(lambda={_MMR_LAMBDA})"
+            )
+        except Exception as e:
+            logger.warning(f"[Stage1] MMR selection failed, keeping top-{_MAX_CHUNKS_TOTAL}: {e}")
+            all_chunks = all_chunks[:_MAX_CHUNKS_TOTAL]
 
     return all_chunks
 
