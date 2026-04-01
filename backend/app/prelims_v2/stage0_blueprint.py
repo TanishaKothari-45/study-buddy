@@ -1,14 +1,18 @@
 """
-Stage 0 — Blueprint Generation (v3)
+Stage 0 — Blueprint Generation (v4)
 
-Key fixes over v2:
-  1. Trap-concept affinity enforced — LLM only sees traps valid for each concept
-  2. ca_event is populated from concept's ca_trigger_types, not left blank
-  3. Difficulty math fixed — uses cfg.difficulty ratios properly, sums exactly to num_questions
-  4. _trap_summary bug fixed — iterated correctly, not overwritten each loop
-  5. Prompt restructured — CONCEPT → VALID TRAPS FOR THAT CONCEPT (not a global list)
-  6. Inter-concept linkage fed to LLM so it can make hard A/R questions that span two concepts
-  7. BlueprintQuestion model shown explicitly — sub_concepts typed as list of SubConceptItem
+v4 changes (pre-sampled slots):
+  1. Python pre-samples concept + sub_concepts + trap + linked sub_concept per slot
+  2. LLM only decides question_type, ca_event, and optional sub_concept swap
+  3. Diversity driven by Python randomness, not LLM laziness
+  4. Linking probability varies by difficulty: easy=0%, medium=40%, hard=80%
+  5. New concept pool format supported: dict-keyed concepts normalised to list
+
+v3 changes (retained):
+  1. Trap-concept affinity enforced
+  2. ca_event populated from concept's ca_trigger_types
+  3. Difficulty math guarantees exact sum
+  4. Prompt now shorter and more focused
 """
 from __future__ import annotations
 
@@ -26,6 +30,12 @@ logger = logging.getLogger(__name__)
 
 _V2_DIR    = Path(__file__).parent
 _CONFIG_DIR = _V2_DIR.parent.parent.parent / "config"
+
+# Probability of injecting a linked (borrowed) sub_concept per difficulty tier
+_LINKING_PROB_BY_DIFFICULTY: dict = {"easy": 0.0, "medium": 0.4, "hard": 0.8}
+
+# Weight multipliers for priority-based concept selection
+_PRIORITY_WEIGHT: dict = {"high": 3, "medium": 2, "low": 1}
 
 
 # SubConceptItem and QuestionSkeleton are imported from .models
@@ -46,6 +56,21 @@ class BlueprintQuestion(BaseModel):
 
 class BlueprintOutput(BaseModel):
     questions: List[BlueprintQuestion]
+
+
+# ── Slot completion models (v4 — LLM only fills these fields) ─────────────────
+
+class SlotCompletion(BaseModel):
+    """What the LLM fills in for each pre-sampled slot."""
+    id:               str
+    question_type:    str              # chosen question type
+    ca_event:         str  = ""        # required when ca_linked=true
+    linked_concept:   Optional[str] = None   # for assertion_reason questions
+    swap_sub_concept: Optional[dict] = None  # {index, new_topic, new_aspect, new_source_concept}
+
+
+class SlotCompletionOutput(BaseModel):
+    completions: List[SlotCompletion]
 
 
 # ── SubjectConfig stub (replace with your real import) ────────────────────────
@@ -126,16 +151,66 @@ def _load_pyq_patterns(cfg: SubjectConfig) -> dict:
     return _load_json(_CONFIG_DIR / cfg.pyq_file, "PYQ patterns")
 
 
+def _normalise_concept_dict(concepts_dict: dict) -> list:
+    """
+    Convert new dict-keyed concept pool format to the flat list format the pipeline uses.
+
+    New format  — concepts is a dict:
+        {"Monsoon": {"priority": "high", "sub_concepts": [...], "links_to": [...], ...}}
+
+    Normalised — concepts is a list:
+        [{"concept": "Monsoon", "priority": "high", "sub_concepts": [...], ...}]
+
+    Also normalises sub_concept fields: `aspects` (array) → first element becomes
+    `aspect` (string) so existing pipeline code that reads sc["aspect"] keeps working.
+    """
+    result = []
+    for name, entry in concepts_dict.items():
+        raw_scs = entry.get("sub_concepts", [])
+        norm_scs = []
+        for sc in raw_scs:
+            # Support both "aspects" (new array) and "aspect" (old string)
+            aspects = sc.get("aspects") or []
+            if isinstance(aspects, str):
+                aspects = [aspects]
+            if not aspects and sc.get("aspect"):
+                aspects = [sc["aspect"]]
+            if not aspects:
+                aspects = ["process"]
+
+            norm_scs.append({
+                "topic":          sc["topic"],
+                "aspect":         aspects[0],   # singular — existing code reads this
+                "aspects":        aspects,       # full list — _pre_sample_slots reads this
+                "ca_connectable": sc.get("ca_connectable", False),
+                "linked_to":      sc.get("linked_to", []),
+            })
+
+        result.append({
+            "concept":          name,
+            "priority":         entry.get("priority", "medium"),
+            "sub_concepts":     norm_scs,
+            "links_to":         entry.get("links_to", []),
+            "trap_affinity":    entry.get("trap_affinity", []),
+            "ca_trigger_types": entry.get("ca_trigger_types", []),
+        })
+    return result
+
+
 def _load_concept_pool(subject: str, subdomain: str) -> list:
     subj_slug = subject.lower().replace(" ", "_").replace("&", "and").replace("/", "_")
     sub_slug  = subdomain.lower().replace(" ", "_").replace("&", "and").replace("/", "_")
     candidate = _V2_DIR / "concept_pools" / f"{subj_slug}_{sub_slug}.json"
     data = _load_json(candidate, "concept pool")
     if data:
-        return data.get("concepts", [])
+        raw = data.get("concepts", [])
+        return _normalise_concept_dict(raw) if isinstance(raw, dict) else raw
     fallback = _V2_DIR / "concept_pools" / f"{subj_slug}.json"
     data = _load_json(fallback, "concept pool fallback")
-    return data.get("concepts", []) if data else []
+    if not data:
+        return []
+    raw = data.get("concepts", [])
+    return _normalise_concept_dict(raw) if isinstance(raw, dict) else raw
 
 
 # ── Difficulty distribution (FIXED) ──────────────────────────────────────────
@@ -191,6 +266,194 @@ def _traps_for_concept(concept: dict, all_traps: dict) -> list:
     if not affinity:
         return list(all_traps.values())
     return [all_traps[tid] for tid in affinity if tid in all_traps]
+
+
+# ── Pre-sample slots ──────────────────────────────────────────────────────────
+
+def _pre_sample_slots(
+    cfg:          SubjectConfig,
+    num_questions: int,
+    concept_pool:  list,
+    trap_registry: dict,
+    ledger:        Optional[dict] = None,
+) -> list:
+    """
+    Randomly sample question ingredients before the LLM call.
+
+    Returns a list of slot dicts (one per question):
+        concept       — concept name
+        sub_concepts  — List[SubConceptItem] (2 own + 0-1 linked)
+        trap_id       — selected trap id
+        trap_name     — human-readable trap name
+        difficulty    — easy | medium | hard
+        ca_linked     — bool
+        ca_event      — "" (LLM fills this later)
+        ca_triggers   — list of ca_trigger_type strings (for prompt context)
+    """
+    all_traps      = _get_all_traps(trap_registry)
+    concept_lookup = {c["concept"]: c for c in concept_pool}
+
+    # ── 1. Difficulty distribution ────────────────────────────────────────────
+    easy, medium, hard = _difficulty_counts(cfg, num_questions)
+    difficulties = ["easy"] * easy + ["medium"] * medium + ["hard"] * hard
+    random.shuffle(difficulties)
+
+    # ── 2. CA slot assignment ─────────────────────────────────────────────────
+    ca_count   = max(1, round(num_questions * cfg.ca_linkage_rate))
+    ca_indices = set(random.sample(range(num_questions), min(ca_count, num_questions)))
+
+    # ── 3. Ledger awareness ───────────────────────────────────────────────────
+    heavy_seen: set = set()
+    traps_exhausted_set: set = set()
+    if ledger:
+        heavy_seen = {
+            name for name, entry in ledger.get("concepts_seen", {}).items()
+            if isinstance(entry, dict) and entry.get("count", 0) >= 2
+        }
+        traps_exhausted_set = set(ledger.get("traps_exhausted", []))
+
+    # ── 4. Priority-weighted, ledger-biased concept pool ─────────────────────
+    weighted_pool: list = []
+    for c in concept_pool:
+        name   = c["concept"]
+        weight = _PRIORITY_WEIGHT.get(c.get("priority", "medium"), 2)
+        if name in heavy_seen:
+            weight = max(1, weight - 1)   # downweight but never exclude
+        weighted_pool.extend([name] * weight)
+    random.shuffle(weighted_pool)
+
+    # ── 5. Assign concepts (min coverage + max-3 cap) ────────────────────────
+    unique_needed  = min(5, len(concept_pool))
+    concept_counts: dict = {}
+    concepts_assigned: list = []
+    unique_seen: set = set()
+
+    # Cycle the weighted pool enough times to fill all slots
+    supply = (weighted_pool * max(3, num_questions)) if weighted_pool else [
+        c["concept"] for c in concept_pool
+    ]
+    supply_iter = iter(supply)
+
+    for _ in range(num_questions):
+        chosen = None
+        # Try to pick an unseen concept first (until coverage is met)
+        want_fresh = len(unique_seen) < unique_needed
+        for name in supply_iter:
+            if concept_counts.get(name, 0) >= 3:
+                continue
+            if want_fresh and name in unique_seen:
+                # Skip already-seen until we've covered unique_needed — but only
+                # if there are still fresh options available
+                fresh_remaining = [
+                    n for n in weighted_pool
+                    if n not in unique_seen and concept_counts.get(n, 0) < 3
+                ]
+                if fresh_remaining:
+                    continue
+            chosen = name
+            break
+
+        if chosen is None:
+            # Fallback: any concept under cap
+            for c in concept_pool:
+                if concept_counts.get(c["concept"], 0) < 3:
+                    chosen = c["concept"]
+                    break
+            if chosen is None:
+                chosen = concept_pool[len(concepts_assigned) % len(concept_pool)]["concept"]
+
+        concepts_assigned.append(chosen)
+        concept_counts[chosen] = concept_counts.get(chosen, 0) + 1
+        unique_seen.add(chosen)
+
+    # ── 6. Build each slot ────────────────────────────────────────────────────
+    slots: list = []
+    trap_use: dict = {}
+
+    for i in range(num_questions):
+        concept_name = concepts_assigned[i]
+        concept      = concept_lookup.get(concept_name, concept_pool[0])
+        difficulty   = difficulties[i]
+        ca_linked    = i in ca_indices
+
+        # 6a. Own sub_concepts — pick 2 at random
+        own_scs = concept.get("sub_concepts", [])
+        sampled_own = random.sample(own_scs, k=min(2, len(own_scs))) if own_scs else []
+
+        # 6b. Linked sub_concept injection (difficulty-based probability)
+        link_prob  = _LINKING_PROB_BY_DIFFICULTY.get(difficulty, 0.4)
+        linked_sc: Optional[dict] = None
+        if random.random() < link_prob:
+            # Build candidate linked concepts: prefer sub_concept-level linked_to
+            # (more coherent), fall back to concept-level links_to
+            candidate_names: list = []
+            for sc in sampled_own:
+                candidate_names.extend(sc.get("linked_to", []))
+            candidate_names.extend(concept.get("links_to", []))
+
+            in_pool = [n for n in candidate_names if n in concept_lookup and n != concept_name]
+            if in_pool:
+                linked_name    = random.choice(in_pool)
+                linked_concept = concept_lookup[linked_name]
+                linked_pool    = linked_concept.get("sub_concepts", [])
+                if linked_pool:
+                    chosen_linked = random.choice(linked_pool)
+                    aspects       = chosen_linked.get("aspects") or [chosen_linked.get("aspect", "process")]
+                    linked_sc = {
+                        "topic":          chosen_linked["topic"],
+                        "aspect":         aspects[0] if aspects else "process",
+                        "source_concept": linked_name,
+                    }
+
+        # 6c. Build SubConceptItem list
+        sub_concept_items: list = []
+        for sc in sampled_own:
+            aspects = sc.get("aspects") or [sc.get("aspect", "process")]
+            sub_concept_items.append(SubConceptItem(
+                topic          = sc["topic"],
+                aspect         = aspects[0] if aspects else "process",
+                source_concept = "",
+            ))
+        if linked_sc:
+            sub_concept_items.append(SubConceptItem(
+                topic          = linked_sc["topic"],
+                aspect         = linked_sc["aspect"],
+                source_concept = linked_sc["source_concept"],
+            ))
+        if not sub_concept_items:
+            sub_concept_items = [SubConceptItem(
+                topic="General concept", aspect="process", source_concept=""
+            )]
+
+        # 6d. Trap selection — exclude exhausted, prefer least-used this session
+        valid_traps   = _traps_for_concept(concept, all_traps)
+        fresh_traps   = [t for t in valid_traps if t["trap_id"] not in traps_exhausted_set]
+        candidate_pool = fresh_traps if fresh_traps else valid_traps
+
+        # Sort by session usage; pick randomly from bottom half to stay diverse
+        sorted_traps = sorted(candidate_pool, key=lambda t: trap_use.get(t["trap_id"], 0))
+        pick_pool    = sorted_traps[:max(1, len(sorted_traps) // 2 + 1)]
+        trap         = random.choice(pick_pool) if pick_pool else {}
+        if trap:
+            tid = trap.get("trap_id", "")
+            trap_use[tid] = trap_use.get(tid, 0) + 1
+
+        slots.append({
+            "concept":      concept_name,
+            "sub_concepts": sub_concept_items,
+            "trap_id":      trap.get("trap_id", ""),
+            "trap_name":    trap.get("name", ""),
+            "difficulty":   difficulty,
+            "ca_linked":    ca_linked,
+            "ca_event":     "",   # LLM fills this
+            "ca_triggers":  concept.get("ca_trigger_types", []),
+        })
+
+    logger.info(
+        f"[Stage0] Pre-sampled {len(slots)} slots — "
+        f"concepts used: {sorted(set(s['concept'] for s in slots))}"
+    )
+    return slots
 
 
 # ── Prompt builder ────────────────────────────────────────────────────────────
@@ -394,60 +657,160 @@ Generate exactly {num_questions} questions. No explanations. No markdown. Pure J
 """
 
 
+# ── Slots-based prompt (v4) ────────────────────────────────────────────────────
+
+def _build_slots_prompt(
+    cfg:          SubjectConfig,
+    slots:        list,
+    trap_registry: dict,
+    domain:       str,
+    subdomain:    str,
+) -> str:
+    """
+    Build a focused prompt where sub_concepts + traps are already pre-sampled.
+    LLM only assigns question_type, ca_event, linked_concept, and an optional swap.
+    """
+    all_traps  = _get_all_traps(trap_registry)
+    valid_types = list(cfg.question_type_ranges.keys())
+    types_str   = " | ".join(valid_types)
+
+    slot_blocks = []
+    for i, slot in enumerate(slots, 1):
+        # Sub_concept lines
+        sc_lines = "\n".join(
+            f'    - "{sc.topic}" [aspect={sc.aspect}'
+            + (f', source_concept="{sc.source_concept}"' if sc.source_concept else "")
+            + "]"
+            for sc in slot["sub_concepts"]
+        )
+
+        # Trap description (brief)
+        trap_info = ""
+        trap_obj  = all_traps.get(slot["trap_id"], {})
+        if trap_obj:
+            trap_info = f'{slot["trap_id"]}: {trap_obj.get("name", "")} — {trap_obj.get("description", "")[:90]}'
+        else:
+            trap_info = slot["trap_id"] or "(none)"
+
+        # CA block — show ca_trigger candidates so LLM can write a specific event
+        ca_block = ""
+        if slot["ca_linked"] and slot["ca_triggers"]:
+            ca_opts = "\n".join(f"      * {ct}" for ct in slot["ca_triggers"][:4])
+            ca_block = f"\n  ca_trigger candidates (adapt one into a datable ca_event):\n{ca_opts}"
+
+        ca_label = "true — YOU MUST write ca_event" if slot["ca_linked"] else "false"
+
+        slot_blocks.append(
+            f"SLOT {i}:\n"
+            f"  concept    : {slot['concept']}\n"
+            f"  difficulty : {slot['difficulty']}\n"
+            f"  trap_id    : {trap_info}\n"
+            f"  ca_linked  : {ca_label}\n"
+            f"  sub_concepts (pre-assigned — change only if combination is incoherent):\n"
+            f"{sc_lines}"
+            f"{ca_block}"
+        )
+
+    slots_text = "\n\n".join(slot_blocks)
+    num_slots  = len(slots)
+
+    return f"""You are an expert UPSC Prelims question paper setter.
+The question ingredients (concept, sub_concepts, trap) are pre-assigned.
+Your only job is to decide question_type + ca_event for each slot.
+
+═══════════════════════════════════════════════
+CONTEXT
+  subject  : {cfg.subject}
+  domain   : {domain}
+  subdomain: {subdomain}
+
+Valid question types: {types_str}
+
+Guidance:
+  easy   → prefer direct_fact or match_pair
+  medium → prefer multi_statement
+  hard   → prefer assertion_reason or multi_statement
+
+═══════════════════════════════════════════════
+PRE-ASSIGNED SLOTS
+
+{slots_text}
+
+═══════════════════════════════════════════════
+INSTRUCTIONS
+
+For each slot:
+1. Choose the most appropriate question_type from: {types_str}
+2. If ca_linked=true: write a specific, datable ca_event string (NOT a generic phrase).
+   Use one of the ca_trigger candidates as a starting point and make it concrete.
+   Example: "IMD issued below-normal monsoon forecast for 2024 attributing it to El Nino"
+3. For assertion_reason questions: set linked_concept to the name of the second concept
+   being tested. Use the source_concept from the sub_concepts list as a hint.
+4. If a sub_concept combination is genuinely incoherent (e.g. sub_concepts from
+   completely unrelated domains), you MAY swap ONE sub_concept by setting swap_sub_concept:
+   {{"index": 0|1|2, "new_topic": "...", "new_aspect": "...", "new_source_concept": ""}}
+   Leave swap_sub_concept as null if the combination is acceptable.
+
+═══════════════════════════════════════════════
+OUTPUT — return ONLY this JSON, no markdown:
+{{
+  "completions": [
+    {{
+      "id": "Q1",
+      "question_type": "multi_statement",
+      "ca_event": "",
+      "linked_concept": null,
+      "swap_sub_concept": null
+    }},
+    ...
+  ]
+}}
+
+Generate exactly {num_slots} completion objects, one per slot in order.
+"""
+
 
 def _rule_based_fallback(
     num_questions: int,
     concept_pool:  list,
     trap_registry: dict,
     cfg:           SubjectConfig,
+    slots:         Optional[list] = None,
 ) -> List[QuestionSkeleton]:
+    """
+    Fallback when the LLM call fails.
+    Reuses pre-sampled slots if provided (so ingredients are still diverse).
+    Falls back to plain round-robin only when no slots are available.
+    """
     logger.info(f"[Stage0] Rule-based fallback for {num_questions} skeletons")
-    all_traps = _get_all_traps(trap_registry)
-    concepts  = concept_pool if concept_pool else [{"concept": cfg.subject, "sub_concepts": [], "trap_affinity": []}]
+
+    if slots is None:
+        slots = _pre_sample_slots(cfg, num_questions, concept_pool, trap_registry, None)
+
     types_pool = list(cfg.question_type_ranges.keys())
 
-    easy, medium, hard = _difficulty_counts(cfg, num_questions)
-    difficulties = ["easy"]*easy + ["medium"]*medium + ["hard"]*hard
-    random.shuffle(difficulties)
-
-    ca_count  = max(1, round(num_questions * cfg.ca_linkage_rate))
-    ca_indices = set(random.sample(range(num_questions), min(ca_count, num_questions)))
+    # Difficulty → preferred question type mapping
+    type_by_difficulty = {
+        "easy":   next((t for t in ["direct_fact", "match_pair"] if t in types_pool), types_pool[0]),
+        "medium": next((t for t in ["multi_statement"] if t in types_pool), types_pool[0]),
+        "hard":   next((t for t in ["assertion_reason", "multi_statement"] if t in types_pool), types_pool[-1]),
+    }
 
     skeletons = []
-    trap_use  = {}
-
-    for i in range(num_questions):
-        c = concepts[i % len(concepts)]
-        valid_traps = random.sample(
-    _traps_for_concept(c, all_traps),
-    k=min(2, len(_traps_for_concept(c, all_traps)))
-)
-        # Pick least-used trap
-        valid_traps_sorted = sorted(valid_traps, key=lambda t: trap_use.get(t["trap_id"], 0))
-        trap = valid_traps_sorted[0] if valid_traps_sorted else {}
-        if trap:
-            trap_use[trap["trap_id"]] = trap_use.get(trap["trap_id"], 0) + 1
-
-        sub_cs = [
-            SubConceptItem(topic=sc["topic"], aspect=sc.get("aspect", "process"))
-            for sc in c.get("sub_concepts", [])[:2]
-        ]
-
-        ca_flag  = i in ca_indices
-        ca_event = ""
-        if ca_flag and c.get("ca_trigger_types"):
-            ca_event = c["ca_trigger_types"][i % len(c["ca_trigger_types"])]
+    for i, slot in enumerate(slots):
+        difficulty = slot["difficulty"]
+        qtype      = type_by_difficulty.get(difficulty, types_pool[i % len(types_pool)])
 
         skeletons.append(QuestionSkeleton(
             skeleton_id    = f"sk_{i+1:03d}",
-            question_type  = types_pool[i % len(types_pool)],
-            concept        = c["concept"],
-            sub_concepts   = sub_cs,
-            difficulty     = difficulties[i],
-            ca_flag        = ca_flag,
-            ca_event       = ca_event,
-            trap_strategy  = trap.get("trap_id", ""),
-            trap_name      = trap.get("name", ""),
+            question_type  = qtype,
+            concept        = slot["concept"],
+            sub_concepts   = slot["sub_concepts"],
+            difficulty     = difficulty,
+            ca_flag        = slot["ca_linked"],
+            ca_event       = "",   # no LLM available to write ca_event
+            trap_strategy  = slot["trap_id"],
+            trap_name      = slot["trap_name"],
             sub_domain     = cfg.subject,
         ))
     return skeletons
@@ -471,6 +834,44 @@ def _to_skeleton(bq: BlueprintQuestion, idx: int, cfg: SubjectConfig) -> Questio
     )
 
 
+def _to_skeleton_from_slot(
+    slot:       dict,
+    completion: SlotCompletion,
+    idx:        int,
+    cfg:        SubjectConfig,
+) -> QuestionSkeleton:
+    """
+    Merge a pre-sampled slot with the LLM's SlotCompletion into a QuestionSkeleton.
+    Applies optional sub_concept swap if the LLM flagged an incoherent combination.
+    """
+    sub_concepts = list(slot["sub_concepts"])
+
+    swap = completion.swap_sub_concept
+    if swap and isinstance(swap, dict):
+        swap_idx = swap.get("index", -1)
+        if isinstance(swap_idx, int) and 0 <= swap_idx < len(sub_concepts):
+            old_sc = sub_concepts[swap_idx]
+            sub_concepts[swap_idx] = SubConceptItem(
+                topic          = swap.get("new_topic", old_sc.topic),
+                aspect         = swap.get("new_aspect", old_sc.aspect),
+                source_concept = swap.get("new_source_concept", old_sc.source_concept),
+            )
+
+    return QuestionSkeleton(
+        skeleton_id    = f"sk_{idx:03d}",
+        question_type  = completion.question_type,
+        concept        = slot["concept"],
+        sub_concepts   = sub_concepts,
+        difficulty     = slot["difficulty"],
+        ca_flag        = slot["ca_linked"],
+        ca_event       = completion.ca_event or "",
+        trap_strategy  = slot["trap_id"],
+        trap_name      = slot["trap_name"],
+        sub_domain     = cfg.subject,
+        linked_concept = completion.linked_concept,
+    )
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 async def generate_blueprint(
@@ -484,13 +885,15 @@ async def generate_blueprint(
 ) -> List[QuestionSkeleton]:
     """
     Stage 0: generate a structured question blueprint before any retrieval.
-    Uses Gemini Flash with response_schema=BlueprintOutput.
-    Falls back to rule-based generation if Flash call fails.
+
+    v4 flow:
+      1. Python pre-samples all ingredients (concept, sub_concepts, trap, difficulty, CA).
+      2. Gemini Flash only assigns question_type + ca_event + optional sub_concept swap.
+      3. On LLM failure, rule-based fallback reuses the same pre-sampled slots.
 
     Args:
-        ledger: Optional user concept ledger from Redis. When present, diversity
-                constraints are appended to the prompt so the LLM avoids concepts
-                and traps the user has already seen heavily.
+        ledger: Optional user concept ledger (Redis). When present, concept selection
+                is biased toward fresh concepts and exhausted traps are excluded.
     """
     cfg       = get_subject_config(subject)
     domain    = domain    or cfg.subject
@@ -502,35 +905,36 @@ async def generate_blueprint(
     )
 
     trap_registry = _load_trap_registry(cfg)
-    pyq_data      = _load_pyq_patterns(cfg)
     concept_pool  = _load_concept_pool(cfg.subject, subdomain)
 
-    # Fallback concept pool from trap sub_domains if concept pool missing
+    # Build concept pool from trap sub_domains if pool file is missing
     if not concept_pool:
-        logger.warning(f"[Stage0] No concept pool for {cfg.subject}/{subdomain} — using trap sub_domains")
-        seen = set()
+        logger.warning(f"[Stage0] No concept pool for {cfg.subject}/{subdomain} — building from trap sub_domains")
+        seen: set = set()
         all_traps = _get_all_traps(trap_registry)
         for t in all_traps.values():
             for sd in t.get("sub_domains", []):
                 if sd not in seen:
                     concept_pool.append({
-                        "concept": sd,
-                        "sub_concepts": [],
-                        "trap_affinity": [t["trap_id"]],
-                        "links_to": [],
-                        "ca_trigger_types": []
+                        "concept":          sd,
+                        "priority":         "medium",
+                        "sub_concepts":     [],
+                        "trap_affinity":    [t["trap_id"]],
+                        "links_to":         [],
+                        "ca_trigger_types": [],
                     })
                     seen.add(sd)
 
-    prompt = _build_prompt(
+    # ── Step 1: Python pre-samples all slot ingredients ──────────────────────
+    slots = _pre_sample_slots(cfg, num_questions, concept_pool, trap_registry, ledger)
+
+    # ── Step 2: LLM assigns question_type + ca_event per slot ────────────────
+    prompt = _build_slots_prompt(
         cfg=cfg,
+        slots=slots,
+        trap_registry=trap_registry,
         domain=domain,
         subdomain=subdomain,
-        num_questions=num_questions,
-        concept_pool=concept_pool,
-        trap_registry=trap_registry,
-        pyq_data=pyq_data,
-        ledger=ledger,
     )
 
     from .gemini_utils import make_flash_client
@@ -543,19 +947,29 @@ async def generate_blueprint(
                 "You are an expert UPSC Prelims question paper setter. "
                 "Output ONLY valid JSON. No markdown. No explanation."
             ),
-            response_schema=BlueprintOutput,
+            response_schema=SlotCompletionOutput,
             temperature=0.7,
             use_google_search=False,
         )
 
-        output    = BlueprintOutput.model_validate_json(response_text)
+        output      = SlotCompletionOutput.model_validate_json(response_text)
+        completions = output.completions[:num_questions]
+
+        # Merge pre-sampled slots with LLM completions
         skeletons = [
-            _to_skeleton(bq, i + 1, cfg)
-            for i, bq in enumerate(output.questions[:num_questions])
+            _to_skeleton_from_slot(slot, comp, i + 1, cfg)
+            for i, (slot, comp) in enumerate(zip(slots, completions))
         ]
+
+        # Pad with fallback skeletons if LLM returned fewer completions than slots
+        if len(skeletons) < len(slots):
+            fallback_skeletons = _rule_based_fallback(
+                num_questions, concept_pool, trap_registry, cfg, slots[len(skeletons):]
+            )
+            skeletons.extend(fallback_skeletons)
+
         logger.info(f"[Stage0] Flash success: {len(skeletons)}/{num_questions} skeletons")
 
-        # Validate: warn if ca_event is empty on ca_linked questions
         empty_ca = [s.skeleton_id for s in skeletons if s.ca_flag and not s.ca_event]
         if empty_ca:
             logger.warning(f"[Stage0] ca_event empty on ca_linked skeletons: {empty_ca}")
@@ -563,5 +977,5 @@ async def generate_blueprint(
         return skeletons
 
     except Exception as e:
-        logger.error(f"[Stage0] Flash failed: {e} — using fallback")
-        return _rule_based_fallback(num_questions, concept_pool, trap_registry, cfg)
+        logger.error(f"[Stage0] Flash failed: {e} — using rule-based fallback with pre-sampled slots")
+        return _rule_based_fallback(num_questions, concept_pool, trap_registry, cfg, slots)
