@@ -269,41 +269,99 @@ async def run_v2_pipeline(
     bundle_map = {b.skeleton.skeleton_id: b for b in bundles}
     logger.info(f"   [2] {len(bundles)} bundles with trap rules")
 
-    # ── Stage 3: Parallel Generation ─────────────────────────────────────────
+    # ── Stage 3: Batch Generation (1 LLM call) ────────────────────────────────
     await _set_progress(redis, job_id, 3)
     await _check_cancel(redis, job_id)
 
-    # Determine trap registry path for stage3
+    from .stage3_generation import (
+        assemble_batch_prompt,
+        parse_batch_response,
+        split_into_batches,
+        get_sub_batch_temperature,
+    )
+
     trap_registry_path = _V2_DIR / f"traps_{subject.lower()}.json"
     if not trap_registry_path.exists():
         trap_registry_path = _CONFIG_DIR / "trap_registry.json"
 
-    semaphore = asyncio.Semaphore(_GENERATION_CONCURRENCY)
-    gen_tasks = [
-        _generate_one(
-            skeleton        = sk,
-            retrieval_result= retrieval_map.get(sk.skeleton_id),
-            bundle          = bundle_map.get(sk.skeleton_id),
-            gemini_client   = gemini_client,
-            trap_registry_path = trap_registry_path,
-            pyq_chunks      = pyq_chunks,
-            semaphore       = semaphore,
-        )
-        for sk in skeletons
-    ]
-    gen_results = await asyncio.gather(*gen_tasks, return_exceptions=True)
-
     generated: List[V2GeneratedQuestion] = []
-    for sk, result in zip(skeletons, gen_results):
-        if isinstance(result, Exception):
-            logger.error(f"[Stage3] Exception for {sk.skeleton_id}: {result}")
-        elif result is not None:
-            generated.append(result)
-            logger.info(f"  ✅ {sk.skeleton_id} | {sk.question_type} | {sk.concept} — GENERATED")
-        else:
-            logger.warning(f"  ❌ {sk.skeleton_id} | {sk.concept} — FAILED (None)")
+    batch_failed = False
 
-    logger.info(f"\n[V2][STAGE 3] {len(generated)}/{len(skeletons)} questions generated")
+    # Split skeletons into sub-batches based on total count
+    sub_batches = split_into_batches(skeletons, num_questions)
+    total_batches = len(sub_batches)
+    logger.info(
+        f"[V2][STAGE 3] Batch mode: {len(skeletons)} skeletons → "
+        f"{total_batches} sub-batch(es) of ~5"
+    )
+
+    for batch_idx, batch_skeletons in enumerate(sub_batches):
+        temperature = get_sub_batch_temperature(batch_idx, total_batches, num_questions)
+        logger.info(
+            f"  [3] Sub-batch {batch_idx+1}/{total_batches}: "
+            f"{len(batch_skeletons)} skeletons, temp={temperature}"
+        )
+
+        prompt = assemble_batch_prompt(
+            skeletons          = batch_skeletons,
+            retrieval_map      = retrieval_map,
+            bundle_map         = bundle_map,
+            trap_registry_path = trap_registry_path,
+            pyq_chunks         = pyq_chunks,
+            subject            = subject,
+        )
+
+        try:
+            response_text = await gemini_client.generate_response(
+                user_prompt   = prompt,
+                system_prompt = (
+                    "You are a UPSC Prelims question setter. "
+                    "Output ONLY a single valid JSON object with a 'questions' array. No markdown."
+                ),
+                temperature   = temperature,
+            )
+            batch_results = parse_batch_response(response_text, batch_skeletons)
+
+            for sk, result in zip(batch_skeletons, batch_results):
+                if result is not None:
+                    generated.append(result)
+                    logger.info(f"  ✅ {sk.skeleton_id} | {sk.question_type} | {sk.concept} — GENERATED")
+                else:
+                    logger.warning(f"  ❌ {sk.skeleton_id} | {sk.concept} — FAILED (None from batch)")
+                    batch_failed = True
+
+        except Exception as e:
+            logger.error(f"  [3] Batch {batch_idx+1} failed: {e} — falling back to per-skeleton calls")
+            batch_failed = True
+
+            # Per-skeleton fallback for this sub-batch
+            semaphore = asyncio.Semaphore(_GENERATION_CONCURRENCY)
+            fallback_tasks = [
+                _generate_one(
+                    skeleton           = sk,
+                    retrieval_result   = retrieval_map.get(sk.skeleton_id),
+                    bundle             = bundle_map.get(sk.skeleton_id),
+                    gemini_client      = gemini_client,
+                    trap_registry_path = trap_registry_path,
+                    pyq_chunks         = pyq_chunks,
+                    semaphore          = semaphore,
+                )
+                for sk in batch_skeletons
+            ]
+            fallback_results = await asyncio.gather(*fallback_tasks, return_exceptions=True)
+            for sk, result in zip(batch_skeletons, fallback_results):
+                if isinstance(result, Exception):
+                    logger.error(f"  [3][Fallback] Exception for {sk.skeleton_id}: {result}")
+                elif result is not None:
+                    generated.append(result)
+                    logger.info(f"  ✅ {sk.skeleton_id} | {sk.concept} — FALLBACK GENERATED")
+                else:
+                    logger.warning(f"  ❌ {sk.skeleton_id} | {sk.concept} — FALLBACK FAILED")
+
+    logger.info(
+        f"\n[V2][STAGE 3] {len(generated)}/{len(skeletons)} questions generated"
+        + (" (some sub-batches used per-skeleton fallback)" if batch_failed else " via batch call")
+    )
     if not generated:
         raise RuntimeError("Stage 3 produced zero questions")
 
