@@ -38,7 +38,7 @@ google-genai==1.56.0  # Google Gemini API client library
 # Data Storage
 # chromadb==0.3.26
 # sentence-transformers==5.1.2
-pinecone-client==6.0.0  # Pinecone vector database
+pinecone>=6.0.0  # Pinecone vector database
 langchain-pinecone==0.2.13  # LangChain integration for Pinecone
 
 # Utilities

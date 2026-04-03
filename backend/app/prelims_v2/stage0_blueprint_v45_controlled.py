@@ -529,9 +529,13 @@ def _prepare_slots_controlled(
 
         # Get trap affinity for this concept (fallback to all available traps if not in mapping)
         traps_available = concept_trap_mapping.get(concept_name, [])
+        trap_source = "concept_mapping"
+
         if not traps_available:
             # Fallback: use all trap IDs from the registry
             traps_available = list(trap_registry.get("trap_patterns", {}).keys())
+            trap_source = "trap_patterns_keys"
+
             if not traps_available:
                 # Final fallback: use trap IDs from concept_trap_mapping values
                 all_trap_ids = set()
@@ -539,6 +543,13 @@ def _prepare_slots_controlled(
                     if isinstance(trap_ids, list):
                         all_trap_ids.update(trap_ids)
                 traps_available = list(all_trap_ids)
+                trap_source = "concept_mapping_values"
+
+        # Log trap assignment details
+        if not traps_available:
+            logger.warning(f"[Stage0 v4.5+] Slot {i+1} ({concept_name}): NO TRAPS AVAILABLE (will result in empty trap_strategy)")
+        else:
+            logger.debug(f"[Stage0 v4.5+] Slot {i+1} ({concept_name}): {len(traps_available)} traps from {trap_source}")
 
         slots.append({
             "slot_id": f"slot_{i+1:02d}",
@@ -570,6 +581,13 @@ def _slot_to_skeleton(slot: dict, idx: int) -> QuestionSkeleton:
     difficulty_type = slot.get("difficulty_type", "")
     available_qts = DIFFICULTY_TYPE_TO_QUESTION_TYPES.get(difficulty_type, ALL_QUESTION_TYPES)
 
+    # Select trap_strategy
+    trap_strategy = ""
+    if slot["trap_affinity"]:
+        trap_strategy = random.choice(slot["trap_affinity"])
+    else:
+        logger.warning(f"[Stage0 v4.5+] Skeleton sk_{idx:03d} ({slot['concept']}): No trap_affinity available, trap_strategy will be empty")
+
     return QuestionSkeleton(
         skeleton_id=f"sk_{idx:03d}",
         question_type=slot["question_type"],
@@ -578,7 +596,7 @@ def _slot_to_skeleton(slot: dict, idx: int) -> QuestionSkeleton:
         difficulty="hard" if "hard" in difficulty_type else "easy" if "easy" in difficulty_type else "medium",
         ca_flag=slot["ca_flag"],
         ca_event="",
-        trap_strategy=random.choice(slot["trap_affinity"]) if slot["trap_affinity"] else "",
+        trap_strategy=trap_strategy,
         trap_name="",
         sub_domain=slot.get("subdomain", slot["concept"]),  # Domain (e.g., "Climatology"), not concept
         # v4.5 Controlled additions
@@ -611,8 +629,21 @@ async def generate_blueprint_controlled(
     if not concept_pool:
         logger.error(f"[Stage0 v4.5+] No concept pool for {subject}/{subdomain}")
         return []
+    logger.info(f"[Stage0 v4.5+][TrapRegistry] Loaded {len(concept_pool)} concepts from {subject}/{subdomain}")
 
-    trap_registry = _load_trap_registry(subject)
+    trap_registry = _load_trap_registry(subject, subdomain)
+
+    # Log what traps were loaded
+    if "concept_trap_mapping" in trap_registry and "trap_patterns" in trap_registry:
+        num_concepts_with_traps = len(trap_registry.get("concept_trap_mapping", {}))
+        num_trap_ids = len(trap_registry.get("trap_patterns", {}))
+        logger.info(f"[Stage0 v4.5+][TrapRegistry] Loaded {num_trap_ids} trap IDs for {num_concepts_with_traps} concepts from domain-specific file ({subject}/{subdomain})")
+    elif "traps" in trap_registry:
+        num_traps = len(trap_registry.get("traps", {}))
+        logger.info(f"[Stage0 v4.5+][TrapRegistry] Loaded {num_traps} traps from trap registry (subject-level)")
+    else:
+        logger.warning(f"[Stage0 v4.5+][TrapRegistry] No recognizable trap structure found in registry")
+
     variants = _load_variants(subject)
     control_probs = _load_control_probabilities(subject)
 

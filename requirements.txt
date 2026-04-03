@@ -19,7 +19,7 @@ Pillow
 chromadb
 sentence-transformers
 opencv-python>=4.8.0,<4.10
-pinecone-client
+pinecone
 langchain-pinecone
 python-magic
 tiktoken

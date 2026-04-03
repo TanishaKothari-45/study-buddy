@@ -1,0 +1,44 @@
+{
+  "easy": {
+    "easy_recall_static": 0.45,
+    "easy_ca_trigger": 0.35,
+    "easy_reverse_mild": 0.20
+  },
+  "medium": {
+    "medium_concept_linking_same_domain": 0.28,
+    "medium_statistical_reversal": 0.18,
+    "medium_adjacent_fact": 0.22,
+    "medium_ca_integration": 0.18,
+    "medium_precision_location": 0.14
+  },
+  "hard": {
+    "hard_counterintuitive_single_concept": 0.24,
+    "hard_cross_domain_linking": 0.26,
+    "hard_all_of_above_precision": 0.22,
+    "hard_strong_concept_depth": 0.14,
+    "hard_spatial_sequence": 0.08,
+    "hard_reverse_extreme": 0.06
+  },
+  "difficulty_type_distribution": {
+    "easy": {
+      "easy_recall_static": 0.45,
+      "easy_ca_trigger": 0.35,
+      "easy_reverse_mild": 0.20
+    },
+    "medium": {
+      "medium_concept_linking_same_domain": 0.28,
+      "medium_statistical_reversal": 0.18,
+      "medium_adjacent_fact": 0.22,
+      "medium_ca_integration": 0.18,
+      "medium_precision_location": 0.14
+    },
+    "hard": {
+      "hard_counterintuitive_single_concept": 0.24,
+      "hard_cross_domain_linking": 0.26,
+      "hard_all_of_above_precision": 0.22,
+      "hard_strong_concept_depth": 0.14,
+      "hard_spatial_sequence": 0.08,
+      "hard_reverse_extreme": 0.06
+    }
+  }
+}

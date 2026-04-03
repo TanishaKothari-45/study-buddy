@@ -1,0 +1,17 @@
+[
+  {
+    "Primary Concept": "Sample concept",
+    "Sub-Concepts": [
+      "Sub-concept 1",
+      "Sub-concept 2"
+    ],
+    "Concept Frequency in Question": "once",
+    "Linked Concepts": [
+      "Linked concept 1",
+      "Linked concept 2"
+    ],
+    "Linking Pattern": "same domain",
+    "Current Affairs": "No recent event mentioned",
+    "Concept Category": "Core/frequently-tested"
+  }
+]

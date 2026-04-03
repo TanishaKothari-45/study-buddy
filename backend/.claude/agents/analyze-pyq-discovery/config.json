@@ -1,0 +1,83 @@
+{
+  "agent_id": "analyze-pyq-discovery",
+  "agent_name": "PYQ Discovery & Analysis",
+  "type": "background_research",
+  "description": "Autonomous UPSC PYQ analysis for concept discovery, trap pattern identification, and concept pool validation",
+  "skill_reference": "../../skills/analyze-pyq-discovery.md",
+  "model": "sonnet",
+  "supports_parallel": true,
+  "supports_background_execution": true,
+  "estimated_duration_minutes": {
+    "quick": 20,
+    "standard": 45,
+    "thorough": 120
+  },
+  "parameters": {
+    "subject": {
+      "type": "string",
+      "required": true,
+      "description": "UPSC subject (Geography, Polity, History, Economy, Science, Environment)",
+      "example": "Geography"
+    },
+    "domain": {
+      "type": "string",
+      "required": true,
+      "description": "Sub-domain or topic area",
+      "example": "Climatology"
+    },
+    "years": {
+      "type": "string",
+      "required": false,
+      "default": "2015-2024",
+      "description": "Year range for PYQ analysis (format: YYYY-YYYY or comma-separated)",
+      "example": "2015-2024"
+    },
+    "pyq_file_path": {
+      "type": "string",
+      "required": false,
+      "description": "Path to extracted PYQ JSON file. If omitted, agent searches for standard location",
+      "example": "backend/app/prelims_v2/pyqs_climatology_2015_2024.json"
+    },
+    "validation_mode": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "If true, compare findings against existing concept pool and generate validation report"
+    },
+    "depth": {
+      "type": "string",
+      "required": false,
+      "default": "standard",
+      "description": "Analysis depth level",
+      "enum": ["quick", "standard", "thorough"]
+    },
+    "focus_areas": {
+      "type": "array",
+      "required": false,
+      "description": "Specific concepts to prioritize analysis on (e.g., ['Monsoon', 'ENSO'])",
+      "example": ["Monsoon", "ENSO", "Jet Streams"]
+    }
+  },
+  "output_directory": "config/research/",
+  "output_files": [
+    "concepts_discovered_{domain}_{timestamp}.json",
+    "trap_patterns_discovered_{domain}_{timestamp}.json",
+    "recommendations_{domain}_{timestamp}.md",
+    "pyq_input_summary.json",
+    "validation_report_{domain}_{timestamp}.json"
+  ],
+  "success_criteria": [
+    "All required output files generated",
+    "Concepts extracted match ≥90% of manual spot-check",
+    "Trap patterns evidenced with question references",
+    "Recommendations are specific and actionable",
+    "Validation report identifies real mismatches (if validation_mode=true)"
+  ],
+  "use_cases": [
+    "Analyzing new subject/domain for first time",
+    "Periodic validation (every 1-2 years) of concept pools against PYQs",
+    "Parallel batch analysis of multiple domains simultaneously",
+    "Discovering concepts tested in PYQs but missing from pools",
+    "Identifying gaps and discrepancies between assumptions and reality"
+  ]
+}

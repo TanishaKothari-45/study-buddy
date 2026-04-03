@@ -1,0 +1,110 @@
+[
+  {
+    "primary_concept": "Ocean Currents",
+    "sub_concepts": ["Warm currents", "Cold currents", "Upwelling mechanisms", "Current directions", "Equatorial currents"],
+    "frequency_in_question": "multiple_times",
+    "linked_concepts": ["Wind patterns", "Coriolis effect", "Temperature distribution"],
+    "linking_pattern": "same_domain",
+    "ca_involved": true,
+    "concept_category": "frequently_tested"
+  },
+  {
+    "primary_concept": "Tides and Tidal Forces",
+    "sub_concepts": ["Lunar tides", "Solar tides", "Spring tides", "Neap tides", "Tidal ranges"],
+    "frequency_in_question": "multiple_times",
+    "linked_concepts": ["Gravitational pull", "Moon influence", "Sun influence"],
+    "linking_pattern": "same_domain",
+    "ca_involved": false,
+    "concept_category": "frequently_tested"
+  },
+  {
+    "primary_concept": "Ocean Salinity",
+    "sub_concepts": ["Salinity variation by latitude", "Factors affecting salinity", "Dense water formation", "Evaporation-precipitation balance"],
+    "frequency_in_question": "once",
+    "linked_concepts": ["Temperature", "Ocean density", "Water masses"],
+    "linking_pattern": "same_domain",
+    "ca_involved": false,
+    "concept_category": "core"
+  },
+  {
+    "primary_concept": "Ocean Temperature Distribution",
+    "sub_concepts": ["Thermocline", "Depth-temperature relationship", "Latitudinal temperature variation", "Seasonal variation"],
+    "frequency_in_question": "once",
+    "linked_concepts": ["Salinity", "Density stratification", "Ocean circulation"],
+    "linking_pattern": "same_domain",
+    "ca_involved": false,
+    "concept_category": "core"
+  },
+  {
+    "primary_concept": "El Niño Southern Oscillation (ENSO)",
+    "sub_concepts": ["El Niño phase", "La Niña phase", "Neutral phase", "Southern Oscillation Index"],
+    "frequency_in_question": "multiple_times",
+    "linked_concepts": ["Pacific Ocean temperature", "Global weather patterns", "Rainfall distribution"],
+    "linking_pattern": "cross_domain",
+    "ca_involved": true,
+    "concept_category": "frequently_tested"
+  },
+  {
+    "primary_concept": "Ocean Acidification",
+    "sub_concepts": ["CO2 dissolution", "pH reduction", "Carbonate saturation", "Marine organism impact"],
+    "frequency_in_question": "once",
+    "linked_concepts": ["Climate change", "Atmospheric CO2", "Marine life"],
+    "linking_pattern": "cross_domain",
+    "ca_involved": true,
+    "concept_category": "core"
+  },
+  {
+    "primary_concept": "Ocean Zones (Light-based classification)",
+    "sub_concepts": ["Photic zone", "Aphotic zone", "Bathypelagic zone", "Abyssal zone", "Hadal zone"],
+    "frequency_in_question": "once",
+    "linked_concepts": ["Marine ecosystems", "Pressure zones", "Light penetration"],
+    "linking_pattern": "same_domain",
+    "ca_involved": false,
+    "concept_category": "medium"
+  },
+  {
+    "primary_concept": "Marine Ecosystems and Biodiversity",
+    "sub_concepts": ["Coral reefs", "Kelp forests", "Deep sea vents", "Abyssal ecosystems", "Coastal ecosystems"],
+    "frequency_in_question": "once",
+    "linked_concepts": ["Ocean zones", "Temperature", "Salinity"],
+    "linking_pattern": "same_domain",
+    "ca_involved": true,
+    "concept_category": "medium"
+  },
+  {
+    "primary_concept": "Thermohaline Circulation",
+    "sub_concepts": ["Deep water formation", "North Atlantic Deep Water", "Antarctic Bottom Water", "Global conveyor belt"],
+    "frequency_in_question": "once",
+    "linked_concepts": ["Ocean salinity", "Temperature", "Long-term climate"],
+    "linking_pattern": "cross_domain",
+    "ca_involved": true,
+    "concept_category": "core"
+  },
+  {
+    "primary_concept": "Indian Ocean Dipole (IOD)",
+    "sub_concepts": ["IOD positive phase", "IOD negative phase", "SST anomalies", "Monsoon connection"],
+    "frequency_in_question": "once",
+    "linked_concepts": ["Monsoon", "Sea surface temperature", "Regional climate"],
+    "linking_pattern": "cross_domain",
+    "ca_involved": true,
+    "concept_category": "core"
+  },
+  {
+    "primary_concept": "Ocean Upwelling",
+    "sub_concepts": ["Ekman upwelling", "Orographic upwelling", "Coastal upwelling", "Equatorial upwelling"],
+    "frequency_in_question": "once",
+    "linked_concepts": ["Wind patterns", "Coriolis effect", "Nutrient availability"],
+    "linking_pattern": "same_domain",
+    "ca_involved": false,
+    "concept_category": "core"
+  },
+  {
+    "primary_concept": "Ocean Trenches and Submarine Topography",
+    "sub_concepts": ["Mariana Trench", "Tonga Trench", "Java Trench", "Challenger Deep", "Mid-ocean ridges"],
+    "frequency_in_question": "once",
+    "linked_concepts": ["Plate tectonics", "Ocean basin structure"],
+    "linking_pattern": "cross_domain",
+    "ca_involved": false,
+    "concept_category": "medium"
+  }
+]

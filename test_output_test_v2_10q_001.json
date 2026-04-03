@@ -1,0 +1,222 @@
+[
+  {
+    "question": "Consider the following statements regarding the Indian Monsoon and associated phenomena:\n1. The El Ni\u00f1o phenomenon, characterized by the abnormal warming of the central and eastern Pacific Ocean, is generally associated with a weakened monsoon flow and deficient rainfall in India.\n2. The India Meteorological Department (IMD) exclusively relies on statistical models that correlate historical rainfall data with global atmospheric parameters to issue long-range monsoon forecasts.\n3. The Inter-Tropical Convergence Zone (ITCZ) provides ideal conditions for the formation of tropical cyclones in the Bay of Bengal, as the convergence of trade winds at the equator generates the powerful cyclonic rotation required.\n\nWhich of the statements given above is/are correct?",
+    "options": [
+      "(a) 1 only",
+      "(b) 2 and 3 only",
+      "(c) 1 and 3 only",
+      "(d) 1, 2 and 3"
+    ],
+    "correct_answer": "A",
+    "explanation": "Statement 1 is correct. The El Ni\u00f1o Southern Oscillation (ENSO) has a strong correlation with the performance of the Indian monsoon. El Ni\u00f1o years are often linked to weaker monsoon winds and below-average rainfall across many parts of India. Statement 2 is incorrect. The IMD now uses a multi-model ensemble forecasting system, which includes dynamical global climate models (like the Monsoon Mission Coupled Forecast System) in addition to statistical models. The word 'exclusively' makes the statement false. Statement 3 is incorrect. While the ITCZ provides the necessary low-pressure conditions and moisture for cyclogenesis, the required rotational force (spin) comes from the Coriolis effect. The Coriolis force is negligible at the equator. Therefore, the convergence of winds at the equator itself cannot generate the cyclonic rotation; cyclones form away from the equator, typically beyond 5 degrees latitude.",
+    "source": {
+      "topic": "Geography",
+      "sub_domain": "Geography",
+      "difficulty": "medium",
+      "question_type": "multi_statement",
+      "skeleton_id": "sk_008",
+      "trap_verified": true,
+      "ca_in_stem": true,
+      "quality_score": 1.0,
+      "question_id": "test_v2_10q_001_v2_q1"
+    }
+  },
+  {
+    "question": "Consider the following statements regarding the Earth's atmosphere and heat transfer:\n1. The Earth's overall heat budget is maintained as the total energy received from the sun as insolation is balanced by the energy lost as terrestrial radiation.\n2. The thickness of the troposphere is greatest at the equator due to strong convectional currents that transport heat to greater heights, pushing the tropopause upwards.\n3. Nitrogen and oxygen, which constitute the bulk of the atmosphere, are the principal gases responsible for absorbing outgoing longwave terrestrial radiation.\n\nWhich of the statements given above is/are correct?",
+    "options": [
+      "(a) 1 and 2 only",
+      "(b) 2 and 3 only",
+      "(c) 1 and 3 only",
+      "(d) 1, 2 and 3"
+    ],
+    "correct_answer": "A",
+    "explanation": "Statement 1 is correct. The Earth's heat budget refers to the equilibrium between incoming solar radiation (insolation) and outgoing terrestrial radiation, which keeps the planet's average temperature stable over time. Statement 2 is correct. Intense solar heating at the equator causes strong convectional air currents, which rise to greater altitudes before spreading towards the poles. This process pushes the upper boundary of the troposphere (the tropopause) to a higher altitude (around 16-18 km) compared to the poles (around 8-10 km). Statement 3 is incorrect. While nitrogen (78%) and oxygen (21%) are the most abundant gases, they are largely transparent to both incoming shortwave and outgoing longwave radiation. The principal absorbers of terrestrial radiation are greenhouse gases like water vapour (H\u2082O), carbon dioxide (CO\u2082), and methane (CH\u2084), which are present in much smaller concentrations.",
+    "source": {
+      "topic": "Geography",
+      "sub_domain": "Geography",
+      "difficulty": "medium",
+      "question_type": "multi_statement",
+      "skeleton_id": "sk_002",
+      "trap_verified": true,
+      "ca_in_stem": true,
+      "quality_score": 1.0,
+      "question_id": "test_v2_10q_001_v2_q2"
+    }
+  },
+  {
+    "question": "Consider the following statements regarding Western Disturbances, in light of the recent dense fog events over the Indo-Gangetic Plain:\n1. They are extratropical storms that originate over the Mediterranean Sea.\n2. The absence of strong, active Western Disturbances can lead to stagnant atmospheric conditions, contributing to the formation of dense fog.\n3. They are crucial for triggering the onset of the southwest summer monsoon over the Western Himalayan region.\n\nWhich of the statements given above is/are correct?",
+    "options": [
+      "(a) 1 only",
+      "(b) 1 and 2 only",
+      "(c) 2 and 3 only",
+      "(d) 1, 2 and 3"
+    ],
+    "correct_answer": "B",
+    "explanation": "Statement 1 is correct. Western Disturbances are extratropical cyclonic storms that originate in the Mediterranean region and travel eastward, bringing winter precipitation to Northwest India. Statement 2 is correct. Active Western Disturbances are associated with strong winds that disperse pollutants and prevent the formation of fog. As seen in the winter of 2023-2024, their absence led to calm winds and high moisture, ideal conditions for prolonged dense fog. Statement 3 is incorrect. Western Disturbances are a feature of the winter season (rabi crop season) and have no role in the onset of the southwest summer monsoon; in fact, the northward shift of the jet stream away from the Indian subcontinent, which steers these disturbances, is a precursor to the monsoon's arrival.",
+    "source": {
+      "topic": "Geography",
+      "sub_domain": "Geography",
+      "difficulty": "easy",
+      "question_type": "multi_statement",
+      "skeleton_id": "sk_001",
+      "trap_verified": true,
+      "ca_in_stem": true,
+      "quality_score": 1.0,
+      "question_id": "test_v2_10q_001_v2_q3"
+    }
+  },
+  {
+    "question": "Given below are two statements, one is labelled as Assertion (A) and the other is labelled as Reason (R).\n\nAssertion (A): The Inter-Tropical Convergence Zone (ITCZ) shifts significantly northward over the Indian subcontinent during the Northern Hemisphere summer.\n\nReason (R): The establishment of the Tropical Easterly Jet is caused by the intense heating of the Tibetan Plateau, which creates a high-pressure system in the upper troposphere.\n\nIn the context of the two statements, which of the following is correct?",
+    "options": [
+      "(a) Both A and R are true and R is the correct explanation of A",
+      "(b) Both A and R are true but R is NOT the correct explanation of A",
+      "(c) A is true but R is false",
+      "(d) A is false but R is true"
+    ],
+    "correct_answer": "B",
+    "explanation": "Both the Assertion and the Reason are individually correct statements. \n\nAssertion (A) is correct. The global pressure belts, including the ITCZ (a low-pressure belt), shift seasonally with the apparent movement of the sun. During the Northern Hemisphere summer, the ITCZ shifts north, and this shift is particularly pronounced over the Indian landmass due to intense heating, forming the monsoon trough.\n\nReason (R) is also correct. The intense heating of the Tibetan Plateau acts as an elevated heat source, creating a strong low-pressure area at the surface but a robust high-pressure anticyclone in the upper troposphere. The air flowing out from this upper-level high towards the south gets deflected by the Coriolis force, forming the Tropical Easterly Jet.\n\nHowever, Reason (R) is not the correct explanation of Assertion (A). The northward shift of the ITCZ is primarily a surface phenomenon driven by the intense low pressure created by differential heating of land and sea. The Tropical Easterly Jet is an upper atmospheric circulation that is also a consequence of this same heating mechanism. Therefore, both the northward shift of the ITCZ and the formation of the TEJ are results of the same primary cause (heating of the Tibetan Plateau and the subcontinent), but one does not cause the other. The trap lies in recognizing that these are correlated phenomena within the monsoon system, not a direct cause-and-effect relationship where R explains A.",
+    "source": {
+      "topic": "Geography",
+      "sub_domain": "Geography",
+      "difficulty": "medium",
+      "question_type": "assertion_reason",
+      "skeleton_id": "sk_006",
+      "trap_verified": false,
+      "ca_in_stem": false,
+      "quality_score": 0.0,
+      "question_id": "test_v2_10q_001_v2_q4"
+    }
+  },
+  {
+    "question": "Consider the following statements regarding tropical cyclones:\n1. The terms 'Hurricane', 'Typhoon', and 'Cyclone' refer to the same meteorological phenomenon, with the name varying based on the geographical region of occurrence.\n2. A primary condition for the formation of tropical cyclones is a sea surface temperature of at least 27\u00b0C, which allows them to form anywhere in the tropical oceans, including at the equator.\n3. A mature tropical cyclone rapidly intensifies upon making landfall because the increased friction with the land surface enhances its rotational velocity.\n\nWhich of the statements given above is/are correct?",
+    "options": [
+      "(a) 1 only",
+      "(b) 2 and 3 only",
+      "(c) 1 and 2 only",
+      "(d) 3 only"
+    ],
+    "correct_answer": "A",
+    "explanation": "Statement 1 is correct. Tropical cyclones are known by different names in different parts of the world: 'Hurricanes' in the Atlantic and Northeast Pacific, 'Typhoons' in the Northwest Pacific, and 'Cyclones' in the South Pacific and Indian Ocean. Statement 2 is incorrect. While warm sea surface temperatures are a necessary condition, tropical cyclones cannot form at the equator (or within about 5\u00b0 latitude of it). This is because the Coriolis force, which is essential to initiate the cyclonic rotation, is zero or extremely weak at the equator. Statement 3 is incorrect. Tropical cyclones weaken rapidly after making landfall. They are cut off from their primary energy source, which is the latent heat from the warm ocean water. Additionally, increased friction with the land surface disrupts the organized circulation of the storm, causing it to dissipate, not intensify.",
+    "source": {
+      "topic": "Geography",
+      "sub_domain": "Geography",
+      "difficulty": "medium",
+      "question_type": "multi_statement",
+      "skeleton_id": "sk_010",
+      "trap_verified": true,
+      "ca_in_stem": true,
+      "quality_score": 1.0,
+      "question_id": "test_v2_10q_001_v2_q5"
+    }
+  },
+  {
+    "question": "Which of the following statements accurately describes the primary reason for the formation of the Sub-Polar Low-Pressure Belts around 60\u00b0 to 65\u00b0 latitude?",
+    "options": [
+      "(a) Intense solar heating throughout the year causes the surface air to become light and rise, creating a permanent zone of low pressure.",
+      "(b) The convergence of warm air from the westerlies and cold air from the polar easterlies, combined with the rotational forces of the Earth, compels the air to ascend.",
+      "(c) The subsidence of cold, dry air from the upper troposphere leads to the establishment of a persistent low-pressure zone at the surface.",
+      "(d) These belts are formed by the Northward and Southward seasonal shifting of the Sub-Tropical High-Pressure belts."
+    ],
+    "correct_answer": "B",
+    "explanation": "The Sub-Polar Low-Pressure Belts are dynamically induced, not thermally induced. Option (b) correctly states that their formation is due to the convergence of two distinct air masses: the warmer, lighter westerlies moving from the sub-tropics and the colder, denser polar easterlies moving from the poles. This convergence, along with the Coriolis effect from the Earth's rotation, forces the air to rise, creating a belt of low pressure. Option (a) describes the formation of the Equatorial Low-Pressure Belt. Option (c) is incorrect as subsidence of air leads to high pressure, not low pressure. Option (d) is incorrect because while pressure belts shift, this is not the mechanism of their formation.",
+    "source": {
+      "topic": "Geography",
+      "sub_domain": "Geography",
+      "difficulty": "medium",
+      "question_type": "direct_fact",
+      "skeleton_id": "sk_007",
+      "trap_verified": true,
+      "ca_in_stem": true,
+      "quality_score": 1.0,
+      "question_id": "test_v2_10q_001_v2_q6"
+    }
+  },
+  {
+    "question": "Consider the following statements regarding air masses and weather systems, with reference to events like the formation of Cyclone Midhili in the Bay of Bengal:\n1. An air mass designated as 'maritime Tropical' (mT) typically originates over warm tropical oceans and is characterized by high humidity and temperature.\n2. A front is a zone of transition that develops where two air masses of different densities and temperatures converge.\n3. The development and structure of tropical cyclones, like those in the Bay of Bengal, are characterized by the formation of distinct warm and cold fronts at their core.\n\nWhich of the statements given above is/are correct?",
+    "options": [
+      "(a) 1 only",
+      "(b) 1 and 2 only",
+      "(c) 2 and 3 only",
+      "(d) 1, 2 and 3"
+    ],
+    "correct_answer": "B",
+    "explanation": "Statements 1 and 2 provide correct, standard definitions. A maritime Tropical (mT) air mass forms over warm seas and is moisture-laden. A front is indeed the boundary between two different air masses. Statement 3 is incorrect and constitutes a critical conceptual trap. The formation of fronts (frontogenesis) is the primary mechanism for the development of temperate (or extratropical) cyclones, which are common in mid-latitudes. In contrast, tropical cyclones, such as those in the Bay of Bengal, are warm-core systems that derive their energy from the latent heat of condensation over very warm ocean waters. They do not have the frontal structure characteristic of temperate cyclones.",
+    "source": {
+      "topic": "Geography",
+      "sub_domain": "Geography",
+      "difficulty": "hard",
+      "question_type": "multi_statement",
+      "skeleton_id": "sk_003",
+      "trap_verified": true,
+      "ca_in_stem": false,
+      "quality_score": 0.8,
+      "question_id": "test_v2_10q_001_v2_q7"
+    }
+  },
+  {
+    "question": "The Foehn is a local wind primarily experienced on the leeward side of the Alps. Which of the following correctly explains its characteristic warmth and dryness?",
+    "options": [
+      "(a) It originates from hot desert regions and carries Saharan heat across the mountains.",
+      "(b) It is an anabatic wind that gets heated by the valley floor during the day and rises along the slopes.",
+      "(c) As moist air ascends the windward slope, it loses moisture as precipitation, and upon descending the leeward slope, it undergoes adiabatic compression and warming.",
+      "(d) It is a cold polar air mass that warms up by absorbing significant solar radiation as it descends into the valleys."
+    ],
+    "correct_answer": "C",
+    "explanation": "Option (c) provides the accurate scientific explanation for the Foehn effect. Air is forced to rise over a mountain barrier (orographic lift), it cools adiabatically, leading to condensation and precipitation on the windward side. This process releases latent heat. As the now-drier air descends on the leeward side, it is compressed by increasing atmospheric pressure, causing it to warm at the dry adiabatic lapse rate, resulting in a warm and dry wind. Option (a) describes the Sirocco wind. Option (b) describes an anabatic wind, which is an upslope wind. Option (d) incorrectly describes the warming mechanism.",
+    "source": {
+      "topic": "Geography",
+      "sub_domain": "Geography",
+      "difficulty": "easy",
+      "question_type": "direct_fact",
+      "skeleton_id": "sk_009",
+      "trap_verified": true,
+      "ca_in_stem": true,
+      "quality_score": 1.0,
+      "question_id": "test_v2_10q_001_v2_q8"
+    }
+  },
+  {
+    "question": "Which of the following best explains why the Earth maintains a stable average temperature over the long term, despite receiving continuous solar radiation?",
+    "options": [
+      "(a) The surplus heat from the polar regions is transferred to the tropical regions through ocean currents and atmospheric circulation.",
+      "(b) The atmosphere absorbs the majority of the incoming shortwave solar radiation, preventing it from overheating the Earth's surface.",
+      "(c) The amount of solar energy absorbed by the Earth and its atmosphere is balanced by an equal amount of terrestrial radiation emitted back to space.",
+      "(d) The albedo of the Earth reflects almost all the incoming solar radiation back to space before it can be absorbed."
+    ],
+    "correct_answer": "C",
+    "explanation": "The correct answer is (c). The Earth's heat budget is the balance between incoming energy from the Sun and outgoing energy from the Earth. For the Earth's temperature to be stable, these must be equal. The Earth absorbs a portion of the incoming solar radiation and, in turn, radiates energy back into space as longwave (infrared) radiation. Option (a) is incorrect because heat is transferred from the surplus regions (tropics) to the deficit regions (poles), not the other way around. Option (b) is incorrect; the atmosphere is largely transparent to incoming shortwave radiation, which mostly heats the surface. The atmosphere is more effective at absorbing outgoing longwave radiation. Option (d) is incorrect; the Earth's average albedo is about 30-35%, meaning it reflects about a third, not 'almost all', of the incoming radiation.",
+    "source": {
+      "topic": "Geography",
+      "sub_domain": "Geography",
+      "difficulty": "medium",
+      "question_type": "direct_fact",
+      "skeleton_id": "sk_004",
+      "trap_verified": true,
+      "ca_in_stem": true,
+      "quality_score": 1.0,
+      "question_id": "test_v2_10q_001_v2_q9"
+    }
+  },
+  {
+    "question": "Consider the following statements regarding the Indian Ocean Dipole (IOD):\n1. A negative IOD phase involves cooler-than-average sea surface temperatures in the western Indian Ocean and warmer-than-average temperatures in the eastern Indian Ocean.\n2. A positive IOD, developing concurrently with an El Ni\u00f1o, can help mitigate the latter's negative impact on the Indian summer monsoon rainfall.\n3. A strong positive IOD event developing towards the end of the season often causes an early withdrawal of the southwest monsoon from the Indian subcontinent.\n\nWhich of the statements given above is/are correct?",
+    "options": [
+      "(a) 1 and 2 only",
+      "(b) 2 and 3 only",
+      "(c) 1 and 3 only",
+      "(d) 1, 2 and 3"
+    ],
+    "correct_answer": "A",
+    "explanation": "Statement 1 is correct. It accurately describes the sea surface temperature anomaly pattern during a negative IOD phase. Statement 2 is correct. A positive IOD, which involves warmer waters in the Arabian Sea, can enhance moisture supply and convection, sometimes counteracting the suppressing effect of an El Ni\u00f1o on the Indian monsoon, as was observed in 2023. Statement 3 is incorrect. A positive IOD is associated with warmer-than-average sea surface temperatures in the western Indian Ocean (Arabian Sea). This condition can sustain moisture supply and low-pressure systems over the region, which is more likely to delay the withdrawal of the southwest monsoon rather than cause an early retreat.",
+    "source": {
+      "topic": "Geography",
+      "sub_domain": "Geography",
+      "difficulty": "medium",
+      "question_type": "multi_statement",
+      "skeleton_id": "sk_005",
+      "trap_verified": true,
+      "ca_in_stem": true,
+      "quality_score": 1.0,
+      "question_id": "test_v2_10q_001_v2_q10"
+    }
+  }
+]
