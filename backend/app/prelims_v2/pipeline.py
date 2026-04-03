@@ -175,7 +175,7 @@ async def run_v2_pipeline(
       4. Quality Gate     → passed / failed split
       5. Gap Fill         → final List[dict]
     """
-    from .stage0_blueprint  import generate_blueprint
+    from .stage0_blueprint_v45_controlled import generate_blueprint_controlled
     from .stage1_retrieval  import retrieve_for_all_skeletons
     from .stage4_quality_gate import run_quality_gate
     from .stage5_gap_fill   import fill_and_finalize
@@ -197,14 +197,10 @@ async def run_v2_pipeline(
     await _set_progress(redis, job_id, 0)
     await _check_cancel(redis, job_id)
 
-    skeletons = await generate_blueprint(
+    skeletons = await generate_blueprint_controlled(
         num_questions=num_questions,
-        topics=topics,
         subject=subject,
-        gemini_client=gemini_client,
-        domain=domain,
         subdomain=subdomain,
-        ledger=ledger,
     )
     if not skeletons:
         raise RuntimeError("Blueprint generation failed: no skeletons produced")

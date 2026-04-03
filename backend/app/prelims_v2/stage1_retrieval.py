@@ -458,14 +458,14 @@ async def _retrieve_from_pinecone(
         mmr_lambda = _pick_random_mmr_lambda()
 
         try:
-            # Fetch 20 candidates, cross-encoder re-ranks all, then MMR picks 5
+            # Fetch 20 candidates, enrich ALL from SQL, cross-encoder re-ranks all, then MMR picks 5
             chunks = pinecone_handler.query_documents(
                 query_text        = q["query_text"],
                 k                 = target_k,
                 fetch_k           = overfetch_k,
                 re_rank           = True,
                 filter_metadata   = filter_meta,
-                use_content_store = False,
+                use_content_store = True,  # Enrich ALL 20 from SQL BEFORE cross-encoding
                 query_vector      = query_vec,
             )
         except Exception as e:
@@ -481,14 +481,16 @@ async def _retrieve_from_pinecone(
                     fetch_k           = overfetch_k,
                     re_rank           = True,
                     filter_metadata   = {"source_type": {"$ne": "pyq"}},
-                    use_content_store = False,
+                    use_content_store = True,  # Enrich ALL from SQL BEFORE cross-encoding
                     query_vector      = query_vec,
                 )
                 logger.debug(f"[Stage1] Fuzzy fallback: '{q['concept_filter']}' → {len(chunks)} chunks")
             except Exception as e:
                 logger.warning(f"[Stage1] Fuzzy fallback failed: {e}")
 
-        # ── SQLite enrichment (full text from content_store) ─────────────────
+        # ── Chunk deduplication & validation (NO SECOND ENRICHMENT) ────────────
+        # query_documents() already enriched ALL 20 chunks from SQL.
+        # Cross-encoder selected top 5. Just validate they have content.
         enriched_count = 0
         for chunk in chunks:
             chunk_id = chunk.get("id") or chunk.get("chunk_id") or id(chunk)
@@ -496,21 +498,12 @@ async def _retrieve_from_pinecone(
                 continue
             seen_ids.add(chunk_id)
 
-            if content_store:
-                meta     = chunk.get("metadata", {})
-                c_id     = meta.get("chunk_id")
-                filename = meta.get("filename")
-                if c_id and filename:
-                    try:
-                        full = content_store.get_chunk(c_id, filename)
-                        if full:
-                            chunk["content"] = full
-                            enriched_count += 1
-                    except Exception:
-                        pass
-
+            # Chunks should already be enriched by query_documents().
+            # Only fallback to metadata if somehow content is missing.
             if not chunk.get("content"):
                 chunk["content"] = chunk.get("metadata", {}).get("content_preview", "")
+            else:
+                enriched_count += 1
 
             all_chunks.append(chunk)
 

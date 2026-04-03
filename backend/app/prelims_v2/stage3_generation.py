@@ -169,10 +169,29 @@ def _get_trap(trap_id: str, trap_registry_path: Path) -> dict:
                             _trap_cache[trap_id] = {**trap_data, "trap_id": trap_id}
                 logger.info(f"[Stage3][TrapRegistry] ✅ Loaded {len(_trap_cache)} traps from 'trap_patterns_global_reference'")
 
-            # Structure 3: Nested by subject
+            # Structure 3: "concept_trap_mapping" + "trap_patterns" (hierarchical domain files)
+            elif "concept_trap_mapping" in raw and "trap_patterns" in raw:
+                concept_mapping = raw.get("concept_trap_mapping", {})
+                trap_patterns = raw.get("trap_patterns", {})
+
+                # Flatten: collect all trap IDs from mapping and fetch their data from patterns
+                all_trap_ids = set()
+                for concept_name, trap_ids in concept_mapping.items():
+                    if isinstance(trap_ids, list):
+                        all_trap_ids.update(trap_ids)
+
+                # Build cache from trap_patterns
+                for trap_id in all_trap_ids:
+                    if trap_id in trap_patterns:
+                        trap_data = trap_patterns[trap_id]
+                        _trap_cache[trap_id] = {**trap_data, "trap_id": trap_id} if isinstance(trap_data, dict) else {"trap_id": trap_id}
+
+                logger.info(f"[Stage3][TrapRegistry] ✅ Loaded {len(_trap_cache)} traps from 'concept_trap_mapping' + 'trap_patterns'")
+
+            # Structure 4: Nested by subject
             else:
                 for subj, val in raw.items():
-                    if subj in ("_meta", "description", "subject", "question_types", "sub_domains_covered", "notes"):
+                    if subj in ("_meta", "description", "subject", "question_types", "sub_domains_covered", "notes", "subdomain", "concept_trap_mapping", "trap_patterns", "generation_guidance_by_question_type", "common_misconceptions_by_concept", "notes_for_blueprint"):
                         continue
                     if isinstance(val, dict) and "traps" in val:
                         count_before = len(_trap_cache)
@@ -183,7 +202,7 @@ def _get_trap(trap_id: str, trap_registry_path: Path) -> dict:
                 logger.info(f"[Stage3][TrapRegistry] ✅ Total loaded: {len(_trap_cache)} traps")
 
             if len(_trap_cache) == 0:
-                logger.error(f"[Stage3][TrapRegistry] ❌ No traps found in registry. Structure: {list(raw.keys())}\nTry checking if traps are in 'trap_patterns_global_reference' or another nested key.")
+                logger.error(f"[Stage3][TrapRegistry] ❌ No traps found in registry. Structure: {list(raw.keys())}\nTry checking if traps are in 'traps', 'trap_patterns_global_reference', 'concept_trap_mapping'+'trap_patterns', or nested by subject.")
         except Exception as e:
             logger.error(f"[Stage3][TrapRegistry] ❌ Could not load trap registry: {e}", exc_info=True)
 

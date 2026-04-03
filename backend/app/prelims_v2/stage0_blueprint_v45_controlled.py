@@ -91,9 +91,25 @@ def _load_json(path: Path, label: str) -> dict | list:
         return {}
 
 
-def _load_trap_registry(subject: str) -> dict:
-    trap_file = f"traps_{subject.lower().replace(' ', '_')}_climatology.json"
-    return _load_json(_V2_DIR / trap_file, "trap registry")
+def _load_trap_registry(subject: str, subdomain: str = "") -> dict:
+    """Load trap registry from hierarchical structure.
+
+    Load chain:
+    1. Domain-specific: traps/{subject}/{domain}/traps_{subject}_{domain}.json
+    2. Subject-level fallback: traps/{subject}/traps_{subject}.json
+    """
+    subject_lower = subject.lower().replace(" ", "_")
+
+    # Try domain-specific first if subdomain provided
+    if subdomain:
+        subdomain_lower = subdomain.lower().replace(" ", "_")
+        domain_specific = _V2_DIR / "traps" / subject_lower / subdomain_lower / f"traps_{subject_lower}_{subdomain_lower}.json"
+        if domain_specific.exists():
+            return _load_json(domain_specific, f"trap registry ({subject}/{subdomain})")
+
+    # Fall back to subject-level
+    subject_level = _V2_DIR / "traps" / subject_lower / f"traps_{subject_lower}.json"
+    return _load_json(subject_level, "trap registry")
 
 
 def _load_variants(subject: str) -> dict:
@@ -146,19 +162,79 @@ def _normalise_concept_dict(concepts_dict: dict) -> list:
 
 
 def _load_concept_pool(subject: str, subdomain: str) -> list:
+    """Load concept pool from hierarchical domain-specific structure.
+
+    Load chain:
+    1. Domain-specific: concept_pools/{subject}/{domain}/{subject}_{domain}.json
+    2. Subject-level: concept_pools/{subject}/{subject}.json
+    3. Flat fallback (backwards compat): concept_pools/{subject}_{domain}.json
+    """
     subj_slug = subject.lower().replace(" ", "_").replace("&", "and").replace("/", "_")
-    sub_slug = subdomain.lower().replace(" ", "_").replace("&", "and").replace("/", "_")
-    candidate = _V2_DIR / "concept_pools" / f"{subj_slug}_{sub_slug}.json"
-    data = _load_json(candidate, "concept pool")
+    sub_slug  = subdomain.lower().replace(" ", "_").replace("&", "and").replace("/", "_")
+
+    # 1. Try domain-specific hierarchical path first
+    domain_specific = _V2_DIR / "concept_pools" / subj_slug / sub_slug / f"{subj_slug}_{sub_slug}.json"
+    data = _load_json(domain_specific, f"concept pool ({subject}/{subdomain})")
     if data:
         raw = data.get("concepts", [])
-        return _normalise_concept_dict(raw) if isinstance(raw, dict) else raw
+        result = _normalise_concept_dict(raw) if isinstance(raw, dict) else raw
+        logger.info(f"[Stage0 v4.5+] Loaded {len(result)} concepts from domain-specific pool: {subject}/{subdomain}")
+        return result
+
+    # 2. Try subject-level fallback
+    subject_level = _V2_DIR / "concept_pools" / subj_slug / f"{subj_slug}.json"
+    data = _load_json(subject_level, f"concept pool fallback ({subject})")
+    if data:
+        raw = data.get("concepts", [])
+        result = _normalise_concept_dict(raw) if isinstance(raw, dict) else raw
+        logger.warning(f"[Stage0 v4.5+] Using subject-level fallback for {subject}/{subdomain} ({len(result)} concepts)")
+        return result
+
+    # 3. Try flat structure for backwards compatibility
+    flat_fallback = _V2_DIR / "concept_pools" / f"{subj_slug}_{sub_slug}.json"
+    data = _load_json(flat_fallback, f"concept pool flat fallback ({subject}_{subdomain})")
+    if data:
+        raw = data.get("concepts", [])
+        result = _normalise_concept_dict(raw) if isinstance(raw, dict) else raw
+        logger.warning(f"[Stage0 v4.5+] Using flat fallback for {subject}/{subdomain} ({len(result)} concepts)")
+        return result
+
+    logger.error(f"[Stage0 v4.5+] ❌ No concept pool found for {subject}/{subdomain}")
     return []
 
 
 def _get_concept_trap_mapping(trap_registry: dict) -> dict:
     """Get concept -> [trap_ids] mapping from registry."""
     return trap_registry.get("concept_trap_mapping", {})
+
+
+# ── Difficulty Distribution (Pure CA Support) ─────────────────────────────────
+
+def _difficulty_counts(easy_pct: float, medium_pct: float, hard_pct: float, pure_ca_pct: float, num_questions: int) -> tuple[int, int, int, int]:
+    """
+    Distribute num_questions into easy/medium/hard/pure_ca using percentages.
+    Guarantees they sum to exactly num_questions.
+    Remainder goes to medium.
+
+    Distribution:
+      - easy: 15%
+      - medium: 25%
+      - hard: 40%
+      - pure_ca: 15% (dedicated pure CA questions)
+    """
+    pure_ca = max(0, int(pure_ca_pct * num_questions))
+    easy   = max(0, int(easy_pct   * num_questions))
+    hard   = max(0, int(hard_pct   * num_questions))
+    medium = num_questions - easy - hard - pure_ca
+
+    # Ensure at least 1 of each if num_questions >= 4
+    if num_questions >= 4:
+        pure_ca = max(1, pure_ca)
+        easy   = max(1, easy)
+        hard   = max(1, hard)
+        medium = num_questions - easy - hard - pure_ca
+
+    return easy, medium, hard, pure_ca
 
 
 # ── Controlled Randomness: Variant Selection ──────────────────────────────────
@@ -339,25 +415,34 @@ def _select_sub_concepts_for_difficulty(
 
 # ── Difficulty Type Sampling ──────────────────────────────────────────────────
 
-def _sample_difficulty_types(num_questions: int, ca_linkage_rate: float = 0.30) -> list:
-    """Sample difficulty types, enforcing 30% CA-friendly."""
-    ca_friendly_types = list(CA_FRIENDLY_DIFFICULTY_TYPES)
-    non_ca_types = [
-        dt for dt in DIFFICULTY_TYPE_TO_QUESTION_TYPES.keys()
-        if dt not in CA_FRIENDLY_DIFFICULTY_TYPES
-    ]
+def _sample_difficulty_types(num_questions: int, easy_pct: float = 0.15, medium_pct: float = 0.25,
+                             hard_pct: float = 0.40, pure_ca_pct: float = 0.15) -> list:
+    """
+    Sample difficulty types enforcing 40-25-15-15 distribution (hard-medium-easy-pure_ca).
 
-    num_ca = round(num_questions * ca_linkage_rate)
-    num_non_ca = num_questions - num_ca
+    Maps counts to specific difficulty_type variants.
+    """
+    # 1. Get counts per difficulty level
+    easy_count, medium_count, hard_count, pure_ca_count = _difficulty_counts(
+        easy_pct, medium_pct, hard_pct, pure_ca_pct, num_questions
+    )
 
-    ca_sampled = [random.choice(ca_friendly_types) for _ in range(num_ca)]
-    non_ca_sampled = [
-        random.choice(non_ca_types) for _ in range(num_non_ca)
-    ] if non_ca_types else []
+    # 2. Get available types per level
+    easy_types = [dt for dt in DIFFICULTY_TYPE_TO_QUESTION_TYPES.keys() if dt.startswith("easy_")]
+    medium_types = [dt for dt in DIFFICULTY_TYPE_TO_QUESTION_TYPES.keys() if dt.startswith("medium_")]
+    hard_types = [dt for dt in DIFFICULTY_TYPE_TO_QUESTION_TYPES.keys() if dt.startswith("hard_")]
+    pure_ca_types = [dt for dt in DIFFICULTY_TYPE_TO_QUESTION_TYPES.keys() if dt.startswith("pure_ca_")]
 
-    all_sampled = ca_sampled + non_ca_sampled
-    random.shuffle(all_sampled)
-    return all_sampled[:num_questions]
+    # 3. Sample from each level
+    sampled = []
+    sampled.extend([random.choice(easy_types) for _ in range(easy_count)] if easy_types else ["easy_recall_static"] * easy_count)
+    sampled.extend([random.choice(medium_types) for _ in range(medium_count)] if medium_types else ["medium_concept_linking_same_domain"] * medium_count)
+    sampled.extend([random.choice(hard_types) for _ in range(hard_count)] if hard_types else ["hard_counterintuitive_single_concept"] * hard_count)
+    sampled.extend([random.choice(pure_ca_types) for _ in range(pure_ca_count)] if pure_ca_types else ["pure_ca_news_tracking"] * pure_ca_count)
+
+    # 4. Shuffle and return
+    random.shuffle(sampled)
+    return sampled[:num_questions]
 
 
 # ── Concept Sampling ──────────────────────────────────────────────────────────
@@ -406,8 +491,9 @@ def _prepare_slots_controlled(
     Pre-sample with controlled randomness (70/30).
 
     70% structured by rules, 30% exploratory variants.
+    Difficulty distribution: 40% hard, 25% medium, 15% easy, 15% pure_ca
     """
-    # 1. Sample difficulty types (enforced 30% CA)
+    # 1. Sample difficulty types (enforced 40-25-15-15 distribution)
     difficulty_types = _sample_difficulty_types(num_questions)
 
     # 2. Sample concepts
@@ -441,7 +527,18 @@ def _prepare_slots_controlled(
         recommended_qts = DIFFICULTY_TYPE_TO_QUESTION_TYPES.get(diff_type, [])
         question_type = _pick_question_type(diff_type, recommended_qts, control_probs)
 
+        # Get trap affinity for this concept (fallback to all available traps if not in mapping)
         traps_available = concept_trap_mapping.get(concept_name, [])
+        if not traps_available:
+            # Fallback: use all trap IDs from the registry
+            traps_available = list(trap_registry.get("trap_patterns", {}).keys())
+            if not traps_available:
+                # Final fallback: use trap IDs from concept_trap_mapping values
+                all_trap_ids = set()
+                for trap_ids in concept_trap_mapping.values():
+                    if isinstance(trap_ids, list):
+                        all_trap_ids.update(trap_ids)
+                traps_available = list(all_trap_ids)
 
         slots.append({
             "slot_id": f"slot_{i+1:02d}",
@@ -454,6 +551,7 @@ def _prepare_slots_controlled(
             "trap_affinity": traps_available,
             "ca_flag": diff_type in CA_FRIENDLY_DIFFICULTY_TYPES,
             "ca_trigger_types": concept.get("ca_trigger_types", []),
+            "subdomain": subdomain,  # Domain hint for Stage 3 trap loading
         })
 
     logger.info(
@@ -482,7 +580,7 @@ def _slot_to_skeleton(slot: dict, idx: int) -> QuestionSkeleton:
         ca_event="",
         trap_strategy=random.choice(slot["trap_affinity"]) if slot["trap_affinity"] else "",
         trap_name="",
-        sub_domain=slot["concept"],
+        sub_domain=slot.get("subdomain", slot["concept"]),  # Domain (e.g., "Climatology"), not concept
         # v4.5 Controlled additions
         difficulty_type=difficulty_type,
         variant=slot.get("variant", ""),
