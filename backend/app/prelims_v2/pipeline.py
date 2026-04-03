@@ -283,9 +283,27 @@ async def run_v2_pipeline(
         get_sub_batch_temperature,
     )
 
-    trap_registry_path = _V2_DIR / f"traps_{subject.lower()}.json"
+    # Construct domain-specific trap registry path
+    # Structure: traps/ → subject/ → domain/ → traps_subject_domain.json
+    # Example: traps/geography/climatology/traps_geography_climatology.json
+
+    # Extract domain from topics (topics[1] if available, else fallback to first topic)
+    domain = topics[1] if len(topics) > 1 else (topics[0] if topics else subject)
+    domain_lower = domain.lower().replace(" ", "_")
+    subject_lower = subject.lower().replace(" ", "_")
+
+    # Try domain-specific path first
+    trap_registry_path = _V2_DIR / "traps" / subject_lower / domain_lower / f"traps_{subject_lower}_{domain_lower}.json"
+
     if not trap_registry_path.exists():
+        # Fallback: try subject-level traps file
+        trap_registry_path = _V2_DIR / f"traps_{subject_lower}.json"
+
+    if not trap_registry_path.exists():
+        # Final fallback: config directory
         trap_registry_path = _CONFIG_DIR / "trap_registry.json"
+
+    logger.info(f"[V2][STAGE 3] Trap registry path: {trap_registry_path} (exists: {trap_registry_path.exists()})")
 
     generated: List[V2GeneratedQuestion] = []
     batch_failed = False
