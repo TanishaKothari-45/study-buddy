@@ -204,19 +204,45 @@ def _normalise_concept_dict(concepts_dict: dict) -> list:
 
 
 def _load_concept_pool(subject: str, subdomain: str) -> list:
+    """Load concept pool from hierarchical domain-specific structure.
+
+    Load chain:
+    1. Domain-specific: concept_pools/{subject}/{domain}/{subject}_{domain}.json
+    2. Subject-level: concept_pools/{subject}/{subject}.json
+    3. Flat fallback (backwards compat): concept_pools/{subject}_{domain}.json
+    """
     subj_slug = subject.lower().replace(" ", "_").replace("&", "and").replace("/", "_")
     sub_slug  = subdomain.lower().replace(" ", "_").replace("&", "and").replace("/", "_")
-    candidate = _V2_DIR / "concept_pools" / f"{subj_slug}_{sub_slug}.json"
-    data = _load_json(candidate, "concept pool")
+
+    # 1. Try domain-specific hierarchical path first
+    domain_specific = _V2_DIR / "concept_pools" / subj_slug / sub_slug / f"{subj_slug}_{sub_slug}.json"
+    data = _load_json(domain_specific, f"concept pool ({subject}/{subdomain})")
     if data:
         raw = data.get("concepts", [])
-        return _normalise_concept_dict(raw) if isinstance(raw, dict) else raw
-    fallback = _V2_DIR / "concept_pools" / f"{subj_slug}.json"
-    data = _load_json(fallback, "concept pool fallback")
-    if not data:
-        return []
-    raw = data.get("concepts", [])
-    return _normalise_concept_dict(raw) if isinstance(raw, dict) else raw
+        result = _normalise_concept_dict(raw) if isinstance(raw, dict) else raw
+        logger.info(f"[Stage0] Loaded {len(result)} concepts from domain-specific pool: {subject}/{subdomain}")
+        return result
+
+    # 2. Try subject-level fallback
+    subject_level = _V2_DIR / "concept_pools" / subj_slug / f"{subj_slug}.json"
+    data = _load_json(subject_level, f"concept pool fallback ({subject})")
+    if data:
+        raw = data.get("concepts", [])
+        result = _normalise_concept_dict(raw) if isinstance(raw, dict) else raw
+        logger.warning(f"[Stage0] Using subject-level fallback for {subject}/{subdomain} ({len(result)} concepts)")
+        return result
+
+    # 3. Try flat structure for backwards compatibility
+    flat_fallback = _V2_DIR / "concept_pools" / f"{subj_slug}_{sub_slug}.json"
+    data = _load_json(flat_fallback, f"concept pool flat fallback ({subject}_{subdomain})")
+    if data:
+        raw = data.get("concepts", [])
+        result = _normalise_concept_dict(raw) if isinstance(raw, dict) else raw
+        logger.warning(f"[Stage0] Using flat fallback for {subject}/{subdomain} ({len(result)} concepts)")
+        return result
+
+    logger.error(f"[Stage0] ❌ No concept pool found for {subject}/{subdomain}")
+    return []
 
 
 # ── Difficulty distribution (FIXED) ──────────────────────────────────────────
@@ -798,13 +824,17 @@ def _rule_based_fallback(
     trap_registry: dict,
     cfg:           SubjectConfig,
     slots:         Optional[list] = None,
+    subdomain:     str = "",
 ) -> List[QuestionSkeleton]:
     """
     Fallback when the LLM call fails.
     Reuses pre-sampled slots if provided (so ingredients are still diverse).
     Falls back to plain round-robin only when no slots are available.
+
+    Args:
+        subdomain: Domain/topic hint for retrieval (e.g., "Climatology" for Geography)
     """
-    logger.info(f"[Stage0] Rule-based fallback for {num_questions} skeletons")
+    logger.info(f"[Stage0] Rule-based fallback for {num_questions} skeletons (subdomain='{subdomain}')")
 
     if slots is None:
         slots = _pre_sample_slots(cfg, num_questions, concept_pool, trap_registry, None)
@@ -839,7 +869,7 @@ def _rule_based_fallback(
             ca_event       = "",   # no LLM available to write ca_event
             trap_strategy  = slot["trap_id"],
             trap_name      = slot["trap_name"],
-            sub_domain     = cfg.subject,
+            sub_domain     = subdomain or cfg.subject,  # Domain-specific or fall back to subject
         ))
     return skeletons
 
@@ -867,10 +897,14 @@ def _to_skeleton_from_slot(
     completion: SlotCompletion,
     idx:        int,
     cfg:        SubjectConfig,
+    subdomain:  str = "",
 ) -> QuestionSkeleton:
     """
     Merge a pre-sampled slot with the LLM's SlotCompletion into a QuestionSkeleton.
     Applies optional sub_concept swap if the LLM flagged an incoherent combination.
+
+    Args:
+        subdomain: Domain/topic hint for retrieval (e.g., "Climatology" for Geography)
     """
     sub_concepts = list(slot["sub_concepts"])
 
@@ -895,7 +929,7 @@ def _to_skeleton_from_slot(
         ca_event       = completion.ca_event or "",
         trap_strategy  = slot["trap_id"],
         trap_name      = slot["trap_name"],
-        sub_domain     = cfg.subject,
+        sub_domain     = subdomain or cfg.subject,  # Domain-specific (Climatology) or fall back to subject (Geography)
         linked_concept = completion.linked_concept,
     )
 
@@ -985,14 +1019,14 @@ async def generate_blueprint(
 
         # Merge pre-sampled slots with LLM completions
         skeletons = [
-            _to_skeleton_from_slot(slot, comp, i + 1, cfg)
+            _to_skeleton_from_slot(slot, comp, i + 1, cfg, subdomain=subdomain)
             for i, (slot, comp) in enumerate(zip(slots, completions))
         ]
 
         # Pad with fallback skeletons if LLM returned fewer completions than slots
         if len(skeletons) < len(slots):
             fallback_skeletons = _rule_based_fallback(
-                num_questions, concept_pool, trap_registry, cfg, slots[len(skeletons):]
+                num_questions, concept_pool, trap_registry, cfg, slots[len(skeletons):], subdomain=subdomain
             )
             skeletons.extend(fallback_skeletons)
 
@@ -1006,4 +1040,4 @@ async def generate_blueprint(
 
     except Exception as e:
         logger.error(f"[Stage0] Flash failed: {e} — using rule-based fallback with pre-sampled slots")
-        return _rule_based_fallback(num_questions, concept_pool, trap_registry, cfg, slots)
+        return _rule_based_fallback(num_questions, concept_pool, trap_registry, cfg, slots, subdomain=subdomain)
