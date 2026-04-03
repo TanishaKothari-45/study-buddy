@@ -1,23 +1,22 @@
 """
-Stage 1 — Skeleton-Targeted Retrieval
+Stage 1 — Skeleton-Targeted Retrieval (70% Structured + 30% Exploratory)
 
 For each QuestionSkeleton:
-  - Pinecone: one query per unique source_concept in sub_concepts
-  - Google Search: one targeted query if ca_flag=True (ca_event from blueprint, or fallback)
+  - Build structured queries: one per unique source_concept in sub_concepts
+  - Generate exploratory queries: LLM creates novel query angles
+  - Pinecone retrieval: 20 fetched → cross-encode → MMR select 5 per query
+  - Google Search: CA context if ca_flag=True
   - Tier 3 (web_only): skip Pinecone entirely
 
-Returns a RetrievalResult per skeleton — ready for Stage 2 prompt assembly.
-
-Chunk budget per skeleton:
-  - Own concept sub_concepts     → 5 chunks (tight, high precision)
-  - Each borrowed source_concept → 3 chunks (supporting context)
-  - Hard cap: 10 chunks total per skeleton (after MMR selection)
-  - Tier 3 (web_only): 0 Pinecone chunks
+Returns a RetrievalResult per skeleton — with variable chunk count:
+  - Each query: 5 chunks (20 fetched → cross-encode → MMR select 5)
+  - Per skeleton: (number_of_queries) × 5 chunks
+  - Example: 2 queries = 10 chunks, 3 queries = 15 chunks, 1 query = 5 chunks
 
 Retrieval pipeline per query (v2 enhanced):
-  1. Over-fetch: 3x the target k from Pinecone (higher recall)
-  2. Cross-encoder re-rank: re-rank_documents() scores all candidates by relevance
-  3. Client-side MMR: mmr_select_from_chunks(lambda=0.6) picks diverse final set
+  1. Over-fetch: 20 candidates from Pinecone
+  2. Cross-encoder re-rank: score all 20 by relevance to query
+  3. Client-side MMR: mmr_select_from_chunks() picks 5 diverse final chunks (lambda randomized: 30%/0.7, 40%/0.5, 30%/0.3)
 """
 from __future__ import annotations
 
@@ -451,14 +450,22 @@ async def retrieve_for_skeleton(
     subject: str,
 ) -> RetrievalResult:
     """
-    Full retrieval for one skeleton: 70% structured + 30% exploratory.
+    Full retrieval for one skeleton: 70% structured + 30% exploratory (except pure CA).
 
-    Pipeline:
-      1. Build structured queries from skeleton.sub_concepts (~10 queries)
-      2. LLM generates exploratory queries (~3 queries)
-      3. Pinecone retrieval: fetch 20 per query, MMR select 5 (randomized lambda)
-      4. Result: ~65 chunks total for rich context
-      5. Google Search for CA (if ca_flag)
+    TWO TYPES OF RETRIEVAL:
+
+    1. PURE CA QUESTIONS (pure_ca=True):
+       - Skip Pinecone retrieval entirely
+       - Google Search ONLY (mandatory)
+       - Result: ca_context (bullet points from event searches)
+
+    2. CA-LINKED / REGULAR QUESTIONS (pure_ca=False):
+       - Build structured queries from skeleton.sub_concepts (variable count)
+       - LLM generates exploratory queries (variable count)
+       - Pinecone retrieval: fetch 20 per query, MMR select 5 (randomized lambda)
+       - Result: (query_count × 5) chunks for that skeleton
+         Example: 2 queries → 10 chunks, 3 queries → 15 chunks, 1 query → 5 chunks
+       - Google Search for CA (if ca_flag=True, optional for CA-linking)
     """
     retrieval_mode = getattr(skeleton, "retrieval_mode", "pinecone")
 
@@ -468,7 +475,14 @@ async def retrieve_for_skeleton(
     query_metadata = []
 
     # ── Pinecone retrieval: 70% structured + 30% exploratory ────────────────────
-    if retrieval_mode != "web_only":
+    # SKIP for pure CA questions (no concept retrieval needed, only CA search)
+    is_pure_ca = getattr(skeleton, "pure_ca", False)
+
+    if is_pure_ca:
+        logger.info(
+            f"[Stage1] {skeleton.skeleton_id} | Pure CA question — skipping Pinecone retrieval, CA search only"
+        )
+    elif retrieval_mode != "web_only":
         # Build structured queries from skeleton.sub_concepts (70%)
         structured_queries = _build_structured_queries(skeleton)
 
@@ -505,6 +519,7 @@ async def retrieve_for_skeleton(
         )
 
     # ── Google Search retrieval ───────────────────────────────────────────────
+    # MANDATORY for pure CA questions, OPTIONAL for CA-linked questions
     if skeleton.ca_flag:
         ca_queries = _build_ca_search_queries(skeleton)
         try:
@@ -514,12 +529,21 @@ async def retrieve_for_skeleton(
                 context_hint=f"UPSC Prelims {subject} — {skeleton.concept}",
             )
             ca_context = search_result or ""
-            logger.info(
-                f"[Stage1] {skeleton.skeleton_id} | CA search: "
-                f"{len(ca_context)} chars from {len(ca_queries)} queries"
-            )
+
+            if is_pure_ca:
+                logger.info(
+                    f"[Stage1] {skeleton.skeleton_id} | Pure CA question — CA search result: "
+                    f"{len(ca_context)} chars (ONLY source)"
+                )
+            else:
+                logger.info(
+                    f"[Stage1] {skeleton.skeleton_id} | CA-linked question — CA search: "
+                    f"{len(ca_context)} chars (linked to concept retrieval)"
+                )
         except Exception as e:
             logger.warning(f"[Stage1] {skeleton.skeleton_id} | CA search failed: {e}")
+            if is_pure_ca:
+                logger.error(f"[Stage1] {skeleton.skeleton_id} | ❌ CRITICAL: Pure CA question has no CA context!")
 
     return RetrievalResult(
         skeleton_id   = skeleton.skeleton_id,

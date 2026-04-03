@@ -308,9 +308,18 @@ async def run_v2_pipeline(
             if sk.skeleton_id in retrieval_map
         }
 
+        # Calculate total chunks for this batch (variable per skeleton)
+        # Each skeleton: (number of queries) × 5 chunks
+        total_chunks_in_batch = sum(
+            len(retrieval_map[sk.skeleton_id].static_chunks)
+            for sk in batch_skeletons
+            if sk.skeleton_id in retrieval_map
+        )
+
         logger.info(
             f"  [3] Sub-batch {batch_idx+1}/{total_batches}: "
-            f"{len(batch_skeletons)} skeletons, {len(batch_retrieval_map)} chunks, temp={temperature}"
+            f"{len(batch_skeletons)} skeletons, {total_chunks_in_batch} chunks total "
+            f"(variable per skeleton: queries×5), temp={temperature}"
         )
 
         prompt = assemble_batch_prompt(

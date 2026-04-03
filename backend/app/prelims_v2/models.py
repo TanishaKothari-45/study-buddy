@@ -24,6 +24,7 @@ class QuestionSkeleton(BaseModel):
     sub_concepts: List[SubConceptItem] = []           # interlinked {topic, aspect} pairs for targeted retrieval
     difficulty: str = "medium"                   # easy | medium | hard
     ca_flag: bool = False                         # requires current-affairs search?
+    pure_ca: bool = False                         # is this a pure CA question (100% dedicated to event)?
     ca_event: str = ""                            # e.g. "2024 below-normal SW monsoon IMD June forecast"
     trap_strategy: str = ""                       # trap_id from registry e.g. "GEO_T04"
     trap_name: str = ""                           # human-readable trap name

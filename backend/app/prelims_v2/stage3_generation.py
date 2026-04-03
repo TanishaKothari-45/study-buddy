@@ -140,23 +140,57 @@ def _get_trap(trap_id: str, trap_registry_path: Path) -> dict:
     global _trap_cache
     if not _trap_cache:
         try:
+            logger.info(f"[Stage3][TrapRegistry] Attempting to load from: {trap_registry_path}")
+            logger.info(f"[Stage3][TrapRegistry] File exists: {trap_registry_path.exists()}")
+
+            if not trap_registry_path.exists():
+                logger.warning(f"[Stage3][TrapRegistry] ❌ File not found: {trap_registry_path}")
+                return {}
+
             with open(trap_registry_path, encoding="utf-8") as f:
                 raw = json.load(f)
-            # Build flat lookup
+
+            logger.info(f"[Stage3][TrapRegistry] Raw JSON keys: {list(raw.keys())}")
+
+            # Build flat lookup — try multiple structures
+
+            # Structure 1: Top-level "traps" key
             if "traps" in raw:
                 for t in raw["traps"]:
                     _trap_cache[t["trap_id"]] = t
+                logger.info(f"[Stage3][TrapRegistry] ✅ Loaded {len(_trap_cache)} traps (top-level 'traps' key)")
+
+            # Structure 2: "trap_patterns_global_reference" key (new structure)
+            elif "trap_patterns_global_reference" in raw:
+                trap_ref = raw["trap_patterns_global_reference"]
+                if isinstance(trap_ref, dict):
+                    for trap_id, trap_data in trap_ref.items():
+                        if isinstance(trap_data, dict):
+                            _trap_cache[trap_id] = {**trap_data, "trap_id": trap_id}
+                logger.info(f"[Stage3][TrapRegistry] ✅ Loaded {len(_trap_cache)} traps from 'trap_patterns_global_reference'")
+
+            # Structure 3: Nested by subject
             else:
                 for subj, val in raw.items():
-                    if subj == "_meta":
+                    if subj in ("_meta", "description", "subject", "question_types", "sub_domains_covered", "notes"):
                         continue
                     if isinstance(val, dict) and "traps" in val:
+                        count_before = len(_trap_cache)
                         for t in val["traps"]:
                             _trap_cache[t["trap_id"]] = t
-            logger.info(f"[Stage3] Loaded {len(_trap_cache)} traps from registry")
+                        count_added = len(_trap_cache) - count_before
+                        logger.info(f"[Stage3][TrapRegistry]   • {subj}: +{count_added} traps")
+                logger.info(f"[Stage3][TrapRegistry] ✅ Total loaded: {len(_trap_cache)} traps")
+
+            if len(_trap_cache) == 0:
+                logger.error(f"[Stage3][TrapRegistry] ❌ No traps found in registry. Structure: {list(raw.keys())}\nTry checking if traps are in 'trap_patterns_global_reference' or another nested key.")
         except Exception as e:
-            logger.warning(f"[Stage3] Could not load trap registry: {e}")
-    return _trap_cache.get(trap_id, {})
+            logger.error(f"[Stage3][TrapRegistry] ❌ Could not load trap registry: {e}", exc_info=True)
+
+    trap = _trap_cache.get(trap_id, {})
+    if not trap:
+        logger.warning(f"[Stage3][TrapRegistry] ⚠️ Trap not found for ID: {trap_id}")
+    return trap
 
 
 # ── Chunk formatter ───────────────────────────────────────────────────────────
@@ -471,6 +505,14 @@ def assemble_batch_prompt(
     n          = len(skeletons)
     # Use first skeleton's sub_domain as subject if not passed
     subj       = subject or (skeletons[0].sub_domain if skeletons else "")
+
+    # LOG BATCH INPUT STRUCTURE (variable chunks per skeleton)
+    # Each skeleton has: (# of queries) × 5 chunks
+    # E.g., 2 queries = 10 chunks, 3 queries = 15 chunks, 1 query = 5 chunks
+    logger.info(
+        f"[Stage3][BatchPrompt] Building batch prompt for {n} skeletons "
+        f"(chunk count = Σ of [query_count × 5] per skeleton)"
+    )
     framework  = get_cognitive_framework(subj)
 
     # \u2500 Shared type rules block \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -532,27 +574,67 @@ For direct_fact: Single stem question, 4 options (a)\u2013(d), one correct.
         # Static chunks \u2500 BOUNDED to THIS skeleton only
         # From Stage 1: 65 chunks (50 structured + 15 exploratory from LLM-generated queries)
         retrieval_result = retrieval_map.get(skeleton.skeleton_id)
-        if retrieval_result:
-            static_text = _format_chunks(retrieval_result.static_chunks)
-            # Log query metadata for transparency
+        is_pure_ca = getattr(skeleton, "pure_ca", False)
+
+        if is_pure_ca:
+            # Pure CA question: NO concept retrieval, only CA context
+            static_text = ""
+            logger.info(
+                f"[Stage3][Q{idx}/{skeleton.skeleton_id}] Pure CA question — "
+                f"skipping static chunks (using CA context only)"
+            )
+        elif retrieval_result:
+            # Regular / CA-linked question: use Pinecone chunks
+            # USE ALL CHUNKS FROM STAGE 1 (already pre-filtered per query)
+            # Stage 1 returns: for each query → 20 fetched → cross-encode → MMR select 5
+            # So chunks are already the best from each query angle
+            # Variable count per skeleton: 1 query=5 chunks, 2 queries=10 chunks, 3 queries=15 chunks, etc.
+            chunks_to_use = retrieval_result.static_chunks
+            static_text = _format_chunks(chunks_to_use)
+
+            # Log chunk distribution (variable per skeleton based on query count)
             if hasattr(retrieval_result, 'query_metadata') and retrieval_result.query_metadata:
                 structured_count = sum(1 for m in retrieval_result.query_metadata if not m.get('is_exploratory', False))
                 exploratory_count = len(retrieval_result.query_metadata) - structured_count
-                logger.debug(
-                    f"[Stage3][Q{idx}] Retrieved from {len(retrieval_result.query_metadata)} queries "
-                    f"({structured_count} structured, {exploratory_count} exploratory) → {len(static_text)} chars"
+                logger.info(
+                    f"[Stage3][Q{idx}/{skeleton.skeleton_id}] "
+                    f"{len(chunks_to_use)} chunks from {len(retrieval_result.query_metadata)} queries "
+                    f"({structured_count} structured, {exploratory_count} exploratory)"
+                )
+            else:
+                logger.info(
+                    f"[Stage3][Q{idx}/{skeleton.skeleton_id}] {len(chunks_to_use)} chunks"
                 )
         else:
             static_text = "No static content retrieved. Use your knowledge grounded in NCERT texts."
+            logger.warning(f"[Stage3][Q{idx}] ❌ No retrieval result for {skeleton.skeleton_id}")
 
         # CA context \u2500 BOUNDED to THIS skeleton only
         ca_block = ""
         if skeleton.ca_flag and retrieval_result and retrieval_result.ca_context:
-            ca_block = (
-                f"\n  CURRENT AFFAIRS CONTEXT (use ONLY for this question, do NOT bleed to others):\n"
-                f"{retrieval_result.ca_context[:1200]}\n"
-                f"  The question MUST link this event to the static concept.\n"
-            )
+            if is_pure_ca:
+                # Pure CA: this is the ONLY source of content
+                ca_block = (
+                    f"\n  PURE CURRENT AFFAIRS QUESTION (ONLY INPUT):\n"
+                    f"  {retrieval_result.ca_context[:1500]}\n"
+                    f"\n  Your task:\n"
+                    f"    - Create a question 100% focused on this event/development\n"
+                    f"    - Explore impact, causes, policy responses, factual details\n"
+                    f"    - Example: 'Explain the 2023 monsoon floods and its impact on agriculture'\n"
+                    f"    - Example: 'What were the key policy responses to [recent event]?'\n"
+                )
+            else:
+                # CA-linked: context to link with static concept
+                ca_block = (
+                    f"\n  CURRENT AFFAIRS CONTEXT (MANDATORY for this question):\n"
+                    f"{retrieval_result.ca_context[:1200]}\n"
+                    f"  CA-Linked Question (Type 2):\n"
+                    f"    - Link this CA event to the static concept\n"
+                    f"    - Use as a statement: 'Recent floods in 2023 showed X pattern related to [concept]'\n"
+                    f"    - Use in match pair: 'Floods 2023' ← 'Policy Response'\n"
+                    f"    - Integrate naturally into the question stem\n"
+                    f"    - Do NOT use CA in other questions.\n"
+                )
 
         # v4.5 Controlled: Constraints from Stage 0
         available_qts = getattr(skeleton, "available_question_types", [qtype])
@@ -590,7 +672,7 @@ QUESTION {idx}:
 {trap_blk}
 {cross_blk}
   STATIC CONTENT (use ONLY for question {idx} — do NOT use for other questions):
-{static_text}
+{static_text if static_text else '(No static content for Pure CA questions)'}
 {ca_block}
   PYQ STYLE REFERENCE: {pyq_display}
 """)

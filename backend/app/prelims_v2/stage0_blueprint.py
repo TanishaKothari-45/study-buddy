@@ -76,9 +76,10 @@ class SlotCompletionOutput(BaseModel):
 # ── SubjectConfig stub (replace with your real import) ────────────────────────
 
 class DifficultyConfig(BaseModel):
-    easy:   float = 0.25
-    medium: float = 0.50
-    hard:   float = 0.25
+    easy:   float = 0.15    # 15% easy
+    medium: float = 0.25    # 25% medium
+    hard:   float = 0.40    # 40% hard
+    pure_ca: float = 0.15   # 15% pure current affairs (dedicated)
 
 
 class QuestionTypeRange(BaseModel):
@@ -103,7 +104,7 @@ def get_subject_config(subject: str) -> SubjectConfig:
             trap_file="traps_geography.json",
             pyq_file="geography_prelims_pyq_patterns.json",
             ca_linkage_rate=0.30,
-            difficulty=DifficultyConfig(easy=0.25, medium=0.50, hard=0.25),
+            difficulty=DifficultyConfig(easy=0.15, medium=0.25, hard=0.40, pure_ca=0.15),
             question_type_ranges={
                 "multi_statement":  {"min": 3, "max": 6},
                 "match_pair":       {"min": 1, "max": 3},
@@ -116,8 +117,8 @@ def get_subject_config(subject: str) -> SubjectConfig:
             subject="Polity",
             trap_file="traps_polity.json",
             pyq_file="polity_prelims_pyq_patterns.json",
-            ca_linkage_rate=0.40,
-            difficulty=DifficultyConfig(easy=0.20, medium=0.55, hard=0.25),
+            ca_linkage_rate=0.30,
+            difficulty=DifficultyConfig(easy=0.15, medium=0.25, hard=0.40, pure_ca=0.15),
             question_type_ranges={
                 "multi_statement":  {"min": 4, "max": 7},
                 "assertion_reason": {"min": 1, "max": 3},
@@ -215,21 +216,31 @@ def _load_concept_pool(subject: str, subdomain: str) -> list:
 
 # ── Difficulty distribution (FIXED) ──────────────────────────────────────────
 
-def _difficulty_counts(cfg: SubjectConfig, num_questions: int) -> tuple[int, int, int]:
+def _difficulty_counts(cfg: SubjectConfig, num_questions: int) -> tuple[int, int, int, int]:
     """
-    Distribute num_questions into easy/medium/hard using cfg ratios.
+    Distribute num_questions into easy/medium/hard/pure_ca using cfg ratios.
     Guarantees they sum to exactly num_questions.
     Remainder goes to medium.
+
+    Distribution (Option A):
+      - easy: 15%
+      - medium: 25%
+      - hard: 40%
+      - pure_ca: 15% (dedicated pure CA questions)
     """
+    pure_ca = math.floor(cfg.difficulty.pure_ca * num_questions)
     easy   = math.floor(cfg.difficulty.easy   * num_questions)
     hard   = math.floor(cfg.difficulty.hard   * num_questions)
-    medium = num_questions - easy - hard
-    # Ensure at least 1 of each if num_questions >= 3
-    if num_questions >= 3:
+    medium = num_questions - easy - hard - pure_ca
+
+    # Ensure at least 1 of each if num_questions >= 4
+    if num_questions >= 4:
+        pure_ca = max(1, pure_ca)
         easy   = max(1, easy)
         hard   = max(1, hard)
-        medium = num_questions - easy - hard
-    return easy, medium, hard
+        medium = num_questions - easy - hard - pure_ca
+
+    return easy, medium, hard, pure_ca
 
 
 # ── Trap lookup (FIXED — was overwriting on every loop iteration) ─────────────
@@ -294,13 +305,20 @@ def _pre_sample_slots(
     concept_lookup = {c["concept"]: c for c in concept_pool}
 
     # ── 1. Difficulty distribution ────────────────────────────────────────────
-    easy, medium, hard = _difficulty_counts(cfg, num_questions)
-    difficulties = ["easy"] * easy + ["medium"] * medium + ["hard"] * hard
+    easy, medium, hard, pure_ca = _difficulty_counts(cfg, num_questions)
+    difficulties = ["easy"] * easy + ["medium"] * medium + ["hard"] * hard + ["pure_ca"] * pure_ca
     random.shuffle(difficulties)
 
     # ── 2. CA slot assignment ─────────────────────────────────────────────────
-    ca_count   = max(1, round(num_questions * cfg.ca_linkage_rate))
-    ca_indices = set(random.sample(range(num_questions), min(ca_count, num_questions)))
+    # Pure CA questions automatically get ca_flag=True (no additional ca_linkage rate)
+    # For non-pure-CA questions, apply ca_linkage_rate
+    non_pure_ca_indices = [i for i, d in enumerate(difficulties) if d != "pure_ca"]
+    ca_linkage_count = max(1, round(len(non_pure_ca_indices) * cfg.ca_linkage_rate))
+    ca_linked_indices = set(random.sample(non_pure_ca_indices, min(ca_linkage_count, len(non_pure_ca_indices))))
+
+    # Combine: pure_ca gets ca_flag=True, plus ca_linked get ca_flag=True
+    pure_ca_indices = set(i for i, d in enumerate(difficulties) if d == "pure_ca")
+    ca_indices = pure_ca_indices | ca_linked_indices
 
     # ── 3. Ledger awareness ───────────────────────────────────────────────────
     heavy_seen: set = set()
@@ -530,8 +548,7 @@ def _build_prompt(
     pyq_data: dict,
     ledger: Optional[dict] = None,
 ) -> str:
-    easy, medium, hard = _difficulty_counts(cfg, num_questions)
-    ca_count = max(1, round(num_questions * cfg.ca_linkage_rate))
+    easy, medium, hard, pure_ca = _difficulty_counts(cfg, num_questions)
     scale    = num_questions / 10   # type range baseline is per-10
 
     all_traps = _get_all_traps(trap_registry)
@@ -794,20 +811,26 @@ def _rule_based_fallback(
         "easy":   next((t for t in ["direct_fact", "match_pair"] if t in types_pool), types_pool[0]),
         "medium": next((t for t in ["multi_statement"] if t in types_pool), types_pool[0]),
         "hard":   next((t for t in ["assertion_reason", "multi_statement"] if t in types_pool), types_pool[-1]),
+        "pure_ca": next((t for t in ["direct_fact", "multi_statement"] if t in types_pool), types_pool[0]),  # CA-focused type
     }
 
     skeletons = []
     for i, slot in enumerate(slots):
         difficulty = slot["difficulty"]
-        qtype      = type_by_difficulty.get(difficulty, types_pool[i % len(types_pool)])
+        is_pure_ca = difficulty == "pure_ca"
+
+        # Map pure_ca to a concrete difficulty for generation (use easy as base)
+        actual_difficulty = "easy" if is_pure_ca else difficulty
+        qtype = type_by_difficulty.get(difficulty, types_pool[i % len(types_pool)])
 
         skeletons.append(QuestionSkeleton(
             skeleton_id    = f"sk_{i+1:03d}",
             question_type  = qtype,
             concept        = slot["concept"],
             sub_concepts   = slot["sub_concepts"],
-            difficulty     = difficulty,
-            ca_flag        = slot["ca_linked"],
+            difficulty     = actual_difficulty,
+            pure_ca        = is_pure_ca,
+            ca_flag        = True if is_pure_ca else slot["ca_linked"],  # Pure CA always needs CA search
             ca_event       = "",   # no LLM available to write ca_event
             trap_strategy  = slot["trap_id"],
             trap_name      = slot["trap_name"],
