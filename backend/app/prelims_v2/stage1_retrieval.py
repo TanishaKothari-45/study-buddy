@@ -83,18 +83,19 @@ _EXPLORATORY_DIMENSIONS = [
 ]
 
 # Difficulty-based query count & exploratory allocation
+# Format: [min, max] for both structured and exploratory bounds
 _QUERY_ALLOCATION = {
     "easy": {
-        "structured": [1, 2],  # Random choice from range
-        "exploratory": [0],    # No exploration for easy
+        "structured": [1, 2],  # 1-2 structured queries
+        "exploratory": [0, 0], # 0 exploratory (no exploration for easy)
     },
     "medium": {
-        "structured": [1, 2],  # Based on sub_concepts count
-        "exploratory": [0, 1], # Optional if linked concepts exist
+        "structured": [1, 2],  # 1-2 structured queries
+        "exploratory": [0, 1], # 0-1 exploratory (optional)
     },
     "hard": {
-        "structured": [2, 3],  # Deep linkages
-        "exploratory": [1, 2], # Choose 1 or 2 dimensions randomly
+        "structured": [2, 3],  # 2-3 structured queries (deep linkages)
+        "exploratory": [1, 2], # 1-2 exploratory (always included)
     },
 }
 
@@ -128,7 +129,8 @@ def _get_query_bounds(skeleton) -> tuple[int, tuple[int, int]]:
         struct_count = struct_min
 
     # Return exploratory bounds (LLM will decide within these)
-    expl_bounds = tuple(allocation["exploratory"])
+    expl_min, expl_max = allocation["exploratory"]
+    expl_bounds = (expl_min, expl_max)
 
     return struct_count, expl_bounds
 
@@ -200,13 +202,16 @@ async def _generate_exploratory_queries(
         return []
 
     if max_queries == 0:
-        logger.debug(f"[Stage1] {skeleton.skeleton_id} | Exploratory queries disabled (max=0)")
+        logger.info(
+            f"[Stage1] {skeleton.skeleton_id} | Exploratory queries disabled "
+            f"(difficulty='{skeleton.difficulty}', bounds=[{min_queries}, {max_queries}])"
+        )
         return []
 
     concept = skeleton.concept
     sub_concept_topics = [sc.topic for sc in skeleton.sub_concepts]
     aspects_covered = list(set(sc.aspect for sc in skeleton.sub_concepts))
-    difficulty_type = getattr(skeleton, "difficulty_type", "medium")
+    difficulty = skeleton.difficulty
 
     system_prompt = """You are an expert UPSC curriculum researcher.
 Given a question skeleton and query bounds, generate exploratory Pinecone search queries
@@ -231,7 +236,7 @@ QUESTION SKELETON:
   Concept: {concept}
   Sub-concepts tested: {sub_concept_topics}
   Aspects covered: {aspects_covered}
-  Difficulty: {difficulty_type}
+  Difficulty: {difficulty}
 
 QUERY COUNT GUIDANCE:
   {query_count_instruction}
@@ -261,12 +266,17 @@ Return ONLY a JSON object with a "queries" array of strings (0-{max_queries} ite
             queries = [q for q in queries if q]  # Remove empties
 
         logger.info(
-            f"[Stage1] {skeleton.skeleton_id} | Generated {len(queries)} exploratory queries "
-            f"(bounds: {min_queries}-{max_queries}): {queries}"
+            f"[Stage1] {skeleton.skeleton_id} | Exploratory queries: "
+            f"difficulty='{difficulty}', bounds=[{min_queries}, {max_queries}], "
+            f"LLM generated={len(queries)}, "
+            f"queries={queries}"
         )
         return queries
     except Exception as e:
-        logger.warning(f"[Stage1] Exploratory query generation failed: {e}")
+        logger.warning(
+            f"[Stage1] {skeleton.skeleton_id} | Exploratory query generation failed "
+            f"(difficulty='{difficulty}', bounds=[{min_queries}, {max_queries}]): {e}"
+        )
         return []
 
 
@@ -574,7 +584,13 @@ async def retrieve_for_skeleton(
         )
     elif retrieval_mode != "web_only":
         # Determine query count bounds based on difficulty
+        difficulty = skeleton.difficulty
         struct_count, (expl_min, expl_max) = _get_query_bounds(skeleton)
+
+        logger.info(
+            f"[Stage1] {skeleton.skeleton_id} | Query bounds for difficulty='{difficulty}': "
+            f"structured={struct_count}, exploratory=[{expl_min}, {expl_max}]"
+        )
 
         # Build structured queries from skeleton.sub_concepts
         all_structured = _build_structured_queries(skeleton)
@@ -601,20 +617,19 @@ async def retrieve_for_skeleton(
         all_queries = structured_queries + exploratory_queries
 
         # Retrieve from Pinecone
-        difficulty_type = getattr(skeleton, "difficulty_type", "")
         static_chunks, query_metadata = await _retrieve_from_pinecone(
             queries=all_queries,
             pinecone_handler=pinecone_handler,
             subject=subject,
             retrieval_mode=retrieval_mode,
-            difficulty_type=difficulty_type,
+            difficulty_type=difficulty,
         )
 
         logger.info(
             f"[Stage1] {skeleton.skeleton_id} | Pinecone retrieval complete: "
             f"{len(static_chunks)} chunks from {len(all_queries)} queries "
-            f"({len(structured_queries)} structured, {len(exploratory_queries)} exploratory, "
-            f"difficulty_type='{difficulty_type}')"
+            f"(difficulty='{difficulty}', {len(structured_queries)} structured, "
+            f"{len(exploratory_queries)} exploratory [bounds={expl_min}-{expl_max}])"
         )
 
     # ── Google Search retrieval ───────────────────────────────────────────────

@@ -1,0 +1,66 @@
+{
+  "timestamp": "2026-04-03_1246",
+  "subject": "Geography",
+  "domain": "Geomorphology",
+  "years": "2015-2024",
+  "papers_analyzed": 1,
+  "concepts": [
+    {
+      "Primary Concept": "Sample concept",
+      "Sub-Concepts": [
+        "Sub-concept 1",
+        "Sub-concept 2"
+      ],
+      "Concept Frequency in Question": "once",
+      "Linked Concepts": [
+        "Linked concept 1",
+        "Linked concept 2"
+      ],
+      "Linking Pattern": "same domain",
+      "Current Affairs": "No recent event mentioned",
+      "Concept Category": "Core/frequently-tested"
+    }
+  ],
+  "traps": [
+    {
+      "Question Type": "Multi-statement",
+      "Trap Mechanism": "The question presents multiple statements that seem plausible, but only a few are correct. Students may misinterpret the context or fail to identify the nuances in the statements.",
+      "Error Type": "counterintuitive_fact",
+      "Distractor Strategy": "Distractors are based on common misconceptions or closely related concepts that may confuse students, making them think they are correct.",
+      "Difficulty Level": "medium",
+      "Difficulty Type": "medium_concept_linking_same_domain",
+      "Difficulty Explanation": "This type requires students to connect related concepts within geomorphology, which can be challenging if they have not fully grasped the interrelationships."
+    },
+    {
+      "Question Type": "Assertion-Reason",
+      "Trap Mechanism": "The assertion may be true, but the reason provided could be misleading or only partially correct, leading students to incorrectly affirm both.",
+      "Error Type": "metric_reversal",
+      "Distractor Strategy": "The reason might use terminology or concepts that sound correct but are misapplied, causing confusion.",
+      "Difficulty Level": "hard",
+      "Difficulty Type": "hard_counterintuitive_single_concept",
+      "Difficulty Explanation": "This type challenges students to critically evaluate the relationship between assertion and reason, requiring deep understanding of the concepts involved."
+    },
+    {
+      "Question Type": "Match-pair",
+      "Trap Mechanism": "Students may struggle to accurately match terms with their definitions due to similar-sounding terms or overlapping concepts.",
+      "Error Type": "cognitive overload",
+      "Distractor Strategy": "Distractors are designed with slight variations of correct answers, making them seem plausible and increasing the chance of confusion.",
+      "Difficulty Level": "medium",
+      "Difficulty Type": "medium_adjacent_fact",
+      "Difficulty Explanation": "This type tests students' ability to differentiate between closely related concepts, which can be tricky without a solid grasp of the material."
+    },
+    {
+      "Question Type": "Direct-fact",
+      "Trap Mechanism": "The question may ask for a specific fact that is often confused with another similar fact, leading to incorrect answers.",
+      "Error Type": "metric_reversal",
+      "Distractor Strategy": "Distractors are facts that are close in context or numerical value to the correct answer, making them seem plausible.",
+      "Difficulty Level": "easy",
+      "Difficulty Type": "easy_recall_static",
+      "Difficulty Explanation": "This type relies on straightforward recall of facts, but the presence of closely related distractors can lead to errors."
+    }
+  ],
+  "synthesis": {
+    "error": "Failed to parse",
+    "raw": "```json\n{\n  \"Concept Frequency & Gaps\": {\n    \"Most Frequent Concepts\": {\n      \"Primary Concept\": \"Sample concept\",\n      \"Frequency\": \"once\"\n    },\n    \"Sub-Concepts Tested\": [\n      \"Sub-concept 1\",\n      \"Sub-concept 2\"\n    ],\n    \"Never Tested Concepts\": []\n  },\n  \"Question Type Distribution\": {\n    \"Question Types\": [\n      \"Multi-statement\",\n      \"Assertion-Reason\",\n      \"Match-pair\"\n    ],\n    \"Frequency\": {\n      \"Multi-statement\": 1,\n      \"Assertion-Reason\": 1,\n      \"Match-pair\": 1\n    },\n    \"Difficulty Levels\": {\n      \"Multi-statement\": \"medium\",\n      \"Assertion-Reason\": \"hard\",\n      \"Match-pair\": \"medium\"\n    }\n  },\n  \"Trap Pattern Aggregation\": {\n    \"Trap Mechanisms\": [\n      {\n        \"Question Type\": \"Multi-statement\",\n        \"Frequency\": 1\n      },\n      {\n        \"Question Type\": \"Assertion-Reason\",\n        \"Frequency\": 1\n      },\n      {\n        \"Question Type\": \"Match-pair\",\n        \"Frequency\": 1\n      }\n    ],\n    \"Patterns by Question Type/Difficulty\": {\n      \"Multi-statement\": {\n        \"Difficulty\": \"medium\"\n      },\n      \"Assertion-Reason\": {\n        \"Difficulty\": \"hard\"\n      },\n      \"Match-pair\": {\n        \"Difficulty\": \"medium\"\n      }\n    }\n  },\n  \"Difficulty Type Distribution\": {\n    \"Most Frequent Difficulty Types\": [\n      \"medium_concept_linking_same_domain\",\n      \"hard_counterintuitive_single_concept\",\n      \"medium_adjacent_fact\"\n    ],\n    \"Frequency by Type and Concept\": {\n      \"medium_concept_linking_same_domain\": 1,\n      \"hard_counterintuitive_single_concept\": 1,\n      \"medium_adjacent_fact\": 1\n    },\n    \"New Types Unique to Domain\": []\n  },\n  \"Difficulty Drivers\": {\n    \"Easy Questions\": \"Basic recall of definitions and concepts.\",\n    \"Medium Questions\": \"Require linking related concepts within geomorphology.\",\n    \"Hard Questions\": \"Demand critical evaluation and deep understanding of concepts.\"\n  },\n  \"Concept Linking Patterns\": {\n    \"Single Concept Only\": \"0%\",\n    \"Two Concepts (Same Domain)\": \"100%\",\n    \"Two Concepts (Cross-Domain)\": \"0%\",\n    \"Three or More Concepts\": \"0%\",\n    \"Vary by Difficulty\": {\n      \"Medium\": \"100% (2 concepts)\",\n      \"Hard\": \"100% (1 concept)\"\n    }\n  },\n  \"NEW DISCOVERIES\": {\n    \"Patterns Never Seen Before\": [],\n    \"Unique Question Types\": [],\n    \"Missing Concepts\": []\n  }\n}\n```"
+  }
+}

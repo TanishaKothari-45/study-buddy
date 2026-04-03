@@ -145,7 +145,12 @@ def _load_json(path: Path, label: str) -> dict | list:
 
 
 def _load_trap_registry(cfg: SubjectConfig) -> dict:
-    return _load_json(_V2_DIR / cfg.trap_file, "trap registry")
+    """Load trap registry from hierarchical structure.
+    Path: traps/{subject}/{trap_file}
+    """
+    subject_lower = cfg.subject.lower().replace(" ", "_")
+    trap_path = _V2_DIR / "traps" / subject_lower / cfg.trap_file
+    return _load_json(trap_path, "trap registry")
 
 
 def _load_pyq_patterns(cfg: SubjectConfig) -> dict:

@@ -59,21 +59,21 @@ async def _retry_skeleton(
     _v2_dir = Path(__file__).parent
     _cfg_dir = _v2_dir.parent.parent.parent / "config"
 
-    # Construct domain-specific trap registry path
+    # Construct domain-specific trap registry path with hierarchical fallback
     # Use skeleton's sub_domain if available, else fallback to subject
     domain = getattr(skeleton, "sub_domain", None) or subject
     domain_lower = domain.lower().replace(" ", "_")
     subject_lower = subject.lower().replace(" ", "_")
 
-    # Try domain-specific path first
+    # 1. Domain-specific: traps/subject/domain/traps_subject_domain.json
     trap_registry_path = _v2_dir / "traps" / subject_lower / domain_lower / f"traps_{subject_lower}_{domain_lower}.json"
 
     if not trap_registry_path.exists():
-        # Fallback: try subject-level traps file
-        trap_registry_path = _v2_dir / f"traps_{subject_lower}.json"
+        # 2. Subject-level: traps/subject/traps_subject.json
+        trap_registry_path = _v2_dir / "traps" / subject_lower / f"traps_{subject_lower}.json"
 
     if not trap_registry_path.exists():
-        # Final fallback: config directory
+        # 3. Config directory (global fallback)
         trap_registry_path = _cfg_dir / "trap_registry.json"
 
     semaphore = asyncio.Semaphore(1)

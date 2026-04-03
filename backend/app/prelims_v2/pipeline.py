@@ -292,18 +292,22 @@ async def run_v2_pipeline(
     domain_lower = domain.lower().replace(" ", "_")
     subject_lower = subject.lower().replace(" ", "_")
 
-    # Try domain-specific path first
+    # Hierarchical trap registry loading (3-level fallback chain):
+    # 1. Domain-specific: traps/subject/domain/traps_subject_domain.json
     trap_registry_path = _V2_DIR / "traps" / subject_lower / domain_lower / f"traps_{subject_lower}_{domain_lower}.json"
 
     if not trap_registry_path.exists():
-        # Fallback: try subject-level traps file
-        trap_registry_path = _V2_DIR / f"traps_{subject_lower}.json"
+        # 2. Subject-level: traps/subject/traps_subject.json
+        trap_registry_path = _V2_DIR / "traps" / subject_lower / f"traps_{subject_lower}.json"
 
     if not trap_registry_path.exists():
-        # Final fallback: config directory
+        # 3. Config directory (global fallback)
         trap_registry_path = _CONFIG_DIR / "trap_registry.json"
 
-    logger.info(f"[V2][STAGE 3] Trap registry path: {trap_registry_path} (exists: {trap_registry_path.exists()})")
+    logger.info(
+        f"[V2][STAGE 3] Trap registry (domain='{domain_lower}', subject='{subject_lower}'): "
+        f"{trap_registry_path} (exists: {trap_registry_path.exists()})"
+    )
 
     generated: List[V2GeneratedQuestion] = []
     batch_failed = False
