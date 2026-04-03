@@ -24,43 +24,89 @@
     "Fluvial Processes & Landforms": {
       "priority": "ultra_high",
       "frequency_in_pyq": 7,
-      "tested_as_question_types": ["assertion_reason", "multi_statement", "match_pair"],
+      "tested_as_question_types": [
+        "assertion_reason",
+        "multi_statement",
+        "match_pair"
+      ],
       "sub_concepts": [
         {
           "topic": "Meanders and oxbow lakes",
-          "aspects": ["formation mechanism", "lateral erosion", "low-gradient plains"],
+          "aspects": [
+            "formation mechanism",
+            "lateral erosion",
+            "low-gradient plains"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Erosion & Deposition Cycles", "Denudation Chronology"]
+          "linked_to": [
+            "Erosion & Deposition Cycles",
+            "Denudation Chronology"
+          ]
         },
         {
           "topic": "River deltas and delta formation",
-          "aspects": ["depositional environment", "sediment load", "coastal interaction"],
+          "aspects": [
+            "depositional environment",
+            "sediment load",
+            "coastal interaction"
+          ],
           "ca_connectable": true,
-          "linked_to": ["Coastal Geomorphology", "Weathering & Soil Formation"]
+          "linked_to": [
+            "Coastal Geomorphology",
+            "Weathering & Soil Formation"
+          ]
         },
         {
           "topic": "Natural levees and floodplain features",
-          "aspects": ["sedimentation pattern", "periodic flooding", "terrace formation"],
+          "aspects": [
+            "sedimentation pattern",
+            "periodic flooding",
+            "terrace formation"
+          ],
           "ca_connectable": true,
-          "linked_to": ["Erosion & Deposition Cycles", "Human-Induced Geomorphic Change"]
+          "linked_to": [
+            "Erosion & Deposition Cycles",
+            "Human-Induced Geomorphic Change"
+          ]
         },
         {
           "topic": "River capture and piracy",
-          "aspects": ["wind gaps", "water gaps", "capture zones", "headward erosion"],
+          "aspects": [
+            "wind gaps",
+            "water gaps",
+            "capture zones",
+            "headward erosion"
+          ],
           "ca_connectable": false,
-          "linked_to": ["River Piracy & Channel Migration", "Tectonic Landforms"]
+          "linked_to": [
+            "River Piracy & Channel Migration",
+            "Tectonic Landforms"
+          ]
         },
         {
           "topic": "Vertical vs lateral erosion",
-          "aspects": ["gradient effect", "valley shape", "profile equilibrium"],
+          "aspects": [
+            "gradient effect",
+            "valley shape",
+            "profile equilibrium"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Erosion & Deposition Cycles"]
+          "linked_to": [
+            "Erosion & Deposition Cycles"
+          ]
         },
         {
           "topic": "Rills, gullies, and badlands",
-          "aspects": ["scale of erosion", "slope exposure", "vegetation loss"],
+          "aspects": [
+            "scale of erosion",
+            "slope exposure",
+            "vegetation loss"
+          ],
           "ca_connectable": true,
-          "linked_to": ["Mass Wasting & Slope Processes", "Human-Induced Geomorphic Change"]
+          "linked_to": [
+            "Mass Wasting & Slope Processes",
+            "Human-Induced Geomorphic Change"
+          ]
         }
       ],
       "links_to": [
@@ -72,48 +118,90 @@
       "interlink_domains": [
         {
           "domain": "Climatology",
-          "concepts": ["Precipitation", "Weathering Rates", "Temperature Variation"]
+          "concepts": [
+            "Precipitation",
+            "Weathering Rates",
+            "Temperature Variation"
+          ]
         },
         {
           "domain": "Indian Geography",
-          "concepts": ["Himalayan Rivers", "Plains Morphology", "Alluvial Deposits"]
+          "concepts": [
+            "Himalayan Rivers",
+            "Plains Morphology",
+            "Alluvial Deposits"
+          ]
         }
       ]
     },
     "Coastal Geomorphology": {
       "priority": "high",
       "frequency_in_pyq": 6,
-      "tested_as_question_types": ["match_pair", "assertion_reason", "multi_statement"],
+      "tested_as_question_types": [
+        "match_pair",
+        "assertion_reason",
+        "multi_statement"
+      ],
       "sub_concepts": [
         {
           "topic": "Wave-cut platforms and cliffs",
-          "aspects": ["wave action", "shore platform formation", "cliff retreat"],
+          "aspects": [
+            "wave action",
+            "shore platform formation",
+            "cliff retreat"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Erosion & Deposition Cycles"]
+          "linked_to": [
+            "Erosion & Deposition Cycles"
+          ]
         },
         {
           "topic": "Beaches and beach profiles",
-          "aspects": ["depositional coast", "sediment sorting", "seasonal variation"],
+          "aspects": [
+            "depositional coast",
+            "sediment sorting",
+            "seasonal variation"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Erosion & Deposition Cycles"]
+          "linked_to": [
+            "Erosion & Deposition Cycles"
+          ]
         },
         {
           "topic": "Spits, bars, and tombolos",
-          "aspects": ["longshore drift", "sediment transport", "barrier formation"],
+          "aspects": [
+            "longshore drift",
+            "sediment transport",
+            "barrier formation"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Erosion & Deposition Cycles"]
+          "linked_to": [
+            "Erosion & Deposition Cycles"
+          ]
         },
         {
           "topic": "Fjords and rias",
-          "aspects": ["glacial submergence", "drowned valleys", "coastal indentation"],
+          "aspects": [
+            "glacial submergence",
+            "drowned valleys",
+            "coastal indentation"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Glacial Landforms"]
+          "linked_to": [
+            "Glacial Landforms"
+          ]
         },
         {
           "topic": "Coral reefs and atolls",
-          "aspects": ["growth conditions", "water depth", "warm tropical waters"],
+          "aspects": [
+            "growth conditions",
+            "water depth",
+            "warm tropical waters"
+          ],
           "ca_connectable": true,
-          "linked_to": ["Climatology"]
+          "linked_to": [
+            "Climatology"
+          ]
         }
       ],
       "links_to": [
@@ -124,48 +212,91 @@
       "interlink_domains": [
         {
           "domain": "Climatology",
-          "concepts": ["Ocean Currents", "Temperature Distribution", "Wave Systems"]
+          "concepts": [
+            "Ocean Currents",
+            "Temperature Distribution",
+            "Wave Systems"
+          ]
         },
         {
           "domain": "Indian Geography",
-          "concepts": ["Coastal Plains", "Bay of Bengal", "Arabian Sea Coasts"]
+          "concepts": [
+            "Coastal Plains",
+            "Bay of Bengal",
+            "Arabian Sea Coasts"
+          ]
         }
       ]
     },
     "Glacial Landforms": {
       "priority": "high",
       "frequency_in_pyq": 5,
-      "tested_as_question_types": ["match_pair", "assertion_reason", "multi_statement", "scenario"],
+      "tested_as_question_types": [
+        "match_pair",
+        "assertion_reason",
+        "multi_statement",
+        "scenario"
+      ],
       "sub_concepts": [
         {
           "topic": "Moraines (terminal, lateral, medial, recessional)",
-          "aspects": ["sediment deposition", "ice margin position", "temporal sequence"],
+          "aspects": [
+            "sediment deposition",
+            "ice margin position",
+            "temporal sequence"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Denudation Chronology", "Erosion & Deposition Cycles"]
+          "linked_to": [
+            "Denudation Chronology",
+            "Erosion & Deposition Cycles"
+          ]
         },
         {
           "topic": "U-shaped valleys and cirques",
-          "aspects": ["glacial erosion", "3D visualization", "profile shape"],
+          "aspects": [
+            "glacial erosion",
+            "3D visualization",
+            "profile shape"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Tectonic Landforms"]
+          "linked_to": [
+            "Tectonic Landforms"
+          ]
         },
         {
           "topic": "Drumlins and fluted landscapes",
-          "aspects": ["streamline features", "glacier flow direction", "bedrock interaction"],
+          "aspects": [
+            "streamline features",
+            "glacier flow direction",
+            "bedrock interaction"
+          ],
           "ca_connectable": false,
           "linked_to": []
         },
         {
           "topic": "Outwash plains and glacial lakes",
-          "aspects": ["meltwater deposition", "sediment sorting", "periglacial environment"],
+          "aspects": [
+            "meltwater deposition",
+            "sediment sorting",
+            "periglacial environment"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Periglacial Processes"]
+          "linked_to": [
+            "Periglacial Processes"
+          ]
         },
         {
           "topic": "Isostatic rebound and post-glacial landscapes",
-          "aspects": ["crustal uplift", "sea-level change", "shoreline migration"],
+          "aspects": [
+            "crustal uplift",
+            "sea-level change",
+            "shoreline migration"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Isostatic Rebound", "Tectonic Landforms"]
+          "linked_to": [
+            "Isostatic Rebound",
+            "Tectonic Landforms"
+          ]
         }
       ],
       "links_to": [
@@ -174,42 +305,75 @@
         "Isostatic Rebound",
         "Periglacial Processes"
       ],
-      "interlink_domains": ["Climatology"]
+      "interlink_domains": [
+        "Climatology"
+      ]
     },
     "Weathering & Soil Formation": {
       "priority": "high",
       "frequency_in_pyq": 5,
-      "tested_as_question_types": ["assertion_reason", "multi_statement"],
+      "tested_as_question_types": [
+        "assertion_reason",
+        "multi_statement"
+      ],
       "sub_concepts": [
         {
           "topic": "Chemical weathering vs physical weathering",
-          "aspects": ["mechanism", "climate dependence", "rate variation"],
+          "aspects": [
+            "mechanism",
+            "climate dependence",
+            "rate variation"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Soil Formation"]
+          "linked_to": [
+            "Soil Formation"
+          ]
         },
         {
           "topic": "Tropical weathering (faster than polar despite intuition)",
-          "aspects": ["counterintuitive", "moisture + temperature", "mineral susceptibility"],
+          "aspects": [
+            "counterintuitive",
+            "moisture + temperature",
+            "mineral susceptibility"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Climatology"]
+          "linked_to": [
+            "Climatology"
+          ]
         },
         {
           "topic": "Freeze-thaw cycles and frost action",
-          "aspects": ["mechanical weathering", "high altitude/latitude", "seasonal variation"],
+          "aspects": [
+            "mechanical weathering",
+            "high altitude/latitude",
+            "seasonal variation"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Periglacial Processes"]
+          "linked_to": [
+            "Periglacial Processes"
+          ]
         },
         {
           "topic": "Laterite formation and laterization",
-          "aspects": ["iron oxide accumulation", "tropical soils", "landscape stability"],
+          "aspects": [
+            "iron oxide accumulation",
+            "tropical soils",
+            "landscape stability"
+          ],
           "ca_connectable": false,
           "linked_to": []
         },
         {
           "topic": "Soil erosion and soil loss",
-          "aspects": ["vegetation cover", "slope gradient", "human impact"],
+          "aspects": [
+            "vegetation cover",
+            "slope gradient",
+            "human impact"
+          ],
           "ca_connectable": true,
-          "linked_to": ["Human-Induced Geomorphic Change"]
+          "linked_to": [
+            "Human-Induced Geomorphic Change"
+          ]
         }
       ],
       "links_to": [
@@ -218,36 +382,63 @@
         "Human-Induced Geomorphic Change",
         "Climatology"
       ],
-      "interlink_domains": ["Climatology"]
+      "interlink_domains": [
+        "Climatology"
+      ]
     },
     "Tectonic Landforms": {
       "priority": "medium",
       "frequency_in_pyq": 4,
-      "tested_as_question_types": ["assertion_reason", "multi_statement"],
+      "tested_as_question_types": [
+        "assertion_reason",
+        "multi_statement"
+      ],
       "sub_concepts": [
         {
           "topic": "Horsts and grabens",
-          "aspects": ["fault movement", "rift valley formation", "crustal extension"],
+          "aspects": [
+            "fault movement",
+            "rift valley formation",
+            "crustal extension"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Mountain Formation"]
+          "linked_to": [
+            "Mountain Formation"
+          ]
         },
         {
           "topic": "Mountain formation and plate tectonics",
-          "aspects": ["convergent boundaries", "fold mountains", "block mountains"],
+          "aspects": [
+            "convergent boundaries",
+            "fold mountains",
+            "block mountains"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Fluvial Processes & Landforms"]
+          "linked_to": [
+            "Fluvial Processes & Landforms"
+          ]
         },
         {
           "topic": "Rift valleys and continental rifting",
-          "aspects": ["crustal stress", "seismic activity", "landscape expression"],
+          "aspects": [
+            "crustal stress",
+            "seismic activity",
+            "landscape expression"
+          ],
           "ca_connectable": true,
           "linked_to": []
         },
         {
           "topic": "Plateau formation mechanisms",
-          "aspects": ["uplift mechanisms", "denudation patterns", "escarpment formation"],
+          "aspects": [
+            "uplift mechanisms",
+            "denudation patterns",
+            "escarpment formation"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Denudation Chronology"]
+          "linked_to": [
+            "Denudation Chronology"
+          ]
         }
       ],
       "links_to": [
@@ -260,23 +451,40 @@
     "Aeolian Landforms": {
       "priority": "medium",
       "frequency_in_pyq": 3,
-      "tested_as_question_types": ["multi_statement", "direct_fact"],
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact"
+      ],
       "sub_concepts": [
         {
           "topic": "Sand dunes (barchan, seif, transverse, parabolic)",
-          "aspects": ["wind direction", "sand availability", "dune migration"],
+          "aspects": [
+            "wind direction",
+            "sand availability",
+            "dune migration"
+          ],
           "ca_connectable": false,
           "linked_to": []
         },
         {
           "topic": "Loess formation and loess deposits",
-          "aspects": ["silt accumulation", "wind transport", "periglacial source"],
+          "aspects": [
+            "silt accumulation",
+            "wind transport",
+            "periglacial source"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Periglacial Processes"]
+          "linked_to": [
+            "Periglacial Processes"
+          ]
         },
         {
           "topic": "Desert pavement and ventifacts",
-          "aspects": ["surface features", "wind erosion", "gravel armor"],
+          "aspects": [
+            "surface features",
+            "wind erosion",
+            "gravel armor"
+          ],
           "ca_connectable": false,
           "linked_to": []
         }
@@ -284,30 +492,53 @@
       "links_to": [
         "Climatology"
       ],
-      "interlink_domains": ["Climatology"]
+      "interlink_domains": [
+        "Climatology"
+      ]
     },
     "River Piracy & Channel Migration": {
       "priority": "medium",
       "frequency_in_pyq": 2,
-      "tested_as_question_types": ["assertion_reason"],
+      "tested_as_question_types": [
+        "assertion_reason"
+      ],
       "sub_concepts": [
         {
           "topic": "River capture mechanisms",
-          "aspects": ["headward erosion", "wind gaps", "water gaps", "capture point"],
+          "aspects": [
+            "headward erosion",
+            "wind gaps",
+            "water gaps",
+            "capture point"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Fluvial Processes & Landforms"]
+          "linked_to": [
+            "Fluvial Processes & Landforms"
+          ]
         },
         {
           "topic": "Channel migration and course changes",
-          "aspects": ["meandering", "cutoffs", "avulsion"],
+          "aspects": [
+            "meandering",
+            "cutoffs",
+            "avulsion"
+          ],
           "ca_connectable": true,
-          "linked_to": ["Fluvial Processes & Landforms"]
+          "linked_to": [
+            "Fluvial Processes & Landforms"
+          ]
         },
         {
           "topic": "Drainage pattern evolution",
-          "aspects": ["initial vs mature patterns", "superimposed drainage", "antecedent rivers"],
+          "aspects": [
+            "initial vs mature patterns",
+            "superimposed drainage",
+            "antecedent rivers"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Tectonic Landforms"]
+          "linked_to": [
+            "Tectonic Landforms"
+          ]
         }
       ],
       "links_to": [
@@ -319,19 +550,33 @@
     "Isostatic Rebound": {
       "priority": "medium",
       "frequency_in_pyq": 1,
-      "tested_as_question_types": ["assertion_reason"],
+      "tested_as_question_types": [
+        "assertion_reason"
+      ],
       "sub_concepts": [
         {
           "topic": "Post-glacial rebound and crustal recovery",
-          "aspects": ["isostatic adjustment", "rate of uplift", "sea-level apparent change"],
+          "aspects": [
+            "isostatic adjustment",
+            "rate of uplift",
+            "sea-level apparent change"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Glacial Landforms"]
+          "linked_to": [
+            "Glacial Landforms"
+          ]
         },
         {
           "topic": "Eustatic vs isostatic sea-level change",
-          "aspects": ["distinction", "global vs local", "timing"],
+          "aspects": [
+            "distinction",
+            "global vs local",
+            "timing"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Coastal Geomorphology"]
+          "linked_to": [
+            "Coastal Geomorphology"
+          ]
         }
       ],
       "links_to": [
@@ -343,23 +588,41 @@
     "Mass Wasting & Slope Processes": {
       "priority": "medium",
       "frequency_in_pyq": 2,
-      "tested_as_question_types": ["multi_statement"],
+      "tested_as_question_types": [
+        "multi_statement"
+      ],
       "sub_concepts": [
         {
           "topic": "Landslides and mass movement types",
-          "aspects": ["trigger factors", "slope stability", "material properties"],
+          "aspects": [
+            "trigger factors",
+            "slope stability",
+            "material properties"
+          ],
           "ca_connectable": true,
-          "linked_to": ["Weathering & Soil Formation"]
+          "linked_to": [
+            "Weathering & Soil Formation"
+          ]
         },
         {
           "topic": "Soil creep and solifluction",
-          "aspects": ["slow movement", "saturation effects", "periglacial context"],
+          "aspects": [
+            "slow movement",
+            "saturation effects",
+            "periglacial context"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Periglacial Processes"]
+          "linked_to": [
+            "Periglacial Processes"
+          ]
         },
         {
           "topic": "Mudflows and debris flows",
-          "aspects": ["water saturation", "gravity", "velocity"],
+          "aspects": [
+            "water saturation",
+            "gravity",
+            "velocity"
+          ],
           "ca_connectable": true,
           "linked_to": []
         }
@@ -368,22 +631,36 @@
         "Weathering & Soil Formation",
         "Tectonic Landforms"
       ],
-      "interlink_domains": ["Climatology"]
+      "interlink_domains": [
+        "Climatology"
+      ]
     },
     "Denudation Chronology": {
       "priority": "low",
       "frequency_in_pyq": 1,
-      "tested_as_question_types": ["assertion_reason"],
+      "tested_as_question_types": [
+        "assertion_reason"
+      ],
       "sub_concepts": [
         {
           "topic": "Erosion surfaces and peneplains",
-          "aspects": ["landscape rejuvenation", "terrace sequences", "relative chronology"],
+          "aspects": [
+            "landscape rejuvenation",
+            "terrace sequences",
+            "relative chronology"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Tectonic Landforms"]
+          "linked_to": [
+            "Tectonic Landforms"
+          ]
         },
         {
           "topic": "Dating geomorphic events",
-          "aspects": ["radiometric methods", "stratigraphic correlation", "paleosols"],
+          "aspects": [
+            "radiometric methods",
+            "stratigraphic correlation",
+            "paleosols"
+          ],
           "ca_connectable": false,
           "linked_to": []
         }
@@ -397,25 +674,45 @@
     "Human-Induced Geomorphic Change": {
       "priority": "low",
       "frequency_in_pyq": 2,
-      "tested_as_question_types": ["multi_statement"],
+      "tested_as_question_types": [
+        "multi_statement"
+      ],
       "sub_concepts": [
         {
           "topic": "Urbanization and land use change effects",
-          "aspects": ["impervious surface", "runoff acceleration", "erosion increase"],
+          "aspects": [
+            "impervious surface",
+            "runoff acceleration",
+            "erosion increase"
+          ],
           "ca_connectable": true,
-          "linked_to": ["Fluvial Processes & Landforms"]
+          "linked_to": [
+            "Fluvial Processes & Landforms"
+          ]
         },
         {
           "topic": "Dam construction and river geomorphology",
-          "aspects": ["flow regulation", "sediment trapping", "downstream adjustment"],
+          "aspects": [
+            "flow regulation",
+            "sediment trapping",
+            "downstream adjustment"
+          ],
           "ca_connectable": true,
-          "linked_to": ["Fluvial Processes & Landforms"]
+          "linked_to": [
+            "Fluvial Processes & Landforms"
+          ]
         },
         {
           "topic": "Deforestation and accelerated erosion",
-          "aspects": ["slope stability", "infiltration loss", "runoff increase"],
+          "aspects": [
+            "slope stability",
+            "infiltration loss",
+            "runoff increase"
+          ],
           "ca_connectable": true,
-          "linked_to": ["Weathering & Soil Formation"]
+          "linked_to": [
+            "Weathering & Soil Formation"
+          ]
         }
       ],
       "links_to": [
@@ -423,22 +720,34 @@
         "Weathering & Soil Formation",
         "Mass Wasting & Slope Processes"
       ],
-      "interlink_domains": ["Climatology"]
+      "interlink_domains": [
+        "Climatology"
+      ]
     },
     "Landform Classification Systems": {
       "priority": "low",
       "frequency_in_pyq": 1,
-      "tested_as_question_types": ["direct_fact"],
+      "tested_as_question_types": [
+        "direct_fact"
+      ],
       "sub_concepts": [
         {
           "topic": "Genetic vs morphological classifications",
-          "aspects": ["origin-based", "shape-based", "process-based"],
+          "aspects": [
+            "origin-based",
+            "shape-based",
+            "process-based"
+          ],
           "ca_connectable": false,
           "linked_to": []
         },
         {
           "topic": "Landscape taxonomy and terminology",
-          "aspects": ["standardized terms", "regional variations", "ambiguities"],
+          "aspects": [
+            "standardized terms",
+            "regional variations",
+            "ambiguities"
+          ],
           "ca_connectable": false,
           "linked_to": []
         }
@@ -449,23 +758,40 @@
     "Erosion & Deposition Cycles": {
       "priority": "medium",
       "frequency_in_pyq": 3,
-      "tested_as_question_types": ["multi_statement", "assertion_reason"],
+      "tested_as_question_types": [
+        "multi_statement",
+        "assertion_reason"
+      ],
       "sub_concepts": [
         {
           "topic": "Davis cycle of erosion",
-          "aspects": ["youth-maturity-old age", "profile development", "temporal evolution"],
+          "aspects": [
+            "youth-maturity-old age",
+            "profile development",
+            "temporal evolution"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Fluvial Processes & Landforms"]
+          "linked_to": [
+            "Fluvial Processes & Landforms"
+          ]
         },
         {
           "topic": "Penck's model of erosion",
-          "aspects": ["slope decline", "continuous uplift", "alternative to Davis"],
+          "aspects": [
+            "slope decline",
+            "continuous uplift",
+            "alternative to Davis"
+          ],
           "ca_connectable": false,
           "linked_to": []
         },
         {
           "topic": "Equilibrium and grade concepts",
-          "aspects": ["base level", "profile stability", "threshold responses"],
+          "aspects": [
+            "base level",
+            "profile stability",
+            "threshold responses"
+          ],
           "ca_connectable": false,
           "linked_to": []
         }
@@ -483,9 +809,15 @@
       "sub_concepts": [
         {
           "topic": "Karst landforms and cave systems",
-          "aspects": ["dissolution", "underground streams", "surface subsidence"],
+          "aspects": [
+            "dissolution",
+            "underground streams",
+            "surface subsidence"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Weathering & Soil Formation"]
+          "linked_to": [
+            "Weathering & Soil Formation"
+          ]
         }
       ],
       "links_to": [
@@ -496,17 +828,29 @@
     "Periglacial Processes": {
       "priority": "low",
       "frequency_in_pyq": 1,
-      "tested_as_question_types": ["multi_statement"],
+      "tested_as_question_types": [
+        "multi_statement"
+      ],
       "sub_concepts": [
         {
           "topic": "Permafrost and ground ice effects",
-          "aspects": ["seasonal thaw", "thermokarst", "patterned ground"],
+          "aspects": [
+            "seasonal thaw",
+            "thermokarst",
+            "patterned ground"
+          ],
           "ca_connectable": false,
-          "linked_to": ["Weathering & Soil Formation"]
+          "linked_to": [
+            "Weathering & Soil Formation"
+          ]
         },
         {
           "topic": "Polygonal ground and ice wedges",
-          "aspects": ["frost action", "contraction-expansion", "surface patterns"],
+          "aspects": [
+            "frost action",
+            "contraction-expansion",
+            "surface patterns"
+          ],
           "ca_connectable": false,
           "linked_to": []
         }

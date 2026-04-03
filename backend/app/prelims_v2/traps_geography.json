@@ -7,15 +7,15 @@
       "characteristics": "Forces exhaustive evaluation; strategic guessing harder",
       "frequency_in_geography": 0.28,
       "difficulty_distribution": {
-        "easy": 0.10,
-        "medium": 0.40,
-        "hard": 0.50
+        "easy": 0.1,
+        "medium": 0.4,
+        "hard": 0.5
       },
       "trap_patterns": [
         {
           "pattern_id": "pattern_1",
           "name": "Counterintuitive all-correct",
-          "frequency": 0.30,
+          "frequency": 0.3,
           "mechanism": "Student eliminates one statement assuming it MUST be wrong. But it's correct. Answer: 'all 4' or 'all 3' when student expected 2 or 1",
           "error_type": "expectation_reversal",
           "distractor_strategy": "One statement violates prior knowledge but is factually true. Makes student second-guess",
@@ -79,14 +79,14 @@
       "frequency_in_geography": 0.25,
       "difficulty_distribution": {
         "easy": 0.15,
-        "medium": 0.70,
+        "medium": 0.7,
         "hard": 0.15
       },
       "trap_patterns": [
         {
           "pattern_id": "pattern_3",
           "name": "Statistical precision reversal",
-          "frequency": 0.20,
+          "frequency": 0.2,
           "mechanism": "Two metrics are correct, one is reversed. E.g., 'India has more arable land AND irrigation' (true), but 'higher productivity' (false — China higher)",
           "error_type": "metric_reversal",
           "distractor_strategy": "The reversed metric is the one student assumes is true",
@@ -124,7 +124,7 @@
         {
           "pattern_id": "pattern_1_variant",
           "name": "Reverse the obvious",
-          "frequency": 0.30,
+          "frequency": 0.3,
           "mechanism": "Student's strong prior belief is inverted. E.g., 'Low clouds WARM' not 'cool'",
           "error_type": "counterintuitive_truth",
           "distractor_strategy": "State the counterintuitive truth. Student's prior knowledge makes them reject it",
@@ -138,6 +138,90 @@
             "Oceanography",
             "Physics"
           ]
+        },
+        {
+          "pattern_id": "pattern_oceanography_1",
+          "name": "Ocean current misclassification",
+          "frequency": 0.12,
+          "mechanism": "Correct current name but wrong temperature classification (warm vs cold). Student knows current but confuses thermal characteristics.",
+          "error_type": "adjacent_fact_confusion",
+          "distractor_strategy": "Uses real current names but pairs with incorrect temperature class or regional effect",
+          "generation_rules": [
+            "State correct ocean current name (Gulf Stream, Kuroshio, Benguela, Labrador, etc.)",
+            "Pair with wrong temperature classification (warm vs cold)",
+            "Or pair with wrong geographic effect (warming vs cooling region)"
+          ],
+          "applicable_sub_domains": [
+            "Oceanography"
+          ],
+          "pyq_years": [2023, 2020, 2019]
+        },
+        {
+          "pattern_id": "pattern_oceanography_2",
+          "name": "Tidal force misconception",
+          "frequency": 0.18,
+          "mechanism": "Student believes Sun causes tides; correct answer is Moon with smaller Sun contribution. Violates intuition that larger mass has stronger effect.",
+          "error_type": "counterintuitive_fact",
+          "distractor_strategy": "Includes Sun-centric statements as wrong options; uses student's intuitive but wrong answer",
+          "generation_rules": [
+            "Include statement: 'Sun primarily causes ocean tides' (false)",
+            "Correct statement: 'Moon primarily causes tides, with smaller solar contribution'",
+            "Make Sun-centric answer available as distractor"
+          ],
+          "applicable_sub_domains": [
+            "Oceanography"
+          ],
+          "pyq_years": [2022]
+        },
+        {
+          "pattern_id": "pattern_oceanography_3",
+          "name": "Salinity multi-factor confusion",
+          "frequency": 0.11,
+          "mechanism": "Student focuses on one salinity factor (evaporation) and ignores others (precipitation, river discharge). Requires comparing multiple factors.",
+          "error_type": "metric_reversal",
+          "distractor_strategy": "Correct answer needs weighing multiple factors; student picks based on one factor only",
+          "generation_rules": [
+            "Compare ocean basins on 3 salinity factors: evaporation, precipitation, river input",
+            "Two factors favor Basin A, one favors Basin B",
+            "Reverse the factor that sounds most plausible to student memory"
+          ],
+          "applicable_sub_domains": [
+            "Oceanography"
+          ],
+          "pyq_years": [2018]
+        },
+        {
+          "pattern_id": "pattern_oceanography_4",
+          "name": "ENSO-IOD distinction confusion",
+          "frequency": 0.11,
+          "mechanism": "Student confuses ocean systems (Pacific ENSO vs Indian Ocean Dipole) and seasonal patterns. Both are real but wrong pairing is trap.",
+          "error_type": "location_confusion",
+          "distractor_strategy": "Uses correct concept name but assigns to wrong ocean basin or season",
+          "generation_rules": [
+            "Test on ENSO and IOD separately",
+            "Include distractors that swap ocean basins",
+            "Or swap seasonal impacts (monsoon enhancement vs weakening)"
+          ],
+          "applicable_sub_domains": [
+            "Oceanography"
+          ],
+          "pyq_years": [2023, 2021]
+        },
+        {
+          "pattern_id": "pattern_oceanography_5",
+          "name": "Ocean acidification mechanism confusion",
+          "frequency": 0.12,
+          "mechanism": "Student confuses CO2 dissolution with pH reduction or limestone dissolution. Multiple steps; misses cause-effect.",
+          "error_type": "causation_reversal",
+          "distractor_strategy": "Reverses cause-effect relationships in wrong options",
+          "generation_rules": [
+            "Correct: CO2 dissolves → pH decreases → carbonate saturation drops → organisms struggle",
+            "Wrong: confuse dissolution with absorption, or pH with temperature"
+          ],
+          "applicable_sub_domains": [
+            "Oceanography"
+          ],
+          "pyq_years": [2024]
         }
       ]
     },
@@ -146,15 +230,15 @@
       "characteristics": "Tests cause-effect and logical linkage, not just facts",
       "frequency_in_geography": 0.15,
       "difficulty_distribution": {
-        "easy": 0.20,
-        "medium": 0.60,
-        "hard": 0.20
+        "easy": 0.2,
+        "medium": 0.6,
+        "hard": 0.2
       },
       "trap_patterns": [
         {
           "pattern_id": "pattern_1_ar_variant",
           "name": "A true, R false or wrong mechanism",
-          "frequency": 0.40,
+          "frequency": 0.4,
           "mechanism": "Assertion is correct but the reason given is incorrect or incomplete",
           "error_type": "causal_mechanism_error",
           "distractor_strategy": "Give a plausible but wrong explanation",
@@ -193,7 +277,7 @@
       "characteristics": "Tests recall and precision; minimal inference",
       "frequency_in_geography": 0.18,
       "difficulty_distribution": {
-        "easy": 0.60,
+        "easy": 0.6,
         "medium": 0.35,
         "hard": 0.05
       },
@@ -236,9 +320,9 @@
       "characteristics": "Tests one-to-one mapping; requires precision in definitions",
       "frequency_in_geography": 0.14,
       "difficulty_distribution": {
-        "easy": 0.10,
-        "medium": 0.70,
-        "hard": 0.20
+        "easy": 0.1,
+        "medium": 0.7,
+        "hard": 0.2
       },
       "trap_patterns": [
         {
@@ -268,7 +352,7 @@
       "characteristics": "Tests news tracking, not deep analysis",
       "frequency_in_geography": 0.06,
       "difficulty_distribution": {
-        "easy": 0.70,
+        "easy": 0.7,
         "medium": 0.25,
         "hard": 0.05
       },
@@ -276,7 +360,7 @@
         {
           "pattern_id": "pattern_5_ca_variant",
           "name": "CA trigger static concept",
-          "frequency": 0.90,
+          "frequency": 0.9,
           "mechanism": "Recent CA event surfaces a static geographic concept. Student answers based on news, not geography",
           "error_type": "concept_misapplication",
           "distractor_strategy": "News-based incorrect answer (e.g., wrong country/region for ageing population trend)",
