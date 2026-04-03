@@ -28,6 +28,11 @@ class QuestionSkeleton(BaseModel):
     trap_strategy: str = ""                       # trap_id from registry e.g. "GEO_T04"
     trap_name: str = ""                           # human-readable trap name
     sub_domain: str = ""                          # sub_domain hint for Pinecone query
+    # v4.5 Controlled additions (Stage 0 → Stage 1/3/4 pipeline)
+    difficulty_type: str = ""                    # 15 specific difficulty types for Stage 1 retrieval strategy & Stage 4 validation
+    variant: str = ""                             # which variant was chosen (primary | alternative_*) for tracking
+    available_trap_ids: List[str] = []            # all valid trap_ids for this concept (Stage 3 chooses from here)
+    available_question_types: List[str] = []      # all valid question_types for this difficulty_type (Stage 3 can explore here)
 
 
 class TrapRule(BaseModel):

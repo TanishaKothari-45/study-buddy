@@ -22,14 +22,25 @@ Retrieval pipeline per query (v2 enhanced):
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import random
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 
+from pydantic import BaseModel
+
 logger = logging.getLogger(__name__)
 
-# Chunk budget constants
+
+# ── LLM Response Models ───────────────────────────────────────────────────────
+
+class ExploratoryQueriesResponse(BaseModel):
+    """LLM-generated exploratory queries for corpus discovery."""
+    queries: List[str] = []  # List of 3 novel query strings
+
+# Chunk budget constants (default)
 _OWN_CONCEPT_K      = 5
 _BORROWED_CONCEPT_K = 3
 _MAX_CHUNKS_TOTAL   = 10
@@ -37,6 +48,137 @@ _MAX_CHUNKS_TOTAL   = 10
 # Retrieval quality constants
 _OVERFETCH_MULTIPLIER = 3    # fetch this many × k candidates before re-rank + MMR
 _MMR_LAMBDA           = 0.6  # relevance weight (0=max diversity, 1=max relevance)
+
+# Difficulty-type-aware MMR lambda values
+# Easy = high relevance (tight precision), Hard = lower relevance (more diversity)
+_DIFFICULTY_LAMBDA = {
+    "easy_recall_static": 0.8,
+    "easy_ca_trigger": 0.8,
+    "easy_reverse_mild": 0.7,
+    "medium_concept_linking_same_domain": 0.6,
+    "medium_adjacent_fact": 0.6,
+    "medium_statistical_reversal": 0.6,
+    "medium_precision_location": 0.6,
+    "medium_ca_integration": 0.5,
+    "hard_counterintuitive_single_concept": 0.5,
+    "hard_cross_domain_linking": 0.4,
+    "hard_all_of_above_precision": 0.5,
+    "hard_strong_concept_depth": 0.5,
+    "hard_spatial_sequence": 0.5,
+    "hard_reverse_extreme": 0.4,
+    "pure_ca_news_tracking": 0.7,
+    "pure_ca_recent_event": 0.7,
+}
+
+# Randomized MMR lambda for exploratory diversity
+def _pick_random_mmr_lambda() -> float:
+    """Randomize MMR lambda: 30% high relevance, 40% balanced, 30% high diversity."""
+    r = random.random()
+    if r < 0.30:
+        return 0.7  # High relevance (tight)
+    elif r < 0.70:
+        return 0.5  # Balanced
+    else:
+        return 0.3  # High diversity (exploratory)
+
+# Difficulty-type-aware budget adjustments
+# Easy = tight retrieval (precision), Hard = exploratory retrieval (recall)
+_DIFFICULTY_BUDGET = {
+    "easy_recall_static": {"own": 3, "borrowed": 2, "total": 7},
+    "easy_ca_trigger": {"own": 3, "borrowed": 1, "total": 6},
+    "easy_reverse_mild": {"own": 4, "borrowed": 2, "total": 8},
+    "medium_concept_linking_same_domain": {"own": 5, "borrowed": 3, "total": 10},
+    "medium_adjacent_fact": {"own": 5, "borrowed": 3, "total": 10},
+    "medium_statistical_reversal": {"own": 5, "borrowed": 2, "total": 10},
+    "medium_precision_location": {"own": 5, "borrowed": 2, "total": 10},
+    "medium_ca_integration": {"own": 4, "borrowed": 3, "total": 10},
+    "hard_counterintuitive_single_concept": {"own": 6, "borrowed": 4, "total": 12},
+    "hard_cross_domain_linking": {"own": 5, "borrowed": 5, "total": 12},
+    "hard_all_of_above_precision": {"own": 7, "borrowed": 5, "total": 14},
+    "hard_strong_concept_depth": {"own": 6, "borrowed": 3, "total": 12},
+    "hard_spatial_sequence": {"own": 6, "borrowed": 4, "total": 12},
+    "hard_reverse_extreme": {"own": 6, "borrowed": 4, "total": 12},
+    "pure_ca_news_tracking": {"own": 3, "borrowed": 1, "total": 6},
+    "pure_ca_recent_event": {"own": 3, "borrowed": 1, "total": 6},
+}
+
+
+# ── LLM Query Generator ───────────────────────────────────────────────────────
+
+async def _generate_exploratory_queries(
+    skeleton,
+    gemini_client,
+) -> List[str]:
+    """
+    LLM generates 3 novel queries to explore angles NOT covered by skeleton.
+
+    Input to LLM:
+      - concept
+      - sub_concepts tested
+      - aspects covered
+      - difficulty_type
+
+    Output: 3 queries exploring:
+      - Different aspects (economic, historical, climate, policy)
+      - Inter-domain connections (Monsoon + Agriculture, Monsoon + Migration)
+      - Novel angles (extreme events, case studies, recent trends, linkages)
+
+    These queries discover corpus areas beyond the structured skeleton.
+    """
+    if not gemini_client:
+        logger.warning("[Stage1] No Gemini client — skipping exploratory query generation")
+        return []
+
+    concept = skeleton.concept
+    sub_concept_topics = [sc.topic for sc in skeleton.sub_concepts]
+    aspects_covered = list(set(sc.aspect for sc in skeleton.sub_concepts))
+    difficulty_type = getattr(skeleton, "difficulty_type", "medium")
+
+    system_prompt = """You are an expert UPSC curriculum researcher.
+Given a question skeleton, generate 3 diverse Pinecone search queries to explore
+DIFFERENT angles and connections NOT covered by the skeleton.
+
+Think about:
+- Different aspects (economic, historical, climate, policy, social, environmental)
+- Inter-domain links (concept + agriculture, concept + migration, concept + policy)
+- New dimensions (extreme cases, recent events, case studies, linkages to other concepts)
+- Avoid repeating the sub_concepts already tested
+
+Generate SHORT, specific queries (5-10 words each) that a corpus would have."""
+
+    user_prompt = f"""
+QUESTION SKELETON:
+  Concept: {concept}
+  Sub-concepts tested: {sub_concept_topics}
+  Aspects covered: {aspects_covered}
+  Difficulty: {difficulty_type}
+
+Generate 3 NOVEL Pinecone queries exploring DIFFERENT angles.
+Return ONLY a JSON object with a "queries" array of 3 strings.
+"""
+
+    try:
+        response = await gemini_client.generate_response(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            response_schema=ExploratoryQueriesResponse,
+            temperature=0.7,  # Some creativity for novel angles
+        )
+
+        if isinstance(response, str):
+            parsed = json.loads(response)
+            queries = parsed.get("queries", [])
+        else:
+            queries = response.queries if hasattr(response, "queries") else []
+
+        logger.info(
+            f"[Stage1] Generated {len(queries)} exploratory queries for {concept}: "
+            f"{queries}"
+        )
+        return queries
+    except Exception as e:
+        logger.warning(f"[Stage1] Exploratory query generation failed: {e}")
+        return []
 
 
 # ── Data classes ──────────────────────────────────────────────────────────────
@@ -48,16 +190,20 @@ class RetrievalResult:
     ca_context:     str                 # from Google Search (raw text)
     ca_queries:     List[str]           # the queries that were run
     retrieval_mode: str                 # pinecone | pinecone_fuzzy | web_only
+    query_metadata: List[Dict] = field(default_factory=list)  # {query_text, is_exploratory, mmr_lambda, chunk_count}
 
 
 # ── Pinecone query builder ────────────────────────────────────────────────────
 
-def _build_pinecone_queries(skeleton) -> List[Dict]:
+def _build_structured_queries(skeleton) -> List[Dict]:
     """
-    Build one Pinecone query per unique source_concept in skeleton.sub_concepts.
+    Build 70% STRUCTURED queries from skeleton.sub_concepts.
+
+    One query per unique source_concept in skeleton.sub_concepts.
+    Marked as is_exploratory=False for tracking.
 
     Returns list of:
-      {"query_text": str, "concept_filter": str, "k": int}
+      {"query_text": str, "concept_filter": str, "k": int, "is_exploratory": bool}
 
     source_concept="" means sub_concept belongs to skeleton's own concept.
     """
@@ -74,27 +220,18 @@ def _build_pinecone_queries(skeleton) -> List[Dict]:
         # Build query text: concept name + sub_concept topics joined
         query_text = f"{source} {' '.join(t[:60] for t in topics)}"
 
-        k = _OWN_CONCEPT_K if source == own_concept else _BORROWED_CONCEPT_K
-
         queries.append({
             "query_text":      query_text,
             "concept_filter":  source,
-            "k":               k,
+            "k":               5,  # Will be allocated per-query in retrieval
+            "is_exploratory":  False,
         })
-
-    # Enforce total chunk cap across all queries
-    total = sum(q["k"] for q in queries)
-    if total > _MAX_CHUNKS_TOTAL:
-        # Scale down proportionally, floor at 2 per query
-        scale = _MAX_CHUNKS_TOTAL / total
-        for q in queries:
-            q["k"] = max(2, int(q["k"] * scale))
 
     # Log what we're about to fire
     for q in queries:
         label = "own" if q["concept_filter"] == own_concept else "borrowed"
         logger.info(
-            f"[Stage1][PineQuery] [{label}] concept='{q['concept_filter']}' k={q['k']} "
+            f"[Stage1][StructuredQuery] [{label}] concept='{q['concept_filter']}' "
             f"→ '{q['query_text'][:80]}'"
         )
     return queries
@@ -104,43 +241,58 @@ def _build_pinecone_queries(skeleton) -> List[Dict]:
 
 def _build_ca_search_queries(skeleton) -> List[str]:
     """
-    Build Google Search queries for a CA-flagged skeleton.
+    Build Google Search queries for a CA-flagged skeleton (70% structured + 30% exploratory).
 
-    Priority order:
-    1. skeleton.ca_event  — specific event string from blueprint (most targeted)
-    2. build_current_search_queries adapter — falls back to topic-based queries
+    70% Structured:
+      1. skeleton.ca_event (most targeted, if present)
+      2. Static concept + topic search (from sub_concepts)
 
-    Returns list of query strings (not dicts) to pass to Gemini search tool.
+    30% Exploratory:
+      3. "{concept} latest developments" (recent news angle)
+      4. "{concept} policy impact current" (policy + impact angle)
+
+    Returns list of query strings for Gemini Google Search tool.
     """
     queries = []
 
-    # Priority 1: ca_event from blueprint (always use if present)
+    # 70% STRUCTURED
+    # Query 1: ca_event from blueprint (most targeted)
     if skeleton.ca_event:
-        # Build a specific, event-anchored query
         queries.append(
             f"{skeleton.ca_event} {skeleton.concept} India 2024 2025 official"
         )
-        # Second query: static concept anchor for grounding
+    else:
+        # Fallback: concept + first topic
+        first_topic = skeleton.sub_concepts[0].topic[:50] if skeleton.sub_concepts else ""
         queries.append(
-            f"site:ncert.nic.in OR site:gov.in {skeleton.concept} "
-            f"{skeleton.sub_concepts[0].topic[:50] if skeleton.sub_concepts else ''} UPSC"
+            f"{skeleton.concept} {first_topic} UPSC Prelims 2024 2025 India"
         )
-        return queries
 
-    # Priority 2: fallback — build queries from concept + sub_concepts topics
+    # Query 2: Government source anchor (static content)
     first_topic = skeleton.sub_concepts[0].topic[:50] if skeleton.sub_concepts else ""
-    queries.append(
-        f"{skeleton.concept} {first_topic} UPSC Prelims 2024 2025 current affairs India"
-    )
     queries.append(
         f"site:pib.gov.in OR site:indiabudget.gov.in OR site:moes.gov.in "
         f"{skeleton.concept} {first_topic}"
     )
+
+    # 30% EXPLORATORY
+    # Query 3: Recent developments / latest news
+    queries.append(
+        f"{skeleton.concept} latest developments 2024 2025 news India"
+    )
+
+    # Query 4: Policy impact / implications
+    queries.append(
+        f"{skeleton.concept} policy impact implementation India current"
+    )
+
     logger.info(
-        f"[Stage1][CAQuery] {skeleton.skeleton_id} | {len(queries)} search queries:"
+        f"[Stage1][CAQuery] {skeleton.skeleton_id} | {len(queries)} CA search queries "
+        f"(2 structured, 2 exploratory):"
     )
     for i, q in enumerate(queries, 1):
-        logger.info(f"  [{i}] {q[:100]}")
+        query_type = "structured" if i <= 2 else "exploratory"
+        logger.info(f"  [{i}] [{query_type}] {q[:90]}")
     return queries
 
 
@@ -150,18 +302,32 @@ async def _retrieve_from_pinecone(
     pinecone_handler,
     subject:         str,
     retrieval_mode:  str,
-) -> List[Dict]:
+    difficulty_type: str = "",
+) -> tuple[List[Dict], List[Dict]]:
     """
-    Batch-embed all queries once → then hit Pinecone per query with the pre-computed
-    vector. This avoids N separate embed_query API calls.
-    fetch_k is set to k (exact count needed) — no over-fetching.
-    Enriches with SQLite full text identical to v1 pipeline.
+    70% STRUCTURED + 30% EXPLORATORY Pinecone retrieval.
+
+    Per query:
+      1. Fetch k=20 (over-fetch for recall)
+      2. Cross-encoder re-rank all candidates
+      3. MMR select k=5 with RANDOMIZED lambda:
+         - 30%: lambda=0.7 (high relevance, tight)
+         - 40%: lambda=0.5 (balanced)
+         - 30%: lambda=0.3 (high diversity, exploratory)
+
+    Total output: ~65 chunks (13 queries × 5 chunks) + metadata
+
+    Enriches with SQLite full text.
+
+    Returns:
+      (all_chunks, query_metadata) where query_metadata tracks source query info
     """
     if not queries:
-        return []
+        return [], []
 
     all_chunks    = []
     seen_ids      = set()
+    query_metadata = []
     content_store = getattr(pinecone_handler, "content_store", None)
     embedder      = getattr(pinecone_handler, "langchain_embeddings", None)
 
@@ -176,18 +342,24 @@ async def _retrieve_from_pinecone(
         except Exception as e:
             logger.warning(f"[Stage1] Batch embedding failed, falling back to per-query: {e}")
 
-    # ── Per-query Pinecone call (over-fetch → cross-encoder re-rank) ─────────
+    # ── Per-query Pinecone call (over-fetch 20 → cross-encoder → MMR select 5) ─────────
     for i, q in enumerate(queries):
         filter_meta = {"source_type": {"$ne": "pyq"}}
         if retrieval_mode == "pinecone":
             filter_meta["major_domain"] = {"$in": [q["concept_filter"], subject]}
 
         query_vec  = vectors[i] if vectors[i] is not None else None
-        target_k   = q["k"]
-        overfetch_k = target_k * _OVERFETCH_MULTIPLIER
+        target_k   = 5  # Final MMR selection: 5 chunks per query
+        overfetch_k = 20  # Over-fetch: start with 20 candidates
+
+        is_exploratory = q.get("is_exploratory", False)
+        query_type_label = "exploratory" if is_exploratory else "structured"
+
+        # Pick randomized MMR lambda for diversity
+        mmr_lambda = _pick_random_mmr_lambda()
 
         try:
-            # Fetch _OVERFETCH_MULTIPLIER x candidates, then cross-encoder re-ranks to target_k
+            # Fetch 20 candidates, cross-encoder re-ranks all, then MMR picks 5
             chunks = pinecone_handler.query_documents(
                 query_text        = q["query_text"],
                 k                 = target_k,
@@ -244,33 +416,30 @@ async def _retrieve_from_pinecone(
             all_chunks.append(chunk)
 
         logger.info(
-            f"[Stage1] '{q['concept_filter'][:40]}' | target_k={target_k} overfetch={overfetch_k} | "
-            f"query='{q['query_text'][:55]}' "
-            f"→ {len(chunks)} chunks, {enriched_count} SQLite-enriched"
+            f"[Stage1] [{query_type_label}] concept='{q['concept_filter'][:30]}' | "
+            f"query='{q['query_text'][:60]}' → {len(chunks)} chunks "
+            f"(lambda={mmr_lambda:.1f}, enriched={enriched_count})"
         )
 
-    # ── Client-side MMR over combined multi-query pool ────────────────────────
-    # Combines chunks from all sub-queries for this skeleton and picks diverse set.
-    # Cross-encoder handled relevance per query above; MMR handles cross-query diversity.
-    if len(all_chunks) > _MAX_CHUNKS_TOTAL:
-        # Build a single representative query string for MMR relevance scoring
-        combined_query = " ".join(q["query_text"] for q in queries)[:200]
-        try:
-            all_chunks = pinecone_handler.mmr_select_from_chunks(
-                chunks      = all_chunks,
-                query_text  = combined_query,
-                k           = _MAX_CHUNKS_TOTAL,
-                lambda_mult = _MMR_LAMBDA,
-            )
-            logger.info(
-                f"[Stage1] MMR diversity selection: {len(all_chunks)} chunks "
-                f"(lambda={_MMR_LAMBDA})"
-            )
-        except Exception as e:
-            logger.warning(f"[Stage1] MMR selection failed, keeping top-{_MAX_CHUNKS_TOTAL}: {e}")
-            all_chunks = all_chunks[:_MAX_CHUNKS_TOTAL]
+        # Track metadata for this query
+        query_metadata.append({
+            "query_text": q["query_text"],
+            "is_exploratory": is_exploratory,
+            "mmr_lambda": mmr_lambda,
+            "chunk_count": len(chunks),
+            "enriched_count": enriched_count,
+        })
 
-    return all_chunks
+    # ── NO FINAL DEDUP — Keep all chunks for rich context ────────────────────
+    # With 70% structured + 30% exploratory, having 65 chunks gives Stage 3 LLM
+    # massive exploration room. Semantic dedup already happened per-query via MMR.
+    logger.info(
+        f"[Stage1] Collected {len(all_chunks)} total chunks "
+        f"({len([m for m in query_metadata if not m['is_exploratory']])} structured, "
+        f"{len([m for m in query_metadata if m['is_exploratory']])} exploratory)"
+    )
+
+    return all_chunks, query_metadata
 
 
 # ── Main retrieval function ───────────────────────────────────────────────────
@@ -282,27 +451,57 @@ async def retrieve_for_skeleton(
     subject: str,
 ) -> RetrievalResult:
     """
-    Full retrieval for one skeleton.
-    Runs Pinecone + Google Search concurrently where applicable.
+    Full retrieval for one skeleton: 70% structured + 30% exploratory.
+
+    Pipeline:
+      1. Build structured queries from skeleton.sub_concepts (~10 queries)
+      2. LLM generates exploratory queries (~3 queries)
+      3. Pinecone retrieval: fetch 20 per query, MMR select 5 (randomized lambda)
+      4. Result: ~65 chunks total for rich context
+      5. Google Search for CA (if ca_flag)
     """
     retrieval_mode = getattr(skeleton, "retrieval_mode", "pinecone")
 
     static_chunks = []
     ca_context    = ""
     ca_queries    = []
+    query_metadata = []
 
-    # ── Pinecone retrieval ────────────────────────────────────────────────────
+    # ── Pinecone retrieval: 70% structured + 30% exploratory ────────────────────
     if retrieval_mode != "web_only":
-        pinecone_queries = _build_pinecone_queries(skeleton)
-        static_chunks = await _retrieve_from_pinecone(
-            queries=pinecone_queries,
+        # Build structured queries from skeleton.sub_concepts (70%)
+        structured_queries = _build_structured_queries(skeleton)
+
+        # Generate exploratory queries from LLM (30%)
+        exploratory_query_texts = await _generate_exploratory_queries(skeleton, gemini_client)
+        exploratory_queries = [
+            {
+                "query_text": qt,
+                "concept_filter": skeleton.concept,
+                "k": 5,
+                "is_exploratory": True,
+            }
+            for qt in exploratory_query_texts
+        ]
+
+        # Combine all queries
+        all_queries = structured_queries + exploratory_queries
+
+        # Retrieve from Pinecone
+        difficulty_type = getattr(skeleton, "difficulty_type", "")
+        static_chunks, query_metadata = await _retrieve_from_pinecone(
+            queries=all_queries,
             pinecone_handler=pinecone_handler,
             subject=subject,
             retrieval_mode=retrieval_mode,
+            difficulty_type=difficulty_type,
         )
+
         logger.info(
-            f"[Stage1] {skeleton.skeleton_id} | Pinecone: "
-            f"{len(static_chunks)} chunks from {len(pinecone_queries)} queries"
+            f"[Stage1] {skeleton.skeleton_id} | Pinecone retrieval complete: "
+            f"{len(static_chunks)} chunks from {len(all_queries)} queries "
+            f"({len(structured_queries)} structured, {len(exploratory_queries)} exploratory, "
+            f"difficulty_type='{difficulty_type}')"
         )
 
     # ── Google Search retrieval ───────────────────────────────────────────────
@@ -328,6 +527,7 @@ async def retrieve_for_skeleton(
         ca_context    = ca_context,
         ca_queries    = ca_queries,
         retrieval_mode= retrieval_mode,
+        query_metadata= query_metadata,
     )
 
 

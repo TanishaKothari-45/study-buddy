@@ -142,6 +142,42 @@ def _structural_check(question: V2GeneratedQuestion) -> bool:
     )
 
 
+def _check_v45_controlled_constraints(question: V2GeneratedQuestion, skeleton: QuestionSkeleton) -> Tuple[bool, str]:
+    """
+    Validate v4.5 Controlled pre-sampling constraints:
+    1. question_type matches available_question_types
+    2. trap_id matches available_trap_ids
+    3. All required aspects are covered in question + explanation
+
+    Returns (is_valid, reason_if_invalid)
+    """
+    # Check 1: question_type constraint
+    available_qts = getattr(skeleton, "available_question_types", [])
+    if available_qts and question.question_type not in available_qts:
+        return False, f"question_type '{question.question_type}' not in available types {available_qts}"
+
+    # Check 2: trap_id constraint
+    available_traps = getattr(skeleton, "available_trap_ids", [])
+    if available_traps and skeleton.trap_strategy not in available_traps:
+        return False, f"trap_id '{skeleton.trap_strategy}' not in available traps {available_traps}"
+
+    # Check 3: aspect coverage (soft check — warn but don't fail)
+    # Verify that all required aspects from sub_concepts appear in question or explanation
+    combined_text = (question.question + " " + question.explanation).lower()
+    aspects_to_check = set(sc.aspect.lower() for sc in skeleton.sub_concepts)
+    missing_aspects = [
+        asp for asp in aspects_to_check
+        if asp not in combined_text
+    ]
+    if missing_aspects:
+        logger.debug(
+            f"   ⚠️ {question.skeleton_id} — missing aspects in question: {missing_aspects}"
+        )
+        # Soft warning, not a failure
+
+    return True, ""
+
+
 def _cosine_sim(v1: List[float], v2: List[float]) -> float:
     import math
     dot = sum(a * b for a, b in zip(v1, v2))
@@ -193,10 +229,11 @@ async def run_quality_gate(
 
     Checks (in order):
     1. Structural validity
-    2. Trap presence in wrong options / explanation
-    3. CA event in question stem (for ca_flag=True)
-    4. Distractor plausibility — wrong options must be in plausible similarity range
-    5. Semantic deduplication against all prior passed questions
+    2. v4.5 Controlled constraints: question_type + trap_id must match skeleton's available lists
+    3. Trap presence in wrong options / explanation
+    4. CA event in question stem (for ca_flag=True)
+    5. Distractor plausibility — wrong options must be in plausible similarity range
+    6. Semantic deduplication against all prior passed questions
     """
     logger.info(f"🔍 [Stage 4] Running quality gate on {len(questions)} questions …")
 
@@ -217,21 +254,28 @@ async def run_quality_gate(
             failed_ids.append(q.skeleton_id)
             continue
 
-        # 2. Trap presence
+        # 2. v4.5 Controlled constraint validation
+        v45_ok, v45_reason = _check_v45_controlled_constraints(q, sk)
+        if not v45_ok:
+            logger.debug(f"   ❌ {q.skeleton_id} — v4.5 constraint violated: {v45_reason}")
+            failed_ids.append(q.skeleton_id)
+            continue
+
+        # 3. Trap presence
         trap_ok = _check_trap_presence(q, sk)
         q.trap_verified = trap_ok
         if not trap_ok:
             logger.debug(f"   ⚠️ {q.skeleton_id} — trap not detected in wrong options")
             # Soft check — mark but do not fail
 
-        # 3. CA in stem
+        # 4. CA in stem
         ca_ok = _check_ca_in_stem(q, sk)
         q.ca_in_stem = ca_ok
         if sk.ca_flag and not ca_ok:
             logger.debug(f"   ⚠️ {q.skeleton_id} — CA event not found in stem")
             # Soft check — mark but do not fail
 
-        # Quality score (0–1); distractor_quality updated in step 4
+        # Quality score (0–1); distractor_quality updated in step 5
         score = 0.5
         if trap_ok:
             score += 0.3
@@ -241,7 +285,7 @@ async def run_quality_gate(
 
         passed.append(q)
 
-    # 4. Distractor plausibility check (batch embedding)
+    # 5. Distractor plausibility check (batch embedding)
     if embedder and passed:
         logger.info(f"   🎯 Running distractor plausibility check on {len(passed)} questions …")
         try:
@@ -326,7 +370,7 @@ async def run_quality_gate(
         except Exception as e:
             logger.warning(f"⚠️ [Stage 4] Distractor check failed: {e} — skipping")
 
-    # 5. Semantic deduplication
+    # 6. Semantic deduplication
     if embedder and len(passed) > 1:
         logger.info(f"   🔗 Running embedding-based dedup on {len(passed)} questions …")
         try:

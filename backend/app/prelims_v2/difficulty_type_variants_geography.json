@@ -1,0 +1,236 @@
+{
+  "subject": "Geography",
+  "description": "Variants for each difficulty type. Allows controlled randomness: 70% use primary variant, 30% explore alternatives.",
+  "variants": {
+    "easy_recall_static": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 1,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["definition"]
+      }
+    ],
+    "easy_ca_trigger": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 1,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["mechanism"]
+      }
+    ],
+    "easy_reverse_mild": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 1,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["mechanism", "comparison"]
+      }
+    ],
+    "medium_concept_linking_same_domain": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 1,
+        "num_borrowed_sub_concepts": 1,
+        "borrow_from_domain": "SAME",
+        "preferred_aspects": ["mechanism", "comparison"]
+      },
+      {
+        "variant": "alternative_deep",
+        "num_own_sub_concepts": 2,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["mechanism", "process"]
+      },
+      {
+        "variant": "alternative_impact",
+        "num_own_sub_concepts": 1,
+        "num_borrowed_sub_concepts": 1,
+        "borrow_from_domain": "SAME",
+        "preferred_aspects": ["impact", "cause_effect"]
+      }
+    ],
+    "medium_adjacent_fact": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 2,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["mechanism", "comparison", "distribution"]
+      },
+      {
+        "variant": "alternative_single",
+        "num_own_sub_concepts": 1,
+        "num_borrowed_sub_concepts": 1,
+        "borrow_from_domain": "SAME",
+        "preferred_aspects": ["mechanism", "comparison"]
+      }
+    ],
+    "medium_statistical_reversal": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 2,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["comparison", "distribution", "impact"]
+      },
+      {
+        "variant": "alternative",
+        "num_own_sub_concepts": 3,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["distribution", "process", "mechanism"]
+      }
+    ],
+    "medium_precision_location": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 2,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["distribution", "mechanism", "impact"]
+      },
+      {
+        "variant": "alternative_process",
+        "num_own_sub_concepts": 2,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["process", "distribution", "mechanism"]
+      }
+    ],
+    "medium_ca_integration": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 1,
+        "num_borrowed_sub_concepts": 1,
+        "borrow_from_domain": "SAME",
+        "preferred_aspects": ["impact", "mechanism", "application"]
+      },
+      {
+        "variant": "alternative_deep",
+        "num_own_sub_concepts": 2,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["mechanism", "process"]
+      }
+    ],
+    "hard_counterintuitive_single_concept": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 2,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["mechanism", "counterintuitive", "process"]
+      },
+      {
+        "variant": "alternative_deep",
+        "num_own_sub_concepts": 3,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["mechanism", "counterintuitive", "process", "comparison"]
+      }
+    ],
+    "hard_cross_domain_linking": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 1,
+        "num_borrowed_sub_concepts": 1,
+        "borrow_from_domain": "DIFFERENT",
+        "preferred_aspects": ["impact", "cause_effect", "mechanism"]
+      },
+      {
+        "variant": "alternative_deep",
+        "num_own_sub_concepts": 2,
+        "num_borrowed_sub_concepts": 1,
+        "borrow_from_domain": "DIFFERENT",
+        "preferred_aspects": ["mechanism", "impact", "process"]
+      },
+      {
+        "variant": "alternative_process",
+        "num_own_sub_concepts": 1,
+        "num_borrowed_sub_concepts": 1,
+        "borrow_from_domain": "DIFFERENT",
+        "preferred_aspects": ["process", "mechanism", "comparison"]
+      }
+    ],
+    "hard_all_of_above_precision": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 3,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["mechanism", "distribution", "comparison", "process"]
+      },
+      {
+        "variant": "alternative",
+        "num_own_sub_concepts": 4,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["mechanism", "process", "comparison", "impact"]
+      }
+    ],
+    "hard_strong_concept_depth": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 2,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["mechanism", "process", "application"]
+      },
+      {
+        "variant": "alternative",
+        "num_own_sub_concepts": 3,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["mechanism", "process", "comparison"]
+      }
+    ],
+    "hard_spatial_sequence": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 2,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["distribution", "process", "mechanism"]
+      },
+      {
+        "variant": "alternative_mechanism",
+        "num_own_sub_concepts": 2,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["mechanism", "process", "comparison"]
+      }
+    ],
+    "hard_reverse_extreme": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 1,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["counterintuitive", "mechanism"]
+      },
+      {
+        "variant": "alternative",
+        "num_own_sub_concepts": 2,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["counterintuitive", "mechanism", "process"]
+      }
+    ],
+    "pure_ca_news_tracking": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 1,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["definition", "mechanism"]
+      }
+    ],
+    "pure_ca_recent_event": [
+      {
+        "variant": "primary",
+        "num_own_sub_concepts": 1,
+        "num_borrowed_sub_concepts": 0,
+        "preferred_aspects": ["definition"]
+      }
+    ]
+  },
+  "control_probabilities": {
+    "variant_selection": {
+      "primary": 0.70,
+      "alternative": 0.30,
+      "description": "70% use primary variant, 30% explore alternatives"
+    },
+    "question_type_selection": {
+      "recommended": 0.70,
+      "explore": 0.30,
+      "description": "70% use recommended question_types, 30% explore other valid types"
+    },
+    "linked_concept_selection": {
+      "smart": 0.70,
+      "random": 0.30,
+      "description": "70% domain-aware selection, 30% pick from any concept in pool"
+    }
+  }
+}

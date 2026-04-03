@@ -1,17 +1,30 @@
 """
 Stage 3 — Question Generation (Batch Mode)
 
+DIRECT pipeline: Stage 0 → Stage 1 → Stage 3 (no Stage 2 intermediary)
+
 Builds a single structured prompt for all N skeletons and sends 1 Gemini Pro call.
 Each QUESTION N: section is bounded to its own retrieved chunks + CA context.
 
-Batch temperature is determined by batch size:
-  ≤ 5   → 0.75 (medium)
-  ≤ 10  → 2 batches: medium (0.75) + hard (0.90)
-  ≤ 15  → 2 batches: hard x2 + medium x1
-  ≥ 20  → 50% hard (0.90), 25% easy (0.50), 25% medium (0.75)
+Inputs:
+  - skeletons:      List[QuestionSkeleton] from Stage 0 v4.5 Controlled
+  - retrieval_map:  Dict[skeleton_id → RetrievalResult] from Stage 1 (LLM-gen exploratory)
+  - trap_registry:  trap_id → trap_data lookup (on-demand during prompt assembly)
 
-Structured output uses a Pydantic schema (GeneratedQuestionBatch) so Gemini
-returns a validated JSON object with a top-level `questions` array.
+Process:
+  1. Look up trap data for each skeleton.trap_strategy
+  2. Format 65 chunks per skeleton (50 structured + 15 exploratory from Stage 1)
+  3. Build prompt with difficulty rules, trap injection, cross-concept instructions
+  4. Call Gemini with batch temperature (0.75-0.90 depending on batch size)
+  5. Parse structured JSON response → V2GeneratedQuestion objects
+
+Batch temperature strategy:
+  ≤ 5   → 0.75 (medium)
+  ≤ 10  → 0.83 (medium↑ blend)
+  ≤ 15  → 0.85 (heavy hard bias)
+  ≥ 20  → 0.82 (50% hard, 25% medium, 25% easy weighted avg)
+
+Structured output uses Pydantic schema (GeneratedQuestionBatch).
 """
 from __future__ import annotations
 
@@ -118,6 +131,12 @@ def get_sub_batch_temperature(batch_index: int, total_batches: int, total_questi
 _trap_cache: dict = {}
 
 def _get_trap(trap_id: str, trap_registry_path: Path) -> dict:
+    """
+    Load trap data on-demand from trap_registry.json.
+    Cached for performance (loaded once, reused across all skeletons).
+
+    Called during Stage 3 prompt assembly (no Stage 2 intermediary).
+    """
     global _trap_cache
     if not _trap_cache:
         try:
@@ -134,8 +153,9 @@ def _get_trap(trap_id: str, trap_registry_path: Path) -> dict:
                     if isinstance(val, dict) and "traps" in val:
                         for t in val["traps"]:
                             _trap_cache[t["trap_id"]] = t
+            logger.info(f"[Stage3] Loaded {len(_trap_cache)} traps from registry")
         except Exception as e:
-            logger.warning(f"[Stage2] Could not load trap registry: {e}")
+            logger.warning(f"[Stage3] Could not load trap registry: {e}")
     return _trap_cache.get(trap_id, {})
 
 
@@ -349,14 +369,25 @@ Select the correct answer using the code given below:"
 For direct_fact: Single stem question, 4 options (a)–(d), one correct.
 """
 
+    # v4.5 Controlled: Constraints from Stage 0
+    available_qts = getattr(skeleton, "available_question_types", [qtype])
+    available_traps = getattr(skeleton, "available_trap_ids", [skeleton.trap_strategy])
+
+    constraints_block = ""
+    if available_qts:
+        constraints_block += f"\nValid question_types for this skeleton: {', '.join(available_qts)}"
+    if available_traps:
+        constraints_block += f"\nValid trap_ids for this concept: {', '.join(available_traps)}"
+
     prompt = f"""You are an expert UPSC Prelims question paper setter.
 Generate exactly ONE question. Not a batch. ONE question.
 
 ═══════════════════════════════════════════════
-QUESTION SPECIFICATION
+QUESTION SPECIFICATION (v4.5 Controlled)
   concept       : {concept}
-  question_type : {qtype}
+  question_type : {qtype} (MUST use this type)
   difficulty    : {diff}
+  trap_strategy : {skeleton.trap_strategy} (MUST use this trap){constraints_block}
   sub_concepts to test (MUST appear in the question):
 {sc_lines}
 
@@ -407,27 +438,32 @@ Do NOT wrap in markdown. Do NOT add extra keys. Start with {{ end with }}.
 def assemble_batch_prompt(
     skeletons:          list,
     retrieval_map:      dict,
-    bundle_map:         dict,
     trap_registry_path: Path,
     pyq_chunks:         Optional[List[Dict]] = None,
     subject:            str = "",
 ) -> str:
     """
-    Build a single structured prompt for all N skeletons.
+    Build a single structured prompt for all N skeletons (direct Stage 0 → 1 → 3).
 
-    Shared once (saves tokens):
+    INPUTS from Stage 1:
+      - skeletons:      List[QuestionSkeleton] with v4.5 Controlled metadata
+      - retrieval_map:  Dict[skeleton_id → RetrievalResult] with 65 chunks (70% structured + 30% exploratory)
+
+    SHARED ONCE (saves tokens):
       - Subject cognitive framework
       - Question-type formatting rules
       - Output schema instructions
 
-    Per-question (bounded to that skeleton only):
+    PER-QUESTION (bounded to that skeleton only):
       - QUESTION N: header
-      - Spec: concept, type, difficulty, sub_concepts
-      - Difficulty rules
-      - Trap strategy block
-      - Cross-concept instruction (if any borrowed sub_concepts)
-      - Static chunks from retrieval_map[skeleton_id] only
-      - CA context if ca_flag=True
+      - Spec: concept, type, difficulty, trap_strategy, available constraints
+      - Difficulty rules (easy/medium/hard)
+      - Trap strategy block (lookup from trap_registry on-demand)
+      - Cross-concept instruction (if borrowed sub_concepts)
+      - Static chunks (65 per skeleton: 50 structured + 15 exploratory from Stage 1)
+      - CA context if ca_flag=True (4 queries: 2 structured + 2 exploratory)
+
+    No Stage 2 intermediary — direct data flow.
     """
     if not skeletons:
         return ""
@@ -494,9 +530,18 @@ For direct_fact: Single stem question, 4 options (a)\u2013(d), one correct.
         cross_blk = _cross_concept_instruction(skeleton)
 
         # Static chunks \u2500 BOUNDED to THIS skeleton only
+        # From Stage 1: 65 chunks (50 structured + 15 exploratory from LLM-generated queries)
         retrieval_result = retrieval_map.get(skeleton.skeleton_id)
         if retrieval_result:
             static_text = _format_chunks(retrieval_result.static_chunks)
+            # Log query metadata for transparency
+            if hasattr(retrieval_result, 'query_metadata') and retrieval_result.query_metadata:
+                structured_count = sum(1 for m in retrieval_result.query_metadata if not m.get('is_exploratory', False))
+                exploratory_count = len(retrieval_result.query_metadata) - structured_count
+                logger.debug(
+                    f"[Stage3][Q{idx}] Retrieved from {len(retrieval_result.query_metadata)} queries "
+                    f"({structured_count} structured, {exploratory_count} exploratory) → {len(static_text)} chars"
+                )
         else:
             static_text = "No static content retrieved. Use your knowledge grounded in NCERT texts."
 
@@ -509,6 +554,16 @@ For direct_fact: Single stem question, 4 options (a)\u2013(d), one correct.
                 f"  The question MUST link this event to the static concept.\n"
             )
 
+        # v4.5 Controlled: Constraints from Stage 0
+        available_qts = getattr(skeleton, "available_question_types", [qtype])
+        available_traps = getattr(skeleton, "available_trap_ids", [skeleton.trap_strategy])
+
+        constraints_info = ""
+        if available_qts:
+            constraints_info += f"  Valid question_types: {', '.join(available_qts)}\n"
+        if available_traps:
+            constraints_info += f"  Valid trap_ids: {', '.join(available_traps)}\n"
+
         # PYQ style for this question type
         pyq_text = ""
         if pyq_chunks:
@@ -518,15 +573,17 @@ For direct_fact: Single stem question, 4 options (a)\u2013(d), one correct.
                    c.get("metadata", {}).get("pattern_type", "").replace("_", "").lower()
             ] or pyq_chunks[:1]
             pyq_text = relevant[0].get("content", "")[:250] if relevant else ""
-        
+
         pyq_display = pyq_text if pyq_text else "Standard UPSC Prelims style — formal, concise."
 
         question_blocks.append(f"""
 ══════════════════════════════════════════════════
 QUESTION {idx}:
   concept       : {concept}
-  question_type : {qtype}
+  question_type : {qtype} (MUST use this type)
   difficulty    : {diff}
+  trap_strategy : {skeleton.trap_strategy} (MUST use this trap)
+{constraints_info}
   sub_concepts to test (MUST appear in the question):
 {sc_lines}
 {diff_rules}
@@ -547,7 +604,9 @@ CRITICAL RULES:
   1. Context (static chunks, CA context) under each QUESTION N: block applies ONLY to that question.
      Do NOT use context from one question's block when writing another question.
   2. Each question must follow its own difficulty, trap strategy, and sub_concepts exactly.
-  3. Use the sub_domain cognitive framework below to ensure conceptually rigorous questions.
+  3. ENFORCE: question_type and trap_strategy MUST match the values specified for each question.
+     The valid_question_types and valid_trap_ids lists show all acceptable options.
+  4. Use the sub_domain cognitive framework below to ensure conceptually rigorous questions.
 
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 SUBJECT COGNITIVE FRAMEWORK
@@ -666,3 +725,109 @@ def parse_batch_response(
     ok = sum(1 for r in results if r)
     logger.info(f"[Stage3][Batch] Regex fallback: {ok} / {len(skeletons)} OK")
     return results
+
+
+# ── Direct Pipeline Orchestration (Stage 0 → 1 → 3) ────────────────────────────
+
+async def generate_questions_batch(
+    skeletons: List,
+    retrieval_map: Dict,
+    gemini_client,
+    trap_registry_path: Path,
+    subject: str = "Geography",
+    pyq_chunks: Optional[List[Dict]] = None,
+) -> tuple[List, List[str]]:
+    """
+    Stage 3: Generate questions directly from Stage 0 skeletons + Stage 1 retrieval.
+
+    PIPELINE (No Stage 2):
+      Stage 0 (v4.5 Controlled) → skeletons with constraints
+      Stage 1 (LLM-gen retrieval) → retrieval_map with 65 chunks per skeleton
+      Stage 3 (this function) → Generate questions directly
+
+    INPUTS:
+      - skeletons:         List[QuestionSkeleton] from Stage 0
+      - retrieval_map:     Dict[skeleton_id → RetrievalResult] from Stage 1
+      - gemini_client:     Initialized Gemini client
+      - trap_registry_path: Path to trap JSON
+      - subject:           Subject for cognitive framework
+      - pyq_chunks:        Optional PYQ style examples
+
+    PROCESS:
+      1. Split skeletons into batches (5 per batch for efficiency)
+      2. For each batch: assemble prompt + call Gemini
+      3. Parse responses with fallback logic
+      4. Track pass/fail per batch
+
+    OUTPUTS:
+      - (passed_questions, failed_skeleton_ids)
+      - All questions have skeleton_id, question_type, difficulty, explanation
+
+    TEMPERATURE STRATEGY:
+      - ≤5:  0.75 (medium)
+      - ≤10: 0.83 (medium↑)
+      - ≤15: 0.85 (heavy hard)
+      - ≥20: 0.82 (mixed)
+    """
+    logger.info(f"[Stage3] Starting question generation for {len(skeletons)} skeletons (direct pipeline, no Stage 2)")
+
+    # Split into batches
+    batches = split_into_batches(skeletons, len(skeletons))
+    all_questions = []
+    failed_ids = []
+
+    for batch_idx, batch in enumerate(batches):
+        logger.info(f"[Stage3] Batch {batch_idx + 1}/{len(batches)}: generating {len(batch)} questions")
+
+        # Assemble prompt
+        prompt = assemble_batch_prompt(
+            skeletons=batch,
+            retrieval_map=retrieval_map,
+            trap_registry_path=trap_registry_path,
+            pyq_chunks=pyq_chunks,
+            subject=subject,
+        )
+
+        # Determine temperature for this batch
+        temperature = get_sub_batch_temperature(batch_idx, len(batches), len(skeletons))
+
+        try:
+            # Call Gemini with structured output schema
+            response = await gemini_client.generate_response(
+                user_prompt=prompt,
+                response_schema=GeneratedQuestionBatch,
+                temperature=temperature,
+            )
+
+            # Parse response
+            if isinstance(response, str):
+                response_text = response
+            else:
+                response_text = response.model_dump_json() if hasattr(response, 'model_dump_json') else str(response)
+
+            questions = parse_batch_response(response_text, batch)
+
+            # Track results
+            for q, skeleton in zip(questions, batch):
+                if q:
+                    all_questions.append(q)
+                    logger.debug(f"[Stage3] ✓ {skeleton.skeleton_id}: {skeleton.question_type}")
+                else:
+                    failed_ids.append(skeleton.skeleton_id)
+                    logger.debug(f"[Stage3] ✗ {skeleton.skeleton_id}: parse failed")
+
+            logger.info(
+                f"[Stage3] Batch {batch_idx + 1} complete: "
+                f"{sum(1 for q in questions if q)}/{len(batch)} OK "
+                f"(temp={temperature})"
+            )
+
+        except Exception as e:
+            logger.error(f"[Stage3] Batch {batch_idx + 1} failed: {e}")
+            for skeleton in batch:
+                failed_ids.append(skeleton.skeleton_id)
+
+    logger.info(
+        f"[Stage3] Generation complete: {len(all_questions)} passed, {len(failed_ids)} failed"
+    )
+    return all_questions, failed_ids
