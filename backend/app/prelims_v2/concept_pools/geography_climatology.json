@@ -1,836 +1,1195 @@
-{   
-    "subject": "Geography",
-    "domain": "Physical Geography",
-    "subdomain": "Climatology",
-    "description": "Concept pool for UPSC Prelims — Geography > Physical Geography > Climatology. Each concept carries trap_affinity (which trap IDs historically apply), links_to (cross-concept interlinkages for hard A/R questions), and ca_trigger_types (what current affairs events activate this concept as a UPSC question).",
-  
-    "core_concepts": [
-      "Monsoon",
-      "Jet Streams",
-      "ITCZ",
-      "Cyclones",
-      "ENSO",
-      "Pressure Belts",
-      "Air Masses",
-      "Heat Budget",
-      "Temperature Distribution",
-      "Local Winds",
-      "Rainfall Types",
-      "Climate Classification",
-      "Western Disturbances",
-      "Indian Ocean Dipole"
-    ],
-  
-    "concepts": {
-  
-      "Monsoon": {
-        "priority": "high",
-  
-        "sub_concepts": [
-          {
-            "topic": "Monsoon Onset",
-            "aspects": ["mechanism", "conditions"],
-            "ca_connectable": true,
-            "linked_to": ["Jet Streams", "ITCZ"]
-          },
-          {
-            "topic": "Monsoon Withdrawal",
-            "aspects": ["process"],
-            "ca_connectable": true,
-            "linked_to": ["Jet Streams"]
-          },
-          {
-            "topic": "Monsoon Branches",
-            "aspects": ["distribution", "comparison"],
-            "ca_connectable": false,
-            "linked_to": ["Indian Geography"]
-          },
-          {
-            "topic": "Monsoon Variability",
-            "aspects": ["impact", "exception"],
-            "ca_connectable": true,
-            "linked_to": ["ENSO", "Indian Ocean Dipole", "Sea Surface Temperature"]
-          },
-          {
-            "topic": "ITCZ Shift",
-            "aspects": ["mechanism"],
-            "ca_connectable": false,
-            "linked_to": ["Pressure Belts"]
-          },
-          {
-            "topic": "Role of Tibetan plateau as heat engine",
-            "aspect": "mechanism",
-            "ca_connectable": false,    
-            "linked_to": ["Heat Budget"]
-          },
-          {
-            "topic": "El Nino impact on Indian monsoon rainfall",
-            "aspect": "impact",
-            "ca_connectable": true,
-            "linked_to": ["ENSO"]
-          },
-          {
-            "topic": "IMD forecasting methodology and models",
-            "aspect": "application",
-            "ca_connectable": true,
-            "linked_to": ["IMD"]
-          }
-        ],
-  
-        "links_to": [
-          "Jet Streams",
-          "ENSO",
-          "Indian Ocean Dipole",
-          "Sea Surface Temperature",
-          "Pressure Belts",
-          "ITCZ"
-        ],
-  
-        "interlink_domains": [
-          {
-            "domain": "Oceanography",
-            "concepts": ["Sea Surface Temperature", "Ocean Currents"]
-          },
-          {
-            "domain": "Indian Geography",
-            "concepts": ["Rainfall Distribution", "Floods"]
-          },
-          {
-            "domain": "Environment",
-            "concepts": ["Drought", "Extreme Weather"]
-          }
-        ],
-  
-        "trap_affinity": [
-          "GEO_T01",
-          "GEO_T03",
-          "GEO_T04",
-          "GEO_T06"
-        ]
-      },
-  
-      "Jet Streams": {
-        "priority": "high",
-  
-        "sub_concepts": [
-          {
-            "topic": "Subtropical Jet",
-            "aspects": ["mechanism"],
-            "ca_connectable": false,
-            "linked_to": ["Monsoon"]
-          },
-          {
-            "topic": "Tropical Easterly Jet ",
-            "aspects": ["mechanism", "impact"],
-            "ca_connectable": false,
-            "linked_to": ["Monsoon", "Indian Geography"]
-          },
-          {
-            "topic": "Jet Stream Shift",
-            "aspects": ["process"],
-            "ca_connectable": true,
-            "linked_to": ["Monsoon"]
-          },
-          {
-            "topic": "Jet Streams and Western Disturbances",
-            "aspects": ["cause_effect"],
-            "ca_connectable": true,
-            "linked_to": ["Indian Geography"]
-          },
-          {
-            "topic": "Jet stream bifurcation by Himalayan barrier into two branches",
-            "aspect": "mechanism",
-            "ca_connectable": false,
-            "linked_to": ["Indian Geography"]
-          },
-          {
-            "topic": "Seasonal northward migration of subtropical jet in summer",
-            "aspect": "process",
-            "ca_connectable": false,
-            "linked_to": ["Monsoon"]
-          },
-          {
-            "topic": "Relationship between jet stream position and pressure belt location",
-            "aspect": "comparison",
-            "ca_connectable": false,
-            "linked_to": ["Pressure Belts"]
-          }
-        ],
-  
-        "links_to": [
-          "Monsoon",
-          "Western Disturbances",
-          "Cyclones",
-          "Pressure Belts"
-        ],
-  
-        "interlink_domains": [
-          {
-            "domain": "Indian Geography",
-            "concepts": ["Winter Rainfall", "Weather Patterns"]
-          }
-        ],
-  
-        "trap_affinity": [
-          "GEO_T03",
-          "GEO_T04",
-          "GEO_T06"
-        ]
-      },
-  
-      "ITCZ": {
-        "priority": "high",
-  
-        "sub_concepts": [
-          {
-            "topic": "ITCZ Position",
-            "aspects": ["distribution"],
-            "ca_connectable": false,
-            "linked_to": ["Pressure Belts"]
-          },
-          {
-            "topic": "ITCZ Seasonal Shift",
-            "aspects": ["process"],
-            "ca_connectable": true,
-            "linked_to": ["Monsoon"]
-          },
-          {
-            "topic": "ITCZ role in tropical cyclone formation in India",
-            "aspects": ["mechanism", "impact"],
-            "ca_connectable": true,
-            "linked_to": ["Tropical Cyclones"]
-          }
-        ],
-  
-        "links_to": [
-          "Monsoon",
-          "Pressure Belts",
-          "Tropical Cyclones"
-        ],
-  
-        "interlink_domains": [
-          {
-            "domain": "Oceanography",
-            "concepts": ["Sea Surface Temperature"]
-          }
-        ],
-  
-        "trap_affinity": [
-          "GEO_T03",
-          "GEO_T04",
-          "GEO_T06"
-        ]
-      },
-  
-      "Cyclones": {
-        "priority": "high",
-  
-        "sub_concepts": [
-          {
-            "topic": "Cyclone Formation Conditions",
-            "aspects": ["mechanism"],
-            "ca_connectable": true,
-            "linked_to": ["Sea Surface Temperature"]
-          },
-          {
-            "topic": "Cyclone Structure",
-            "aspects": ["classification"],
-            "ca_connectable": false,
-            "linked_to": []
-          },
-          {
-            "topic": "Cyclone Distribution",
-            "aspects": ["distribution", "comparison"],
-            "ca_connectable": true,
-            "linked_to": ["Indian Geography"]
-          },
-          {
-            "topic": "Cyclone Impact on India and Rainfall",
-            "aspects": ["impact"],
-            "ca_connectable": true,
-            "linked_to": ["Indian Geography", "Monsoon"]
-          },
-          {
-            "topic": "IMD naming convention and multi-agency warning systems",
-            "aspect": "application",
-            "ca_connectable": true,
-            "linked_to": ["IMD"]
-          },
-          {
-            "topic": "Typhoon vs hurricane vs cyclone — same phenomenon different region names",
-            "aspect": "comparison",
-            "ca_connectable": false,
-            "linked_to": []
-          }
-        ],
-  
-        "links_to": [
-          "Sea Surface Temperature",
-          "Monsoon",
-          "Ocean Currents",
-          "ITCZ",
-          "Indian Ocean Dipole"
-        ],
-  
-        "interlink_domains": [
-          {
-            "domain": "Oceanography",
-            "concepts": ["Sea Surface Temperature"]
-          },
-          {
-            "domain": "Indian Geography",
-            "concepts": ["Coastal Regions"]
-          }
-        ],
-  
-        "trap_affinity": [
-          "GEO_T01",
-          "GEO_T04",
-          "GEO_T06",
-          "GEO_T08"
-        ]
-      },
-  
-      "Pressure Belts": {
-        "priority": "medium",
-  
-        "sub_concepts": [
-          {
-            "topic": "Pressure Belt Distribution",
-            "aspects": ["distribution"],
-            "ca_connectable": false,
-            "linked_to": ["ITCZ"]
-          },
-          {
-            "topic": "Pressure Belt Shift",
-            "aspects": ["process"],
-            "ca_connectable": false,
-            "linked_to": ["Monsoon"]
-          },
-          {
-            "topic": "Pressure Belt Shift and Monsoon Onset",
-            "aspects": ["process"],
-            "ca_connectable": false,
-            "linked_to": ["Monsoon"]
-          }
-        ],
-  
-        "links_to": [
-          "ITCZ",
-          "Monsoon",    
-          "Jet Streams",
-          "Local Winds"
-        ],
-  
-        "trap_affinity": [
-          "GEO_T03",
-          "GEO_T04",
-          "GEO_T06",
-          "GEO_T03"
-        ]
-      },
-  
-      "Heat Budget": {
-        "priority": "low",
-  
-        "sub_concepts": [
-          {
-            "topic": "Earth Heat Budget",
-            "aspects": ["mechanism"],
-            "ca_connectable": false,
-            "linked_to": ["Temperature Distribution"]
-          }
-        ],
-  
-        "links_to": [
-          "Temperature Distribution",
-          "Tropical Cyclones"
-        ],
-  
-        "trap_affinity": [
-          "GEO_T04"
-        ]
-      },
-  
-      "Temperature Distribution": {
-        "priority": "low",
-  
-        "sub_concepts": [
-          {
-            "topic": "Latitudinal Distribution",
-            "aspects": ["distribution"],
-            "ca_connectable": false,
-            "linked_to": []
-          },
-          {
-            "topic": "Temperature Distribution and Heat Budget",
-            "aspects": ["comparison"],
-            "ca_connectable": true,
-            "linked_to": ["Heat Budget"]
-          },
-          {
-            "topic": "Albedo variation by surface type — ice vs ocean vs forest",
-            "aspects": ["comparison"],
-            "ca_connectable": false,
-            "linked_to": []
-          },
-          {
-            "topic": "Greenhouse effect mechanism and selective absorption by gases",
-            "aspects": ["mechanism"],
-            "ca_connectable": false,
-            "linked_to": []
-          },
-          {
-            "topic": "Global warming potential of CO2 vs methane vs N2O",
-            "aspects": ["comparison"],
-            "ca_connectable": true,
-            "linked_to": []
-          },
-          {
-            "topic": "Urban heat island effect and its causes",
-            "aspects": ["mechanism"],
-            "ca_connectable": true,
-            "linked_to": []
-          }
-        ],
-  
-        "trap_affinity": [
-          "GEO_T01",
-          "GEO_T04",
-          "GEO_T08"
-        ]
-      },
-
-      "ENSO": {
-        "priority": "high",
-
-        "sub_concepts": [
-          {
-            "topic": "El Nino — Walker Circulation weakening",
-            "aspects": ["mechanism"],
-            "ca_connectable": true,
-            "linked_to": ["Monsoon"]
-          },
-          {
-            "topic": "La Nina — Walker Circulation strengthening",
-            "aspects": ["mechanism"],
-            "ca_connectable": true,
-            "linked_to": ["Monsoon"]
-          },
-          {
-            "topic": "ENSO impact on Indian monsoon",
-            "aspects": ["impact", "cause_effect"],
-            "ca_connectable": true,
-            "linked_to": ["Monsoon", "Indian Ocean Dipole"]
-          },
-          {
-            "topic": "ENSO global impacts — Australian drought, South American floods",
-            "aspects": ["impact", "distribution"],
-            "ca_connectable": true,
-            "linked_to": []
-          },
-          {
-            "topic": "IOD moderating El Nino effect on India",
-            "aspects": ["comparison", "exception"],
-            "ca_connectable": true,
-            "linked_to": ["Indian Ocean Dipole"]
-          },
-          {
-            "topic": "El Nino Modoki — central vs eastern Pacific warming",
-            "aspects": ["comparison"],
-            "ca_connectable": false,
-            "linked_to": []
-          },
-          {
-            "topic": "Madden-Julian Oscillation as intra-seasonal modulator",
-            "aspects": ["mechanism"],
-            "ca_connectable": false,
-            "linked_to": ["Monsoon"]
-          }
-        ],
-
-        "links_to": [
-          "Monsoon",
-          "Indian Ocean Dipole",
-          "Cyclones",
-          "ITCZ"
-        ],
-
-        "interlink_domains": [
-          {
-            "domain": "Oceanography",
-            "concepts": ["Sea Surface Temperature", "Ocean Currents"]
-          },
-          {
-            "domain": "Indian Geography",
-            "concepts": ["Rainfall Distribution", "Drought"]
-          }
-        ],
-
-        "trap_affinity": [
-          "GEO_T03",
-          "GEO_T04",
-          "GEO_T06",
-          "GEO_T09"
-        ]
-      },
-
-      "Indian Ocean Dipole": {
-        "priority": "medium",
-
-        "sub_concepts": [
-          {
-            "topic": "Positive IOD — warmer western, cooler eastern Indian Ocean",
-            "aspects": ["mechanism"],
-            "ca_connectable": true,
-            "linked_to": ["Monsoon"]
-          },
-          {
-            "topic": "Negative IOD — cooler western, warmer eastern Indian Ocean",
-            "aspects": ["mechanism", "comparison"],
-            "ca_connectable": true,
-            "linked_to": []
-          },
-          {
-            "topic": "Positive IOD enhancing Indian monsoon rainfall",
-            "aspects": ["impact", "cause_effect"],
-            "ca_connectable": true,
-            "linked_to": ["Monsoon"]
-          },
-          {
-            "topic": "IOD interaction with ENSO",
-            "aspects": ["comparison", "exception"],
-            "ca_connectable": true,
-            "linked_to": ["ENSO"]
-          },
-          {
-            "topic": "IOD role in East African and Australian rainfall anomalies",
-            "aspects": ["impact"],
-            "ca_connectable": false,
-            "linked_to": []
-          }
-        ],
-
-        "links_to": [
-          "ENSO",
-          "Monsoon",
-          "Cyclones"
-        ],
-
-        "interlink_domains": [
-          {
-            "domain": "Oceanography",
-            "concepts": ["Sea Surface Temperature"]
-          }
-        ],
-
-        "trap_affinity": [
-          "GEO_T03",
-          "GEO_T04",
-          "GEO_T02"
-        ]
-      },
-
-      "Western Disturbances": {
-        "priority": "high",
-
-        "sub_concepts": [
-          {
-            "topic": "Origin in Mediterranean Sea",
-            "aspects": ["mechanism"],
-            "ca_connectable": false,
-            "linked_to": ["Jet Streams"]
-          },
-          {
-            "topic": "Eastward movement along subtropical westerly jet",
-            "aspects": ["process"],
-            "ca_connectable": false,
-            "linked_to": ["Jet Streams"]
-          },
-          {
-            "topic": "Winter precipitation in North-West India",
-            "aspects": ["impact", "distribution"],
-            "ca_connectable": true,
-            "linked_to": ["Indian Geography"]
-          },
-          {
-            "topic": "Role in Rabi crop water supply",
-            "aspects": ["impact", "cause_effect"],
-            "ca_connectable": true,
-            "linked_to": ["Indian Geography"]
-          },
-          {
-            "topic": "Fog and cold wave events in Indo-Gangetic Plain",
-            "aspects": ["impact"],
-            "ca_connectable": true,
-            "linked_to": ["Indian Geography"]
-          }
-        ],
-
-        "links_to": [
-          "Jet Streams",
-          "Monsoon",
-          "Rainfall Types"
-        ],
-
-        "interlink_domains": [
-          {
-            "domain": "Indian Geography",
-            "concepts": ["Winter Rainfall", "Rabi Crops", "Cold Wave"]
-          }
-        ],
-
-        "trap_affinity": [
-          "GEO_T01",
-          "GEO_T03",
-          "GEO_T04",
-          "GEO_T06"
-        ]
-      },
-
-      "Local Winds": {
-        "priority": "medium",
-
-        "sub_concepts": [
-          {
-            "topic": "Loo — hot dry wind over North India plains",
-            "aspects": ["impact"],
-            "ca_connectable": true,
-            "linked_to": ["Indian Geography"]
-          },
-          {
-            "topic": "Foehn — warm leeward wind due to adiabatic warming",
-            "aspects": ["mechanism"],
-            "ca_connectable": false,
-            "linked_to": []
-          },
-          {
-            "topic": "Chinook — warm dry wind east of Rockies",
-            "aspects": ["mechanism", "comparison"],
-            "ca_connectable": false,
-            "linked_to": []
-          },
-          {
-            "topic": "Mistral, Sirocco, Harmattan — regional wind identification",
-            "aspects": ["classification", "comparison"],
-            "ca_connectable": false,
-            "linked_to": []
-          },
-          {
-            "topic": "Anabatic vs katabatic winds",
-            "aspects": ["comparison", "mechanism"],
-            "ca_connectable": false,
-            "linked_to": ["Pressure Belts"]
-          },
-          {
-            "topic": "Land-sea breeze mechanism",
-            "aspects": ["mechanism"],
-            "ca_connectable": false,
-            "linked_to": ["Pressure Belts"]
-          }
-        ],
-
-        "links_to": [
-          "Pressure Belts",
-          "Rainfall Types"
-        ],
-
-        "interlink_domains": [
-          {
-            "domain": "Indian Geography",
-            "concepts": ["Heat Wave", "Weather Patterns"]
-          }
-        ],
-
-        "trap_affinity": [
-          "GEO_T01",
-          "GEO_T02",
-          "GEO_T03",
-          "GEO_T05",
-          "GEO_T08"
-        ]
-      },
-
-      "Rainfall Types": {
-        "priority": "high",
-
-        "sub_concepts": [
-          {
-            "topic": "Convectional rainfall in equatorial regions",
-            "aspects": ["mechanism"],
-            "ca_connectable": false,
-            "linked_to": ["ITCZ"]
-          },
-          {
-            "topic": "Orographic rainfall and rain shadow effect",
-            "aspects": ["mechanism", "impact"],
-            "ca_connectable": true,
-            "linked_to": ["Indian Geography"]
-          },
-          {
-            "topic": "Frontal or cyclonic rainfall in temperate regions",
-            "aspects": ["mechanism"],
-            "ca_connectable": false,
-            "linked_to": ["Cyclones"]
-          },
-          {
-            "topic": "Monsoon rainfall distribution across India",
-            "aspects": ["distribution"],
-            "ca_connectable": true,
-            "linked_to": ["Monsoon", "Indian Geography"]
-          },
-          {
-            "topic": "Western disturbance winter rainfall in NW India",
-            "aspects": ["mechanism", "impact"],
-            "ca_connectable": true,
-            "linked_to": ["Western Disturbances"]
-          }
-        ],
-
-        "links_to": [
-          "Monsoon",
-          "Western Disturbances",
-          "Cyclones",
-          "Local Winds"
-        ],
-
-        "interlink_domains": [
-          {
-            "domain": "Indian Geography",
-            "concepts": ["Rainfall Distribution", "Drought"]
-          }
-        ],
-
-        "trap_affinity": [
-          "GEO_T02",
-          "GEO_T04",
-          "GEO_T05",
-          "GEO_T08",
-          "GEO_T09"
-        ]
-      },
-
-      "Climate Classification": {
-        "priority": "medium",
-
-        "sub_concepts": [
-          {
-            "topic": "Koppen classification key types and letter codes",
-            "aspects": ["classification"],
-            "ca_connectable": false,
-            "linked_to": []
-          },
-          {
-            "topic": "Am tropical monsoon vs Aw tropical savanna",
-            "aspects": ["comparison"],
-            "ca_connectable": false,
-            "linked_to": ["Monsoon"]
-          },
-          {
-            "topic": "BW hot desert climate — Rajasthan and causes",
-            "aspects": ["mechanism", "distribution"],
-            "ca_connectable": false,
-            "linked_to": ["Indian Geography"]
-          },
-          {
-            "topic": "Cs Mediterranean climate — dry summer, wet winter",
-            "aspects": ["classification"],
-            "ca_connectable": false,
-            "linked_to": ["Pressure Belts"]
-          },
-          {
-            "topic": "India climate type distribution — Am, Aw, ET zones",
-            "aspects": ["distribution"],
-            "ca_connectable": false,
-            "linked_to": ["Indian Geography", "Monsoon"]
-          },
-          {
-            "topic": "Monsoon climate vs equatorial climate — rainfall seasonality",
-            "aspects": ["comparison"],
-            "ca_connectable": false,
-            "linked_to": ["Monsoon"]
-          }
-        ],
-
-        "links_to": [
-          "Monsoon",
-          "Rainfall Types",
-          "Pressure Belts"
-        ],
-
-        "interlink_domains": [
-          {
-            "domain": "Indian Geography",
-            "concepts": ["Vegetation Zones", "Agricultural Regions"]
-          },
-          {
-            "domain": "Environment",
-            "concepts": ["Climate Change"]
-          }
-        ],
-
-        "trap_affinity": [
-          "GEO_T04",
-          "GEO_T08",
-          "GEO_T09"
-        ]
-      },
-
-      "Air Masses": {
-        "priority": "medium",
-
-        "sub_concepts": [
-          {
-            "topic": "Classification — cT, mT, cP, mP, cA",
-            "aspects": ["classification"],
-            "ca_connectable": false,
-            "linked_to": []
-          },
-          {
-            "topic": "Source regions and characteristics",
-            "aspects": ["distribution"],
-            "ca_connectable": false,
-            "linked_to": ["Pressure Belts"]
-          },
-          {
-            "topic": "Fronts — warm, cold, occluded, stationary",
-            "aspects": ["classification", "mechanism"],
-            "ca_connectable": false,
-            "linked_to": ["Cyclones", "Rainfall Types"]
-          },
-          {
-            "topic": "Mid-latitude cyclone formation at polar front",
-            "aspects": ["mechanism"],
-            "ca_connectable": true,
-            "linked_to": ["Cyclones", "Jet Streams"]
-          },
-          {
-            "topic": "Air mass modification over Indian subcontinent",
-            "aspects": ["process"],
-            "ca_connectable": false,
-            "linked_to": ["Monsoon", "Western Disturbances"]
-          }
-        ],
-
-        "links_to": [
-          "Pressure Belts",
-          "Cyclones",
-          "Western Disturbances",
-          "Rainfall Types"
-        ],
-
-        "interlink_domains": [
-          {
-            "domain": "Indian Geography",
-            "concepts": ["Weather Patterns", "Cold Wave"]
-          }
-        ],
-
-        "trap_affinity": [
-          "GEO_T03",
-          "GEO_T04",
-          "GEO_T08"
-        ]
-      }
+{
+  "subject": "Geography",
+  "domain": "Physical Geography",
+  "subdomain": "Climatology",
+  "description": "Concept pool for UPSC Prelims — Geography > Physical Geography > Climatology. Each concept carries trap_affinity (which trap IDs historically apply), links_to (cross-concept interlinkages for hard A/R questions), and ca_trigger_types (what current affairs events activate this concept as a UPSC question).",
+  "core_concepts": [
+    "Monsoon",
+    "Jet Streams",
+    "ITCZ",
+    "Cyclones",
+    "ENSO",
+    "Indian Ocean Dipole",
+    "Atmospheric Radiation & Heat Transfer",
+    "Climate Classification",
+    "Pressure Belts",
+    "Western Disturbances",
+    "Rainfall Types",
+    "Temperature Distribution",
+    "Local Winds",
+    "Air Masses",
+    "Heat Budget"
+  ],
+  "concepts": {
+    "Atmospheric Radiation & Heat Transfer": {
+      "priority": "high",
+      "tested_as_question_types": ["direct_fact", "multi_statement", "assertion_reason", "match_pair"],
+      "sub_concepts": [
+        {
+          "topic": "Solar radiation absorption and reflection",
+          "aspects": [
+            "mechanism",
+            "albedo"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Temperature Distribution",
+            "Climate Classification"
+          ]
+        },
+        {
+          "topic": "Terrestrial radiation and greenhouse effect",
+          "aspects": [
+            "mechanism",
+            "selective absorption"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Temperature Distribution",
+            "Heat Budget"
+          ]
+        },
+        {
+          "topic": "Atmosphere heating — more by terrestrial than solar radiation",
+          "aspects": [
+            "mechanism",
+            "counterintuitive"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Heat Budget"
+          ]
+        },
+        {
+          "topic": "Cloud radiative effects — warming vs cooling",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Rainfall Types"
+          ]
+        },
+        {
+          "topic": "Heat budget of Earth — energy balance",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Temperature Distribution"
+          ]
+        },
+        {
+          "topic": "Troposphere thickness and convectional currents",
+          "aspects": [
+            "mechanism",
+            "latitude variation"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Atmospheric Structure"
+          ]
+        }
+      ],
+      "links_to": [
+        "Temperature Distribution",
+        "Pressure Belts",
+        "Tropical Cyclones",
+        "Climate Classification"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Urban Heat Island Effect",
+            "Microclimate"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T04",
+        "GEO_T06",
+        "GEO_T09"
+      ]
+    },
+    "Monsoon": {
+      "priority": "high",
+      "tested_as_question_types": ["assertion_reason", "multi_statement", "match_pair", "pure_ca", "scenario"],
+      "sub_concepts": [
+        {
+          "topic": "Monsoon Onset",
+          "aspects": [
+            "mechanism",
+            "conditions"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Jet Streams",
+            "ITCZ"
+          ]
+        },
+        {
+          "topic": "Monsoon Withdrawal",
+          "aspects": [
+            "process"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Jet Streams"
+          ]
+        },
+        {
+          "topic": "Monsoon Branches",
+          "aspects": [
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Indian Geography"
+          ]
+        },
+        {
+          "topic": "Monsoon Variability",
+          "aspects": [
+            "impact",
+            "exception"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "ENSO",
+            "Indian Ocean Dipole",
+            "Sea Surface Temperature"
+          ]
+        },
+        {
+          "topic": "ITCZ Shift",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Pressure Belts"
+          ]
+        },
+        {
+          "topic": "Role of Tibetan plateau as heat engine",
+          "aspect": "mechanism",
+          "ca_connectable": false,
+          "linked_to": [
+            "Heat Budget"
+          ]
+        },
+        {
+          "topic": "El Nino impact on Indian monsoon rainfall",
+          "aspect": "impact",
+          "ca_connectable": true,
+          "linked_to": [
+            "ENSO"
+          ]
+        },
+        {
+          "topic": "IMD forecasting methodology and models",
+          "aspect": "application",
+          "ca_connectable": true,
+          "linked_to": [
+            "IMD"
+          ]
+        }
+      ],
+      "links_to": [
+        "Jet Streams",
+        "ENSO",
+        "Indian Ocean Dipole",
+        "Sea Surface Temperature",
+        "Pressure Belts",
+        "ITCZ"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Sea Surface Temperature",
+            "Ocean Currents"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Rainfall Distribution",
+            "Floods"
+          ]
+        },
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Drought",
+            "Extreme Weather"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T01",
+        "GEO_T03",
+        "GEO_T04",
+        "GEO_T06"
+      ]
+    },
+    "Jet Streams": {
+      "priority": "high",
+      "tested_as_question_types": ["assertion_reason", "multi_statement", "match_pair", "direct_fact"],
+      "sub_concepts": [
+        {
+          "topic": "Subtropical Jet",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Monsoon"
+          ]
+        },
+        {
+          "topic": "Tropical Easterly Jet ",
+          "aspects": [
+            "mechanism",
+            "impact"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Monsoon",
+            "Indian Geography"
+          ]
+        },
+        {
+          "topic": "Jet Stream Shift",
+          "aspects": [
+            "process"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Monsoon"
+          ]
+        },
+        {
+          "topic": "Jet Streams and Western Disturbances",
+          "aspects": [
+            "cause_effect"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Indian Geography"
+          ]
+        },
+        {
+          "topic": "Jet stream bifurcation by Himalayan barrier into two branches",
+          "aspect": "mechanism",
+          "ca_connectable": false,
+          "linked_to": [
+            "Indian Geography"
+          ]
+        },
+        {
+          "topic": "Seasonal northward migration of subtropical jet in summer",
+          "aspect": "process",
+          "ca_connectable": false,
+          "linked_to": [
+            "Monsoon"
+          ]
+        },
+        {
+          "topic": "Relationship between jet stream position and pressure belt location",
+          "aspect": "comparison",
+          "ca_connectable": false,
+          "linked_to": [
+            "Pressure Belts"
+          ]
+        }
+      ],
+      "links_to": [
+        "Monsoon",
+        "Western Disturbances",
+        "Cyclones",
+        "Pressure Belts"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Winter Rainfall",
+            "Weather Patterns"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T03",
+        "GEO_T04",
+        "GEO_T06"
+      ]
+    },
+    "ITCZ": {
+      "priority": "high",
+      "tested_as_question_types": ["match_pair", "assertion_reason", "multi_statement", "pure_ca"],
+      "sub_concepts": [
+        {
+          "topic": "ITCZ Position",
+          "aspects": [
+            "distribution"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Pressure Belts"
+          ]
+        },
+        {
+          "topic": "ITCZ Seasonal Shift",
+          "aspects": [
+            "process"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Monsoon"
+          ]
+        },
+        {
+          "topic": "ITCZ role in tropical cyclone formation in India",
+          "aspects": [
+            "mechanism",
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Tropical Cyclones"
+          ]
+        }
+      ],
+      "links_to": [
+        "Monsoon",
+        "Pressure Belts",
+        "Tropical Cyclones"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Sea Surface Temperature"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T03",
+        "GEO_T04",
+        "GEO_T06"
+      ]
+    },
+    "Cyclones": {
+      "priority": "high",
+      "tested_as_question_types": ["assertion_reason", "match_pair", "pure_ca", "multi_statement", "scenario"],
+      "sub_concepts": [
+        {
+          "topic": "Cyclone Formation Conditions",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Sea Surface Temperature"
+          ]
+        },
+        {
+          "topic": "Cyclone Structure",
+          "aspects": [
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "Cyclone Distribution",
+          "aspects": [
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Indian Geography"
+          ]
+        },
+        {
+          "topic": "Cyclone Impact on India and Rainfall",
+          "aspects": [
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Indian Geography",
+            "Monsoon"
+          ]
+        },
+        {
+          "topic": "IMD naming convention and multi-agency warning systems",
+          "aspect": "application",
+          "ca_connectable": true,
+          "linked_to": [
+            "IMD"
+          ]
+        },
+        {
+          "topic": "Typhoon vs hurricane vs cyclone — same phenomenon different region names",
+          "aspect": "comparison",
+          "ca_connectable": false,
+          "linked_to": []
+        }
+      ],
+      "links_to": [
+        "Sea Surface Temperature",
+        "Monsoon",
+        "Ocean Currents",
+        "ITCZ",
+        "Indian Ocean Dipole"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Sea Surface Temperature"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Coastal Regions"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T01",
+        "GEO_T04",
+        "GEO_T06",
+        "GEO_T08"
+      ]
+    },
+    "Pressure Belts": {
+      "priority": "medium",
+      "tested_as_question_types": ["match_pair", "direct_fact", "assertion_reason", "multi_statement"],
+      "sub_concepts": [
+        {
+          "topic": "Pressure Belt Distribution",
+          "aspects": [
+            "distribution"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "ITCZ"
+          ]
+        },
+        {
+          "topic": "Pressure Belt Shift",
+          "aspects": [
+            "process"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Monsoon"
+          ]
+        },
+        {
+          "topic": "Pressure Belt Shift and Monsoon Onset",
+          "aspects": [
+            "process"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Monsoon"
+          ]
+        }
+      ],
+      "links_to": [
+        "ITCZ",
+        "Monsoon",
+        "Jet Streams",
+        "Local Winds"
+      ],
+      "trap_affinity": [
+        "GEO_T03",
+        "GEO_T04",
+        "GEO_T06",
+        "GEO_T03"
+      ]
+    },
+    "Heat Budget": {
+      "priority": "low",
+      "tested_as_question_types": ["multi_statement", "assertion_reason", "direct_fact"],
+      "sub_concepts": [
+        {
+          "topic": "Earth Heat Budget",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Temperature Distribution"
+          ]
+        }
+      ],
+      "links_to": [
+        "Temperature Distribution",
+        "Tropical Cyclones"
+      ],
+      "trap_affinity": [
+        "GEO_T04"
+      ]
+    },
+    "Temperature Distribution": {
+      "priority": "low",
+      "tested_as_question_types": ["direct_fact", "multi_statement", "assertion_reason"],
+      "sub_concepts": [
+        {
+          "topic": "Latitudinal Distribution",
+          "aspects": [
+            "distribution"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "Temperature Distribution and Heat Budget",
+          "aspects": [
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Heat Budget"
+          ]
+        },
+        {
+          "topic": "Albedo variation by surface type — ice vs ocean vs forest",
+          "aspects": [
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "Greenhouse effect mechanism and selective absorption by gases",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "Global warming potential of CO2 vs methane vs N2O",
+          "aspects": [
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": []
+        },
+        {
+          "topic": "Urban heat island effect and its causes",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": []
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T01",
+        "GEO_T04",
+        "GEO_T08"
+      ]
+    },
+    "ENSO": {
+      "priority": "high",
+      "tested_as_question_types": ["assertion_reason", "multi_statement", "pure_ca", "match_pair", "scenario"],
+      "sub_concepts": [
+        {
+          "topic": "El Nino — Walker Circulation weakening",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Monsoon"
+          ]
+        },
+        {
+          "topic": "La Nina — Walker Circulation strengthening",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Monsoon"
+          ]
+        },
+        {
+          "topic": "ENSO impact on Indian monsoon",
+          "aspects": [
+            "impact",
+            "cause_effect"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Monsoon",
+            "Indian Ocean Dipole"
+          ]
+        },
+        {
+          "topic": "ENSO global impacts — Australian drought, South American floods",
+          "aspects": [
+            "impact",
+            "distribution"
+          ],
+          "ca_connectable": true,
+          "linked_to": []
+        },
+        {
+          "topic": "IOD moderating El Nino effect on India",
+          "aspects": [
+            "comparison",
+            "exception"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Indian Ocean Dipole"
+          ]
+        },
+        {
+          "topic": "El Nino Modoki — central vs eastern Pacific warming",
+          "aspects": [
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "Madden-Julian Oscillation as intra-seasonal modulator",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Monsoon"
+          ]
+        }
+      ],
+      "links_to": [
+        "Monsoon",
+        "Indian Ocean Dipole",
+        "Cyclones",
+        "ITCZ"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Sea Surface Temperature",
+            "Ocean Currents"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Rainfall Distribution",
+            "Drought"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T03",
+        "GEO_T04",
+        "GEO_T06",
+        "GEO_T09"
+      ]
+    },
+    "Indian Ocean Dipole": {
+      "priority": "medium",
+      "tested_as_question_types": ["assertion_reason", "multi_statement", "pure_ca", "match_pair"],
+      "sub_concepts": [
+        {
+          "topic": "Positive IOD — warmer western, cooler eastern Indian Ocean",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Monsoon"
+          ]
+        },
+        {
+          "topic": "Negative IOD — cooler western, warmer eastern Indian Ocean",
+          "aspects": [
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": []
+        },
+        {
+          "topic": "Positive IOD enhancing Indian monsoon rainfall",
+          "aspects": [
+            "impact",
+            "cause_effect"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Monsoon"
+          ]
+        },
+        {
+          "topic": "IOD interaction with ENSO",
+          "aspects": [
+            "comparison",
+            "exception"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "ENSO"
+          ]
+        },
+        {
+          "topic": "IOD role in East African and Australian rainfall anomalies",
+          "aspects": [
+            "impact"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        }
+      ],
+      "links_to": [
+        "ENSO",
+        "Monsoon",
+        "Cyclones"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Sea Surface Temperature"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T03",
+        "GEO_T04",
+        "GEO_T02"
+      ]
+    },
+    "Western Disturbances": {
+      "priority": "high",
+      "tested_as_question_types": ["assertion_reason", "multi_statement", "pure_ca", "direct_fact"],
+      "sub_concepts": [
+        {
+          "topic": "Origin in Mediterranean Sea",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Jet Streams"
+          ]
+        },
+        {
+          "topic": "Eastward movement along subtropical westerly jet",
+          "aspects": [
+            "process"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Jet Streams"
+          ]
+        },
+        {
+          "topic": "Winter precipitation in North-West India",
+          "aspects": [
+            "impact",
+            "distribution"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Indian Geography"
+          ]
+        },
+        {
+          "topic": "Role in Rabi crop water supply",
+          "aspects": [
+            "impact",
+            "cause_effect"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Indian Geography"
+          ]
+        },
+        {
+          "topic": "Fog and cold wave events in Indo-Gangetic Plain",
+          "aspects": [
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Indian Geography"
+          ]
+        }
+      ],
+      "links_to": [
+        "Jet Streams",
+        "Monsoon",
+        "Rainfall Types"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Winter Rainfall",
+            "Rabi Crops",
+            "Cold Wave"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T01",
+        "GEO_T03",
+        "GEO_T04",
+        "GEO_T06"
+      ]
+    },
+    "Local Winds": {
+      "priority": "medium",
+      "tested_as_question_types": ["direct_fact", "match_pair", "pure_ca", "assertion_reason"],
+      "sub_concepts": [
+        {
+          "topic": "Loo — hot dry wind over North India plains",
+          "aspects": [
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Indian Geography"
+          ]
+        },
+        {
+          "topic": "Foehn — warm leeward wind due to adiabatic warming",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "Chinook — warm dry wind east of Rockies",
+          "aspects": [
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "Mistral, Sirocco, Harmattan — regional wind identification",
+          "aspects": [
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "Anabatic vs katabatic winds",
+          "aspects": [
+            "comparison",
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Pressure Belts"
+          ]
+        },
+        {
+          "topic": "Land-sea breeze mechanism",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Pressure Belts"
+          ]
+        }
+      ],
+      "links_to": [
+        "Pressure Belts",
+        "Rainfall Types"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Heat Wave",
+            "Weather Patterns"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T01",
+        "GEO_T02",
+        "GEO_T03",
+        "GEO_T05",
+        "GEO_T08"
+      ]
+    },
+    "Rainfall Types": {
+      "priority": "high",
+      "tested_as_question_types": ["assertion_reason", "multi_statement", "pure_ca", "match_pair", "scenario"],
+      "sub_concepts": [
+        {
+          "topic": "Convectional rainfall in equatorial regions",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "ITCZ"
+          ]
+        },
+        {
+          "topic": "Orographic rainfall and rain shadow effect",
+          "aspects": [
+            "mechanism",
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Indian Geography"
+          ]
+        },
+        {
+          "topic": "Frontal or cyclonic rainfall in temperate regions",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Cyclones"
+          ]
+        },
+        {
+          "topic": "Monsoon rainfall distribution across India",
+          "aspects": [
+            "distribution"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Monsoon",
+            "Indian Geography"
+          ]
+        },
+        {
+          "topic": "Western disturbance winter rainfall in NW India",
+          "aspects": [
+            "mechanism",
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Western Disturbances"
+          ]
+        }
+      ],
+      "links_to": [
+        "Monsoon",
+        "Western Disturbances",
+        "Cyclones",
+        "Local Winds"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Rainfall Distribution",
+            "Drought"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T02",
+        "GEO_T04",
+        "GEO_T05",
+        "GEO_T08",
+        "GEO_T09"
+      ]
+    },
+    "Climate Classification": {
+      "priority": "medium",
+      "tested_as_question_types": ["match_pair", "direct_fact", "assertion_reason", "multi_statement"],
+      "sub_concepts": [
+        {
+          "topic": "Koppen classification key types and letter codes",
+          "aspects": [
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "Am tropical monsoon vs Aw tropical savanna",
+          "aspects": [
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Monsoon"
+          ]
+        },
+        {
+          "topic": "BW hot desert climate — Rajasthan and causes",
+          "aspects": [
+            "mechanism",
+            "distribution"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Indian Geography"
+          ]
+        },
+        {
+          "topic": "Cs Mediterranean climate — dry summer, wet winter",
+          "aspects": [
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Pressure Belts"
+          ]
+        },
+        {
+          "topic": "India climate type distribution — Am, Aw, ET zones",
+          "aspects": [
+            "distribution"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Indian Geography",
+            "Monsoon"
+          ]
+        },
+        {
+          "topic": "Monsoon climate vs equatorial climate — rainfall seasonality",
+          "aspects": [
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Monsoon"
+          ]
+        }
+      ],
+      "links_to": [
+        "Monsoon",
+        "Rainfall Types",
+        "Pressure Belts"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Vegetation Zones",
+            "Agricultural Regions"
+          ]
+        },
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Climate Change"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T04",
+        "GEO_T08",
+        "GEO_T09"
+      ]
+    },
+    "Air Masses": {
+      "priority": "medium",
+      "tested_as_question_types": ["match_pair", "assertion_reason", "multi_statement", "direct_fact"],
+      "sub_concepts": [
+        {
+          "topic": "Classification — cT, mT, cP, mP, cA",
+          "aspects": [
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "Source regions and characteristics",
+          "aspects": [
+            "distribution"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Pressure Belts"
+          ]
+        },
+        {
+          "topic": "Fronts — warm, cold, occluded, stationary",
+          "aspects": [
+            "classification",
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Cyclones",
+            "Rainfall Types"
+          ]
+        },
+        {
+          "topic": "Mid-latitude cyclone formation at polar front",
+          "aspects": [
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Cyclones",
+            "Jet Streams"
+          ]
+        },
+        {
+          "topic": "Air mass modification over Indian subcontinent",
+          "aspects": [
+            "process"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Monsoon",
+            "Western Disturbances"
+          ]
+        }
+      ],
+      "links_to": [
+        "Pressure Belts",
+        "Cyclones",
+        "Western Disturbances",
+        "Rainfall Types"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Weather Patterns",
+            "Cold Wave"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_T03",
+        "GEO_T04",
+        "GEO_T08"
+      ]
     }
   }
+}

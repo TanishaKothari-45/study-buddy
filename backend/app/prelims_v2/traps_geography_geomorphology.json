@@ -1,0 +1,337 @@
+{
+  "subject": "Geography",
+  "domain": "Physical Geography",
+  "subdomain": "Geomorphology",
+  "description": "Domain-specific trap patterns for UPSC Prelims Geomorphology questions. Based on PYQ analysis (2015-2024, 30 questions). Maps question types to trap patterns with generation rules. Uses base patterns from traps_geography_base.json with Geomorphology-specific variations and new patterns unique to this domain.",
+  "question_types": {
+    "assertion_reason": {
+      "description": "Statement A is given; Reason R is given. Evaluate if A is true, R is true, and if R explains A. MOST COMMON in Geomorphology (40% vs 15% overall Geography)",
+      "characteristics": "Tests cause-effect and logical linkage. Geomorphology emphasizes process chains and mechanism understanding.",
+      "frequency_in_geomorphology": 0.40,
+      "difficulty_distribution": {
+        "easy": 0.15,
+        "medium": 0.50,
+        "hard": 0.35
+      },
+      "trap_patterns": [
+        {
+          "pattern_id": "GEO_AR_T01",
+          "name": "Direction/Scale reversal in process explanation",
+          "frequency": 0.25,
+          "mechanism": "Assertion correct, but reason reverses direction/scale. E.g., 'Meanders form BECAUSE low gradient allows lateral erosion' (correct) vs 'Meanders form because HIGH gradient increases lateral erosion' (reversed scale direction)",
+          "error_type": "spatial_direction_error",
+          "distractor_strategy": "Use correct concept but reverse the qualifying direction (upstream/downstream, leeward/windward, high/low)",
+          "example": "A: Meanders are prominent in plains. R: Because gradient is HIGH, lateral erosion dominates. [WRONG: gradient is LOW]",
+          "generation_rules": [
+            "Assert a correct geomorphic observation",
+            "Provide reason that is mechanistically correct but directionally reversed",
+            "Reverse one key qualifier: gradient (high↔low), direction (upstream↔downstream, north↔south), location (leeward↔windward)",
+            "Student recognizes concept but gets direction wrong due to reading speed"
+          ],
+          "applicable_question_types": ["assertion_reason"],
+          "difficulty_impact": "medium → hard"
+        },
+        {
+          "pattern_id": "GEO_AR_T02",
+          "name": "Process chain skip (missing intermediate step)",
+          "frequency": 0.20,
+          "mechanism": "Assertion true, reason incomplete or skips key step. E.g., 'Fjords have U-shaped valleys. Reason: Because they were carved by glaciers.' [TRUE but incomplete: glaciers → ice flow → downward + lateral erosion → U-shape]",
+          "error_type": "process_chain_confusion",
+          "distractor_strategy": "Correct starting and ending points, but skip or shortcut the intermediate process steps",
+          "example": "A: U-shaped valleys are found in mountain regions. R: Because mountains have steep slopes. [WRONG: Missing the glacier erosion mechanism]",
+          "generation_rules": [
+            "Assert a correct geomorphic outcome",
+            "Provide reason that identifies a correct trigger but omits intermediate steps",
+            "Use statements that seem plausible because they're partially correct",
+            "Hard questions specifically test if students understand FULL process chains, not just endpoints"
+          ],
+          "applicable_question_types": ["assertion_reason"],
+          "difficulty_impact": "hard"
+        },
+        {
+          "pattern_id": "GEO_AR_T03",
+          "name": "Counterintuitive fact in reason (tropical vs polar)",
+          "frequency": 0.15,
+          "mechanism": "A true, R true, but R counterintuitive (tropical weathering faster than polar). Student rejects correct reason because it violates prior belief.",
+          "error_type": "counterintuitive_truth",
+          "distractor_strategy": "State counterintuitive mechanism as true reason. Student's intuitive but incorrect answer (freeze-thaw is dominant) available as distractor.",
+          "example": "A: Tropical soils are deeper than polar soils. R: Because tropical regions have higher chemical weathering rates despite lower freeze-thaw cycles.",
+          "generation_rules": [
+            "Assert a true observation about tropical vs other regions",
+            "Provide counterintuitive reason (tropical weathering > polar)",
+            "Make student's intuitive answer (freeze-thaw dominates) available as option",
+            "Use in hard questions (A/R + counterintuitive + process understanding)"
+          ],
+          "applicable_question_types": ["assertion_reason"],
+          "difficulty_impact": "hard"
+        },
+        {
+          "pattern_id": "GEO_AR_T04",
+          "name": "Both A and R true, but causally disconnected",
+          "frequency": 0.15,
+          "mechanism": "Both assertion and reason are factually correct, but R doesn't explain A. Student mistakes correlation for causation.",
+          "error_type": "logical_disconnection",
+          "distractor_strategy": "Both seem related but actually independent; student assumes causal linkage",
+          "example": "A: Laterite soils are found in tropical regions. R: Because tropical regions receive high rainfall. [TRUE but not causal: laterization requires DRAINAGE + weathering + climate, not just rainfall]",
+          "generation_rules": [
+            "Assert a true fact",
+            "Provide a true but causally unrelated fact",
+            "Both must seem plausible as related concepts",
+            "Test whether student confuses correlation with causation"
+          ],
+          "applicable_question_types": ["assertion_reason"],
+          "difficulty_impact": "medium → hard"
+        },
+        {
+          "pattern_id": "GEO_AR_T05",
+          "name": "Scale ambiguity in assertions",
+          "frequency": 0.12,
+          "mechanism": "Assertion mixes scales (local meanders with regional drainage). Reason is true for one scale but not the other.",
+          "error_type": "scale_confusion",
+          "distractor_strategy": "Use correct mechanism but at wrong scale (local vs regional, temporal vs spatial)",
+          "example": "A: River patterns are determined by climate. R: Because monsoon rainfall varies seasonally. [WRONG: Pattern formation = long-term, not seasonal variation]",
+          "generation_rules": [
+            "Mix temporal or spatial scales in assertion",
+            "Reason is correct for one scale but not the other",
+            "Student must distinguish local vs regional, seasonal vs decadal"
+          ],
+          "applicable_question_types": ["assertion_reason"],
+          "difficulty_impact": "medium"
+        }
+      ]
+    },
+    "multi_statement": {
+      "description": "2-3 statements; evaluate which are correct using given options. Second most common in Geomorphology (35% vs 25% overall Geography).",
+      "characteristics": "Options guide answer; allows strategic partial elimination. Tests concept combinations and process understanding.",
+      "frequency_in_geomorphology": 0.35,
+      "difficulty_distribution": {
+        "easy": 0.15,
+        "medium": 0.70,
+        "hard": 0.15
+      },
+      "trap_patterns": [
+        {
+          "pattern_id": "GEO_MS_T01",
+          "name": "Partial truth distractors (correct on one dimension, incomplete on another)",
+          "frequency": 0.25,
+          "mechanism": "Statement is partially true: correct concept but incomplete driver. E.g., 'Freeze-thaw dominates in high mountains' vs 'Freeze-thaw dominates in alpine zones' (missing: only where water-saturated).",
+          "error_type": "precision_mismatch",
+          "distractor_strategy": "Use correct concept but incomplete condition or location qualifier",
+          "example": "Stmt 1: 'Laterite forms in tropical regions.' [Partially true: forms in DRAINED tropical regions] Stmt 2: 'Weathering rate is highest in tropical regions.' [TRUE] Answer: Only statement 2",
+          "generation_rules": [
+            "State a geomorphic process correctly but incompletely",
+            "Include correct location/climate but miss the enabling condition (drainage, slope, vegetation)",
+            "Use in medium difficulty: students know concept but miss nuance"
+          ],
+          "applicable_question_types": ["multi_statement"],
+          "difficulty_impact": "medium"
+        },
+        {
+          "pattern_id": "GEO_MS_T02",
+          "name": "Similar landforms confusion (match concept to correct feature)",
+          "frequency": 0.18,
+          "mechanism": "Two statements describe similar-looking landforms but with different erosional agents. E.g., 'Drumlins are glacier-shaped ridges' vs 'Moraines are glacier-deposited ridges' (students confuse due to similar appearance).",
+          "error_type": "adjacent_fact_confusion",
+          "distractor_strategy": "Use related but distinct concepts; differentiate by process or origin",
+          "example": "Stmt 1: 'U-shaped valleys form by glacial erosion.' [TRUE] Stmt 2: 'V-shaped valleys form by river erosion.' [TRUE] Stmt 3: 'Fjords are U-shaped valleys that were submerged.' [TRUE] Answer: All three",
+          "generation_rules": [
+            "Include multiple similar-looking landforms in one question",
+            "Test whether student knows the DISTINCT process creating each",
+            "Use matching strategy: pair each landform with correct erosional agent"
+          ],
+          "applicable_question_types": ["multi_statement"],
+          "difficulty_impact": "medium"
+        },
+        {
+          "pattern_id": "GEO_MS_T03",
+          "name": "Climate linkage confusion (which climate produces which landform)",
+          "frequency": 0.15,
+          "mechanism": "Statements about landforms conditioned on climate. Student may know the landform but misattribute to wrong climate. E.g., 'Barchan dunes form in hot deserts' (TRUE) vs 'Barchan dunes form in cold deserts' (FALSE).",
+          "error_type": "metric_reversal",
+          "distractor_strategy": "Reverse climate condition (hot↔cold, wet↔dry, high altitude↔low altitude)",
+          "example": "Stmt 1: 'Laterite soils form in wet tropical regions with good drainage.' [TRUE] Stmt 2: 'Laterite soils form in dry tropical regions.' [FALSE] Stmt 3: 'Laterite soils are hardened in place.' [TRUE]",
+          "generation_rules": [
+            "State geomorphic processes with climate conditions",
+            "Reverse one climatic variable for false statement",
+            "Use in medium questions where student knows landform but misses climate condition"
+          ],
+          "applicable_question_types": ["multi_statement"],
+          "difficulty_impact": "medium"
+        },
+        {
+          "pattern_id": "GEO_MS_T04",
+          "name": "Process sequence reversal (which step comes first)",
+          "frequency": 0.12,
+          "mechanism": "Statements about process steps but in wrong sequence. E.g., 'Meanders form THEN gradients decrease' vs 'Gradients decrease THEN meanders form' (causality matters).",
+          "error_type": "causation_reversal",
+          "distractor_strategy": "Reverse the temporal/causal sequence of process steps",
+          "example": "Stmt 1: 'River headward erosion captures a tributary.' [correct] Stmt 2: 'Wind and water gaps form BEFORE river capture occurs.' [FALSE: they form AS A RESULT OF capture] Answer: Only statement 1",
+          "generation_rules": [
+            "State geomorphic processes with causal sequencing",
+            "Reverse the order of cause → effect in false statements",
+            "Use in hard questions where students know concepts but miss causality"
+          ],
+          "applicable_question_types": ["multi_statement"],
+          "difficulty_impact": "hard"
+        }
+      ]
+    },
+    "match_pair": {
+      "description": "Match entities (landforms, features, locations); 3-4 pairs given, evaluate how many are correctly matched. Third most common in Geomorphology (15% vs 14% overall Geography). Tests precision knowledge of landform locations and characteristics.",
+      "characteristics": "Requires one-to-one mapping; precision in definitions essential. Geomorphology emphasizes spatial/location precision.",
+      "frequency_in_geomorphology": 0.15,
+      "difficulty_distribution": {
+        "easy": 0.10,
+        "medium": 0.65,
+        "hard": 0.25
+      },
+      "trap_patterns": [
+        {
+          "pattern_id": "GEO_MP_T01",
+          "name": "Correct concept, wrong geographic detail (location mismatch)",
+          "frequency": 0.20,
+          "mechanism": "Landform is correctly identified but paired with wrong location/feature. E.g., 'Kanyakumari has cliffs' (correct) vs 'Kanyakumari has sandy beaches' (incorrect; it's rocky).",
+          "error_type": "pairing_error",
+          "distractor_strategy": "Use real landform and real location but incorrect pairing",
+          "example": "Pair 1: 'Sundarbans - mangrove swamps' [CORRECT] Pair 2: 'Sundarbans - sandy beaches' [WRONG: mangrove-dominated] Pair 3: 'Thar Desert - sand dunes' [CORRECT]",
+          "generation_rules": [
+            "Match landforms to specific Indian/global locations",
+            "One pair: correct concept, wrong location (but real location with different feature)",
+            "Requires map knowledge and spatial precision"
+          ],
+          "applicable_question_types": ["match_pair"],
+          "difficulty_impact": "medium → hard"
+        },
+        {
+          "pattern_id": "GEO_MP_T02",
+          "name": "Similar landforms, wrong agent pairing",
+          "frequency": 0.15,
+          "mechanism": "Landform correctly identified but paired with wrong erosional agent. E.g., 'U-shaped valley - fluvial erosion' (WRONG: glacial erosion).",
+          "error_type": "adjacent_fact_confusion",
+          "distractor_strategy": "Use correct landform but wrong process/agent; both are plausible",
+          "example": "Pair 1: 'Drumlins - glacier flow direction indicator' [CORRECT] Pair 2: 'Drumlins - wind erosion' [WRONG: glacial, not wind] Pair 3: 'Barchan - wind-shaped sand dune' [CORRECT]",
+          "generation_rules": [
+            "Match landforms to erosional agents/processes",
+            "One pair: landform correct, but agent is plausibly wrong",
+            "Test whether students know which PROCESS creates which form"
+          ],
+          "applicable_question_types": ["match_pair"],
+          "difficulty_impact": "medium"
+        },
+        {
+          "pattern_id": "GEO_MP_T03",
+          "name": "Synonym confusion (different terms, same concept)",
+          "frequency": 0.10,
+          "mechanism": "Student confuses synonymous terms or near-synonyms. E.g., 'Fjord' vs 'Ria' (both are drowned valleys but different origins).",
+          "error_type": "adjacent_fact_confusion",
+          "distractor_strategy": "Use similar terms or synonyms; require distinction by origin/process",
+          "example": "Pair 1: 'Fjord - glacially carved drowned valley' [CORRECT] Pair 2: 'Ria - glacially carved drowned valley' [WRONG: ria is fluvially carved, not glacial]",
+          "generation_rules": [
+            "Use confusable landform terms (fjord/ria, drumlin/moraine, meander/oxbow)",
+            "Require students to distinguish by process or origin, not just appearance",
+            "One pair mixes up similar concepts"
+          ],
+          "applicable_question_types": ["match_pair"],
+          "difficulty_impact": "medium → hard"
+        }
+      ]
+    },
+    "direct_fact": {
+      "description": "Single fact question; one correct answer from 4 options. Least common in Geomorphology (10% vs 18% overall Geography). Often tests definition or pure CA.",
+      "characteristics": "Minimal inference required; tests recall and precision. Geomorphology emphasizes definitions and terminology over pure geography facts.",
+      "frequency_in_geomorphology": 0.10,
+      "difficulty_distribution": {
+        "easy": 0.70,
+        "medium": 0.25,
+        "hard": 0.05
+      },
+      "trap_patterns": [
+        {
+          "pattern_id": "GEO_DF_T01",
+          "name": "Definition precision (synonym vs strict definition)",
+          "frequency": 0.40,
+          "mechanism": "Question asks for definition; student picks synonym instead of precise definition. E.g., 'What is a drumlin? A) elongated ridge B) glacier-shaped ridge from subglacial flow C) mound of glacial sediment D) ice-sculpted hill'.",
+          "error_type": "precision_mismatch",
+          "distractor_strategy": "Use related but less specific or incorrect definitions as distractors",
+          "example": "Q: 'Which of the following best describes a drumlin?' A) 'An elongated ridge shaped by glacial flow' [CORRECT] B) 'A mound of glacial sediment' [LESS PRECISE] C) 'A ridge formed by glacial meltwater' [WRONG] D) 'A U-shaped valley carved by ice' [WRONG]",
+          "generation_rules": [
+            "Ask for precise definition of geomorphic feature",
+            "Include similar but less precise definitions as distractors",
+            "Require knowledge of process/origin, not just appearance"
+          ],
+          "applicable_question_types": ["direct_fact"],
+          "difficulty_impact": "easy → medium"
+        },
+        {
+          "pattern_id": "GEO_DF_T02",
+          "name": "CA-triggered landslide/flood recognition",
+          "frequency": 0.35,
+          "mechanism": "Recent event (landslide, flood, erosion) mentioned; student must identify the geomorphic process. E.g., '2024 Himachal Pradesh landslides are caused by... A) Slope instability + freeze-thaw + deforestation B) Heavy rainfall C) Plate tectonics D) Wind erosion'.",
+          "error_type": "recency_bias",
+          "distractor_strategy": "Use simpler but incorrect processes; make student focus on news rather than process",
+          "example": "Recent Brahmaputra channel shifts in Assam are caused by: A) River piracy and channel migration B) Seasonal flooding C) Glacier melt D) Erosion [CORRECT: A, involves complex channel dynamics, not just flooding]",
+          "generation_rules": [
+            "Use recent landslide, flood, or erosion event from news",
+            "Question tests geomorphic process, not just CA knowledge",
+            "Distractors: simpler processes (rainfall, flooding) that students might assume"
+          ],
+          "applicable_question_types": ["direct_fact"],
+          "difficulty_impact": "easy → medium"
+        },
+        {
+          "pattern_id": "GEO_DF_T03",
+          "name": "Scale/scope confusion (local vs regional)",
+          "frequency": 0.25,
+          "mechanism": "Question about scale of geomorphic feature. E.g., 'Meanders are features of: A) Small streams B) Low-gradient plains C) Both A and B in different contexts D) High mountain valleys'.",
+          "error_type": "scale_confusion",
+          "distractor_strategy": "Use correct feature but wrong scale",
+          "example": "Q: 'Where are sand dunes MOST extensive? A) Thar Desert B) Coastal regions C) River floodplains D) Foothills'",
+          "generation_rules": [
+            "Ask about scale or geographic scope of landform",
+            "Test whether student knows typical occurrence context",
+            "Distractors: other plausible but wrong locations"
+          ],
+          "applicable_question_types": ["direct_fact"],
+          "difficulty_impact": "easy"
+        }
+      ]
+    }
+  },
+  "trap_patterns_global_mapping": {
+    "description": "How Geomorphology-specific traps map to base trap patterns from traps_geography_base.json",
+    "mapping": {
+      "GEO_AR_T01 (Direction reversal)": "Maps to pattern_6 (Spatial sequence reversal) + pattern_2 (embedded precision error)",
+      "GEO_AR_T02 (Process chain skip)": "New pattern (unique to Geomorphology) — tests sequential reasoning",
+      "GEO_AR_T03 (Counterintuitive)": "Maps to pattern_1 (Reverse the obvious) — tropical vs polar",
+      "GEO_AR_T04 (Logical disconnection)": "Maps to pattern_2_ar_variant (Both A and R true, but not linked)",
+      "GEO_AR_T05 (Scale ambiguity)": "New pattern (emerging in recent years) — local vs regional confusion",
+      "GEO_MS_T01 (Partial truth)": "Maps to pattern_2 (embedded precision error)",
+      "GEO_MS_T02 (Similar landforms)": "Maps to pattern_4 (Adjacent fact confusion)",
+      "GEO_MS_T03 (Climate linkage)": "Maps to pattern_3 (Statistical precision reversal) — climate reversal variant",
+      "GEO_MS_T04 (Process sequence)": "New pattern (unique to Geomorphology) — causality and temporal ordering",
+      "GEO_MP_T01 (Location mismatch)": "Maps to pattern_4 (Adjacent fact confusion) — concept right, location wrong",
+      "GEO_MP_T02 (Wrong agent)": "Maps to pattern_4 (Adjacent fact confusion) — landform right, process wrong",
+      "GEO_MP_T03 (Synonym confusion)": "Maps to pattern_4 (Adjacent fact confusion) — similar terms, different origins",
+      "GEO_DF_T01 (Definition precision)": "Maps to pattern_5 (CA trigger) — terminology testing",
+      "GEO_DF_T02 (CA-triggered)": "Maps to pattern_5 (CA trigger on static fact)",
+      "GEO_DF_T03 (Scale/scope)": "New pattern — geographic distribution of landforms"
+    }
+  },
+  "sub_domains_covered": [
+    "Geomorphology (all sub-concepts)"
+  ],
+  "unique_patterns_in_geomorphology": [
+    "GEO_AR_T02: Process chain skip — not prominent in other subjects",
+    "GEO_AR_T05: Scale ambiguity — specific to spatial reasoning domains",
+    "GEO_MS_T04: Process sequence reversal — unique causality testing",
+    "GEO_DF_T03: Scale/scope confusion — emerging pattern, not in other subjects"
+  ],
+  "notes": [
+    "Geomorphology traps emphasize spatial reasoning (direction, location, 3D visualization) over other subjects",
+    "Process chains are critical: students must understand A→B→C sequences, not just individual concepts",
+    "Scale confusion (local vs regional, temporal vs spatial) is a unique challenge in Geomorphology",
+    "Assertion-Reason format (40% in Geomorphology vs 15% overall) requires understanding of causality and mechanism",
+    "Similar-looking landforms (drumlins/moraines, fjord/ria, meanders/oxbows) are common traps",
+    "CA integration emerging: floods/landslides/channel shifts tied to geomorphic processes, not just events"
+  ]
+}

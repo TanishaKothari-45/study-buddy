@@ -1,0 +1,416 @@
+{
+  "subject": "Geography",
+  "description": "Universal difficulty type taxonomy for UPSC Prelims Geography. 15 specific difficulty types that classify questions beyond simple easy/medium/hard. Used by Blueprint (Stage 0) to diversify question generation and by Quality Gate (Stage 4) to validate question structure.",
+  "difficulty_types": {
+    "easy_recall_static": {
+      "category": "EASY",
+      "description": "Pure memorized fact recall. No inference, logic, or cross-concept linking required. Direct definition-based.",
+      "characteristics": [
+        "Single concept only",
+        "Definition-based correct answer",
+        "No trap complexity",
+        "Requires only fact recall"
+      ],
+      "question_structure": "What is X? / Which of the following correctly defines X?",
+      "example": "What is a fjord? A) A drowned glacial valley B) A coastal waterway... [Answer directly from definition]",
+      "percentage_in_climatology": 0.10,
+      "percentage_in_geomorphology": 0.08,
+      "trap_types_used": ["pattern_5 (CA trigger on static fact)"],
+      "typical_question_types": ["direct_fact", "multi_statement"],
+      "blueprint_selection": "Random selection from concept pool. Any concept with 'definition' sub-concept can be used.",
+      "generation_rules": [
+        "Pick a single concept",
+        "Ask for definition or direct recall",
+        "Include synonyms or near-synonyms as distractors",
+        "Correct answer must be unambiguous"
+      ]
+    },
+    "easy_ca_trigger": {
+      "category": "EASY",
+      "description": "Recent current affairs event triggers a well-known static geographic fact. Student must connect news to concept but concept itself is famous.",
+      "characteristics": [
+        "Recent event is the trigger",
+        "Concept being tested is widely known",
+        "No complexity in concept linking",
+        "Tests awareness + basic knowledge"
+      ],
+      "question_structure": "Recent event X occurred. What geographic fact about Y is tested? / Where is X located?",
+      "example": "Sundarbans erosion reported in 2024. What are Sundarbans? A) Mangrove swamps B) Sandy beaches... [Concept is well-known, news triggers recall]",
+      "percentage_in_climatology": 0.07,
+      "percentage_in_geomorphology": 0.05,
+      "trap_types_used": ["pattern_5 (CA trigger on static fact)"],
+      "typical_question_types": ["direct_fact", "pure_ca"],
+      "blueprint_selection": "Select a concept with ca_connectable=true. Pick a recent CA event. Link to basic concept.",
+      "generation_rules": [
+        "Select recent CA event (max 2-3 years old)",
+        "Question tests existing knowledge triggered by event, not new analysis",
+        "Concept being tested is famous/well-known",
+        "Correct answer is straightforward recall"
+      ]
+    },
+    "easy_reverse_mild": {
+      "category": "EASY",
+      "description": "Mild counterintuitive fact that is widely taught (students know the reversal but may not have internalized it). Common knowledge with counter-intuitive twist.",
+      "characteristics": [
+        "Counterintuitive but well-taught",
+        "Concept is famous despite reversed nature",
+        "Example: Canada-US is longest international border",
+        "Student may know it but can doubt themselves"
+      ],
+      "question_structure": "Which is true? A) Intuitive but wrong option B) Counterintuitive but correct option",
+      "example": "Which statement is TRUE? A) Tropical weathering is slower than polar B) Tropical weathering is faster than polar [Correct: B, but seems reversed]",
+      "percentage_in_climatology": 0.03,
+      "percentage_in_geomorphology": 0.07,
+      "trap_types_used": ["pattern_1 (Reverse the obvious)"],
+      "typical_question_types": ["direct_fact", "multi_statement"],
+      "blueprint_selection": "Select a concept with 'counterintuitive' aspect noted in pool. Make assertion clear but reversed.",
+      "generation_rules": [
+        "Identify a fact where student intuition is wrong but reversal is widely taught",
+        "State counterintuitive truth as correct answer",
+        "Make intuitive (but wrong) answer available as prominent distractor",
+        "Concept itself is straightforward; reversal is the only trap"
+      ]
+    },
+    "medium_concept_linking_same_domain": {
+      "category": "MEDIUM",
+      "description": "Two related concepts from same domain tested together. Concept linking without cross-domain complexity. Tests whether student understands intra-domain relationships.",
+      "characteristics": [
+        "Exactly 2 concepts",
+        "Both from same domain (e.g., both Climatology)",
+        "Relationship is direct and logical",
+        "No cross-cutting conceptual leap"
+      ],
+      "question_structure": "How does Concept A relate to Concept B? / Both statements about related concepts correct? Assertion-Reason with linked concepts.",
+      "example": "A: Meanders form in low-gradient plains. R: Because low gradient reduces vertical erosion and encourages lateral erosion. [Both related concepts from Fluvial Geomorphology]",
+      "percentage_in_climatology": 0.20,
+      "percentage_in_geomorphology": 0.20,
+      "trap_types_used": ["pattern_3 (Statistical reversal)", "pattern_4 (Adjacent fact)"],
+      "typical_question_types": ["assertion_reason", "multi_statement"],
+      "blueprint_selection": "Pick a primary concept. Select a sub-concept or linked concept from links_to list (same domain). Generate assertion linking both.",
+      "generation_rules": [
+        "Select primary concept (e.g., Monsoon)",
+        "Select related concept from links_to: same_domain (e.g., Jet Streams for Monsoon)",
+        "Create assertion linking both concepts logically",
+        "Question format: Assertion-Reason or Multi-statement",
+        "Trap: reverse one metric or miss intermediate causality"
+      ]
+    },
+    "medium_adjacent_fact": {
+      "category": "MEDIUM",
+      "description": "Correct concept paired with wrong adjacent detail (location, name, related feature). Student knows the concept but gets detail wrong.",
+      "characteristics": [
+        "Primary concept is correct",
+        "Adjacent detail is wrong (but plausible)",
+        "Related to but distinct from primary concept",
+        "Requires precision knowledge of specific details"
+      ],
+      "question_structure": "Match concept to specific feature / Which is true about X? [with location/detail mismatches as traps]",
+      "example": "The Himalayan plateau is a _____ mountain? A) Fold B) Block C) Dome... [Concept: Himalaya, trap: specific type mismatch]",
+      "percentage_in_climatology": 0.15,
+      "percentage_in_geomorphology": 0.15,
+      "trap_types_used": ["pattern_4 (Adjacent fact confusion)"],
+      "typical_question_types": ["match_pair", "multi_statement"],
+      "blueprint_selection": "Pick concept with multiple sub-concepts. One pairing correct, one adjacent detail wrong but plausible.",
+      "generation_rules": [
+        "State concept X correctly",
+        "Pair with wrong detail Y (related but incorrect feature/location/name)",
+        "Detail must be geographically real, just paired with wrong concept",
+        "Example: correct concept (Gersoppa Falls), wrong river (Sharavathi instead of Gersoppa)"
+      ]
+    },
+    "medium_statistical_reversal": {
+      "category": "MEDIUM",
+      "description": "Comparison of 2+ entities on 3+ metrics. Two metrics favor Entity A, one favors Entity B. Reversal is on the assumption students make (e.g., India vs China: more arable land + more irrigation, BUT lower productivity).",
+      "characteristics": [
+        "Multiple metrics compared",
+        "Most metrics favor one entity",
+        "One metric reversed (the assumption)",
+        "Requires careful reading of all metrics"
+      ],
+      "question_structure": "Compare X and Y on metrics A, B, C. Which statements are true? [Tests metric evaluation]",
+      "example": "India vs China: (1) More arable land [India] (2) More irrigation [India] (3) Higher agricultural productivity [China, NOT India]. Which are true?",
+      "percentage_in_climatology": 0.10,
+      "percentage_in_geomorphology": 0.08,
+      "trap_types_used": ["pattern_3 (Statistical reversal)"],
+      "typical_question_types": ["multi_statement", "assertion_reason"],
+      "blueprint_selection": "Select two concepts to compare. Create 3-4 metric statements. Reverse the assumption students make.",
+      "generation_rules": [
+        "Compare two entities on 3-4 metrics",
+        "Make 2 metrics favor Entity A (student's assumption)",
+        "One metric favors Entity B (reversed from assumption)",
+        "Format: 'Which statements are true?' with options (1 and 2 only, 2 and 3 only, all, etc.)"
+      ]
+    },
+    "medium_precision_location": {
+      "category": "MEDIUM",
+      "description": "Requires precise knowledge of geographic boundaries, locations, or spatial distributions. Not just knowing the feature exists, but WHERE specifically it occurs.",
+      "characteristics": [
+        "Feature/concept is known",
+        "Specific location/boundary is tested",
+        "Requires map knowledge or spatial precision",
+        "Common in match-pair or multi-statement"
+      ],
+      "question_structure": "Where is X found? / Which region does X cover? [Tests spatial precision]",
+      "example": "Which of the following is a correct location-landform pairing? A) Thar - sand dunes B) Sundarbans - sandy beaches [B is wrong; Sundarbans is mangrove, not sandy]",
+      "percentage_in_climatology": 0.12,
+      "percentage_in_geomorphology": 0.15,
+      "trap_types_used": ["pattern_4 (Adjacent fact confusion)", "pattern_6 (Spatial sequence reversal)"],
+      "typical_question_types": ["match_pair", "multi_statement"],
+      "blueprint_selection": "Pick a concept with geographic distribution. Create location-based questions. One location correct, one plausible but wrong.",
+      "generation_rules": [
+        "Test precise location of geographic feature",
+        "Include real locations but with wrong features as distractors",
+        "Requires map knowledge, not just concept knowledge",
+        "Medium difficulty: most students know feature exists, fewer know exact location"
+      ]
+    },
+    "medium_ca_integration": {
+      "category": "MEDIUM",
+      "description": "Current affairs event + static geography tested together. Unlike easy_ca_trigger, this requires some analysis or linkage between CA and concept.",
+      "characteristics": [
+        "Recent event mentioned",
+        "Not just recall of what happened",
+        "Concept application required",
+        "Event triggers deeper thinking about concept"
+      ],
+      "question_structure": "Recent event X occurred. Explain using geographic concept Y. / What geographic principle applies to recent event X?",
+      "example": "2024 Brahmaputra channel shifts in Assam are driven by: A) River piracy and headward erosion B) Seasonal flooding C) Glacier melt [Requires understanding of river dynamics, not just news awareness]",
+      "percentage_in_climatology": 0.03,
+      "percentage_in_geomorphology": 0.08,
+      "trap_types_used": ["pattern_5 (CA trigger on static fact)", "GEO_MS_T03 (Climate linkage)"],
+      "typical_question_types": ["multi_statement", "assertion_reason"],
+      "blueprint_selection": "Select a concept with ca_connectable=true. Choose recent CA event tied to that concept. Create assertion requiring concept application.",
+      "generation_rules": [
+        "Use recent CA event (max 2-3 years old)",
+        "Event is context, not the answer itself",
+        "Question tests geographic principle activated by event",
+        "Requires student to apply concept to new situation"
+      ]
+    },
+    "hard_counterintuitive_single_concept": {
+      "category": "HARD",
+      "description": "Single concept tested in strongly counterintuitive direction. Concept itself is not new, but the property being tested violates strong student assumption. Example: tropical weathering rate > polar despite polar freeze-thaw.",
+      "characteristics": [
+        "Single primary concept",
+        "Counterintuitive property or direction",
+        "Strong student assumption violated",
+        "Requires depth understanding, not just definition"
+      ],
+      "question_structure": "Assertion-Reason testing counterintuitive property. / True/False about counterintuitive aspect?",
+      "example": "A: Tropical regions have deeper soils than polar regions. R: Because tropical weathering rate exceeds polar freeze-thaw weathering rate. [Seems backward to students who assume freeze-thaw is dominant]",
+      "percentage_in_climatology": 0.07,
+      "percentage_in_geomorphology": 0.08,
+      "trap_types_used": ["pattern_1 (Reverse the obvious)", "GEO_AR_T03 (Counterintuitive in reason)"],
+      "typical_question_types": ["assertion_reason", "multi_statement"],
+      "blueprint_selection": "Pick a concept with 'counterintuitive' noted in sub_concepts. Create assertion testing that property. Use A/R format.",
+      "generation_rules": [
+        "Select concept with counterintuitive aspect (e.g., tropical weathering)",
+        "State counterintuitive fact clearly",
+        "Make student's intuitive (wrong) answer available as distractor",
+        "Use Assertion-Reason format to test understanding of WHY counterintuitive",
+        "Hard because it violates strong prior belief"
+      ]
+    },
+    "hard_cross_domain_linking": {
+      "category": "HARD",
+      "description": "2-3 concepts from DIFFERENT domains linked together. Example: Climate (from Climatology) affects Weathering (from Geomorphology) affects Soil Formation affects Agriculture. Requires understanding cross-cutting relationships.",
+      "characteristics": [
+        "2-3 concepts from different domains",
+        "Concepts are genuinely distinct",
+        "Linking requires conceptual leap",
+        "Tests systems thinking"
+      ],
+      "question_structure": "Assertion-Reason with concepts from different domains. / Multi-concept chain: A causes B causes C.",
+      "example": "A: Monsoon variability affects river erosion patterns in Indian plains. R: Because below-normal monsoon rainfall reduces discharge and sediment transport capacity. [Links Climatology (Monsoon) → Geomorphology (River erosion) → Hydrology]",
+      "percentage_in_climatology": 0.06,
+      "percentage_in_geomorphology": 0.06,
+      "trap_types_used": ["pattern_1_ar_variant (A true, R false)", "pattern_2_ar_variant (Both true, not linked)"],
+      "typical_question_types": ["assertion_reason"],
+      "blueprint_selection": "Pick primary concept. Select linked_concept from links_to that is from different domain (interlink_domains). Create assertion linking both.",
+      "generation_rules": [
+        "Select primary concept from one domain",
+        "Select linked concept from different domain (check interlink_domains)",
+        "Create assertion showing causality between domains",
+        "Trap: reverse causality or break the logical chain",
+        "Hard because requires understanding of multiple domains + connections"
+      ]
+    },
+    "hard_all_of_above_precision": {
+      "category": "HARD",
+      "description": "3-4 statements where ALL are mostly correct, but ONE has subtle error in direction, metric, location, or detail. Student must catch the error among mostly-true statements. Tests extreme precision.",
+      "characteristics": [
+        "3-4 statements all seem correct",
+        "One has subtle error (direction, metric, location)",
+        "Error is not obvious; requires careful reading",
+        "Tests precision knowledge at highest level"
+      ],
+      "question_structure": "All-of-above format with one embedded error. Which statement is FALSE? / All are true EXCEPT...",
+      "example": "1. Monsoon withdrawal happens in September-October [TRUE] 2. Northeast monsoon brings rain to Tamil Nadu [TRUE] 3. Monsoon onset involves northward movement of pressure systems [TRUE] 4. Monsoon withdrawal begins with the SOUTHWARD movement of subtropical highs [ERROR: should be northward/poleward]. Which is false?",
+      "percentage_in_climatology": 0.05,
+      "percentage_in_geomorphology": 0.03,
+      "trap_types_used": ["pattern_2 (All-of-above with embedded error)"],
+      "typical_question_types": ["multi_statement", "how_many"],
+      "blueprint_selection": "Pick concept with multiple sub-aspects. State 3-4 facts about concept. One fact: correct concept, wrong direction/metric/location.",
+      "generation_rules": [
+        "Make 3 statements clearly and unambiguously correct",
+        "One statement: correct concept, WRONG detail (direction, location, metric, name)",
+        "Error must be subtle (not obvious)",
+        "Student must catch precision error while mostly-correct options are tempting",
+        "Format: 'All except statement X' or 'How many are true?' with answer 3"
+      ]
+    },
+    "hard_strong_concept_depth": {
+      "category": "HARD",
+      "description": "Deep understanding of a single concept required; not definition, not simple linking, but mechanistic understanding of WHY and HOW. Tests concept mastery at expert level.",
+      "characteristics": [
+        "Single concept but tested at depth",
+        "Mechanism understanding required",
+        "Cannot be answered by surface knowledge",
+        "Requires expert-level conceptual grasp"
+      ],
+      "question_structure": "Why does X occur? / Explain the complete mechanism of X. / What is the necessary condition for X?",
+      "example": "River piracy occurs when: A) A river erodes through its watershed boundary B) Headward erosion of a tributary reaches and breaches a watershed divide, causing capture C) Two rivers converge D) Gradient increases at river junction [Correct: B; requires full understanding of piracy mechanics]",
+      "percentage_in_climatology": 0.02,
+      "percentage_in_geomorphology": 0.05,
+      "trap_types_used": ["GEO_AR_T02 (Process chain skip)"],
+      "typical_question_types": ["assertion_reason"],
+      "blueprint_selection": "Pick a complex concept from concept pool with multi-step mechanisms. Question should require understanding full chain.",
+      "generation_rules": [
+        "Select a complex concept (e.g., River Piracy, Monsoon Formation)",
+        "Create assertion requiring full mechanistic understanding",
+        "Distractors: partial truths or surface-level explanations",
+        "Hard because requires deep expert knowledge, not just concept recall"
+      ]
+    },
+    "hard_spatial_sequence": {
+      "category": "HARD",
+      "description": "Requires 3D/map visualization and spatial reasoning. Tests if student can visualize spatial sequences (west-to-east, latitude gradients, upslope-downslope). Common in Geomorphology, less in other subjects.",
+      "characteristics": [
+        "Requires map/3D thinking",
+        "Spatial ordering matters (direction, sequence)",
+        "Cannot be answered without visualization",
+        "Direction reversal is common trap"
+      ],
+      "question_structure": "Sequence from west to east / North to south latitude gradient / Upslope to downslope. / Which spatial order is correct?",
+      "example": "Which is the correct sequence of landforms from upslope to downslope in a glaciated valley? A) Cirque → U-shaped valley → moraines → outwash plain B) Moraines → Cirque → U-shaped valley → outwash plain [A is correct; requires 3D visualization]",
+      "percentage_in_climatology": 0.02,
+      "percentage_in_geomorphology": 0.08,
+      "trap_types_used": ["pattern_6 (Spatial sequence reversal)", "GEO_AR_T01 (Direction reversal)", "GEO_AR_T05 (Scale ambiguity)"],
+      "typical_question_types": ["assertion_reason", "match_pair"],
+      "blueprint_selection": "Select a concept with spatial/sequential aspect (rivers, mountains, glaciers). Create question testing spatial order. Include reverse-order distractor.",
+      "generation_rules": [
+        "Create sequence of features from one direction to another",
+        "Student must visualize order correctly (map/3D skill)",
+        "Trap: reverse the sequence or mix up directions",
+        "Hard because requires spatial reasoning + map knowledge",
+        "Geomorphology-specific: test river sequences, glacial landform zones, slope processes"
+      ]
+    },
+    "hard_reverse_extreme": {
+      "category": "HARD",
+      "description": "Correct answer strongly violates student intuition. Extreme counterintuitive fact that cannot be guessed or intuited. Example: Eustatic sea-level rises when glaciers melt (counterintuitive: more water but comes FROM land-based glaciers).",
+      "characteristics": [
+        "Correct answer seems impossible",
+        "Strong intuition pulls toward wrong answer",
+        "Requires conceptual reversal at extreme level",
+        "Cannot be reasoned through intuitively"
+      ],
+      "question_structure": "Assertion-Reason where reason is extremely counterintuitive. / True statement that defies intuition?",
+      "example": "A: Eustatic sea level rises when polar ice sheets melt. R: Because land-based glacier water adds to ocean volume even though glaciers cover land. [Seems backward: how does removing land ice raise sea level?]",
+      "percentage_in_climatology": 0.01,
+      "percentage_in_geomorphology": 0.02,
+      "trap_types_used": ["pattern_1 (Reverse the obvious)"],
+      "typical_question_types": ["assertion_reason"],
+      "blueprint_selection": "Pick concept with extreme counterintuitive aspect. Create assertion testing that extreme reversal.",
+      "generation_rules": [
+        "Identify concept with EXTREME counterintuitive aspect",
+        "Make correct answer clearly state counterintuitive fact",
+        "Make intuitive (wrong) answer prominent as distractor",
+        "Hard because even reading the correct answer feels wrong",
+        "Test uses physics/process understanding to overcome intuition"
+      ]
+    },
+    "pure_ca_news_tracking": {
+      "category": "PURE_CA",
+      "description": "Tests news following without deep geographic analysis. Recent event is mentioned; question tests if student tracked that news. Concept knowledge is secondary.",
+      "characteristics": [
+        "Recent event in news",
+        "Question tests news awareness",
+        "Concept is simple/well-known",
+        "Easy-medium difficulty"
+      ],
+      "question_structure": "Which recent event happened? / Where is X (recent event location)?",
+      "example": "Which country experienced major flooding in 2024? A) Thailand B) Pakistan C) Both... [Tests news tracking]",
+      "percentage_in_climatology": 0.03,
+      "percentage_in_geomorphology": 0.02,
+      "trap_types_used": ["pattern_5 (CA trigger)"],
+      "typical_question_types": ["direct_fact", "pure_ca"],
+      "blueprint_selection": "Select a recent CA event (max 2-3 years old). Create question testing awareness of event.",
+      "generation_rules": [
+        "Use recent CA event from news",
+        "Question asks about event itself or basic facts related to it",
+        "Concept being tested is simple",
+        "Easy to medium difficulty"
+      ]
+    },
+    "pure_ca_recent_event": {
+      "category": "PURE_CA",
+      "description": "Recent event IS the question itself. Student must have followed news to know what happened. Example: 'Which Indian state was hit by an earthquake in 2024?'",
+      "characteristics": [
+        "Recent event is the focus",
+        "Not testing geographic concept, just awareness",
+        "Event itself is the subject of question",
+        "Easy difficulty"
+      ],
+      "question_structure": "What recent event happened? / Which state/country experienced X event recently?",
+      "example": "Which Indian states were affected by major landslides in 2024? A) Himachal Pradesh B) Tamil Nadu C) Both [Tests knowledge of specific 2024 events]",
+      "percentage_in_climatology": 0.05,
+      "percentage_in_geomorphology": 0.03,
+      "trap_types_used": ["pattern_5 (CA trigger)"],
+      "typical_question_types": ["direct_fact", "pure_ca"],
+      "blueprint_selection": "Select a major recent CA event. Create question asking about that event directly.",
+      "generation_rules": [
+        "Use very recent CA event (max 1-2 years old)",
+        "Question is about the event itself, not underlying concept",
+        "Student must have tracked news to answer",
+        "Easy difficulty: simple recall of news event"
+      ]
+    }
+  },
+  "usage_by_blueprint": {
+    "description": "How Blueprint (Stage 0) uses difficulty types",
+    "allocation": {
+      "easy_recall_static": "5-10% of easy questions",
+      "easy_ca_trigger": "5-10% of easy questions",
+      "easy_reverse_mild": "5-10% of easy questions",
+      "medium_concept_linking_same_domain": "20-25% of medium questions",
+      "medium_adjacent_fact": "20-25% of medium questions",
+      "medium_statistical_reversal": "10-15% of medium questions",
+      "medium_precision_location": "15-20% of medium questions",
+      "medium_ca_integration": "5-10% of medium questions",
+      "hard_counterintuitive_single_concept": "30-35% of hard questions",
+      "hard_cross_domain_linking": "20-25% of hard questions",
+      "hard_all_of_above_precision": "15-20% of hard questions",
+      "hard_strong_concept_depth": "10-15% of hard questions",
+      "hard_spatial_sequence": "5-10% of hard questions (Geomorphology/Indian Geography specific)",
+      "hard_reverse_extreme": "5% of hard questions",
+      "pure_ca_news_tracking": "50% of pure CA questions",
+      "pure_ca_recent_event": "50% of pure CA questions"
+    },
+    "blueprint_stage0_process": [
+      "1. Determine target difficulty distribution (e.g., 50% hard, 25% medium, 15% easy, 10% CA)",
+      "2. For each question in batch, randomly sample from appropriate difficulty_type list",
+      "3. Pass difficulty_type + subject + domain to Stage 1 Retrieval",
+      "4. Stage 1 queries concepts and traps specific to that difficulty_type",
+      "5. Ensures diverse hard questions (not all hard_counterintuitive, mix with hard_spatial_sequence)"
+    ]
+  },
+  "notes": [
+    "These 15 types apply across all Geography sub-domains; frequencies vary by domain",
+    "Blueprint uses difficulty_type (not just easy/medium/hard) to ensure question diversity",
+    "hard_spatial_sequence is Geomorphology-specific; may be rare in Climatology",
+    "easy_ca_trigger and medium_ca_integration frequencies increasing in 2022-2024",
+    "Quality Gate (Stage 4) validates that generated question matches specified difficulty_type",
+    "Each difficulty_type has specific trap patterns (see traps files) that should be injected"
+  ]
+}

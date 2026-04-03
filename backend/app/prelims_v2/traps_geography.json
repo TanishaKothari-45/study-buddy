@@ -1,247 +1,375 @@
 {
-  "_meta": {
-    "version": "1.0",
-    "source": "UPSC Prelims PYQ analysis 2014–2024 (10 years)",
-    "method": "web research + direct question analysis",
-    "last_updated": "2026-03",
-    "note": "Each trap has real PYQ examples. Use these in blueprint generation to inject specific trap strategies per skeleton."
-  },
-  "Geography": {
-    "_subject_patterns": {
-      "dominant_question_types": [
-        "multi_statement",
-        "match_pair",
-        "assertion_reason",
-        "spatial_fact"
-      ],
-      "avg_questions_per_paper": 13,
-      "difficulty_split": {
-        "easy": 0.25,
-        "medium": 0.5,
-        "hard": 0.25
+  "subject": "Geography",
+  "description": "UPSC Prelims Geography trap patterns by question type. Maps question types to trap patterns with generation rules. Applicable across all Geography sub-domains (Climatology, Geomorphology, Indian Geography, etc.)",
+  "question_types": {
+    "how_many": {
+      "description": "Evaluates all N statements independently; correct answer is count of true statements",
+      "characteristics": "Forces exhaustive evaluation; strategic guessing harder",
+      "frequency_in_geography": 0.28,
+      "difficulty_distribution": {
+        "easy": 0.10,
+        "medium": 0.40,
+        "hard": 0.50
       },
-      "ca_linkage_rate": 0.3
+      "trap_patterns": [
+        {
+          "pattern_id": "pattern_1",
+          "name": "Counterintuitive all-correct",
+          "frequency": 0.30,
+          "mechanism": "Student eliminates one statement assuming it MUST be wrong. But it's correct. Answer: 'all 4' or 'all 3' when student expected 2 or 1",
+          "error_type": "expectation_reversal",
+          "distractor_strategy": "One statement violates prior knowledge but is factually true. Makes student second-guess",
+          "example_statement": "Low clouds WARM the atmosphere (not cool it)",
+          "generation_rules": [
+            "State the counterintuitive fact as TRUE in the statement",
+            "Make student's wrong prior belief available as a distractor option",
+            "Ensure all other statements are unambiguously correct",
+            "Use language that triggers doubt (use conditional words: 'generally', 'primarily')"
+          ],
+          "applicable_sub_domains": [
+            "Climatology",
+            "Atmospheric Physics",
+            "Oceanography"
+          ]
+        },
+        {
+          "pattern_id": "pattern_2",
+          "name": "All-of-above with embedded precision error",
+          "frequency": 0.15,
+          "mechanism": "3-4 statements where 1 has a subtle precision error (direction, metric, location). Student must catch the error or all seem correct",
+          "error_type": "precision_mismatch",
+          "distractor_strategy": "One statement has correct concept but wrong detail (e.g., 'isotherms deviate SOUTH over ocean' vs correct 'NORTH')",
+          "generation_rules": [
+            "Make 3 statements clearly correct",
+            "One statement: correct concept, wrong direction/location/name",
+            "Answer: 'all except statement X' or 'only X is false'",
+            "Requires detailed map/conceptual knowledge"
+          ],
+          "applicable_sub_domains": [
+            "Indian Geography",
+            "Geomorphology",
+            "Spatial Geography"
+          ],
+          "pyq_year": 2023
+        },
+        {
+          "pattern_id": "pattern_6",
+          "name": "Spatial sequence reversal",
+          "frequency": 0.08,
+          "mechanism": "Questions about spatial order (west-to-east river sequence, latitude gradients). Reverses direction or sequence",
+          "error_type": "spatial_direction_error",
+          "distractor_strategy": "Reverse the sequence but keep all named elements correct",
+          "generation_rules": [
+            "State a west-to-east or latitude sequence correctly",
+            "Offer an answer that reverses the sequence",
+            "Requires map-level knowledge, not concept knowledge"
+          ],
+          "applicable_sub_domains": [
+            "Indian Rivers",
+            "Mountain Chains",
+            "Climate Zones"
+          ],
+          "pyq_year": 2022
+        }
+      ]
     },
-    "traps": [
-      {
-        "trap_id": "GEO_T01",
-        "name": "river_lake_wrong_feeder",
-        "description": "Statement says River X feeds Lake Y — but X only passes through or is adjacent to Y, not the direct feeder. Or the feeder relationship is reversed.",
-        "mechanism": "Students memorise river names near lakes but not the exact hydrological relationship.",
-        "real_pyq_example": "2023: 'Krishna River directly feeds Kolleru Lake' — FALSE. Kolleru lies between Krishna and Godavari deltas but Krishna does not directly feed it. Jhelum passing through Wular Lake was TRUE.",
-        "how_to_generate": "Pick any Indian lake. Assign the nearest river as the feeder in a false statement. Use actual feeder in correct statement.",
-        "difficulty": "medium",
-        "sub_domains": [
-          "Indian Rivers",
-          "Indian Lakes",
-          "Drainage System"
-        ],
-        "generation_rules": {
-          "format": "multi_statement",
-          "error_type": "confusion",
-          "correct_count": 2,
-          "incorrect_count": 1
-        },
-        "query_bias": [],
-        "distractor_strategy": "use closely related options"
+    "multi_statement": {
+      "description": "2-3 statements; evaluate which are correct using given options",
+      "characteristics": "Options guide answer; allows strategic partial elimination",
+      "frequency_in_geography": 0.25,
+      "difficulty_distribution": {
+        "easy": 0.15,
+        "medium": 0.70,
+        "hard": 0.15
       },
-      {
-        "trap_id": "GEO_T02",
-        "name": "country_border_length_swap",
-        "description": "Tests longest/shortest border between two countries — students confuse China-India with Canada-US.",
-        "mechanism": "Students assume India has long borders since it borders many countries. The Canada-US border is the world's longest, not China-India.",
-        "real_pyq_example": "2024: 'The longest border between any two countries is between China and India' — FALSE. Correct answer: Canada-USA.",
-        "how_to_generate": "Use superlatives (longest, shortest, highest, deepest) and swap with the second-most-famous answer.",
-        "difficulty": "easy",
-        "sub_domains": [
-          "World Geography",
-          "International Boundaries"
-        ],
-        "generation_rules": {
-          "format": "multi_statement",
-          "error_type": "swap",
-          "correct_count": 2,
-          "incorrect_count": 1
+      "trap_patterns": [
+        {
+          "pattern_id": "pattern_3",
+          "name": "Statistical precision reversal",
+          "frequency": 0.20,
+          "mechanism": "Two metrics are correct, one is reversed. E.g., 'India has more arable land AND irrigation' (true), but 'higher productivity' (false — China higher)",
+          "error_type": "metric_reversal",
+          "distractor_strategy": "The reversed metric is the one student assumes is true",
+          "generation_rules": [
+            "Compare two entities on 3 metrics",
+            "Make 2 metrics favor Entity A, 1 metric favor Entity B",
+            "Reverse the metric that sounds most plausible to student assumption",
+            "Use statements: 'Statement 1 and 2 only' (A wins) or 'all correct' (if student guesses)"
+          ],
+          "applicable_sub_domains": [
+            "Agriculture",
+            "Economic Geography",
+            "Human Geography"
+          ],
+          "pyq_year": 2023
         },
-        "query_bias": [],
-        "distractor_strategy": "use closely related options"
+        {
+          "pattern_id": "pattern_4",
+          "name": "Adjacent fact in match-pair",
+          "frequency": 0.15,
+          "mechanism": "Correct concept, wrong specific detail. Alps = fold mountains (correct), but statement says 'block mountains' (incorrect)",
+          "error_type": "adjacent_fact_confusion",
+          "distractor_strategy": "Related but incorrect fact that sounds plausible",
+          "generation_rules": [
+            "State concept X correctly but pair with wrong detail Y",
+            "Detail Y must be plausible (real geographic feature, just paired with wrong concept)",
+            "Example: 'Gersoppa Falls flows through Sharavathi River' (correct river is actually Gersoppa itself)"
+          ],
+          "applicable_sub_domains": [
+            "Indian Geography",
+            "Geomorphology",
+            "Rivers"
+          ]
+        },
+        {
+          "pattern_id": "pattern_1_variant",
+          "name": "Reverse the obvious",
+          "frequency": 0.30,
+          "mechanism": "Student's strong prior belief is inverted. E.g., 'Low clouds WARM' not 'cool'",
+          "error_type": "counterintuitive_truth",
+          "distractor_strategy": "State the counterintuitive truth. Student's prior knowledge makes them reject it",
+          "generation_rules": [
+            "Identify a concept where student's intuition is wrong",
+            "State the counterintuitive fact as TRUE",
+            "Make student's intuitive (but wrong) answer available as distractor option"
+          ],
+          "applicable_sub_domains": [
+            "Climatology",
+            "Oceanography",
+            "Physics"
+          ]
+        }
+      ]
+    },
+    "assertion_reason": {
+      "description": "Statement A is given; Reason R is given. Evaluate if A is true, R is true, and if R explains A",
+      "characteristics": "Tests cause-effect and logical linkage, not just facts",
+      "frequency_in_geography": 0.15,
+      "difficulty_distribution": {
+        "easy": 0.20,
+        "medium": 0.60,
+        "hard": 0.20
       },
-      {
-        "trap_id": "GEO_T03",
-        "name": "sea_ocean_property_reversal",
-        "description": "Assigns a physical property (precipitation, salinity, no river inflow) to the wrong water body, or reverses a comparative property.",
-        "mechanism": "Students know properties in isolation but not the correct body they apply to.",
-        "real_pyq_example": "2024 Red Sea question: Both statements were actually correct — Red Sea has very little precipitation AND no river inflow. Trap was in the options (students expected one to be false).",
-        "how_to_generate": "State a true property of one sea for a different sea. Or use 'highest salinity' for Red Sea vs Dead Sea confusion.",
-        "difficulty": "medium",
-        "sub_domains": [
-          "Oceanography",
-          "World Geography",
-          "Seas and Gulfs"
-        ],
-        "generation_rules": {
-          "format": "multi_statement",
-          "error_type": "reversal",
-          "correct_count": 2,
-          "incorrect_count": 1
+      "trap_patterns": [
+        {
+          "pattern_id": "pattern_1_ar_variant",
+          "name": "A true, R false or wrong mechanism",
+          "frequency": 0.40,
+          "mechanism": "Assertion is correct but the reason given is incorrect or incomplete",
+          "error_type": "causal_mechanism_error",
+          "distractor_strategy": "Give a plausible but wrong explanation",
+          "generation_rules": [
+            "A is TRUE (e.g., 'Troposphere is thicker at equator')",
+            "R is FALSE or only partially explains (e.g., 'because the equator receives more solar radiation')",
+            "The wrong reason must be plausible and test whether student understands the ACTUAL mechanism"
+          ],
+          "applicable_sub_domains": [
+            "Climatology",
+            "Geomorphology"
+          ]
         },
-        "query_bias": [],
-        "distractor_strategy": "use closely related options"
+        {
+          "pattern_id": "pattern_2_ar_variant",
+          "name": "Both A and R true, but R doesn't explain A",
+          "frequency": 0.25,
+          "mechanism": "Both statements are correct facts, but R is not the cause of A",
+          "error_type": "logical_disconnection",
+          "distractor_strategy": "Both seem related but actually independent",
+          "generation_rules": [
+            "A is TRUE",
+            "R is TRUE",
+            "But R has no causal link to A",
+            "Tests whether student confuses correlation with causation"
+          ],
+          "applicable_sub_domains": [
+            "All domains"
+          ],
+          "pyq_year": 2023
+        }
+      ]
+    },
+    "direct_fact": {
+      "description": "Single fact question; one correct answer from 4 options",
+      "characteristics": "Tests recall and precision; minimal inference",
+      "frequency_in_geography": 0.18,
+      "difficulty_distribution": {
+        "easy": 0.60,
+        "medium": 0.35,
+        "hard": 0.05
       },
-      {
-        "trap_id": "GEO_T04",
-        "name": "troposphere_thickness_direction_error",
-        "description": "Reverses the direction of a gradient — e.g., troposphere is thicker at equator vs poles, temperature lapse rates.",
-        "mechanism": "Students know the concept but flip the direction under exam pressure.",
-        "real_pyq_example": "2024: 'Troposphere is thicker at the equator' — TRUE. Statement II explained it correctly via convectional currents. Trap was making students doubt Statement I because Statement II seemed to explain something they weren't sure about.",
-        "how_to_generate": "Take any gradient concept (temperature, pressure, thickness, density) and state the correct direction in one statement, reversed in another. Use A/R format.",
-        "difficulty": "medium",
-        "sub_domains": [
-          "Atmosphere",
-          "Climatology",
-          "Physical Geography"
-        ],
-        "generation_rules": {
-          "format": "assertion_reason",
-          "error_type": "reversal",
-          "correct_count": 2,
-          "incorrect_count": 1
+      "trap_patterns": [
+        {
+          "pattern_id": "pattern_5",
+          "name": "CA trigger on static fact",
+          "frequency": 0.12,
+          "mechanism": "CA event surfaces a well-known geographic fact. Student focuses on CA and misses static fact being tested",
+          "error_type": "recency_bias",
+          "distractor_strategy": "Use news-driven fact to test static knowledge",
+          "generation_rules": [
+            "Introduce a recent CA event (e.g., 'Greenfield airport announced in [state]')",
+            "Question tests static fact (e.g., 'What is a greenfield airport?' or '[state] is located in which region?')",
+            "Answer is factual and verifiable, not opinion"
+          ],
+          "applicable_sub_domains": [
+            "All domains"
+          ]
         },
-        "query_bias": [],
-        "distractor_strategy": "use closely related options"
+        {
+          "pattern_id": "pattern_1_direct_variant",
+          "name": "Reverse obvious (direct fact)",
+          "frequency": 0.05,
+          "mechanism": "Correct answer goes against student intuition. E.g., 'Nitrogen compounds ARE found in volcanic products'",
+          "error_type": "counterintuitive_fact",
+          "distractor_strategy": "Student's intuitive answer is a distractor",
+          "generation_rules": [
+            "State an unusual but true fact",
+            "Make student's intuitive (but wrong) answer a prominent distractor"
+          ],
+          "applicable_sub_domains": [
+            "All domains"
+          ]
+        }
+      ]
+    },
+    "match_pair": {
+      "description": "Match entities (X-Y pairs); 3-4 pairs given, evaluate how many are correctly matched",
+      "characteristics": "Tests one-to-one mapping; requires precision in definitions",
+      "frequency_in_geography": 0.14,
+      "difficulty_distribution": {
+        "easy": 0.10,
+        "medium": 0.70,
+        "hard": 0.20
       },
-      {
-        "trap_id": "GEO_T05",
-        "name": "mineral_source_confusion",
-        "description": "Asks what mineral a rock/ore is a source of — confuses titanium with iron, cobalt with nickel, etc.",
-        "mechanism": "Students know ore names but not the exact metal extracted from each.",
-        "real_pyq_example": "2023: 'Ilmenite and rutile are rich sources of Titanium' — correct. Common trap: students think ilmenite = iron (ilmen = iron in some languages). 2024: DRC cobalt — primary byproduct of copper/nickel mining.",
-        "how_to_generate": "Give a mineral name + location. Options are 4 metals that are plausibly associated with that region or mineral family.",
-        "difficulty": "medium",
-        "sub_domains": [
-          "Economic Geography",
-          "Mineral Resources",
-          "Indian Resources"
-        ],
-        "generation_rules": {
-          "format": "multi_statement",
-          "error_type": "confusion",
-          "correct_count": 2,
-          "incorrect_count": 1
-        },
-        "query_bias": [],
-        "distractor_strategy": "use closely related options"
+      "trap_patterns": [
+        {
+          "pattern_id": "pattern_4_match_variant",
+          "name": "Correct concept, wrong pair detail",
+          "frequency": 0.15,
+          "mechanism": "Entity is correctly identified but paired with wrong detail. E.g., 'Indri lemur found in Brazil' (actually Madagascar)",
+          "error_type": "pairing_error",
+          "distractor_strategy": "Plausible but incorrect geographic pairing",
+          "generation_rules": [
+            "Pair 1: Entity X with correct location/property",
+            "Pair 2: Entity Y with incorrect location/property (but plausible)",
+            "Pair 3: Clearly correct",
+            "Answer: 'X only' or 'X and Z only'"
+          ],
+          "applicable_sub_domains": [
+            "Geomorphology",
+            "Flora/Fauna",
+            "Geography"
+          ],
+          "pyq_year": 2023
+        }
+      ]
+    },
+    "pure_ca": {
+      "description": "Pure current affairs; concept is well-known, CA provides the instance",
+      "characteristics": "Tests news tracking, not deep analysis",
+      "frequency_in_geography": 0.06,
+      "difficulty_distribution": {
+        "easy": 0.70,
+        "medium": 0.25,
+        "hard": 0.05
       },
-      {
-        "trap_id": "GEO_T06",
-        "name": "india_vs_china_agricultural_stats",
-        "description": "Compares India-China on arable land, irrigated area, productivity — two of three stats are true, one flips.",
-        "mechanism": "India DOES have more arable land and higher irrigation share. But China has HIGHER productivity per hectare. Students assume India beats China on all three.",
-        "real_pyq_example": "2023: Three statements about India vs China agriculture — statements 1 and 2 correct, statement 3 (India productivity higher than China) FALSE. Appeared 2+ times in PYQs.",
-        "how_to_generate": "Use any India vs world comparison (ranks, shares, ratios). Put 2 correct and 1 reversed statement. Make the reversed one the one students are most likely to assume is true.",
-        "difficulty": "hard",
-        "sub_domains": [
-          "Human Geography",
-          "Agriculture",
-          "Indian Agriculture"
-        ],
-        "generation_rules": {
-          "format": "multi_statement",
-          "error_type": "confusion",
-          "correct_count": 2,
-          "incorrect_count": 1
-        },
-        "query_bias": [],
-        "distractor_strategy": "use closely related options"
-      },
-      {
-        "trap_id": "GEO_T07",
-        "name": "port_classification_first_largest",
-        "description": "Confuses 'first' (chronologically) with 'largest' — or 'public' with 'private' port classification.",
-        "mechanism": "Students memorise rankings without understanding classification criteria.",
-        "real_pyq_example": "2023: 'Kamarajar Port is first major port registered as a company' — TRUE. 'Mundra Port is largest privately owned' — TRUE. Students failed on the Kamarajar = company registration fact.",
-        "how_to_generate": "Pick ports/airports/stations. Use superlatives with specific criteria (first by which metric, largest by which measure, greenfield vs brownfield).",
-        "difficulty": "hard",
-        "sub_domains": [
-          "Indian Geography",
-          "Transport",
-          "Economic Geography"
-        ],
-        "generation_rules": {
-          "format": "multi_statement",
-          "error_type": "confusion",
-          "correct_count": 2,
-          "incorrect_count": 1
-        },
-        "query_bias": [],
-        "distractor_strategy": "use closely related options"
-      },
-      {
-        "trap_id": "GEO_T08",
-        "name": "volcanic_eruption_products",
-        "description": "Lists volcanic products and asks which are ALL correct — students think nitrogen compounds are NOT volcanic products.",
-        "mechanism": "Students know lava, ash, sulphur. Nitrogen compounds (NOx) from volcanic eruptions are less memorised.",
-        "real_pyq_example": "2023: Pyroclastic debris, ash, nitrogen compounds, sulphur compounds — all four are volcanic products. Answer was 'all of the above' which students avoided.",
-        "how_to_generate": "Use 'all of the above' as the correct answer when one item seems unlikely. Science-geography overlap questions.",
-        "difficulty": "medium",
-        "sub_domains": [
-          "Physical Geography",
-          "Geomorphology",
-          "Volcanism"
-        ],
-        "generation_rules": {
-          "format": "multi_statement",
-          "error_type": "confusion",
-          "correct_count": 2,
-          "incorrect_count": 1
-        },
-        "query_bias": [],
-        "distractor_strategy": "use closely related options"
-      },
-      {
-        "trap_id": "GEO_T09",
-        "name": "tree_type_deciduous_vs_evergreen",
-        "description": "Classifies trees as deciduous/evergreen — one familiar tree (jackfruit) is evergreen, not deciduous, trapping students.",
-        "mechanism": "Teak is obviously deciduous. Jackfruit looks like a tropical tree so students assume evergreen — actually it IS evergreen. The trap is Mahua which is also deciduous.",
-        "real_pyq_example": "2023: Teak (deciduous), Mahua (deciduous), Jackfruit (evergreen) — answer was 'two are deciduous'.",
-        "how_to_generate": "Mix trees students know (teak, sal, neem) with less-known ones and ask how many are deciduous/evergreen. Include one that seems counterintuitive.",
-        "difficulty": "medium",
-        "sub_domains": [
-          "Natural Vegetation",
-          "Indian Geography",
-          "Ecology"
-        ],
-        "generation_rules": {
-          "format": "multi_statement",
-          "error_type": "confusion",
-          "correct_count": 2,
-          "incorrect_count": 1
-        },
-        "query_bias": [],
-        "distractor_strategy": "use closely related options"
-      },
-      {
-        "trap_id": "GEO_T10",
-        "name": "green_field_vs_brown_field_airport",
-        "description": "Asks which airports are greenfield (built on new land) vs brownfield (expansion of existing) — students assume all new-looking airports are greenfield.",
-        "mechanism": "Vijayawada airport LOOKS modern but is a very old airport expanded — brownfield. Students assume newness = greenfield.",
-        "real_pyq_example": "2023: Donyi Polo (greenfield, correct), Kushinagar (greenfield, correct), Vijayawada (brownfield, NOT greenfield) — trap caught students who assumed all three were greenfield.",
-        "how_to_generate": "List infrastructure projects. Include one that was recently upgraded/modernised but is actually old — that's the false greenfield claim.",
-        "difficulty": "hard",
-        "sub_domains": [
-          "Indian Geography",
-          "Transport Infrastructure",
-          "Economic Geography"
-        ],
-        "generation_rules": {
-          "format": "multi_statement",
-          "error_type": "confusion",
-          "correct_count": 2,
-          "incorrect_count": 1
-        },
-        "query_bias": [],
-        "distractor_strategy": "use closely related options"
-      }
-    ]
-  }
+      "trap_patterns": [
+        {
+          "pattern_id": "pattern_5_ca_variant",
+          "name": "CA trigger static concept",
+          "frequency": 0.90,
+          "mechanism": "Recent CA event surfaces a static geographic concept. Student answers based on news, not geography",
+          "error_type": "concept_misapplication",
+          "distractor_strategy": "News-based incorrect answer (e.g., wrong country/region for ageing population trend)",
+          "generation_rules": [
+            "Use a recent CA event (max 2-3 years old)",
+            "Question tests existing geographic knowledge triggered by the event",
+            "No new knowledge required; just news tracking + geography"
+          ],
+          "applicable_sub_domains": [
+            "All domains"
+          ]
+        }
+      ]
+    }
+  },
+  "trap_patterns_global_reference": {
+    "description": "Reference for all trap patterns used across question types",
+    "pattern_1": {
+      "name": "Reverse the obvious",
+      "usage": "Most common (30% of all traps)",
+      "across_question_types": [
+        "how_many",
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason"
+      ],
+      "mechanism": "Student's strong prior belief is inverted. Correct answer violates intuition",
+      "difficulty_impact": "easy → medium → hard (depending on how counterintuitive)"
+    },
+    "pattern_2": {
+      "name": "All-of-above with embedded error",
+      "usage": "Common (15% of traps)",
+      "across_question_types": [
+        "how_many",
+        "multi_statement"
+      ],
+      "mechanism": "One statement seems obviously wrong but is actually correct, or one subtle error among obvious truths",
+      "difficulty_impact": "medium → hard"
+    },
+    "pattern_3": {
+      "name": "Statistical reversal",
+      "usage": "Moderate (20% of traps)",
+      "across_question_types": [
+        "multi_statement",
+        "assertion_reason"
+      ],
+      "mechanism": "Two metrics favor A, one favors B. Reversed metric is the one student assumes",
+      "difficulty_impact": "medium → hard"
+    },
+    "pattern_4": {
+      "name": "Adjacent fact confusion",
+      "usage": "Moderate (15% of traps)",
+      "across_question_types": [
+        "multi_statement",
+        "match_pair"
+      ],
+      "mechanism": "Correct concept paired with wrong detail. Plausible but incorrect",
+      "difficulty_impact": "medium"
+    },
+    "pattern_5": {
+      "name": "CA trigger on static fact",
+      "usage": "Growing (12% of traps, rising in 2020-24)",
+      "across_question_types": [
+        "direct_fact",
+        "multi_statement",
+        "pure_ca"
+      ],
+      "mechanism": "Recent event surfaces a geographic fact. Recency bias causes careless error",
+      "difficulty_impact": "easy → medium"
+    },
+    "pattern_6": {
+      "name": "Spatial sequence reversal",
+      "usage": "Specialized (8% of traps)",
+      "across_question_types": [
+        "how_many"
+      ],
+      "mechanism": "West-to-east, or latitude gradient. Reverses sequence or direction",
+      "difficulty_impact": "medium"
+    }
+  },
+  "sub_domains_covered": [
+    "Climatology",
+    "Geomorphology",
+    "Indian Geography",
+    "Economic Geography",
+    "Human Geography",
+    "Physical Geography",
+    "Oceanography"
+  ],
+  "notes": [
+    "Not exhaustive. Covers 6 core patterns that account for 85%+ of UPSC Geography questions",
+    "Patterns are reusable across all Geography sub-domains and other subjects",
+    "Question type drives which patterns apply; difficulty drives how complex the trap is",
+    "Generation rules are templates; LLM adapts based on concept and context"
+  ]
 }

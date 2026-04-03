@@ -1,0 +1,537 @@
+{
+  "subject": "Geography",
+  "subdomain": "Climatology",
+  "description": "UPSC Prelims Climatology-specific trap patterns. Focuses on counterintuitive atmospheric mechanisms, seasonal reversals, and cross-domain confusions (oceanography, Indian geography, global systems).",
+  "concept_trap_mapping": {
+    "Monsoon": [
+      "GEO_C_T01",
+      "GEO_C_T02",
+      "GEO_C_T07"
+    ],
+    "Jet Streams": [
+      "GEO_C_T03",
+      "GEO_C_T06"
+    ],
+    "ITCZ": [
+      "GEO_C_T01",
+      "GEO_C_T04"
+    ],
+    "Cyclones": [
+      "GEO_C_T05",
+      "GEO_C_T08",
+      "GEO_C_T02"
+    ],
+    "ENSO": [
+      "GEO_C_T02",
+      "GEO_C_T09",
+      "GEO_C_T10"
+    ],
+    "Atmospheric Radiation & Heat Transfer": [
+      "GEO_C_T11",
+      "GEO_C_T12"
+    ],
+    "Pressure Belts": [
+      "GEO_C_T03",
+      "GEO_C_T04"
+    ],
+    "Rainfall Types": [
+      "GEO_C_T01",
+      "GEO_C_T05",
+      "GEO_C_T06"
+    ],
+    "Western Disturbances": [
+      "GEO_C_T06",
+      "GEO_C_T02"
+    ],
+    "Local Winds": [
+      "GEO_C_T12",
+      "GEO_C_T03"
+    ],
+    "Temperature Distribution": [
+      "GEO_C_T11",
+      "GEO_C_T07"
+    ],
+    "Indian Ocean Dipole": [
+      "GEO_C_T09",
+      "GEO_C_T02"
+    ],
+    "Heat Budget": [
+      "GEO_C_T11",
+      "GEO_C_T12"
+    ],
+    "Climate Classification": [
+      "GEO_C_T04",
+      "GEO_C_T13"
+    ],
+    "Air Masses": [
+      "GEO_C_T03",
+      "GEO_C_T06"
+    ]
+  },
+  "trap_patterns": {
+    "GEO_C_T01": {
+      "pattern_id": "GEO_C_T01",
+      "name": "Reverse thermal intuition — atmosphere heating source",
+      "category": "counterintuitive_mechanism",
+      "frequency": 0.18,
+      "difficulty": "medium",
+      "mechanism": "Student assumes atmosphere is warmed primarily by solar radiation (intuitive). Actually warmed MORE by terrestrial radiation (counterintuitive).",
+      "error_type": "mechanism_inversion",
+      "distractor_strategy": "Make solar radiation sound like the primary heating source (seems intuitive, actually wrong).",
+      "applicable_concepts": [
+        "Atmospheric Radiation & Heat Transfer",
+        "Heat Budget",
+        "Temperature Distribution"
+      ],
+      "generation_rules": [
+        "Present fact: 'Atmosphere is heated more by terrestrial radiation than direct solar radiation'",
+        "Offer wrong answer: 'Solar radiation is the primary heat source' (intuitive but wrong)",
+        "Test mechanism understanding, not rote fact"
+      ],
+      "question_type_fit": [
+        "assertion_reason",
+        "multi_statement"
+      ],
+      "example_question": "A: Atmosphere is heated primarily by terrestrial radiation, not solar. R: Because the atmosphere is largely transparent to solar radiation but absorbs terrestrial radiation. Code: (a) only A is true (b) only R is true (c) Both A and R, R explains A (d) Both true, R doesn't explain A"
+    },
+    "GEO_C_T02": {
+      "pattern_id": "GEO_C_T02",
+      "name": "Seasonal reversal in hemisphere — pressure/temperature flip",
+      "category": "spatial_temporal_reversal",
+      "frequency": 0.15,
+      "difficulty": "medium",
+      "mechanism": "Student confuses season in Northern Hemisphere with Southern (or vice versa). E.g., assumes January means summer everywhere.",
+      "error_type": "hemisphere_confusion",
+      "distractor_strategy": "Offer statement true for ONE hemisphere as if true globally. Pressure belt position shifts, monsoon reverses, temperature inverts by season.",
+      "applicable_concepts": [
+        "Monsoon",
+        "Pressure Belts",
+        "ITCZ",
+        "ENSO",
+        "Cyclones"
+      ],
+      "generation_rules": [
+        "State a seasonal phenomenon for NH (e.g., 'January = pressure belt shift northward')",
+        "Ask about SH without explicitly saying SH (forces student to think)",
+        "Correct answer reverses the direction"
+      ],
+      "question_type_fit": [
+        "multi_statement",
+        "assertion_reason",
+        "scenario"
+      ],
+      "example_question": "Which statement is correct? (1) Subtropical high pressure belt shifts southward in January in Northern Hemisphere. (2) In Southern Hemisphere in July, ITCZ is in the Southern Hemisphere. (a) Only 1 (b) Only 2 (c) Both (d) Neither"
+    },
+    "GEO_C_T03": {
+      "pattern_id": "GEO_C_T03",
+      "name": "Jet stream latitude misplacement — subtropical vs polar confusion",
+      "category": "precision_error",
+      "frequency": 0.12,
+      "difficulty": "medium",
+      "mechanism": "Student knows jet streams exist but misplaces latitude. Subtropical jet at 35°N vs Polar front jet at 60°N. Gets confused.",
+      "error_type": "spatial_precision",
+      "distractor_strategy": "Offer latitude/location that sounds plausible (e.g., '50°N' when correct is '35°N').",
+      "applicable_concepts": [
+        "Jet Streams",
+        "Pressure Belts",
+        "Air Masses"
+      ],
+      "generation_rules": [
+        "State specific latitude for jet stream position",
+        "Offer nearby latitude as wrong answer",
+        "Requires map knowledge, not conceptual"
+      ],
+      "question_type_fit": [
+        "direct_fact",
+        "match_pair",
+        "assertion_reason"
+      ],
+      "example_question": "Subtropical jet stream in Northern Hemisphere is centered approximately at: (a) 25°N (b) 35°N (c) 50°N (d) 60°N"
+    },
+    "GEO_C_T04": {
+      "pattern_id": "GEO_C_T04",
+      "name": "Köppen classification letter swap — Am vs Aw vs BWh",
+      "category": "notation_precision",
+      "frequency": 0.14,
+      "difficulty": "easy_medium",
+      "mechanism": "Student recalls Köppen classification exists but confuses letter meanings. Am (monsoon) vs Aw (savanna) confusion, or BWh vs BSh.",
+      "error_type": "classification_error",
+      "distractor_strategy": "Swap letters or use similar code for different climate type.",
+      "applicable_concepts": [
+        "Climate Classification",
+        "Pressure Belts",
+        "Rainfall Types"
+      ],
+      "generation_rules": [
+        "Describe a climate region (e.g., 'Tropical monsoon with distinct dry season')",
+        "Offer correct Köppen code (Am) and wrong code (Aw)",
+        "Test notation precision"
+      ],
+      "question_type_fit": [
+        "direct_fact",
+        "match_pair"
+      ],
+      "example_question": "Tropical monsoon climate with pronounced dry season is classified as: (a) Af (b) Am (c) Aw (d) Cwb"
+    },
+    "GEO_C_T05": {
+      "pattern_id": "GEO_C_T05",
+      "name": "Cyclone formation trigger confusion — temperature vs pressure",
+      "category": "mechanism_error",
+      "frequency": 0.11,
+      "difficulty": "medium",
+      "mechanism": "Student conflates causes. Cyclone needs warm SST (true) but also specific wind shear & Coriolis effect. Offering only SST as cause is incomplete/wrong.",
+      "error_type": "incomplete_causation",
+      "distractor_strategy": "Offer one necessary condition as if it's the sole cause. E.g., 'Cyclones form wherever SST > 26.5°C' (true but incomplete).",
+      "applicable_concepts": [
+        "Cyclones",
+        "Rainfall Types"
+      ],
+      "generation_rules": [
+        "List multiple cyclone formation conditions: SST, wind shear, Coriolis, low pressure",
+        "Ask which is NECESSARY but not SUFFICIENT",
+        "Test causal hierarchy understanding"
+      ],
+      "question_type_fit": [
+        "assertion_reason",
+        "multi_statement"
+      ],
+      "example_question": "A: Tropical cyclones can form in all ocean areas with SST > 26.5°C. R: Because warm water is the primary energy source for cyclone intensification. Code: (a) Both A and R true, R explains A (b) Both true, R does not explain A (c) A false, R true (d) Both false"
+    },
+    "GEO_C_T06": {
+      "pattern_id": "GEO_C_T06",
+      "name": "Wind system direction confusion — easterlies vs westerlies misplacement",
+      "category": "spatial_direction_error",
+      "frequency": 0.13,
+      "difficulty": "medium",
+      "mechanism": "Student knows trade winds blow from horse latitudes but reverses direction or applies wrong latitude. Easterlies at equator (correct) vs westerlies at mid-latitudes (correct) — easy to swap.",
+      "error_type": "direction_reversal",
+      "distractor_strategy": "Reverse wind direction or apply to wrong latitude belt.",
+      "applicable_concepts": [
+        "Pressure Belts",
+        "Jet Streams",
+        "Western Disturbances",
+        "Local Winds",
+        "Air Masses"
+      ],
+      "generation_rules": [
+        "Specify latitude and expected wind direction",
+        "Offer reversed direction as distractor",
+        "Requires mental map of global wind belts"
+      ],
+      "question_type_fit": [
+        "direct_fact",
+        "assertion_reason"
+      ],
+      "example_question": "In the subtropical high-pressure zone (30°N-S), prevailing winds are: (a) Westerlies moving poleward (b) Easterlies moving equatorward (c) Converging toward ITCZ (d) Diverging poleward and equatorward"
+    },
+    "GEO_C_T07": {
+      "pattern_id": "GEO_C_T07",
+      "name": "Monsoon onset timing trigger confusion — pressure belt vs ITCZ shift",
+      "category": "causal_ambiguity",
+      "frequency": 0.10,
+      "difficulty": "hard",
+      "mechanism": "Multiple factors cause monsoon onset (ITCZ shift, pressure belt migration, thermal low formation, jet stream movement). Student identifies ONE but misses primary driver or confuses order.",
+      "error_type": "incomplete_mechanism",
+      "distractor_strategy": "Offer a contributing factor (e.g., 'jet stream shifts') as THE cause when true cause is pressure belt migration + thermal low.",
+      "applicable_concepts": [
+        "Monsoon",
+        "Temperature Distribution"
+      ],
+      "generation_rules": [
+        "List multiple monsoon onset factors",
+        "Ask which is PRIMARY (most necessary)",
+        "Wrong answer offers a secondary factor"
+      ],
+      "question_type_fit": [
+        "assertion_reason",
+        "scenario"
+      ],
+      "example_question": "The Southwest Monsoon onset over India is primarily triggered by: (a) Northward shift of ITCZ (b) Formation of thermal low over Deccan Plateau (c) Southward migration of subtropical jet (d) Reversal of wind direction at 60°N"
+    },
+    "GEO_C_T08": {
+      "pattern_id": "GEO_C_T08",
+      "name": "Cyclone classification naming — tropical cyclone vs hurricane vs typhoon",
+      "category": "nomenclature_error",
+      "frequency": 0.09,
+      "difficulty": "easy",
+      "mechanism": "Student confuses regional names for same phenomenon. Atlantic hurricanes vs NW Pacific typhoons vs Indian Ocean cyclones.",
+      "error_type": "terminology_confusion",
+      "distractor_strategy": "Use wrong regional name for described location/phenomenon.",
+      "applicable_concepts": [
+        "Cyclones"
+      ],
+      "generation_rules": [
+        "Describe a cyclone in a specific region",
+        "Ask for regional term",
+        "Wrong answers use correct term but wrong region"
+      ],
+      "question_type_fit": [
+        "direct_fact",
+        "match_pair"
+      ],
+      "example_question": "Severe cyclonic storms in the Northwest Pacific are locally called: (a) Hurricanes (b) Typhoons (c) Cyclones (d) Tornadoes"
+    },
+    "GEO_C_T09": {
+      "pattern_id": "GEO_C_T09",
+      "name": "ENSO phase direction confusion — El Niño cooling vs warming",
+      "category": "phase_reversal",
+      "frequency": 0.12,
+      "difficulty": "medium",
+      "mechanism": "Student knows ENSO cycles but reverses phase effects. El Niño = cooler SST (WRONG; actually warmer). La Niña = warmer (WRONG; actually cooler).",
+      "error_type": "phase_inversion",
+      "distractor_strategy": "Reverse the temperature effect for given ENSO phase.",
+      "applicable_concepts": [
+        "ENSO",
+        "Indian Ocean Dipole"
+      ],
+      "generation_rules": [
+        "State ENSO phase (El Niño or La Niña)",
+        "Ask about SST change",
+        "Wrong answer reverses the effect"
+      ],
+      "question_type_fit": [
+        "direct_fact",
+        "assertion_reason",
+        "multi_statement"
+      ],
+      "example_question": "During El Niño phase, Pacific SST: (a) Decreases significantly (b) Remains unchanged (c) Increases significantly (d) Varies by month only"
+    },
+    "GEO_C_T10": {
+      "pattern_id": "GEO_C_T10",
+      "name": "ENSO-IOD interaction reversal — modulation effect misunderstanding",
+      "category": "cross_domain_mechanism",
+      "frequency": 0.08,
+      "difficulty": "hard",
+      "mechanism": "Both ENSO and IOD influence Indian monsoon. Positive IOD can MODULATE (weaken or strengthen) El Niño's monsoon impact. Student assumes independent or additive effects.",
+      "error_type": "interaction_misunderstanding",
+      "distractor_strategy": "Offer statement treating ENSO and IOD as independent when they actually interact.",
+      "applicable_concepts": [
+        "ENSO",
+        "Indian Ocean Dipole",
+        "Monsoon"
+      ],
+      "generation_rules": [
+        "Describe concurrent ENSO and IOD phases",
+        "Ask about combined monsoon impact",
+        "Wrong answer treats effects as simply additive"
+      ],
+      "question_type_fit": [
+        "assertion_reason",
+        "scenario",
+        "multi_statement"
+      ],
+      "example_question": "A: Strong El Niño always reduces Indian monsoon rainfall. R: Because positive IOD can sometimes offset El Niño's weakening effect. Code: (a) Both A and R true, R explains A (b) A false, R true (c) Both false (d) A true, R false"
+    },
+    "GEO_C_T11": {
+      "pattern_id": "GEO_C_T11",
+      "name": "Albedo reversal — surface reflectivity misconception",
+      "category": "quantitative_error",
+      "frequency": 0.10,
+      "difficulty": "medium",
+      "mechanism": "Student knows albedo exists but reverses ranking. Ice/snow has HIGH albedo (reflects more), ocean/forest has LOW albedo (absorbs more). Easy to invert.",
+      "error_type": "metric_reversal",
+      "distractor_strategy": "Reverse the albedo ranking. E.g., offer 'snow has low albedo' (wrong).",
+      "applicable_concepts": [
+        "Atmospheric Radiation & Heat Transfer",
+        "Temperature Distribution"
+      ],
+      "generation_rules": [
+        "Compare albedos of two surfaces",
+        "Offer correct ranking and reversed ranking",
+        "Test quantitative understanding"
+      ],
+      "question_type_fit": [
+        "direct_fact",
+        "assertion_reason",
+        "match_pair"
+      ],
+      "example_question": "Among the following, which surface has the HIGHEST albedo? (a) Ocean (b) Dark soil (c) Forest (d) Snow/Ice"
+    },
+    "GEO_C_T12": {
+      "pattern_id": "GEO_C_T12",
+      "name": "Adiabatic process confusion — warming vs cooling in ascent/descent",
+      "category": "process_inversion",
+      "frequency": 0.11,
+      "difficulty": "hard",
+      "mechanism": "Dry adiabatic lapse rate (air warms when descending, cools when ascending). Student confuses direction or conflates with moist adiabatic.",
+      "error_type": "process_direction_error",
+      "distractor_strategy": "Reverse the temperature change direction for given vertical motion.",
+      "applicable_concepts": [
+        "Atmospheric Radiation & Heat Transfer",
+        "Local Winds",
+        "Heat Budget"
+      ],
+      "generation_rules": [
+        "Describe air rising/descending adiabatically",
+        "Ask about temperature change",
+        "Wrong answer reverses the effect"
+      ],
+      "question_type_fit": [
+        "assertion_reason",
+        "scenario"
+      ],
+      "example_question": "A: Air descending a mountain slope becomes warmer due to adiabatic compression. R: Because descending air is compressed, losing potential energy as heat. Code: (a) Both A and R true, R explains A (b) Both true, R doesn't explain A (c) A true, R false (d) Both false"
+    },
+    "GEO_C_T13": {
+      "pattern_id": "GEO_C_T13",
+      "name": "Köppen classification boundary overlap — when two climates border",
+      "category": "boundary_ambiguity",
+      "frequency": 0.07,
+      "difficulty": "medium",
+      "mechanism": "Student recalls Köppen codes but struggles with boundary conditions. A location on the boundary between Am and Aw can be classified either way. Question tests understanding of defining thresholds.",
+      "error_type": "boundary_condition",
+      "distractor_strategy": "Offer both borderline classifications as seemingly correct, requiring understanding of precipitation threshold (usually <60mm driest month).",
+      "applicable_concepts": [
+        "Climate Classification",
+        "Rainfall Types"
+      ],
+      "generation_rules": [
+        "Provide precipitation data for a location",
+        "Ask for Köppen classification",
+        "Data should be ambiguous (exactly at boundary) or require precise threshold recall"
+      ],
+      "question_type_fit": [
+        "assertion_reason",
+        "scenario"
+      ],
+      "example_question": "A location receives 2000 mm annual rainfall, concentrated in 6 months (600 mm/month), with driest month receiving 45 mm. This is classified as: (a) Am (tropical monsoon) (b) Aw (tropical savanna) (c) Cfa (temperate humid) (d) Both Am and Aw depending on year"
+    }
+  },
+  "generation_guidance_by_question_type": {
+    "assertion_reason": {
+      "recommended_traps": [
+        "GEO_C_T01",
+        "GEO_C_T05",
+        "GEO_C_T07",
+        "GEO_C_T09",
+        "GEO_C_T12"
+      ],
+      "strategy": "Use mechanism-based traps. Test causal understanding, not just facts. Assertion usually TRUE, Reason either FALSE or INCOMPLETE."
+    },
+    "multi_statement": {
+      "recommended_traps": [
+        "GEO_C_T02",
+        "GEO_C_T04",
+        "GEO_C_T05",
+        "GEO_C_T09"
+      ],
+      "strategy": "Mix correct and incorrect statements. One statement tests reversal (e.g., T02), another tests precision (e.g., T04)."
+    },
+    "direct_fact": {
+      "recommended_traps": [
+        "GEO_C_T03",
+        "GEO_C_T04",
+        "GEO_C_T08",
+        "GEO_C_T11"
+      ],
+      "strategy": "Test recall of specific facts. Wrong answers use plausible alternatives (similar latitude, related term, reversed metric)."
+    },
+    "match_pair": {
+      "recommended_traps": [
+        "GEO_C_T03",
+        "GEO_C_T04",
+        "GEO_C_T06",
+        "GEO_C_T08",
+        "GEO_C_T11"
+      ],
+      "strategy": "One correct pairing, others with plausible but incorrect details. Test precision in concept-to-property mapping."
+    },
+    "scenario": {
+      "recommended_traps": [
+        "GEO_C_T02",
+        "GEO_C_T05",
+        "GEO_C_T07",
+        "GEO_C_T10",
+        "GEO_C_T12",
+        "GEO_C_T13"
+      ],
+      "strategy": "Present real-world scenario (e.g., 'Location X at 30°S in July'). Wrong answers apply NH logic or reverse seasonal effects."
+    },
+    "pure_ca": {
+      "recommended_traps": [
+        "GEO_C_T02",
+        "GEO_C_T09",
+        "GEO_C_T10"
+      ],
+      "strategy": "Use recent CA event (monsoon failure, cyclone, drought). Test whether student can link static concept to news-driven instance."
+    }
+  },
+  "common_misconceptions_by_concept": {
+    "Monsoon": {
+      "primary_misconceptions": [
+        "Monsoon is caused only by temperature difference (incomplete; pressure belt migration primary)",
+        "Monsoon has same onset across India (varies by region by months)",
+        "Southwest Monsoon brings rain everywhere in India (rain shadow effects create dry zones)"
+      ],
+      "traps_to_inject": [
+        "GEO_C_T01",
+        "GEO_C_T02",
+        "GEO_C_T07"
+      ]
+    },
+    "Jet Streams": {
+      "primary_misconceptions": [
+        "Jet streams are at same latitude year-round (they migrate seasonally)",
+        "Jet streams directly cause wind on ground (indirect; they steer systems)",
+        "Subtropical and polar front jets are at similar latitudes (35°N vs 60°N; significant difference)"
+      ],
+      "traps_to_inject": [
+        "GEO_C_T03",
+        "GEO_C_T06"
+      ]
+    },
+    "ENSO": {
+      "primary_misconceptions": [
+        "El Niño always equals stronger monsoon (usually weaker; phase matters)",
+        "IOD and ENSO effects are additive (actually, they interact/modulate each other)",
+        "El Niño is cooler SST (actually warmer)",
+        "ENSO is predictable with 100% accuracy (chaotic system; 6-month lead time typical)"
+      ],
+      "traps_to_inject": [
+        "GEO_C_T02",
+        "GEO_C_T09",
+        "GEO_C_T10"
+      ]
+    },
+    "Atmospheric Radiation": {
+      "primary_misconceptions": [
+        "Solar radiation is main heat source for atmosphere (terrestrial radiation is primary)",
+        "Atmosphere is opaque to solar radiation (actually transparent; absorbs selectively)",
+        "Greenhouse effect traps outgoing solar radiation (actually traps outgoing terrestrial radiation)"
+      ],
+      "traps_to_inject": [
+        "GEO_C_T01",
+        "GEO_C_T11"
+      ]
+    },
+    "Cyclones": {
+      "primary_misconceptions": [
+        "Only SST matters for cyclone formation (multiple factors: wind shear, Coriolis, moisture)",
+        "Cyclones form at equator (Coriolis effect too weak; form poleward of ~5°)",
+        "Stronger hurricanes always cause more damage (intensity ≠ damage; speed & storm surge matter)"
+      ],
+      "traps_to_inject": [
+        "GEO_C_T05",
+        "GEO_C_T08"
+      ]
+    },
+    "Climate Classification": {
+      "primary_misconceptions": [
+        "Am and Aw are easily confused (Am = monsoon with distinct dry season, Aw = savanna with longer dry season)",
+        "Köppen codes are arbitrary (actually based on precise precipitation/temperature thresholds)",
+        "Tropical climates are all hot and wet (Aw is hot and dry part of year)"
+      ],
+      "traps_to_inject": [
+        "GEO_C_T04",
+        "GEO_C_T13"
+      ]
+    }
+  },
+  "notes_for_blueprint": {
+    "usage": "When Blueprint samples a concept (e.g., Monsoon), check concept_trap_mapping to get assigned trap IDs (e.g., GEO_C_T01, GEO_C_T02, GEO_C_T07). Generator pulls these traps when crafting distractors.",
+    "frequency_calibration": "Trap frequencies are based on 2015-2024 PYQ analysis. High-frequency traps (>12%) should appear in 60-70% of generated questions for that concept. Low-frequency traps (<8%) in 10-20% of questions.",
+    "difficulty_calibration": "Each trap has assigned difficulty. Use to modulate question difficulty. Mix easy traps (e.g., GEO_C_T08 nomenclature) with hard traps (e.g., GEO_C_T10 ENSO-IOD interaction) to create balanced difficulty distribution.",
+    "cross_domain_synergy": "Climatology traps often interact with Geomorphology (e.g., weathering rates depend on climate = GEO_C_T01 + Weathering concept). Blueprint can use this to generate cross-domain linking questions.",
+    "ca_integration": "Traps marked as current affairs relevant (GEO_C_T02, GEO_C_T09, GEO_C_T10) should be prioritized when sampling CA-linked concepts. Tie recent monsoon failures, cyclone seasons, or ENSO events to underlying concepts."
+  }
+}
