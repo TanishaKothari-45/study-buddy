@@ -1,0 +1,110 @@
+[
+  {
+    "question_type": "multi_statement",
+    "trap_mechanism": "Student's intuition: tides are caused primarily by the Sun. Correct answer: primarily by the Moon with smaller contribution from Sun.",
+    "error_type": "counterintuitive_fact",
+    "distractor_strategy": "Includes statement about Sun causing tides as wrong option; uses student's intuitive but incorrect answer",
+    "frequency": 0.18,
+    "difficulty": "medium",
+    "difficulty_type": "medium_concept_linking_same_domain"
+  },
+  {
+    "question_type": "how_many",
+    "trap_mechanism": "Multiple statements about tides - student knows some facts but misses the subtle error in one statement about tidal mechanics",
+    "error_type": "detail_mismatch",
+    "distractor_strategy": "Includes mostly correct statements with one subtly wrong detail; student confirms what they know and misses the error",
+    "frequency": 0.15,
+    "difficulty": "hard",
+    "difficulty_type": "hard_all_of_above_precision"
+  },
+  {
+    "question_type": "match_pair",
+    "trap_mechanism": "Correct concept (ocean current) paired with wrong temperature classification or wrong region",
+    "error_type": "adjacent_fact_confusion",
+    "distractor_strategy": "Uses correct current name but pairs with incorrect property (wrong temperature, wrong region, wrong direction)",
+    "frequency": 0.12,
+    "difficulty": "medium",
+    "difficulty_type": "medium_adjacent_fact"
+  },
+  {
+    "question_type": "assertion_reason",
+    "trap_mechanism": "Both assertion and reason are individually correct but not causally related; student thinks they're connected",
+    "error_type": "causation_reversal",
+    "distractor_strategy": "Provides two individually true statements that students assume must be related",
+    "frequency": 0.10,
+    "difficulty": "hard",
+    "difficulty_type": "hard_strong_concept_depth"
+  },
+  {
+    "question_type": "multi_statement",
+    "trap_mechanism": "Student's intuition: cold currents are always found in high latitudes. Trap: some cold currents exist in equatorial regions (upwelling zones)",
+    "error_type": "counterintuitive_fact",
+    "distractor_strategy": "Makes student's intuitive but wrong answer available as plausible option",
+    "frequency": 0.14,
+    "difficulty": "hard",
+    "difficulty_type": "hard_counterintuitive_single_concept"
+  },
+  {
+    "question_type": "how_many",
+    "trap_mechanism": "Question compares ocean salinity across multiple basins - student uses one metric (evaporation) but ignores others (river discharge, precipitation)",
+    "error_type": "metric_reversal",
+    "distractor_strategy": "Correct answer requires weighing multiple factors; student focuses on one factor they know well",
+    "frequency": 0.11,
+    "difficulty": "medium",
+    "difficulty_type": "medium_statistical_reversal"
+  },
+  {
+    "question_type": "single_best_answer",
+    "trap_mechanism": "Question about El Niño causes - student focuses on recent news (warming Pacific) and forgets to verify mechanism",
+    "error_type": "recency_bias",
+    "distractor_strategy": "Includes recent news event as distractor; primes student to choose news-related answer",
+    "frequency": 0.13,
+    "difficulty": "medium",
+    "difficulty_type": "medium_ca_integration"
+  },
+  {
+    "question_type": "multi_statement",
+    "trap_mechanism": "Ocean acidification: student confuses cause (CO2) with effect (pH reduction) or the mechanisms involved",
+    "error_type": "causation_reversal",
+    "distractor_strategy": "Reverses cause-effect relationships in wrong answer options",
+    "frequency": 0.12,
+    "difficulty": "medium",
+    "difficulty_type": "medium_concept_linking_same_domain"
+  },
+  {
+    "question_type": "match_pair",
+    "trap_mechanism": "Correct marine ecosystem but wrong depth zone or wrong environmental condition",
+    "error_type": "adjacent_fact_confusion",
+    "distractor_strategy": "Uses correct ecosystem name but pairs with wrong depth/temperature zone",
+    "frequency": 0.10,
+    "difficulty": "medium",
+    "difficulty_type": "medium_adjacent_fact"
+  },
+  {
+    "question_type": "how_many",
+    "trap_mechanism": "Thermohaline circulation: student knows individual facts (salinity, temperature, deep water) but misses how they link globally",
+    "error_type": "conceptual_gap",
+    "distractor_strategy": "Includes correct individual facts but wrong connection between them",
+    "frequency": 0.09,
+    "difficulty": "hard",
+    "difficulty_type": "hard_cross_domain_linking"
+  },
+  {
+    "question_type": "single_best_answer",
+    "trap_mechanism": "IOD vs ENSO distinction: student confuses which ocean system (Pacific vs Indian) and which months matter",
+    "error_type": "location_confusion",
+    "distractor_strategy": "Uses correct concept name but wrong ocean basin or wrong seasonal pattern",
+    "frequency": 0.11,
+    "difficulty": "hard",
+    "difficulty_type": "hard_cross_domain_linking"
+  },
+  {
+    "question_type": "multi_statement",
+    "trap_mechanism": "Ocean zones by light penetration - student knows zone names but misses depth ranges or wrong organism distribution",
+    "error_type": "detail_mismatch",
+    "distractor_strategy": "Correct zone name with incorrect depth or light penetration characteristic",
+    "frequency": 0.09,
+    "difficulty": "medium",
+    "difficulty_type": "medium_precision_location"
+  }
+]

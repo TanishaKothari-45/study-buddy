@@ -1,0 +1,38 @@
+[
+  {
+    "Question Type": "Multi-statement",
+    "Trap Mechanism": "The question presents multiple statements that seem plausible, but only a few are correct. Students may misinterpret the context or fail to identify the nuances in the statements.",
+    "Error Type": "counterintuitive_fact",
+    "Distractor Strategy": "Distractors are based on common misconceptions or closely related concepts that may confuse students, making them think they are correct.",
+    "Difficulty Level": "medium",
+    "Difficulty Type": "medium_concept_linking_same_domain",
+    "Difficulty Explanation": "This type requires students to connect related concepts within geomorphology, which can be challenging if they have not fully grasped the interrelationships."
+  },
+  {
+    "Question Type": "Assertion-Reason",
+    "Trap Mechanism": "The assertion may be true, but the reason provided could be misleading or only partially correct, leading students to incorrectly affirm both.",
+    "Error Type": "metric_reversal",
+    "Distractor Strategy": "The reason might use terminology or concepts that sound correct but are misapplied, causing confusion.",
+    "Difficulty Level": "hard",
+    "Difficulty Type": "hard_counterintuitive_single_concept",
+    "Difficulty Explanation": "This type challenges students to critically evaluate the relationship between assertion and reason, requiring deep understanding of the concepts involved."
+  },
+  {
+    "Question Type": "Match-pair",
+    "Trap Mechanism": "Students may struggle to accurately match terms with their definitions due to similar-sounding terms or overlapping concepts.",
+    "Error Type": "cognitive overload",
+    "Distractor Strategy": "Distractors are designed with slight variations of correct answers, making them seem plausible and increasing the chance of confusion.",
+    "Difficulty Level": "medium",
+    "Difficulty Type": "medium_adjacent_fact",
+    "Difficulty Explanation": "This type tests students' ability to differentiate between closely related concepts, which can be tricky without a solid grasp of the material."
+  },
+  {
+    "Question Type": "Direct-fact",
+    "Trap Mechanism": "The question may ask for a specific fact that is often confused with another similar fact, leading to incorrect answers.",
+    "Error Type": "metric_reversal",
+    "Distractor Strategy": "Distractors are facts that are close in context or numerical value to the correct answer, making them seem plausible.",
+    "Difficulty Level": "easy",
+    "Difficulty Type": "easy_recall_static",
+    "Difficulty Explanation": "This type relies on straightforward recall of facts, but the presence of closely related distractors can lead to errors."
+  }
+]

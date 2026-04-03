@@ -12,7 +12,7 @@ import logging
 import random
 from typing import Dict, List, Optional
 
-from .models import DifficultyBundle, QuestionSkeleton, V2GeneratedQuestion
+from .models import QuestionSkeleton, V2GeneratedQuestion
 
 logger = logging.getLogger(__name__)
 
@@ -20,34 +20,36 @@ MAX_RETRIES = 1  # How many times to retry a failed skeleton before replacing
 
 
 async def _retry_skeleton(
-    bundle: DifficultyBundle,
+    skeleton: QuestionSkeleton,
     chunk_map: Dict[str, List[dict]],
     ca_query_map: Dict[str, str],
     gemini_client,
     subject: str,
 ) -> Optional[V2GeneratedQuestion]:
-    """Retry generation for a single skeleton with lowered difficulty."""
+    """
+    Retry generation for a single failed skeleton with lowered difficulty.
+
+    Strategy (Stage 5 gap fill):
+      1. Downgrade difficulty: hard → medium → easy
+      2. Disable CA (remove current affairs complication)
+      3. Re-attempt generation with same chunks
+      4. If still fails, may replace skeleton with fresh easy one
+    """
     from .pipeline import _generate_one
     from .stage1_retrieval import RetrievalResult
-    from .stage2_difficulty import inject_difficulty
 
-    # Downgrade difficulty for retry
-    sk = bundle.skeleton
-    if sk.difficulty == "hard":
-        sk_relaxed = sk.model_copy(update={"difficulty": "medium", "ca_flag": False})
-    elif sk.difficulty == "medium":
-        sk_relaxed = sk.model_copy(update={"difficulty": "easy", "ca_flag": False})
+    # Downgrade difficulty for retry (hard → medium → easy → easy)
+    if skeleton.difficulty == "hard":
+        sk_relaxed = skeleton.model_copy(update={"difficulty": "medium", "ca_flag": False})
+    elif skeleton.difficulty == "medium":
+        sk_relaxed = skeleton.model_copy(update={"difficulty": "easy", "ca_flag": False})
     else:
-        sk_relaxed = sk.model_copy(update={"ca_flag": False})
-
-    # Rebuild instruction with relaxed difficulty
-    relaxed_bundles = inject_difficulty([sk_relaxed], subject=subject)
-    relaxed_bundle = relaxed_bundles[0]
+        sk_relaxed = skeleton.model_copy(update={"ca_flag": False})
 
     # Build a minimal RetrievalResult from the cached chunks (drop CA on retry)
     retrieval_result = RetrievalResult(
-        skeleton_id    = sk.skeleton_id,
-        static_chunks  = chunk_map.get(sk.skeleton_id, []),
+        skeleton_id    = skeleton.skeleton_id,
+        static_chunks  = chunk_map.get(skeleton.skeleton_id, []),
         ca_context     = "",
         ca_queries     = [],
         retrieval_mode = "pinecone",
@@ -64,7 +66,6 @@ async def _retry_skeleton(
     return await _generate_one(
         skeleton           = sk_relaxed,
         retrieval_result   = retrieval_result,
-        bundle             = relaxed_bundle,
         gemini_client      = gemini_client,
         trap_registry_path = trap_registry_path,
         pyq_chunks         = [],
@@ -120,7 +121,7 @@ def _to_wire_format(q: V2GeneratedQuestion, index: int, job_id: str, topics: Lis
 async def fill_and_finalize(
     passed: List[V2GeneratedQuestion],
     failed_skeleton_ids: List[str],
-    all_bundles: List[DifficultyBundle],
+    skeletons: List[QuestionSkeleton],
     chunk_map: Dict[str, List[dict]],
     ca_query_map: Dict[str, str],
     gemini_client,
@@ -130,7 +131,14 @@ async def fill_and_finalize(
     job_id: str,
 ) -> List[dict]:
     """
-    Stage 5: retry failed skeletons, trim/pad to num_questions, shuffle.
+    Stage 5: retry failed skeletons with lowered difficulty, trim/pad, shuffle.
+
+    Pipeline: Direct (no Stage 2 wrapper)
+      - passed:              Questions that passed quality gate
+      - failed_skeleton_ids: IDs of skeletons that failed generation
+      - skeletons:           All skeletons from Stage 0 (lookup source)
+      - chunk_map:           Cached chunks from Stage 1 (reuse for retries)
+
     Returns a list of dicts in the v1-compatible wire format.
     """
     logger.info(
@@ -138,18 +146,18 @@ async def fill_and_finalize(
         f"{len(failed_skeleton_ids)} to retry, target={num_questions}"
     )
 
-    bundle_map: Dict[str, DifficultyBundle] = {b.skeleton.skeleton_id: b for b in all_bundles}
+    skeleton_map: Dict[str, QuestionSkeleton] = {sk.skeleton_id: sk for sk in skeletons}
     all_questions = list(passed)
 
     # Retry failed skeletons (in parallel, limited retries)
-    failed_bundles = [
-        bundle_map[sid] for sid in failed_skeleton_ids if sid in bundle_map
+    failed_skeletons = [
+        skeleton_map[sid] for sid in failed_skeleton_ids if sid in skeleton_map
     ]
 
-    if failed_bundles:
+    if failed_skeletons:
         retry_tasks = [
-            _retry_skeleton(b, chunk_map, ca_query_map, gemini_client, subject)
-            for b in failed_bundles
+            _retry_skeleton(sk, chunk_map, ca_query_map, gemini_client, subject)
+            for sk in failed_skeletons
         ]
         retry_results = await asyncio.gather(*retry_tasks, return_exceptions=True)
 

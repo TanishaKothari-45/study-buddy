@@ -1,15 +1,15 @@
 """
-pipeline.py — V2 Orchestrator
+pipeline.py — V2 Orchestrator (Direct: Stage 0 → 1 → 3 → 4 → 5, no Stage 2)
 
-Wires Stages 0 → 5 into a single async function.
+Wires Stages 0, 1, 3, 4, 5 into a single async function.
 Updates Redis progress at each stage boundary.
 Falls back to the v1 pipeline if Stage 0 fails completely.
 
-Stage flow:
-  0. Blueprint        → List[QuestionSkeleton]
-  1. Retrieval        → List[RetrievalResult]  (per-skeleton Pinecone + CA search)
-  2. Difficulty       → List[DifficultyBundle] (trap injection)
-  3. Generation       → List[V2GeneratedQuestion] (one LLM call per skeleton)
+Stage flow (NO STAGE 2):
+  0. Blueprint        → List[QuestionSkeleton] (v4.5 Controlled)
+  1. Retrieval        → List[RetrievalResult]  (70% structured + 30% exploratory)
+  [NO STAGE 2 — Direct flow, no wrapper]
+  3. Generation       → List[V2GeneratedQuestion] (batch + fallback, single trap lookup)
   4. Quality Gate     → passed / failed split
   5. Gap Fill         → final List[dict]
 """
@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
 _STAGE_PROGRESS = {
     0: {"msg": "Generating question blueprint…",    "pct": 5},
     1: {"msg": "Retrieving targeted content…",      "pct": 20},
-    2: {"msg": "Injecting difficulty & traps…",     "pct": 25},
     3: {"msg": "Generating questions in parallel…", "pct": 70},
     4: {"msg": "Running quality gate…",             "pct": 85},
     5: {"msg": "Finalizing & shuffling…",           "pct": 95},
@@ -88,13 +87,18 @@ def _parse_generation_response(text: str, skeleton_id: str) -> Optional[dict]:
 async def _generate_one(
     skeleton,
     retrieval_result,
-    bundle,
     gemini_client,
     trap_registry_path: Path,
     pyq_chunks: list,
     semaphore: asyncio.Semaphore,
 ) -> Optional[V2GeneratedQuestion]:
-    """One LLM call for one skeleton. Returns None on failure."""
+    """
+    One LLM call for one skeleton. Returns None on failure.
+
+    Used by:
+      - Stage 3 fallback (if batch call fails)
+      - Stage 5 gap fill retries (when initial generation failed)
+    """
     from .stage3_generation import assemble_skeleton_prompt
 
     prompt = assemble_skeleton_prompt(
@@ -159,14 +163,20 @@ async def run_v2_pipeline(
     user_id: Optional[str] = None,
 ) -> List[dict]:
     """
-    Full question-first v2 pipeline.
+    Full question-first v2 pipeline (Stage 0 → 1 → 3 → 4 → 5, no Stage 2).
 
     Returns a list of question dicts compatible with the v1 wire format.
     Falls back to a RuntimeError if Stage 0 produces nothing.
+
+    Pipeline stages:
+      0. Blueprint        → List[QuestionSkeleton] (v4.5 Controlled)
+      1. Retrieval        → List[RetrievalResult]  (70% struct + 30% expl)
+      3. Generation       → List[V2GeneratedQuestion] (direct, no wrapper)
+      4. Quality Gate     → passed / failed split
+      5. Gap Fill         → final List[dict]
     """
     from .stage0_blueprint  import generate_blueprint
     from .stage1_retrieval  import retrieve_for_all_skeletons
-    from .stage2_difficulty import inject_difficulty
     from .stage4_quality_gate import run_quality_gate
     from .stage5_gap_fill   import fill_and_finalize
 
@@ -262,14 +272,7 @@ async def run_v2_pipeline(
         )
     logger.info("─" * 80 + "\n")
 
-    # ── Stage 2: Difficulty Injection ─────────────────────────────────────────
-    await _set_progress(redis, job_id, 2)
-
-    bundles = inject_difficulty(skeletons, subject=subject)
-    bundle_map = {b.skeleton.skeleton_id: b for b in bundles}
-    logger.info(f"   [2] {len(bundles)} bundles with trap rules")
-
-    # ── Stage 3: Batch Generation (1 LLM call) ────────────────────────────────
+    # ── Stage 3: Batch Generation (Direct — no Stage 2 wrapper) ────────────────
     await _set_progress(redis, job_id, 3)
     await _check_cancel(redis, job_id)
 
@@ -297,15 +300,22 @@ async def run_v2_pipeline(
 
     for batch_idx, batch_skeletons in enumerate(sub_batches):
         temperature = get_sub_batch_temperature(batch_idx, total_batches, num_questions)
+
+        # Filter retrieval_map to ONLY chunks for this batch (cleaner context)
+        batch_retrieval_map = {
+            sk.skeleton_id: retrieval_map[sk.skeleton_id]
+            for sk in batch_skeletons
+            if sk.skeleton_id in retrieval_map
+        }
+
         logger.info(
             f"  [3] Sub-batch {batch_idx+1}/{total_batches}: "
-            f"{len(batch_skeletons)} skeletons, temp={temperature}"
+            f"{len(batch_skeletons)} skeletons, {len(batch_retrieval_map)} chunks, temp={temperature}"
         )
 
         prompt = assemble_batch_prompt(
             skeletons          = batch_skeletons,
-            retrieval_map      = retrieval_map,
-            bundle_map         = bundle_map,
+            retrieval_map      = batch_retrieval_map,
             trap_registry_path = trap_registry_path,
             pyq_chunks         = pyq_chunks,
             subject            = subject,
@@ -340,7 +350,6 @@ async def run_v2_pipeline(
                 _generate_one(
                     skeleton           = sk,
                     retrieval_result   = retrieval_map.get(sk.skeleton_id),
-                    bundle             = bundle_map.get(sk.skeleton_id),
                     gemini_client      = gemini_client,
                     trap_registry_path = trap_registry_path,
                     pyq_chunks         = pyq_chunks,
@@ -391,7 +400,7 @@ async def run_v2_pipeline(
     final_questions = await fill_and_finalize(
         passed              = passed,
         failed_skeleton_ids = failed_ids,
-        all_bundles         = bundles,
+        skeletons           = skeletons,
         chunk_map           = chunk_map,
         ca_query_map        = ca_query_map,
         gemini_client       = gemini_client,
