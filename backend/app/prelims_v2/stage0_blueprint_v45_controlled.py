@@ -637,10 +637,14 @@ async def generate_blueprint_controlled(
     if "concept_trap_mapping" in trap_registry and "trap_patterns" in trap_registry:
         num_concepts_with_traps = len(trap_registry.get("concept_trap_mapping", {}))
         num_trap_ids = len(trap_registry.get("trap_patterns", {}))
+        sample_trap_ids = sorted(list(trap_registry.get("trap_patterns", {}).keys()))[:5]
         logger.info(f"[Stage0 v4.5+][TrapRegistry] Loaded {num_trap_ids} trap IDs for {num_concepts_with_traps} concepts from domain-specific file ({subject}/{subdomain})")
+        logger.info(f"[Stage0 v4.5+][TrapRegistry] Sample trap IDs: {sample_trap_ids}")
     elif "traps" in trap_registry:
         num_traps = len(trap_registry.get("traps", {}))
+        sample_trap_ids = [t.get("trap_id", "?") for t in trap_registry.get("traps", [])[:5]]
         logger.info(f"[Stage0 v4.5+][TrapRegistry] Loaded {num_traps} traps from trap registry (subject-level)")
+        logger.info(f"[Stage0 v4.5+][TrapRegistry] Sample trap IDs: {sample_trap_ids}")
     else:
         logger.warning(f"[Stage0 v4.5+][TrapRegistry] No recognizable trap structure found in registry")
 

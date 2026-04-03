@@ -180,13 +180,20 @@ def _get_trap(trap_id: str, trap_registry_path: Path) -> dict:
                     if isinstance(trap_ids, list):
                         all_trap_ids.update(trap_ids)
 
+                # If mapping is empty (all arrays are empty), use all trap IDs from trap_patterns
+                if not all_trap_ids and trap_patterns:
+                    all_trap_ids = set(trap_patterns.keys())
+                    logger.debug(f"[Stage3][TrapRegistry] concept_trap_mapping was empty, using all {len(all_trap_ids)} trap IDs from trap_patterns")
+
                 # Build cache from trap_patterns
                 for trap_id in all_trap_ids:
                     if trap_id in trap_patterns:
                         trap_data = trap_patterns[trap_id]
                         _trap_cache[trap_id] = {**trap_data, "trap_id": trap_id} if isinstance(trap_data, dict) else {"trap_id": trap_id}
 
-                logger.info(f"[Stage3][TrapRegistry] ✅ Loaded {len(_trap_cache)} traps from 'concept_trap_mapping' + 'trap_patterns'")
+                # Show first 5 trap IDs loaded
+                sample_ids = sorted(list(_trap_cache.keys()))[:5]
+                logger.info(f"[Stage3][TrapRegistry] ✅ Loaded {len(_trap_cache)} traps from 'concept_trap_mapping' + 'trap_patterns'. Sample IDs: {sample_ids}")
 
             # Structure 4: Nested by subject
             else:
@@ -209,6 +216,8 @@ def _get_trap(trap_id: str, trap_registry_path: Path) -> dict:
     trap = _trap_cache.get(trap_id, {})
     if not trap:
         logger.warning(f"[Stage3][TrapRegistry] ⚠️ Trap not found for ID: {trap_id}")
+    else:
+        logger.debug(f"[Stage3][TrapRegistry] ✓ Found trap: {trap_id}")
     return trap
 
 
