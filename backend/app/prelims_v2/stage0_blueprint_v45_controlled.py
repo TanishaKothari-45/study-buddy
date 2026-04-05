@@ -39,7 +39,7 @@ _CONFIG_DIR = _V2_DIR.parent.parent.parent / "config"
 
 _PRIORITY_WEIGHT: dict = {"high": 3, "medium": 2, "low": 1}
 
-# All valid question types (for exploration)
+# All valid question types (for 30% exploration pool)
 ALL_QUESTION_TYPES = [
     "multi_statement",
     "assertion_reason",
@@ -49,26 +49,30 @@ ALL_QUESTION_TYPES = [
     "spatial",
     "chronology",
     "data_based",
+    "how_many",           # "How many of the above statements are correct?" format
+    "single_best_answer", # All options partially true; only one is fully correct
 ]
 
 # Question type mappings per difficulty_type (70% recommended)
+# how_many: best for medium/hard — exhaustive evaluation, hardest to guess
+# single_best_answer: best for easy/medium — tests precision over recall
 DIFFICULTY_TYPE_TO_QUESTION_TYPES = {
-    "easy_recall_static": ["direct_fact", "match_pair"],
-    "easy_ca_trigger": ["direct_fact", "pure_ca"],
-    "easy_reverse_mild": ["direct_fact", "multi_statement"],
-    "medium_concept_linking_same_domain": ["assertion_reason", "multi_statement"],
-    "medium_adjacent_fact": ["match_pair", "multi_statement"],
-    "medium_statistical_reversal": ["multi_statement", "assertion_reason"],
-    "medium_precision_location": ["match_pair", "multi_statement"],
-    "medium_ca_integration": ["multi_statement", "assertion_reason"],
-    "hard_counterintuitive_single_concept": ["assertion_reason", "multi_statement"],
-    "hard_cross_domain_linking": ["assertion_reason"],
-    "hard_all_of_above_precision": ["multi_statement"],
-    "hard_strong_concept_depth": ["assertion_reason"],
-    "hard_spatial_sequence": ["assertion_reason", "match_pair"],
-    "hard_reverse_extreme": ["assertion_reason"],
-    "pure_ca_news_tracking": ["direct_fact", "pure_ca"],
-    "pure_ca_recent_event": ["direct_fact", "pure_ca"],
+    "easy_recall_static":                 ["direct_fact", "match_pair", "single_best_answer"],
+    "easy_ca_trigger":                    ["direct_fact", "pure_ca", "single_best_answer"],
+    "easy_reverse_mild":                  ["direct_fact", "multi_statement", "single_best_answer"],
+    "medium_concept_linking_same_domain": ["assertion_reason", "multi_statement", "how_many"],
+    "medium_adjacent_fact":               ["match_pair", "multi_statement", "how_many"],
+    "medium_statistical_reversal":        ["multi_statement", "assertion_reason", "how_many"],
+    "medium_precision_location":          ["match_pair", "multi_statement", "single_best_answer"],
+    "medium_ca_integration":              ["multi_statement", "assertion_reason", "single_best_answer"],
+    "hard_counterintuitive_single_concept": ["assertion_reason", "how_many"],
+    "hard_cross_domain_linking":          ["assertion_reason", "how_many"],
+    "hard_all_of_above_precision":        ["multi_statement", "how_many"],
+    "hard_strong_concept_depth":          ["assertion_reason", "how_many"],
+    "hard_spatial_sequence":              ["assertion_reason", "match_pair"],
+    "hard_reverse_extreme":               ["assertion_reason", "how_many"],
+    "pure_ca_news_tracking":              ["direct_fact", "pure_ca"],
+    "pure_ca_recent_event":               ["direct_fact", "pure_ca"],
 }
 
 CA_FRIENDLY_DIFFICULTY_TYPES = {
