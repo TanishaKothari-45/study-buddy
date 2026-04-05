@@ -1,7 +1,655 @@
 {
   "subject": "Geography",
   "subdomain": "Geomorphology",
-  "description": "UPSC Prelims Geomorphology-specific trap patterns. Derived from PYQ analysis 2026-04-03.",
-  "concept_trap_mapping": {},
-  "trap_patterns": {}
+  "description": "UPSC Prelims Geomorphology-specific trap patterns. Derived from PYQ analysis 2014–2024. Focuses on process-landform confusions, erosion vs deposition reversals, rock type misclassification, plate boundary feature mix-ups, and spatial precision errors in landform identification.",
+  "concept_trap_mapping": {
+    "Rocks and Rock Cycle": [
+      "GEO_G_T01",
+      "GEO_G_T02"
+    ],
+    "Plate Tectonics": [
+      "GEO_G_T03",
+      "GEO_G_T04"
+    ],
+    "Volcanoes and Volcanic Landforms": [
+      "GEO_G_T04",
+      "GEO_G_T01"
+    ],
+    "Earthquakes": [
+      "GEO_G_T05"
+    ],
+    "Weathering": [
+      "GEO_G_T06",
+      "GEO_G_T02"
+    ],
+    "Mass Wasting": [
+      "GEO_G_T06"
+    ],
+    "Fluvial Landforms": [
+      "GEO_G_T07",
+      "GEO_G_T08",
+      "GEO_G_T09"
+    ],
+    "Glacial Landforms": [
+      "GEO_G_T08",
+      "GEO_G_T10",
+      "GEO_G_T11"
+    ],
+    "Coastal Landforms": [
+      "GEO_G_T09",
+      "GEO_G_T11"
+    ],
+    "Aeolian Landforms": [
+      "GEO_G_T12",
+      "GEO_G_T13"
+    ],
+    "Karst Landforms": [
+      "GEO_G_T13",
+      "GEO_G_T14"
+    ],
+    "Soil Formation": [
+      "GEO_G_T02",
+      "GEO_G_T15"
+    ],
+    "Interior of Earth": [
+      "GEO_G_T03",
+      "GEO_G_T05"
+    ]
+  },
+  "trap_patterns": {
+    "GEO_G_T01": {
+      "pattern_id": "GEO_G_T01",
+      "name": "Intrusive vs extrusive igneous rock confusion — granite vs basalt origin",
+      "category": "classification_error",
+      "frequency": 0.18,
+      "difficulty": "medium",
+      "mechanism": "Student knows igneous rocks come from magma but confuses intrusive (plutonic, slow cooling, coarse-grained) with extrusive (volcanic, fast cooling, fine-grained). Granite and basalt swapped, or formation conditions misassigned.",
+      "error_type": "cooling_rate_inversion",
+      "distractor_strategy": "Assign slow-cooling coarse texture to extrusive rocks, or state granite forms at surface. Alternatively, label basalt as intrusive (plutonic).",
+      "applicable_concepts": [
+        "Rocks and Rock Cycle",
+        "Volcanoes and Volcanic Landforms"
+      ],
+      "generation_rules": [
+        "Present a rock with specific texture (coarse-grained crystalline) and ask if it is intrusive or extrusive",
+        "Offer 'extrusive, fast cooling' as a plausible wrong answer for granite",
+        "Or describe basalt as 'fine-grained because it cools slowly underground' — tests cooling rate understanding"
+      ],
+      "question_type_fit": [
+        "multi_statement",
+        "assertion_reason",
+        "direct_fact",
+        "match_pair"
+      ],
+      "pattern_example": {
+        "true": "Granite is an intrusive igneous rock formed by slow cooling of magma deep within the Earth's crust, which allows large crystals to grow — hence its coarse-grained texture.",
+        "misconception": "Granite is an extrusive igneous rock that forms when lava cools rapidly on the Earth's surface, producing its characteristic crystalline texture.",
+        "note": "Reverse the formation environment — granite (intrusive, underground, slow cooling, coarse crystals) is placed at the surface as if it were like basalt (extrusive, rapid cooling, fine-grained)"
+      },
+      "example_question": "Consider the following statements: 1. Granite has a coarse-grained texture because it cools slowly deep within the crust. 2. Basalt is an intrusive igneous rock formed by magma that solidifies underground. Which of the above statements is/are correct? (a) 1 only (b) 2 only (c) Both 1 and 2 (d) Neither 1 nor 2"
+    },
+    "GEO_G_T02": {
+      "pattern_id": "GEO_G_T02",
+      "name": "Metamorphic rock parent rock confusion — marble from limestone, quartzite from sandstone",
+      "category": "transformation_chain_error",
+      "frequency": 0.15,
+      "difficulty": "medium",
+      "mechanism": "Student knows metamorphic rocks come from parent rocks under heat/pressure but wrongly pairs the parent-product relationship. Common errors: marble from granite, quartzite from limestone, slate from sandstone.",
+      "error_type": "parent_rock_misassignment",
+      "distractor_strategy": "Swap the parent rocks: offer 'marble forms from sandstone' or 'quartzite forms from limestone'. Or insert a plausible-sounding but wrong pair.",
+      "applicable_concepts": [
+        "Rocks and Rock Cycle",
+        "Weathering",
+        "Soil Formation"
+      ],
+      "generation_rules": [
+        "List pairs of (metamorphic rock → parent rock) — some correct, some swapped",
+        "Ask which pairing is correct",
+        "Wrong options use adjacent rock types in the transformation chain"
+      ],
+      "question_type_fit": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact"
+      ],
+      "pattern_example": {
+        "true": "Marble is the metamorphic equivalent of limestone; quartzite forms from the metamorphism of sandstone; slate forms from shale under low-grade metamorphism.",
+        "misconception": "Marble is formed by the metamorphism of sandstone, while quartzite is formed from limestone under heat and pressure.",
+        "note": "Swap the two most commonly confused parent rocks — limestone → marble and sandstone → quartzite are the standard NCERT pairs; UPSC tests by interchanging them"
+      },
+      "example_question": "Which of the following pairs of (Metamorphic Rock — Parent Rock) is correctly matched? (a) Marble — Sandstone (b) Quartzite — Limestone (c) Slate — Shale (d) Gneiss — Basalt"
+    },
+    "GEO_G_T03": {
+      "pattern_id": "GEO_G_T03",
+      "name": "Plate boundary feature misassignment — trench vs ridge at wrong boundary",
+      "category": "spatial_feature_reversal",
+      "frequency": 0.17,
+      "difficulty": "medium",
+      "mechanism": "Student knows plate boundary types but misassigns landforms. Mid-ocean ridges form at divergent boundaries (new crust), trenches form at convergent boundaries (subduction). Students often reverse or confuse these.",
+      "error_type": "boundary_feature_confusion",
+      "distractor_strategy": "Assign mid-ocean ridges to convergent boundaries, or trenches to divergent boundaries. Alternatively, say 'fold mountains form at divergent boundaries'.",
+      "applicable_concepts": [
+        "Plate Tectonics",
+        "Interior of Earth"
+      ],
+      "generation_rules": [
+        "List plate boundary types and their associated landforms",
+        "Offer one correctly matched pair and one where ridge/trench is reversed",
+        "Test whether student knows which crust type is destroyed vs created at each boundary"
+      ],
+      "question_type_fit": [
+        "multi_statement",
+        "match_pair",
+        "assertion_reason"
+      ],
+      "pattern_example": {
+        "true": "Mid-ocean ridges are constructive features formed at divergent plate boundaries where two plates move apart and new oceanic crust is generated by upwelling magma.",
+        "misconception": "Mid-ocean ridges are formed at convergent plate boundaries where colliding oceanic plates buckle and push upward, similar to fold mountain formation on continents.",
+        "note": "Relocate the ridge from divergent (constructive) to convergent (destructive) boundary — ridges are always divergent features; the confusion arises because both mountain-building and ridges involve rock uplift"
+      },
+      "example_question": "Consider the following statements about plate boundaries: 1. Deep-sea trenches are found at convergent plate boundaries where subduction occurs. 2. Mid-ocean ridges are formed at convergent boundaries due to compression. Which of the above statements is/are correct? (a) 1 only (b) 2 only (c) Both 1 and 2 (d) Neither 1 nor 2"
+    },
+    "GEO_G_T04": {
+      "pattern_id": "GEO_G_T04",
+      "name": "Convergent boundary collision type confusion — ocean-ocean vs ocean-continent vs continent-continent outcomes",
+      "category": "sub-type_distinction_error",
+      "frequency": 0.14,
+      "difficulty": "hard",
+      "mechanism": "Student knows convergent boundaries but does not distinguish between the three subtypes. Ocean-ocean collision forms island arcs + trenches; ocean-continent forms volcanic mountain ranges + trenches; continent-continent forms fold mountains (no subduction, no volcanoes).",
+      "error_type": "collision_type_conflation",
+      "distractor_strategy": "Apply ocean-continent characteristics (volcanic arcs) to continent-continent collision (Himalayas), or state that continent-continent collision creates submarine trenches.",
+      "applicable_concepts": [
+        "Plate Tectonics",
+        "Volcanoes and Volcanic Landforms"
+      ],
+      "generation_rules": [
+        "State the outcome of a collision (e.g., 'active volcanoes and a trench') and ask which boundary type produces it",
+        "Wrong option applies continent-continent result to ocean-continent, or vice versa",
+        "Test whether student distinguishes subduction scenarios"
+      ],
+      "question_type_fit": [
+        "multi_statement",
+        "assertion_reason",
+        "direct_fact"
+      ],
+      "pattern_example": {
+        "true": "The Himalayas formed by continent-continent convergence between the Indian and Eurasian plates — because neither plate subducts (both are buoyant continental crust), no volcanic arc forms and no trench is produced.",
+        "misconception": "The Himalayas formed by continent-continent convergence, accompanied by a deep submarine trench on the southern side as the Indian plate subducted beneath the Eurasian plate.",
+        "note": "Apply ocean-continent subduction characteristics (trench formation) to a continent-continent collision — continent-continent collisions do not produce trenches because neither plate subducts deeply into the mantle"
+      },
+      "example_question": "A: The Himalayan mountain chain does not have an associated active volcanic arc. R: Because the Himalayas were formed by continent-continent convergence, not subduction of oceanic crust. Code: (a) Both A and R true, R explains A (b) Both true, R does not explain A (c) A false, R true (d) Both false"
+    },
+    "GEO_G_T05": {
+      "pattern_id": "GEO_G_T05",
+      "name": "Earthquake focus vs epicentre confusion — underground origin vs surface point",
+      "category": "terminology_precision_error",
+      "frequency": 0.16,
+      "difficulty": "easy",
+      "mechanism": "Student hears both terms repeatedly but reverses their definitions. Focus (hypocentre) = actual underground point of energy release; epicentre = point on Earth's surface directly above the focus. UPSC frequently tests with assertion-reason format.",
+      "error_type": "term_reversal",
+      "distractor_strategy": "Define focus as the surface point and epicentre as the underground origin, or conflate the two.",
+      "applicable_concepts": [
+        "Earthquakes",
+        "Interior of Earth"
+      ],
+      "generation_rules": [
+        "Ask which point experiences maximum intensity (epicentre), or define one of the two terms",
+        "Wrong answer reverses the vertical positions of focus and epicentre",
+        "Pair with Richter vs Mercalli scale confusion for multi-statement questions"
+      ],
+      "question_type_fit": [
+        "direct_fact",
+        "assertion_reason",
+        "multi_statement"
+      ],
+      "pattern_example": {
+        "true": "The focus (hypocentre) of an earthquake is the actual point within the Earth where fault rupture and energy release occur; the epicentre is the point on the Earth's surface directly above the focus.",
+        "misconception": "The epicentre of an earthquake is the underground point where energy is first released, while the focus is the point on the Earth's surface directly above it.",
+        "note": "Swap focus and epicentre — the underground origin point is called focus/hypocentre; the surface point above it is the epicentre"
+      },
+      "example_question": "Consider the following statements: 1. The focus of an earthquake is the point on the Earth's surface directly above the origin of the earthquake. 2. The epicentre is the underground point where the earthquake actually occurs. Which of the above statements is/are correct? (a) 1 only (b) 2 only (c) Both 1 and 2 (d) Neither 1 nor 2"
+    },
+    "GEO_G_T06": {
+      "pattern_id": "GEO_G_T06",
+      "name": "Weathering vs erosion conflation — in-situ disintegration vs transportation",
+      "category": "process_boundary_confusion",
+      "frequency": 0.15,
+      "difficulty": "medium",
+      "mechanism": "Weathering = breakdown of rock in-situ (no movement); erosion = removal and transport of broken material. Students conflate the two or claim weathering requires movement. Assertion-reason traps frequently test this boundary.",
+      "error_type": "process_conflation",
+      "distractor_strategy": "Describe weathering as a process involving material transport, or claim erosion begins without prior weathering. Alternatively, state mechanical weathering involves chemical changes.",
+      "applicable_concepts": [
+        "Weathering",
+        "Mass Wasting"
+      ],
+      "generation_rules": [
+        "Describe rainfall effects on rocks and ask whether it is weathering, erosion, or both",
+        "Offer wrong answer that describes water carrying rock fragments as weathering",
+        "Or ask whether chemical weathering involves mechanical breakdown — it does not"
+      ],
+      "question_type_fit": [
+        "assertion_reason",
+        "multi_statement",
+        "direct_fact"
+      ],
+      "pattern_example": {
+        "true": "Weathering is the in-situ breakdown of rocks by physical, chemical, or biological agents without significant movement of material; erosion begins when the weathered material is picked up and transported by an agent such as water, wind, or ice.",
+        "misconception": "Weathering includes the transportation of broken rock fragments by water and wind — it is the combined process of rock breakdown and its subsequent removal from the site.",
+        "note": "Include transportation in the definition of weathering — weathering is strictly in-situ; only when movement occurs does it become erosion or mass wasting"
+      },
+      "example_question": "A: Weathering of rocks involves the breakdown of rock material at or near the Earth's surface. R: Weathering necessarily involves the transportation of rock debris by an agent of erosion. Code: (a) Both A and R true, R explains A (b) A true, R false (c) Both false (d) A false, R true"
+    },
+    "GEO_G_T07": {
+      "pattern_id": "GEO_G_T07",
+      "name": "River stage landform misassignment — youth/mature/old stage landform reversal",
+      "category": "sequential_stage_error",
+      "frequency": 0.13,
+      "difficulty": "medium",
+      "mechanism": "Student knows rivers have stages but misassigns landforms. Youth = V-valley, waterfalls, rapids (erosion dominant); Mature = broad valley, floodplain, meanders; Old age = oxbow lakes, deltas, floodplains, braided channels. Students assign delta to mature stage or meanders to youth.",
+      "error_type": "stage_landform_misassignment",
+      "distractor_strategy": "State that oxbow lakes form in the youthful stage, or that V-shaped valleys are characteristic of old-age rivers. Assign deposition-heavy landforms to the erosion-heavy stage.",
+      "applicable_concepts": [
+        "Fluvial Landforms"
+      ],
+      "generation_rules": [
+        "List landforms and ask which river stage they belong to",
+        "Offer meanders as a youthful stage feature (wrong; meanders are mature-to-old)",
+        "Or say V-valleys are old-age features — reverses the erosion-deposition logic"
+      ],
+      "question_type_fit": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact"
+      ],
+      "pattern_example": {
+        "true": "Meanders and broad floodplains are characteristic of mature-to-old-age rivers where lateral erosion and deposition dominate over vertical cutting; V-shaped valleys and waterfalls characterise the youthful (upper) stage where vertical erosion is dominant.",
+        "misconception": "V-shaped valleys are characteristic of old-age rivers that have been eroding for a long time, while broad meanders are features of young, energetic rivers.",
+        "note": "Reverse the stage assignment — youth = V-valley (vertical erosion, high gradient); old age = meanders + oxbow lakes (lateral deposition, low gradient)"
+      },
+      "example_question": "Which of the following landforms is correctly matched with the river stage in which it predominantly forms? (a) Oxbow lake — Youthful stage (b) V-shaped valley — Mature stage (c) Meander — Old-age stage (d) Delta — Youthful stage"
+    },
+    "GEO_G_T08": {
+      "pattern_id": "GEO_G_T08",
+      "name": "Glacial vs fluvial valley cross-section confusion — U-shaped vs V-shaped",
+      "category": "erosional_agent_confusion",
+      "frequency": 0.17,
+      "difficulty": "easy",
+      "mechanism": "U-shaped valleys are glacially carved (wide, flat-floored, steep walls — glacier fills entire valley). V-shaped valleys are fluvially carved (narrow, wedge-shaped — river cuts downward from one point). UPSC tests direct assignment and via assertion-reason.",
+      "error_type": "erosional_agent_reversal",
+      "distractor_strategy": "State that rivers carve U-shaped valleys, or that glaciers carve V-shaped valleys. Or link hanging valleys to river activity instead of glacial retreat.",
+      "applicable_concepts": [
+        "Fluvial Landforms",
+        "Glacial Landforms"
+      ],
+      "generation_rules": [
+        "Describe a valley's cross-section (flat floor, steep walls) and ask agent of erosion",
+        "Wrong answer assigns glacial cross-section to river action",
+        "Or describe a hanging valley (tributary glacial valley) and offer 'river erosion' as cause"
+      ],
+      "question_type_fit": [
+        "direct_fact",
+        "assertion_reason",
+        "match_pair"
+      ],
+      "pattern_example": {
+        "true": "Glaciers carve U-shaped (parabolic) valleys because ice fills the entire valley and erodes the floor and walls simultaneously, unlike rivers that erode only at the base, producing V-shaped (wedge) cross-sections.",
+        "misconception": "Rivers carve U-shaped valleys because of lateral erosion widening the valley, while glaciers form V-shaped channels by concentrated downcutting along the glacier's base.",
+        "note": "Swap the erosional agent for each valley shape — U-shape = glacier (whole-valley erosion), V-shape = river (point erosion at base)"
+      },
+      "example_question": "A: Glacial valleys have a characteristic U-shaped cross-section. R: Because glacial ice erodes the valley floor and walls simultaneously across the entire width, unlike rivers that cut only at the base. Code: (a) Both A and R true, R explains A (b) Both true, R does not explain A (c) A false, R true (d) Both false"
+    },
+    "GEO_G_T09": {
+      "pattern_id": "GEO_G_T09",
+      "name": "Fjord vs ria confusion — glacial drowned valley vs fluvial drowned valley",
+      "category": "genesis_confusion",
+      "frequency": 0.12,
+      "difficulty": "hard",
+      "mechanism": "Fjord = glacially carved U-shaped valley drowned by sea level rise (steep walls, flat floor, found in Norway, New Zealand, Chile). Ria = river-carved V-shaped valley drowned by sea (funnel-shaped, found in SW Ireland, Galicia). Students confuse origin or misapply to wrong coast.",
+      "error_type": "drowned_valley_type_reversal",
+      "distractor_strategy": "Describe a fjord as a drowned river valley, or a ria as having steep parallel walls. Offer Norway as a location for rias or Ireland as a location for fjords.",
+      "applicable_concepts": [
+        "Coastal Landforms",
+        "Glacial Landforms"
+      ],
+      "generation_rules": [
+        "Describe either a fjord or ria by its morphological features and ask for the type",
+        "Wrong answer swaps the drowned valley type",
+        "Or ask about characteristic location (e.g., 'which coastal landform is common in Norway?')"
+      ],
+      "question_type_fit": [
+        "direct_fact",
+        "match_pair",
+        "assertion_reason"
+      ],
+      "pattern_example": {
+        "true": "Fjords are deep, steep-walled inlets formed when glacially eroded U-shaped valleys are drowned by rising sea level; rías are funnel-shaped inlets formed when river-eroded V-shaped valleys are flooded by the sea.",
+        "misconception": "Fjords are formed when river-carved V-shaped valleys are flooded by the sea, while rías are drowned glacial troughs found in high-latitude coasts like Norway.",
+        "note": "Swap the origin — fjord = drowned glacial U-valley (steep walls, Norway/New Zealand/Chile); ria = drowned fluvial V-valley (funnel-shaped, SW Ireland/Galicia)"
+      },
+      "example_question": "Which of the following correctly describes a fjord? (a) A funnel-shaped coastal inlet formed by the drowning of a river valley (b) A narrow, deep coastal inlet formed by the drowning of a glacially carved U-shaped valley (c) An elongated coastal lagoon separated from the sea by a sandy barrier (d) A coastal embayment formed by differential erosion of hard and soft rock"
+    },
+    "GEO_G_T10": {
+      "pattern_id": "GEO_G_T10",
+      "name": "Moraine type location confusion — terminal vs lateral vs medial vs ground moraine",
+      "category": "sub-type_location_error",
+      "frequency": 0.11,
+      "difficulty": "medium",
+      "mechanism": "Students know moraines are glacial deposits but confuse positional types. Terminal = end of glacier advance (furthest snout); Lateral = along sides; Medial = where two glaciers merge (junction of two lateral moraines); Ground = deposited beneath glacier as till sheet.",
+      "error_type": "depositional_position_confusion",
+      "distractor_strategy": "State that medial moraines form at the terminus of the glacier, or that terminal moraines run parallel to glacier sides.",
+      "applicable_concepts": [
+        "Glacial Landforms"
+      ],
+      "generation_rules": [
+        "Describe the position of a moraine feature and ask which type it is",
+        "Offer medial moraine as 'the furthest advance deposit' (wrong; that is terminal moraine)",
+        "Or state terminal moraine runs parallel to glacier margins (wrong; lateral moraine does)"
+      ],
+      "question_type_fit": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact"
+      ],
+      "pattern_example": {
+        "true": "Terminal (end) moraine marks the furthest point of a glacier's advance and forms a ridge perpendicular to the direction of glacier flow; lateral moraines run parallel to the sides of the glacier.",
+        "misconception": "Medial moraines mark the terminal (end) position of the glacier's advance and form a ridge perpendicular to the direction of flow, while terminal moraines are found along the lateral margins.",
+        "note": "Swap medial and terminal moraine positions — medial moraine forms at the center of a combined glacier where two glaciers merge; terminal moraine marks the outermost limit of advance"
+      },
+      "example_question": "Which of the following statements about glacial moraines is correct? (a) Medial moraines form at the terminus of a glacier's advance and are perpendicular to flow. (b) Terminal moraines run parallel to the sides of the glacier. (c) Lateral moraines are deposited along the sides of a valley glacier. (d) Ground moraines are deposited at the junction of two merging glaciers."
+    },
+    "GEO_G_T11": {
+      "pattern_id": "GEO_G_T11",
+      "name": "Stalactite vs stalagmite growth direction reversal",
+      "category": "directional_precision_error",
+      "frequency": 0.16,
+      "difficulty": "easy",
+      "mechanism": "Stalactite hangs from cave ceiling (down); stalagmite grows up from cave floor. UPSC repeatedly tests this simple directional fact. Students routinely reverse the two. Memory trick (stalagmite = 'g' for ground; stalactite = 'c' for ceiling) is commonly taught but easily mixed up under exam pressure.",
+      "error_type": "growth_direction_reversal",
+      "distractor_strategy": "State stalactites grow from the cave floor, or stalagmites hang from the ceiling. Or assign the wrong formation cause (stating both grow from the same surface).",
+      "applicable_concepts": [
+        "Karst Landforms",
+        "Coastal Landforms"
+      ],
+      "generation_rules": [
+        "Describe cave formation: 'calcium carbonate deposits grow downward from cave ceiling' and ask which feature is described",
+        "Wrong answer says 'stalagmite'",
+        "Can combine with question about karst topography formation process"
+      ],
+      "question_type_fit": [
+        "direct_fact",
+        "multi_statement",
+        "match_pair"
+      ],
+      "pattern_example": {
+        "true": "Stalactites are icicle-shaped calcium carbonate deposits that hang downward from cave ceilings; stalagmites are blunt-topped calcium carbonate deposits that grow upward from cave floors.",
+        "misconception": "Stalactites grow upward from the cave floor when dripping water deposits calcium carbonate, while stalagmites hang downward from the cave ceiling.",
+        "note": "Reverse the growth direction — stalactite = ceiling (hangs down); stalagmite = ground (grows up). Mnemonic: stalacTITE = tIght to the ceiling; stalaGMITE = MIGHT reach the ceiling one day"
+      },
+      "example_question": "Consider the following statements: 1. Stalactites hang from the ceiling of limestone caves. 2. Stalagmites are formed by water dripping from the cave roof onto the cave floor. Which of the above statements is/are correct? (a) 1 only (b) 2 only (c) Both 1 and 2 (d) Neither 1 nor 2"
+    },
+    "GEO_G_T12": {
+      "pattern_id": "GEO_G_T12",
+      "name": "Barchan vs seif dune orientation confusion — wind direction vs dune alignment",
+      "category": "aeolian_spatial_error",
+      "frequency": 0.13,
+      "difficulty": "hard",
+      "mechanism": "Barchan = crescent-shaped dune with horns pointing downwind, moving perpendicular to constant unidirectional wind. Seif (longitudinal) = long ridges parallel to prevailing wind direction. Students confuse which is parallel and which is perpendicular to wind.",
+      "error_type": "wind_orientation_reversal",
+      "distractor_strategy": "State barchans are aligned parallel to wind direction, or seif dunes move perpendicular to wind. Also test by assigning barchan to multi-directional winds and seif to unidirectional.",
+      "applicable_concepts": [
+        "Aeolian Landforms"
+      ],
+      "generation_rules": [
+        "Describe dune orientation relative to wind direction and ask which dune type it is",
+        "Wrong option assigns parallel wind alignment to barchan (which is actually perpendicular)",
+        "Can also test by asking which dune type indicates constant unidirectional winds"
+      ],
+      "question_type_fit": [
+        "direct_fact",
+        "assertion_reason",
+        "match_pair"
+      ],
+      "pattern_example": {
+        "true": "Barchan dunes are crescent-shaped, move perpendicular to the prevailing unidirectional wind, with horns pointing downwind; seif (longitudinal) dunes form parallel to the prevailing wind and are much longer than barchans.",
+        "misconception": "Barchan dunes are elongated ridges that align parallel to the prevailing wind direction, while seif dunes are crescent-shaped features that migrate perpendicular to the wind.",
+        "note": "Swap barchan and seif orientation — barchan = perpendicular to wind (crescent, unidirectional wind); seif = parallel to wind (linear ridge, bidirectional wind)"
+      },
+      "example_question": "A: Barchan dunes are crescent-shaped and their horns point in the direction of prevailing wind movement. R: Barchan dunes form under unidirectional constant wind and migrate perpendicular to the wind direction. Code: (a) Both A and R true, R explains A (b) Both true, R does not explain A (c) A false, R true (d) Both false"
+    },
+    "GEO_G_T13": {
+      "pattern_id": "GEO_G_T13",
+      "name": "Loess origin confusion — wind-deposited silt vs fluvial alluvium",
+      "category": "depositional_agent_error",
+      "frequency": 0.10,
+      "difficulty": "medium",
+      "mechanism": "Loess = wind-deposited fine silt/clay, typically yellow-brown, highly fertile, non-stratified (no bedding layers unlike fluvial deposits). Found in China (Loess Plateau), Central Asia, parts of Europe. Students assume loess is fluvially deposited alluvium because it is fertile and associated with plains.",
+      "error_type": "aeolian_vs_fluvial_agent_confusion",
+      "distractor_strategy": "State loess is river-deposited alluvium, or that loess shows distinct horizontal bedding layers (it does not — that is a fluvial characteristic).",
+      "applicable_concepts": [
+        "Aeolian Landforms",
+        "Karst Landforms"
+      ],
+      "generation_rules": [
+        "State properties of loess (fine-grained, unstratified, homogeneous, vertical cleavage) and ask for origin",
+        "Wrong answer says fluvial deposition",
+        "Or ask which property distinguishes loess from fluvial alluvium — answer is lack of stratification"
+      ],
+      "question_type_fit": [
+        "assertion_reason",
+        "multi_statement",
+        "direct_fact"
+      ],
+      "pattern_example": {
+        "true": "Loess is a wind-deposited (aeolian) sediment composed of fine silt particles, typically pale yellow in colour, and lacks distinct horizontal bedding layers — this absence of stratification distinguishes it from river-deposited alluvium.",
+        "misconception": "Loess deposits are formed by rivers carrying fine silt from glacial meltwater zones and depositing them on valley floors and plains, which is why they are highly fertile and associated with flat terrain.",
+        "note": "Attribute loess to river deposition — loess is strictly aeolian (wind-deposited); its fine particle size comes from glacial grinding, transported by wind not water; the key distinguishing feature is its lack of bedding"
+      },
+      "example_question": "Consider the following statements about loess: 1. Loess is predominantly formed by aeolian (wind) deposition of fine silt particles. 2. Loess deposits are characterised by distinct horizontal bedding layers similar to river alluvium. Which of the above statements is/are correct? (a) 1 only (b) 2 only (c) Both 1 and 2 (d) Neither 1 nor 2"
+    },
+    "GEO_G_T14": {
+      "pattern_id": "GEO_G_T14",
+      "name": "Karst feature formation confusion — erosional vs depositional cave features",
+      "category": "erosion_deposition_category_error",
+      "frequency": 0.12,
+      "difficulty": "medium",
+      "mechanism": "Karst features are both erosional (sinkholes, dolines, caves, arches) and depositional (stalactites, stalagmites, tufa/travertine). Students assign depositional features to erosion category or vice versa. UPSC also tests the mechanism: limestone dissolved by carbonic acid (not just water).",
+      "error_type": "karst_process_misclassification",
+      "distractor_strategy": "State sinkholes are depositional features, or stalactites form by mechanical erosion not chemical deposition. Alternatively, state rainwater alone (without CO₂) dissolves limestone.",
+      "applicable_concepts": [
+        "Karst Landforms"
+      ],
+      "generation_rules": [
+        "List karst features and ask to classify as erosional or depositional",
+        "Wrong option places stalagmites under erosional features or sinkholes under depositional",
+        "Or use assertion-reason: 'A: Limestone is dissolved by rainwater. R: Because rainwater contains dissolved CO₂ forming weak carbonic acid.'"
+      ],
+      "question_type_fit": [
+        "multi_statement",
+        "assertion_reason",
+        "match_pair"
+      ],
+      "pattern_example": {
+        "true": "In karst topography, sinkholes (dolines), caves, and natural arches are erosional features formed by the dissolution of limestone; stalactites and stalagmites are depositional features formed when dissolved calcium carbonate is re-precipitated from dripping water.",
+        "misconception": "Stalactites and stalagmites in limestone caves are erosional features formed by the mechanical abrasion of cave walls and ceilings by underground streams.",
+        "note": "Reclassify stalactites/stalagmites as erosional — they are purely depositional (chemical precipitation); the error also implies mechanical erosion as cause when the actual cause is carbonate re-precipitation from solution"
+      },
+      "example_question": "Which of the following correctly classifies karst landforms into erosional and depositional? (a) Sinkholes — depositional; Stalactites — erosional (b) Sinkholes — erosional; Stalagmites — depositional (c) Natural arches — depositional; Caves — erosional (d) Stalactites — erosional; Stalagmites — depositional"
+    },
+    "GEO_G_T15": {
+      "pattern_id": "GEO_G_T15",
+      "name": "Alluvial fan vs delta — inland vs coastal deposition confusion",
+      "category": "depositional_setting_confusion",
+      "frequency": 0.09,
+      "difficulty": "medium",
+      "mechanism": "Alluvial fan = fan-shaped deposit where river exits mountains onto a plain (velocity drop, inland, coarser sediments). Delta = fan-shaped deposit where river meets sea/lake (velocity drop, coastal/lacustrine, finer sediments, stratified). Students confuse the two because both are fan-shaped and both form by velocity reduction.",
+      "error_type": "depositional_environment_reversal",
+      "distractor_strategy": "Describe an alluvial fan at a river's coastal mouth (that is a delta) or describe a delta forming inland at a mountain front. Or state deltas have coarser material near the apex than alluvial fans.",
+      "applicable_concepts": [
+        "Fluvial Landforms",
+        "Soil Formation"
+      ],
+      "generation_rules": [
+        "Describe fan-shaped deposit at mountain-plain junction and ask if it is alluvial fan or delta",
+        "Wrong answer says 'delta' for an inland mountain-front deposit",
+        "Or ask which has finer-grained sediments — delta (finer) vs alluvial fan (coarser)"
+      ],
+      "question_type_fit": [
+        "direct_fact",
+        "assertion_reason",
+        "multi_statement"
+      ],
+      "pattern_example": {
+        "true": "An alluvial fan is a fan-shaped deposit of sediment that forms where a river emerges from a mountain gorge onto a flat plain — loss of confinement reduces velocity; a delta forms where a river enters a sea, lake, or ocean and its velocity drops, depositing fine sediments at the coast.",
+        "misconception": "Alluvial fans form where rivers empty into the sea, depositing sediments in a fan shape at the coastal margin, while deltas form inland at the base of steep mountain ranges.",
+        "note": "Reverse the depositional environment — alluvial fan = inland (mountain to plain transition); delta = coastal/lacustrine (river to sea/lake); both are velocity-loss fan deposits but in completely different settings"
+      },
+      "example_question": "A: Alluvial fans are found at the base of mountains where a river enters a flat plain. R: Because the sudden reduction in gradient causes velocity loss and deposition of coarser sediments in a fan shape. Code: (a) Both A and R true, R explains A (b) Both true, R does not explain A (c) A false, R true (d) Both false"
+    }
+  },
+  "generation_guidance_by_question_type": {
+    "assertion_reason": {
+      "recommended_traps": [
+        "GEO_G_T03",
+        "GEO_G_T04",
+        "GEO_G_T06",
+        "GEO_G_T08",
+        "GEO_G_T12",
+        "GEO_G_T15"
+      ],
+      "strategy": "Use process-based traps. Assertion tests the outcome; Reason tests the mechanism. Best for weathering vs erosion (T06), glacial vs fluvial processes (T08), convergent boundary subtypes (T04), and aeolian orientation (T12). Assertion usually TRUE, Reason may be TRUE or FALSE."
+    },
+    "multi_statement": {
+      "recommended_traps": [
+        "GEO_G_T01",
+        "GEO_G_T02",
+        "GEO_G_T05",
+        "GEO_G_T10",
+        "GEO_G_T11",
+        "GEO_G_T13"
+      ],
+      "strategy": "Mix one correct and one incorrect statement. Use terminology precision traps (T05 focus/epicentre, T11 stalactite/stalagmite) and classification traps (T01 granite/basalt, T02 parent rock pairs). Include one subtly wrong statement using an adjacent-but-incorrect fact."
+    },
+    "direct_fact": {
+      "recommended_traps": [
+        "GEO_G_T05",
+        "GEO_G_T07",
+        "GEO_G_T09",
+        "GEO_G_T11",
+        "GEO_G_T14"
+      ],
+      "strategy": "Single-answer recall. Use directional/positional facts (T11 cave features, T05 earthquake terms). Wrong options use adjacent facts (e.g., another moraine type, another dune type, another valley type). Keep distractors at same conceptual level."
+    },
+    "match_pair": {
+      "recommended_traps": [
+        "GEO_G_T02",
+        "GEO_G_T07",
+        "GEO_G_T08",
+        "GEO_G_T09",
+        "GEO_G_T10",
+        "GEO_G_T14"
+      ],
+      "strategy": "Match landform to agent of erosion, parent rock to metamorphic product, or river stage to landform. Use 2–3 pairs where one is always swapped (e.g., U-valley paired with river, V-valley with glacier). Test precision in concept-to-property mapping."
+    }
+  },
+  "common_misconceptions_by_concept": {
+    "Rocks and Rock Cycle": {
+      "primary_misconceptions": [
+        "Granite cools rapidly at the surface like basalt (actually intrusive, slow cooling underground)",
+        "Marble comes from sandstone (actually from limestone; quartzite comes from sandstone)",
+        "Sedimentary rocks can never become igneous (rock cycle allows any rock to melt and recrystallize)",
+        "Metamorphic rocks always form deeper than igneous rocks (depends on type; contact metamorphism can be shallow)"
+      ],
+      "traps_to_inject": [
+        "GEO_G_T01",
+        "GEO_G_T02"
+      ]
+    },
+    "Plate Tectonics": {
+      "primary_misconceptions": [
+        "Trenches form at divergent boundaries (actually at convergent/subduction zones)",
+        "Himalayas have volcanic arc because two plates collided (continent-continent collision produces no volcanic arc)",
+        "Mid-ocean ridges are convergent features because they look like mountain ranges",
+        "All convergent boundaries produce fold mountains (only continent-continent; ocean-continent produces volcanic arcs)"
+      ],
+      "traps_to_inject": [
+        "GEO_G_T03",
+        "GEO_G_T04"
+      ]
+    },
+    "Earthquakes": {
+      "primary_misconceptions": [
+        "Epicentre is underground, focus is at surface (reversed; focus underground, epicentre at surface)",
+        "Richter and Mercalli scales measure the same thing (Richter = energy/magnitude; Mercalli = intensity/damage at location)",
+        "Deeper earthquakes cause more surface damage (shallow-focus earthquakes cause more damage at surface)"
+      ],
+      "traps_to_inject": [
+        "GEO_G_T05"
+      ]
+    },
+    "Weathering": {
+      "primary_misconceptions": [
+        "Weathering and erosion are the same process (weathering = in-situ; erosion = transport)",
+        "Mechanical weathering involves chemical changes (only physical breakdown; no new minerals formed)",
+        "Only extreme climates cause significant weathering (humid tropics have maximum chemical weathering)"
+      ],
+      "traps_to_inject": [
+        "GEO_G_T06"
+      ]
+    },
+    "Fluvial Landforms": {
+      "primary_misconceptions": [
+        "Deltas form in all rivers at the sea (many rivers lack deltas due to tides, waves, or sediment deficit)",
+        "Meanders only form in old-age stage (also form in mature stage; the curve amplitude increases over time)",
+        "Alluvial fans are coastal features (inland only; delta is coastal equivalent)",
+        "V-valley is a feature of mature rivers (youthful stage; mature rivers have wider flood plains)"
+      ],
+      "traps_to_inject": [
+        "GEO_G_T07",
+        "GEO_G_T15"
+      ]
+    },
+    "Glacial Landforms": {
+      "primary_misconceptions": [
+        "Rivers also form U-shaped valleys in very old, wide stages (only glaciers form classic U-shape; rivers always produce V-shape at base)",
+        "Fjords are formed by river flooding (drowned glacial U-valleys; rías are drowned river valleys)",
+        "Terminal moraines run parallel to glacier sides (lateral moraines do; terminal moraines are perpendicular)"
+      ],
+      "traps_to_inject": [
+        "GEO_G_T08",
+        "GEO_G_T09",
+        "GEO_G_T10"
+      ]
+    },
+    "Karst Landforms": {
+      "primary_misconceptions": [
+        "Stalactites grow from cave floor (grow from ceiling; stalagmites grow from floor)",
+        "Stalactites form by mechanical erosion (chemical deposition — precipitation of calcium carbonate)",
+        "Karst develops only in limestone (also in dolomite, gypsum, and chalk)",
+        "Sinkholes are depositional features (erosional — formed by dissolution and roof collapse)"
+      ],
+      "traps_to_inject": [
+        "GEO_G_T11",
+        "GEO_G_T14"
+      ]
+    },
+    "Aeolian Landforms": {
+      "primary_misconceptions": [
+        "Barchan dunes are parallel to wind direction (perpendicular — seif dunes are parallel)",
+        "Loess is river-deposited alluvium (wind-deposited aeolian silt, non-stratified)",
+        "All desert dunes are barchans (multiple types — seif, transverse, parabolic, star dunes — depend on wind regime and sand supply)"
+      ],
+      "traps_to_inject": [
+        "GEO_G_T12",
+        "GEO_G_T13"
+      ]
+    }
+  },
+  "notes_for_blueprint": {
+    "usage": "When Blueprint samples a concept (e.g., Glacial Landforms), check concept_trap_mapping to get assigned trap IDs (e.g., GEO_G_T08, GEO_G_T10, GEO_G_T11). Generator pulls these traps when crafting distractors. All trap IDs are GEO_G_T01 through GEO_G_T15.",
+    "frequency_calibration": "Trap frequencies derived from 2014–2024 PYQ analysis. High-frequency traps (≥0.15): T01, T03, T05, T08, T11 — should appear in 65–75% of generated questions for their applicable concepts. Low-frequency traps (<0.10): T10, T13, T15 — appear in 15–25% of questions. Use frequency as sampling weight.",
+    "difficulty_calibration": "Easy traps (T05, T11) test directional/terminological recall — use to create accessible 1-mark questions. Hard traps (T04, T09, T12) test mechanistic distinctions and sub-type differences — use for high-difficulty questions. Balance difficulty distribution: ~30% easy, ~50% medium, ~20% hard.",
+    "cross_domain_synergy": "Geomorphology traps interact strongly with Climatology (climate → weathering type: humid tropics = chemical, arid = mechanical = T06 + Climatology traps) and Oceanography (coastal processes: wave erosion → sea cliff, wave deposition → beach/spit = T09 synergy). Blueprint can exploit these links for cross-domain questions.",
+    "india_specific_hooks": "UPSC frequently tests India-specific geomorphology: Deccan Traps (basalt = extrusive igneous = T01), Barren Island active volcano (Andaman Sea), black cotton soil from basalt weathering (T02), Himalayan geology (continent-continent collision = T04), Indo-Gangetic Plain alluvium (fluvial = T15). Blueprint should prioritize India-context versions of these traps.",
+    "pattern_example_usage": "pattern_example shows the error pattern shape using a concrete true/misconception pair. Stage 3 uses this to understand HOW to apply the error_type — not as content to reuse. LLM derives actual statement content from retrieved chunks or UPSC-standard books (NCERT Class 11 Physical Geography, PMF IAS Geomorphology notes)."
+  }
 }
