@@ -30,7 +30,12 @@
             "Climatology",
             "Atmospheric Physics",
             "Oceanography"
-          ]
+          ],
+          "pattern_example": {
+            "true": "Low-level stratus clouds have a net warming effect on the lower atmosphere at night by absorbing and re-emitting outgoing longwave radiation back toward Earth's surface.",
+            "misconception": "All cloud types consistently cool the atmosphere by reflecting incoming solar radiation back to space.",
+            "note": "Student eliminates the true statement assuming 'clouds always cool' — but cloud radiative effect depends on type and time of day; low clouds warm at night via longwave trapping"
+          }
         },
         {
           "pattern_id": "pattern_2",
@@ -50,7 +55,12 @@
             "Geomorphology",
             "Spatial Geography"
           ],
-          "pyq_year": 2023
+          "pyq_year": 2023,
+          "pattern_example": {
+            "true": "Isotherms over ocean surfaces in the Northern Hemisphere deflect poleward (northward) compared to isotherms over adjacent land at the same latitude, because oceans retain heat longer in winter.",
+            "misconception": "Isotherms over ocean surfaces in the Northern Hemisphere deflect equatorward (southward) compared to isotherms over adjacent land at the same latitude.",
+            "note": "Reverse isotherm deflection direction — oceans are warmer than land in winter, so isotherms bulge poleward over oceans, not equatorward; equatorward deflection applies over cold land masses"
+          }
         },
         {
           "pattern_id": "pattern_6",
@@ -69,7 +79,12 @@
             "Mountain Chains",
             "Climate Zones"
           ],
-          "pyq_year": 2022
+          "pyq_year": 2022,
+          "pattern_example": {
+            "true": "The Himalayan rivers flowing into the Ganga plain, arranged from west to east, are: Yamuna, Ghaghra, Gandak, Kosi.",
+            "misconception": "The Himalayan rivers flowing into the Ganga plain, arranged from west to east, are: Kosi, Gandak, Ghaghra, Yamuna.",
+            "note": "Reverse the west-to-east spatial sequence — keeps all river names correct but swaps the geographic order; requires mental map, not conceptual knowledge"
+          }
         }
       ]
     },
@@ -101,7 +116,12 @@
             "Economic Geography",
             "Human Geography"
           ],
-          "pyq_year": 2023
+          "pyq_year": 2023,
+          "pattern_example": {
+            "true": "China has higher cereal crop yield per hectare than India, despite India having a larger total area under arable land.",
+            "misconception": "India has higher cereal crop yield per hectare than China because India has more total arable land and a larger farming population.",
+            "note": "Confuse total area (India leads) with yield efficiency (China leads) — student assumes more land = more productive, reversing the correct metric winner"
+          }
         },
         {
           "pattern_id": "pattern_4",
@@ -119,7 +139,12 @@
             "Indian Geography",
             "Geomorphology",
             "Rivers"
-          ]
+          ],
+          "pattern_example": {
+            "true": "Jog Falls (Gersoppa Falls) in Karnataka is formed on the Sharavathi River and is one of the highest plunge waterfalls in India.",
+            "misconception": "Jog Falls (Gersoppa Falls) in Karnataka is formed on the Cauvery River as it descends from the Deccan Plateau.",
+            "note": "Correct landmark (Jog Falls), wrong river (Cauvery instead of Sharavathi) — the Cauvery has its own famous falls (Shivanasamudra) which adds plausibility to the error"
+          }
         },
         {
           "pattern_id": "pattern_1_variant",
@@ -137,7 +162,12 @@
             "Climatology",
             "Oceanography",
             "Physics"
-          ]
+          ],
+          "pattern_example": {
+            "true": "Deserts receive more solar radiation than equatorial rainforests because the near-permanent clear skies allow direct insolation with minimal cloud scattering.",
+            "misconception": "Equatorial rainforests receive more solar radiation than deserts because they are closer to the Sun's overhead position throughout the year.",
+            "note": "Student assumes equatorial = maximum solar input, but cloud cover in rainforests reduces actual insolation; deserts receive more direct radiation due to cloudless skies"
+          }
         },
         {
           "pattern_id": "pattern_oceanography_1",
@@ -154,7 +184,12 @@
           "applicable_sub_domains": [
             "Oceanography"
           ],
-          "pyq_years": [2023, 2020, 2019]
+          "pyq_years": [2023, 2020, 2019],
+          "pattern_example": {
+            "true": "The Labrador Current, flowing southward along the eastern coast of Canada, is a cold current that contributes to the formation of dense fog off Newfoundland where it meets the warm Gulf Stream.",
+            "misconception": "The Labrador Current, flowing southward along the eastern coast of Canada, is a warm current that keeps Atlantic Canada's ports ice-free year-round.",
+            "note": "Flip warm/cold classification — Labrador is cold (from Arctic), not warm; it is the Gulf Stream that warms adjacent regions"
+          }
         },
         {
           "pattern_id": "pattern_oceanography_2",
@@ -171,7 +206,12 @@
           "applicable_sub_domains": [
             "Oceanography"
           ],
-          "pyq_years": [2022]
+          "pyq_years": [2022],
+          "pattern_example": {
+            "true": "The Moon's gravitational pull is the dominant cause of ocean tides, contributing approximately twice the tidal force of the Sun, despite the Sun being far more massive.",
+            "misconception": "The Sun's gravitational pull is the dominant cause of ocean tides because its immense mass creates a stronger gravitational field at Earth's location.",
+            "note": "Mass alone does not determine tidal force — tidal force scales with mass divided by distance cubed; Moon's proximity dominates over Sun's mass advantage"
+          }
         },
         {
           "pattern_id": "pattern_oceanography_3",
@@ -188,7 +228,12 @@
           "applicable_sub_domains": [
             "Oceanography"
           ],
-          "pyq_years": [2018]
+          "pyq_years": [2018],
+          "pattern_example": {
+            "true": "The Red Sea has among the world's highest ocean salinity (~41 ppt) because extremely high evaporation, negligible precipitation, and absence of river inflow all combine to concentrate dissolved salts.",
+            "misconception": "The Mediterranean Sea has higher salinity than the Red Sea because the Mediterranean is a larger semi-enclosed basin with proportionally greater evaporation.",
+            "note": "Compare wrong pair — Red Sea wins on salinity (41 ppt) vs Mediterranean (~38 ppt) because the Red Sea has zero river input; size does not determine salinity"
+          }
         },
         {
           "pattern_id": "pattern_oceanography_4",
@@ -205,7 +250,12 @@
           "applicable_sub_domains": [
             "Oceanography"
           ],
-          "pyq_years": [2023, 2021]
+          "pyq_years": [2023, 2021],
+          "pattern_example": {
+            "true": "El Niño Southern Oscillation (ENSO) involves anomalous warming of sea surface temperatures in the central and eastern equatorial Pacific Ocean, weakening the Walker Circulation.",
+            "misconception": "El Niño Southern Oscillation (ENSO) involves anomalous warming of sea surface temperatures in the central and eastern equatorial Indian Ocean, affecting monsoon onset.",
+            "note": "Swap Pacific for Indian Ocean — ENSO is a Pacific phenomenon; the Indian Ocean equivalent is IOD; confusing their geographic domains is a common precision error"
+          }
         },
         {
           "pattern_id": "pattern_oceanography_5",
@@ -221,7 +271,12 @@
           "applicable_sub_domains": [
             "Oceanography"
           ],
-          "pyq_years": [2024]
+          "pyq_years": [2024],
+          "pattern_example": {
+            "true": "Increased atmospheric CO2 dissolves in seawater forming carbonic acid, which lowers ocean pH and reduces carbonate ion availability, impairing shell formation in marine organisms.",
+            "misconception": "Ocean acidification releases dissolved CO2 back into the atmosphere from acidified seawater, thereby amplifying atmospheric CO2 concentrations in a self-reinforcing cycle.",
+            "note": "Reverse the causal arrow — atmosphere → ocean (CO2 absorption and acidification), not ocean → atmosphere; under acidification oceans remain a net carbon sink, not a source"
+          }
         }
       ]
     },
@@ -250,7 +305,12 @@
           "applicable_sub_domains": [
             "Climatology",
             "Geomorphology"
-          ]
+          ],
+          "pattern_example": {
+            "true": "Assertion (A): The troposphere is thicker at the equator (~16–18 km) than at the poles (~8–10 km). | Reason (R): Because intense convection and rising air columns at the equator push the tropopause to higher altitudes.",
+            "misconception": "Reason (R): Because the equator receives more direct solar radiation, which directly heats the atmosphere and expands it vertically.",
+            "note": "A is correct; the misconception reason is plausible but wrong — it is convection (rising air) that extends the troposphere height, not direct solar heating of the atmosphere itself"
+          }
         },
         {
           "pattern_id": "pattern_2_ar_variant",
@@ -268,7 +328,12 @@
           "applicable_sub_domains": [
             "All domains"
           ],
-          "pyq_year": 2023
+          "pyq_year": 2023,
+          "pattern_example": {
+            "true": "A: India is the world's largest producer of milk. | R: India has one of the world's largest bovine (cattle and buffalo) populations.",
+            "misconception": "Student selects 'Both A and R are true and R is the correct explanation of A' — but milk leadership also depends on cooperative infrastructure (Amul model), dual-purpose breeds, and policy support, not merely herd size.",
+            "note": "Both facts are true but the causal link is incomplete — R is a contributing factor, not the full explanation; choosing R as THE explanation mistakes correlation for causation"
+          }
         }
       ]
     },
@@ -296,7 +361,12 @@
           ],
           "applicable_sub_domains": [
             "All domains"
-          ]
+          ],
+          "pattern_example": {
+            "true": "A greenfield airport is constructed on entirely undeveloped land with no pre-existing infrastructure, allowing full flexibility in design, layout, and technology integration.",
+            "misconception": "A greenfield airport is an existing airport that has been upgraded with new green energy systems and eco-friendly infrastructure under a government sustainability initiative.",
+            "note": "Student anchors to recent airport news and interprets 'greenfield' through the lens of 'green/environment' rather than its actual planning term meaning (virgin land)"
+          }
         },
         {
           "pattern_id": "pattern_1_direct_variant",
@@ -311,7 +381,12 @@
           ],
           "applicable_sub_domains": [
             "All domains"
-          ]
+          ],
+          "pattern_example": {
+            "true": "Volcanic emissions include nitrogen compounds such as ammonia (NH3) and nitrogen oxides (NOx), which contribute to the atmospheric nitrogen and acid rain cycles.",
+            "misconception": "Volcanic emissions consist exclusively of water vapour, carbon dioxide, and sulphur dioxide — nitrogen compounds are not produced by volcanic activity.",
+            "note": "Student memorises the standard short list of volcanic gases (H2O, CO2, SO2, H2S) and assumes completeness — nitrogen compounds are less prominent but factually present"
+          }
         }
       ]
     },
@@ -343,7 +418,12 @@
             "Flora/Fauna",
             "Geography"
           ],
-          "pyq_year": 2023
+          "pyq_year": 2023,
+          "pattern_example": {
+            "true": "Chilika Lake — Odisha (correct: India's largest coastal brackish water lagoon is located in Odisha on the eastern coast)",
+            "misconception": "Chilika Lake — Andhra Pradesh (incorrect: Chilika is in Odisha; Pulicat Lake is Andhra Pradesh's major coastal lagoon)",
+            "note": "Swap the state pairing — both Odisha and Andhra Pradesh have prominent coastal lagoons on the eastern coast, making the substitution geographically plausible but factually wrong"
+          }
         }
       ]
     },
@@ -371,7 +451,12 @@
           ],
           "applicable_sub_domains": [
             "All domains"
-          ]
+          ],
+          "pattern_example": {
+            "true": "The Amur Falcon is a long-distance migratory raptor that travels from its breeding grounds in Siberia and northeastern China to wintering grounds in southern Africa, passing through northeastern India (Nagaland) as a critical stopover.",
+            "misconception": "The Amur Falcon is an endangered resident bird of Nagaland that nests in the state's forests and is protected under India's Wildlife Protection Act as a non-migratory endemic species.",
+            "note": "Student conflates a high-profile CA conservation event (Nagaland's Amur Falcon protection) with permanent residency — the species is a migratory visitor, not a resident"
+          }
         }
       ]
     }
@@ -454,6 +539,7 @@
     "Not exhaustive. Covers 6 core patterns that account for 85%+ of UPSC Geography questions",
     "Patterns are reusable across all Geography sub-domains and other subjects",
     "Question type drives which patterns apply; difficulty drives how complex the trap is",
-    "Generation rules are templates; LLM adapts based on concept and context"
+    "Generation rules are templates; LLM adapts based on concept and context",
+    "pattern_example shows the error pattern shape using a concrete true/misconception pair. Stage 3 uses this to understand HOW to apply the error_type — not as content to reuse. LLM derives actual statement content from retrieved chunks or UPSC-standard books."
   ]
 }

@@ -92,6 +92,11 @@
         "assertion_reason",
         "multi_statement"
       ],
+      "pattern_example": {
+        "true": "The lower atmosphere is heated primarily by terrestrial (long-wave) radiation re-emitted from Earth's surface, not by direct solar radiation.",
+        "misconception": "The lower atmosphere is heated primarily by direct solar (short-wave) radiation passing through it.",
+        "note": "Invert the heating source — atmosphere is largely transparent to solar radiation but absorbs terrestrial radiation strongly"
+      },
       "example_question": "A: Atmosphere is heated primarily by terrestrial radiation, not solar. R: Because the atmosphere is largely transparent to solar radiation but absorbs terrestrial radiation. Code: (a) only A is true (b) only R is true (c) Both A and R, R explains A (d) Both true, R doesn't explain A"
     },
     "GEO_C_T02": {
@@ -120,6 +125,11 @@
         "assertion_reason",
         "scenario"
       ],
+      "pattern_example": {
+        "true": "In the Northern Hemisphere, the ITCZ migrates northward during summer (June–August), bringing rainfall to South Asia.",
+        "misconception": "In the Southern Hemisphere, the ITCZ also migrates northward during its summer (December–February).",
+        "note": "Apply NH seasonal migration direction to SH — in SH summer the ITCZ moves southward, not northward"
+      },
       "example_question": "Which statement is correct? (1) Subtropical high pressure belt shifts southward in January in Northern Hemisphere. (2) In Southern Hemisphere in July, ITCZ is in the Southern Hemisphere. (a) Only 1 (b) Only 2 (c) Both (d) Neither"
     },
     "GEO_C_T03": {
@@ -146,6 +156,11 @@
         "match_pair",
         "assertion_reason"
       ],
+      "pattern_example": {
+        "true": "The subtropical westerly jet stream in the Northern Hemisphere is centred approximately at 25°–30°N latitude.",
+        "misconception": "The subtropical westerly jet stream in the Northern Hemisphere is centred approximately at 45°–55°N latitude.",
+        "note": "Shift the latitude northward toward the polar front jet — 45°–55°N is where the polar front jet operates, not the subtropical jet"
+      },
       "example_question": "Subtropical jet stream in Northern Hemisphere is centered approximately at: (a) 25°N (b) 35°N (c) 50°N (d) 60°N"
     },
     "GEO_C_T04": {
@@ -171,6 +186,11 @@
         "direct_fact",
         "match_pair"
       ],
+      "pattern_example": {
+        "true": "Tropical monsoon climate (Am) has a short dry season that is compensated by very high total annual rainfall (>1500 mm), distinguishing it from Aw.",
+        "misconception": "Tropical monsoon climate is classified as Aw because it has a pronounced dry season lasting several months.",
+        "note": "Swap Am for Aw — the longer, more severe dry season defines Aw (savanna); Am has a brief dry season offset by high annual totals"
+      },
       "example_question": "Tropical monsoon climate with pronounced dry season is classified as: (a) Af (b) Am (c) Aw (d) Cwb"
     },
     "GEO_C_T05": {
@@ -195,6 +215,11 @@
         "assertion_reason",
         "multi_statement"
       ],
+      "pattern_example": {
+        "true": "Tropical cyclone formation requires sea surface temperature exceeding 26.5°C AND weak vertical wind shear AND sufficient Coriolis deflection (poleward of ~5° latitude).",
+        "misconception": "Tropical cyclones form in any ocean region where sea surface temperature exceeds 26.5°C.",
+        "note": "State one necessary condition (SST) as if it is the sole sufficient condition — SST is real but three to four factors must co-occur"
+      },
       "example_question": "A: Tropical cyclones can form in all ocean areas with SST > 26.5°C. R: Because warm water is the primary energy source for cyclone intensification. Code: (a) Both A and R true, R explains A (b) Both true, R does not explain A (c) A false, R true (d) Both false"
     },
     "GEO_C_T06": {
@@ -222,6 +247,11 @@
         "direct_fact",
         "assertion_reason"
       ],
+      "pattern_example": {
+        "true": "In the mid-latitude belt (35°–60°N/S), prevailing surface winds are westerlies, blowing from west to east.",
+        "misconception": "In the mid-latitude belt (35°–60°N/S), prevailing surface winds are easterlies, blowing from east to west.",
+        "note": "Reverse the wind direction at the correct latitude — easterlies and westerlies are commonly confused; mid-latitudes are westerlies, not easterlies"
+      },
       "example_question": "In the subtropical high-pressure zone (30°N-S), prevailing winds are: (a) Westerlies moving poleward (b) Easterlies moving equatorward (c) Converging toward ITCZ (d) Diverging poleward and equatorward"
     },
     "GEO_C_T07": {
@@ -246,6 +276,11 @@
         "assertion_reason",
         "scenario"
       ],
+      "pattern_example": {
+        "true": "The onset of the Southwest Monsoon over India is primarily associated with the northward shift of the ITCZ combined with the formation of a thermal low over the Thar Desert region.",
+        "misconception": "The onset of the Southwest Monsoon over India is primarily caused by the southward withdrawal of the subtropical jet stream from over the Indian subcontinent.",
+        "note": "Substitute a secondary trigger (jet stream withdrawal) for the primary cause — jet stream withdrawal is a consequence/associated event, not the principal driver"
+      },
       "example_question": "The Southwest Monsoon onset over India is primarily triggered by: (a) Northward shift of ITCZ (b) Formation of thermal low over Deccan Plateau (c) Southward migration of subtropical jet (d) Reversal of wind direction at 60°N"
     },
     "GEO_C_T08": {
@@ -269,6 +304,11 @@
         "direct_fact",
         "match_pair"
       ],
+      "pattern_example": {
+        "true": "Intense tropical cyclones in the Northwest Pacific Ocean (west of the International Date Line) are called typhoons.",
+        "misconception": "Intense tropical cyclones in the Northwest Pacific Ocean are called hurricanes.",
+        "note": "Swap regional nomenclature — 'hurricane' applies to the North Atlantic and eastern North Pacific; 'typhoon' is the correct term for the northwest Pacific"
+      },
       "example_question": "Severe cyclonic storms in the Northwest Pacific are locally called: (a) Hurricanes (b) Typhoons (c) Cyclones (d) Tornadoes"
     },
     "GEO_C_T09": {
@@ -294,6 +334,11 @@
         "assertion_reason",
         "multi_statement"
       ],
+      "pattern_example": {
+        "true": "During El Niño, sea surface temperatures in the central and eastern equatorial Pacific Ocean rise significantly above the long-term average.",
+        "misconception": "During El Niño, sea surface temperatures in the central and eastern equatorial Pacific Ocean fall significantly below the long-term average.",
+        "note": "Invert the SST anomaly — El Niño (Spanish: 'the boy/Christ child') refers to warming of the Pacific, not cooling; La Niña is the cooling phase"
+      },
       "example_question": "During El Niño phase, Pacific SST: (a) Decreases significantly (b) Remains unchanged (c) Increases significantly (d) Varies by month only"
     },
     "GEO_C_T10": {
@@ -320,6 +365,11 @@
         "scenario",
         "multi_statement"
       ],
+      "pattern_example": {
+        "true": "A positive Indian Ocean Dipole (IOD) can partially offset the rainfall-suppressing effect of El Niño on the Indian summer monsoon, leading to near-normal monsoon despite El Niño conditions.",
+        "misconception": "El Niño and the Indian Ocean Dipole always have independent, additive effects on the Indian summer monsoon — a positive IOD strengthens monsoon while El Niño weakens it, and both effects simply add up.",
+        "note": "Treat interactive modulation as simple addition — misses that positive IOD can counter El Niño's suppressive effect, producing non-intuitive outcomes"
+      },
       "example_question": "A: Strong El Niño always reduces Indian monsoon rainfall. R: Because positive IOD can sometimes offset El Niño's weakening effect. Code: (a) Both A and R true, R explains A (b) A false, R true (c) Both false (d) A true, R false"
     },
     "GEO_C_T11": {
@@ -345,6 +395,11 @@
         "assertion_reason",
         "match_pair"
       ],
+      "pattern_example": {
+        "true": "Fresh snow and ice surfaces have very high albedo (80–90%), reflecting most incoming solar radiation back to space and absorbing very little.",
+        "misconception": "Fresh snow and ice surfaces have very low albedo, absorbing most incoming solar radiation and contributing to rapid surface warming.",
+        "note": "Reverse the reflectivity value — high albedo means high reflection (snow/ice), not absorption; this confusion underlies the ice-albedo feedback misunderstanding"
+      },
       "example_question": "Among the following, which surface has the HIGHEST albedo? (a) Ocean (b) Dark soil (c) Forest (d) Snow/Ice"
     },
     "GEO_C_T12": {
@@ -370,6 +425,11 @@
         "assertion_reason",
         "scenario"
       ],
+      "pattern_example": {
+        "true": "Air descending on the leeward side of a mountain undergoes adiabatic compression, warming at approximately 10°C per 1000 m (dry adiabatic lapse rate).",
+        "misconception": "Air descending on the leeward side of a mountain undergoes adiabatic expansion and cools, producing a rain shadow effect on the leeward slope.",
+        "note": "Reverse the adiabatic direction — descending air compresses and WARMS (Foehn/Chinook effect); ascending air expands and cools (causing rainfall on windward side)"
+      },
       "example_question": "A: Air descending a mountain slope becomes warmer due to adiabatic compression. R: Because descending air is compressed, losing potential energy as heat. Code: (a) Both A and R true, R explains A (b) Both true, R doesn't explain A (c) A true, R false (d) Both false"
     },
     "GEO_C_T13": {
@@ -394,6 +454,11 @@
         "assertion_reason",
         "scenario"
       ],
+      "pattern_example": {
+        "true": "A tropical location with 1800 mm annual rainfall but a driest month receiving only 35 mm is classified as Aw (tropical savanna) because the driest month falls below the 60 mm compensation threshold for Am.",
+        "misconception": "Any tropical location with annual rainfall exceeding 1500 mm is classified as Am (tropical monsoon) regardless of dry season duration or intensity.",
+        "note": "Ignore the defining precipitation threshold — Am requires driest month ≥ 100 − r/25 mm (where r = annual rainfall); high totals alone do not guarantee Am classification"
+      },
       "example_question": "A location receives 2000 mm annual rainfall, concentrated in 6 months (600 mm/month), with driest month receiving 45 mm. This is classified as: (a) Am (tropical monsoon) (b) Aw (tropical savanna) (c) Cfa (temperate humid) (d) Both Am and Aw depending on year"
     }
   },
@@ -532,6 +597,7 @@
     "frequency_calibration": "Trap frequencies are based on 2015-2024 PYQ analysis. High-frequency traps (>12%) should appear in 60-70% of generated questions for that concept. Low-frequency traps (<8%) in 10-20% of questions.",
     "difficulty_calibration": "Each trap has assigned difficulty. Use to modulate question difficulty. Mix easy traps (e.g., GEO_C_T08 nomenclature) with hard traps (e.g., GEO_C_T10 ENSO-IOD interaction) to create balanced difficulty distribution.",
     "cross_domain_synergy": "Climatology traps often interact with Geomorphology (e.g., weathering rates depend on climate = GEO_C_T01 + Weathering concept). Blueprint can use this to generate cross-domain linking questions.",
-    "ca_integration": "Traps marked as current affairs relevant (GEO_C_T02, GEO_C_T09, GEO_C_T10) should be prioritized when sampling CA-linked concepts. Tie recent monsoon failures, cyclone seasons, or ENSO events to underlying concepts."
+    "ca_integration": "Traps marked as current affairs relevant (GEO_C_T02, GEO_C_T09, GEO_C_T10) should be prioritized when sampling CA-linked concepts. Tie recent monsoon failures, cyclone seasons, or ENSO events to underlying concepts.",
+    "pattern_example_usage": "pattern_example shows the error pattern shape using a concrete true/misconception pair. Stage 3 uses this to understand HOW to apply the error_type — not as content to reuse. LLM derives actual statement content from retrieved chunks or UPSC-standard books."
   }
 }

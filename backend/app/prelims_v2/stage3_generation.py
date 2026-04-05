@@ -320,6 +320,7 @@ def _trap_injection(trap: dict, question_type: str) -> str:
     distractor_strategy = trap.get("distractor_strategy", "")
     gen_rules = trap.get("generation_rules", [])
     pyq_example = trap.get("real_pyq_example", trap.get("example_question", ""))
+    pattern_example = trap.get("pattern_example", {})
 
     lines = [f"TRAP STRATEGY: {name}"]
     if error_type:
@@ -333,6 +334,15 @@ def _trap_injection(trap: dict, question_type: str) -> str:
             lines.append(f"    {i}. {rule}")
     if how_to:
         lines.append(f"  How to generate: {how_to}")
+    # Pattern example: shown for statement-based types to illustrate the error shape
+    # Do NOT reuse these statements — derive content from chunks or your knowledge base
+    if pattern_example and question_type in {"multi_statement", "assertion_reason", "how_many"}:
+        lines.append(
+            f"  ERROR PATTERN SHAPE (shows the distortion structure — do not copy content):\n"
+            f"    TRUE:        {pattern_example.get('true', '')}\n"
+            f"    MISCONCEPTION: {pattern_example.get('misconception', '')}\n"
+            f"    NOTE:        {pattern_example.get('note', '')}"
+        )
     if pyq_example:
         lines.append(f"  UPSC reference (style only, do not copy): {pyq_example[:300]}")
 
@@ -467,6 +477,14 @@ def _build_question_block(
         if relevant:
             pyq_display = relevant[0].get("content", "")[:250] or pyq_display
 
+    # One-line statement grounding instruction for statement-based types
+    statement_note = (
+        "\n  NOTE: For each statement, first try to derive the fact from the retrieved chunks below. "
+        "If chunks are insufficient, use factually correct knowledge from UPSC standard books "
+        ". Apply the trap's error pattern to create distractors — do not invent facts.\n"
+        if qtype in {"multi_statement", "assertion_reason", "how_many"} else ""
+    )
+
     return f"""
 ---
 QUESTION {idx}:
@@ -483,7 +501,7 @@ QUESTION {idx}:
 {trap_blk}
 
 {cross_blk}
-
+{statement_note}
   REFERENCE CONTENT (primarily for this question; you may draw from other material if it genuinely strengthens the question):
 {static_text if static_text else '(Pure CA question -- no static content)'}
 {ca_block}

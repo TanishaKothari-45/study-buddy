@@ -27,7 +27,12 @@
       "error_type": "adjacent_fact_confusion",
       "distractor_strategy": "Uses real current names (e.g., Gulf Stream, Kuroshio, Benguela) but pairs with incorrect temperature classification or regional effect",
       "applicable_concepts": ["Ocean Currents"],
-      "evidence_questions": ["2023 Kuroshio question", "2020 Gulf Stream question", "2019 Peruvian Current question"]
+      "evidence_questions": ["2023 Kuroshio question", "2020 Gulf Stream question", "2019 Peruvian Current question"],
+      "pattern_example": {
+        "true": "The Benguela Current, flowing northward along the west coast of southern Africa, is a cold current that causes coastal upwelling and supports rich fisheries.",
+        "misconception": "The Benguela Current, flowing northward along the west coast of southern Africa, is a warm current that raises coastal sea surface temperatures.",
+        "note": "Flip warm/cold classification for a real named current — keeps name and geography correct, changes only thermal attribute; Benguela is cold (upwelling-driven), not warm"
+      }
     },
     "GEO_OCN_T02": {
       "pattern_id": "GEO_OCN_T02",
@@ -39,7 +44,12 @@
       "error_type": "counterintuitive_fact",
       "distractor_strategy": "Includes Sun-centric statements as wrong options; makes student's intuitive but wrong answer available",
       "applicable_concepts": ["Tides and Tidal Forces"],
-      "evidence_questions": ["2022 tidal forces question"]
+      "evidence_questions": ["2022 tidal forces question"],
+      "pattern_example": {
+        "true": "The Moon exerts a greater tidal force on Earth's oceans than the Sun does, despite the Sun being approximately 27 million times more massive, because the Moon is about 389 times closer to Earth.",
+        "misconception": "The Sun exerts a greater tidal force on Earth's oceans than the Moon because of the Sun's far greater gravitational mass.",
+        "note": "Intuitive mass-based reasoning is wrong — tidal force depends on distance cubed, not mass alone; proximity makes Moon dominant despite lower mass"
+      }
     },
     "GEO_OCN_T03": {
       "pattern_id": "GEO_OCN_T03",
@@ -51,7 +61,12 @@
       "error_type": "detail_mismatch",
       "distractor_strategy": "Mostly correct statements (3-4) with one having wrong detail about timing, magnitude, or classification",
       "applicable_concepts": ["Tides and Tidal Forces"],
-      "evidence_questions": ["2022 'How many' tidal question"]
+      "evidence_questions": ["2022 'How many' tidal question"],
+      "pattern_example": {
+        "true": "Spring tides occur when the Sun, Earth, and Moon are in syzygy (aligned), which happens at both new moon and full moon phases — twice per lunar month.",
+        "misconception": "Spring tides occur only at full moon when the Moon is directly opposite the Sun, creating maximum gravitational alignment.",
+        "note": "Remove one of two correct occurrences — spring tides happen at BOTH new moon AND full moon; student knows full moon but misses new moon alignment"
+      }
     },
     "GEO_OCN_T04": {
       "pattern_id": "GEO_OCN_T04",
@@ -63,7 +78,12 @@
       "error_type": "counterintuitive_fact",
       "distractor_strategy": "Makes student's spatial intuition the wrong answer; includes correct concept name with wrong directional property",
       "applicable_concepts": ["Ocean Currents", "Ocean Upwelling"],
-      "evidence_questions": ["2022 Peruvian upwelling", "2019 upwelling questions"]
+      "evidence_questions": ["2022 Peruvian upwelling", "2019 upwelling questions"],
+      "pattern_example": {
+        "true": "Cold water upwells along the Peruvian (Humboldt) Current coast despite its proximity to the equator, because southeast trade winds drive surface water offshore through Ekman transport.",
+        "misconception": "Cold ocean water is found only in high-latitude regions; equatorial zones near Peru would have warm surface currents due to intense solar heating.",
+        "note": "Apply latitude-temperature intuition (cold = poleward only) to a location where wind-driven upwelling overrides the solar heating pattern"
+      }
     },
     "GEO_OCN_T05": {
       "pattern_id": "GEO_OCN_T05",
@@ -75,7 +95,12 @@
       "error_type": "conceptual_gap",
       "distractor_strategy": "Includes correct observations (cold water, high productivity) but wrong mechanism (gravity vs wind vs thermal)",
       "applicable_concepts": ["Ocean Upwelling", "Ocean Currents"],
-      "evidence_questions": ["2022 Peruvian Current upwelling cause question"]
+      "evidence_questions": ["2022 Peruvian Current upwelling cause question"],
+      "pattern_example": {
+        "true": "Coastal upwelling occurs when alongshore winds, combined with Coriolis deflection (Ekman transport), push surface water away from the coast, drawing cold deep water upward to replace it.",
+        "misconception": "Coastal upwelling occurs because cold, dense deep water naturally rises due to its higher density compared to lighter warm surface water in the same region.",
+        "note": "Replace wind-Coriolis mechanism (correct) with a density/gravity mechanism — density difference is a consequence of upwelling, not the cause; wind is the driver"
+      }
     },
     "GEO_OCN_T06": {
       "pattern_id": "GEO_OCN_T06",
@@ -87,7 +112,12 @@
       "error_type": "metric_reversal",
       "distractor_strategy": "Correct answer requires weighing 2-3 factors; student picks answer based on strongest remembered factor only",
       "applicable_concepts": ["Ocean Salinity"],
-      "evidence_questions": ["2018 salinity basin comparison question"]
+      "evidence_questions": ["2018 salinity basin comparison question"],
+      "pattern_example": {
+        "true": "The Baltic Sea has very low salinity (~7–8 ppt) because it receives abundant freshwater from rivers and precipitation, while limited exchange with the North Sea prevents salt accumulation.",
+        "misconception": "The Baltic Sea has high salinity comparable to other semi-enclosed seas because, like the Red Sea, its semi-enclosed nature concentrates evaporated salts.",
+        "note": "Apply 'semi-enclosed = salty' logic from Red Sea to Baltic — ignores that the Baltic's water balance is dominated by excess freshwater input, not evaporation"
+      }
     },
     "GEO_OCN_T07": {
       "pattern_id": "GEO_OCN_T07",
@@ -99,7 +129,12 @@
       "error_type": "precision_mismatch",
       "distractor_strategy": "Correct zone name but incorrect depth range or light penetration characteristic",
       "applicable_concepts": ["Ocean Temperature Distribution", "Ocean Zones"],
-      "evidence_questions": ["2016 ocean zones and temperature question"]
+      "evidence_questions": ["2016 ocean zones and temperature question"],
+      "pattern_example": {
+        "true": "The permanent thermocline in tropical and subtropical oceans lies approximately between 200 m and 1000 m depth, where temperature decreases sharply with depth.",
+        "misconception": "The permanent thermocline in tropical and subtropical oceans lies approximately between 50 m and 200 m depth.",
+        "note": "Shift the depth range upward — 50–200 m is the seasonal thermocline (affected by surface heating); the permanent thermocline lies deeper at 200–1000 m"
+      }
     },
     "GEO_OCN_T08": {
       "pattern_id": "GEO_OCN_T08",
@@ -111,7 +146,12 @@
       "error_type": "causation_reversal",
       "distractor_strategy": "Recent climate news primes student to pick wrong phase; student forgets to verify mechanism carefully",
       "applicable_concepts": ["El Niño Southern Oscillation (ENSO)"],
-      "evidence_questions": ["2021 El Niño/La Niña question", "2024 implied in climate context"]
+      "evidence_questions": ["2021 El Niño/La Niña question", "2024 implied in climate context"],
+      "pattern_example": {
+        "true": "During El Niño, the Walker Circulation weakens as warm water spreads eastward across the Pacific, reducing the SST gradient between the western warm pool and eastern cold tongue.",
+        "misconception": "During La Niña, the Walker Circulation weakens because warm water spreads eastward and reduces the east-west SST gradient in the Pacific.",
+        "note": "Swap the ENSO phase — Walker Circulation weakening is El Niño; during La Niña the circulation STRENGTHENS due to enhanced east-west temperature gradient"
+      }
     },
     "GEO_OCN_T09": {
       "pattern_id": "GEO_OCN_T09",
@@ -123,7 +163,12 @@
       "error_type": "causation_reversal",
       "distractor_strategy": "Reverses cause-effect relationships in wrong options; includes correct facts but wrong connections",
       "applicable_concepts": ["Ocean Acidification"],
-      "evidence_questions": ["2024 ocean acidification question"]
+      "evidence_questions": ["2024 ocean acidification question"],
+      "pattern_example": {
+        "true": "Increased atmospheric CO2 dissolves in seawater to form carbonic acid, which dissociates and releases H+ ions, lowering ocean pH — a process called ocean acidification.",
+        "misconception": "Ocean acidification causes increased atmospheric CO2 by releasing dissolved carbon from acidified seawater back into the atmosphere.",
+        "note": "Reverse the causal direction — atmospheric CO2 drives ocean acidification, not the reverse; the ocean is a carbon sink, not a source under acidification"
+      }
     },
     "GEO_OCN_T10": {
       "pattern_id": "GEO_OCN_T10",
@@ -135,7 +180,12 @@
       "error_type": "conceptual_gap",
       "distractor_strategy": "Includes correct facts about components but wrong connections between them; requires systems thinking",
       "applicable_concepts": ["Thermohaline Circulation", "Ocean Salinity", "Temperature Distribution"],
-      "evidence_questions": ["Multiple 2020+ circulation questions"]
+      "evidence_questions": ["Multiple 2020+ circulation questions"],
+      "pattern_example": {
+        "true": "Thermohaline circulation is initiated by dense water sinking in polar regions (especially North Atlantic), driven by BOTH low temperature AND high salinity increasing water density beyond the sinking threshold.",
+        "misconception": "Thermohaline circulation is driven primarily by temperature differences alone — cold polar water sinks while warm equatorial water rises, with salinity playing a negligible role.",
+        "note": "Remove salinity from the density equation — both temperature AND salinity drive thermohaline density; in some regions (e.g., Mediterranean outflow) salinity is the dominant factor"
+      }
     },
     "GEO_OCN_T11": {
       "pattern_id": "GEO_OCN_T11",
@@ -147,7 +197,12 @@
       "error_type": "location_confusion",
       "distractor_strategy": "Uses correct concept name (ENSO or IOD) but assigns to wrong ocean or wrong seasonal pattern",
       "applicable_concepts": ["El Niño Southern Oscillation (ENSO)", "Indian Ocean Dipole"],
-      "evidence_questions": ["2023 IOD question", "2021 ENSO question"]
+      "evidence_questions": ["2023 IOD question", "2021 ENSO question"],
+      "pattern_example": {
+        "true": "The Indian Ocean Dipole (IOD) refers to the oscillation in sea surface temperature difference between the western Indian Ocean (off East Africa) and the eastern Indian Ocean (off Sumatra).",
+        "misconception": "The Indian Ocean Dipole (IOD) refers to the oscillation in sea surface temperature difference between the western and eastern Pacific Ocean.",
+        "note": "Swap Indian Ocean for Pacific — ENSO operates in the Pacific, IOD operates in the Indian Ocean; students commonly conflate the two basin-scale oscillations"
+      }
     },
     "GEO_OCN_T12": {
       "pattern_id": "GEO_OCN_T12",
@@ -159,7 +214,12 @@
       "error_type": "adjacent_fact_confusion",
       "distractor_strategy": "Uses correct ecosystem name (coral reef, kelp forest, deep-sea vent) with wrong depth/temperature/light classification",
       "applicable_concepts": ["Marine Ecosystems and Biodiversity", "Ocean Zones"],
-      "evidence_questions": ["2017 ecosystem match question"]
+      "evidence_questions": ["2017 ecosystem match question"],
+      "pattern_example": {
+        "true": "Coral reef ecosystems are restricted to the photic (sunlit) zone, typically within 60 m of the surface, because reef-building corals depend on zooxanthellae algae that require sunlight for photosynthesis.",
+        "misconception": "Coral reef ecosystems can thrive at depths of 500–1000 m in the aphotic zone, as deep-sea corals do not depend on sunlight for survival.",
+        "note": "Assign a photosynthesis-dependent ecosystem to a lightless depth — shallow-water coral reefs need photic zone; deep-sea corals are a separate, rare type that do not build reefs in the same way"
+      }
     }
   }
 }
