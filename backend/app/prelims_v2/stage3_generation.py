@@ -523,6 +523,23 @@ _TYPE_FORMAT = {
     "spatial": "spatial: Test geographic location, distribution, or map-based reasoning. 4 options (a)-(d).",
     "chronology": "chronology: Test correct temporal ordering of events/processes. 4 options (a)-(d).",
     "data_based": "data_based: Present data (table/figure description) and test interpretation. 4 options (a)-(d).",
+
+    "how_many": """how_many: "Consider the following statements regarding [topic]:
+  1. [Statement 1]
+  2. [Statement 2]
+  3. [Statement 3]
+  4. [Statement 4]
+  How many of the above statements are correct?"
+  Options: (a) Only one  (b) Only two  (c) Only three  (d) All four
+  NOTE: Craft statements so the correct count is non-obvious (avoid trivial all-true or all-false). \
+Each wrong statement must embed a specific factual error (number, direction, mechanism) not a vague one.""",
+
+    "single_best_answer": """single_best_answer: Single stem question where all options contain \
+a partial truth, but only one is the most precise/complete answer.
+  Format: "[Question stem]?"
+  Options: (a)-(d), each option plausible but only one is fully correct.
+  NOTE: Distractors must be subtly wrong — a wrong scale, a missing qualifier, an incorrect \
+causal link — not obviously false.""",
 }
 
 

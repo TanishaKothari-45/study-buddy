@@ -95,6 +95,8 @@ QuestionTypeLiteral = Literal[
     "spatial",
     "chronology",
     "data_based",
+    "how_many",           # "How many of the above statements are correct?" format
+    "single_best_answer", # Single-stem, pick the most accurate option
 ]
 
 

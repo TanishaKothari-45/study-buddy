@@ -509,11 +509,13 @@ class GeminiClient:
             f"Search for current, factual information about: {primary_query}\n"
             + (f"Also retrieve: {extra}\n" if extra else "")
             + "\nSummarise the most recent and relevant facts in 200-300 words. "
+            "Prioritise information from the last 6 months. "
             "Focus on facts useful for a UPSC Prelims question. No opinion, no padding."
         )
         system_prompt = (
             f"You are a UPSC current affairs analyst. {context_hint}. "
-            "Return only factual, verifiable information from search results."
+            "Return only factual, verifiable information from search results. "
+            "Prefer the most recent results available."
         )
 
         try:

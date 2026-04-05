@@ -26,6 +26,7 @@ import logging
 import random
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict
 
 from pydantic import BaseModel
@@ -174,6 +175,7 @@ async def _generate_exploratory_queries(
     gemini_client,
     min_queries: int = 0,
     max_queries: int = 2,
+    peer_concepts: Optional[List[str]] = None,
 ) -> List[str]:
     """
     LLM generates exploratory queries to explore angles NOT covered by skeleton.
@@ -183,16 +185,12 @@ async def _generate_exploratory_queries(
       - Medium: 0-1 exploratory (min=0, max=1)
       - Hard: 1-2 exploratory (min=1, max=2)
 
-    Input to LLM:
-      - concept
-      - sub_concepts tested
-      - aspects covered
-      - difficulty_type
-      - min/max query bounds
+    peer_concepts: other concepts in the same test batch — used to produce at least
+      one cross-domain query linking this skeleton's concept to a peer.
 
     Output: Variable number of queries (between min and max) exploring:
       - Different aspects (economic, historical, climate, policy)
-      - Inter-domain connections (Monsoon + Agriculture, Monsoon + Migration)
+      - Cross-domain links to peer concepts (if peer_concepts provided)
       - Novel angles (extreme events, case studies, recent trends, linkages)
 
     The LLM decides the count within bounds based on skeleton complexity.
@@ -213,18 +211,28 @@ async def _generate_exploratory_queries(
     aspects_covered = list(set(sc.aspect for sc in skeleton.sub_concepts))
     difficulty = skeleton.difficulty
 
-    system_prompt = """You are an expert UPSC curriculum researcher.
-Given a question skeleton and query bounds, generate exploratory Pinecone search queries
-to explore DIFFERENT angles and connections NOT covered by the skeleton.
+    # Peer concepts for cross-domain linking (exclude self)
+    peers = [p for p in (peer_concepts or []) if p != concept]
 
-Think about:
-- Different aspects (economic, historical, climate, policy, social, environmental)
-- Inter-domain links (concept + agriculture, concept + migration, concept + policy)
-- New dimensions (extreme cases, recent events, case studies, linkages to other concepts)
-- Avoid repeating the sub_concepts already tested
+    peer_section = (
+        f"\nPEER CONCEPTS IN THIS TEST (for cross-domain links): {', '.join(peers[:5])}\n"
+        "If possible, include one query that links this concept to a peer above — "
+        "UPSC frequently tests indirect connections between co-occurring concepts."
+        if peers else ""
+    )
 
-Generate SHORT, specific queries (5-10 words each) that a corpus would have.
-Respect the min/max bounds based on skeleton complexity."""
+    system_prompt = (
+        "You are an expert UPSC curriculum researcher. "
+        "Given a question skeleton and query bounds, generate exploratory Pinecone search queries "
+        "to explore DIFFERENT angles and connections NOT covered by the skeleton.\n\n"
+        "Think about:\n"
+        "- Different aspects (economic, historical, climate, policy, social, environmental)\n"
+        "- Cross-domain links to peer concepts tested in the same paper\n"
+        "- New dimensions (extreme cases, recent events, case studies, anomalies)\n"
+        "- Avoid repeating the sub_concepts already tested\n\n"
+        "Generate SHORT, specific queries (5-10 words each) that a textbook corpus would contain.\n"
+        "Respect the min/max bounds based on skeleton complexity."
+    )
 
     query_count_instruction = (
         f"Generate between {min_queries} and {max_queries} exploratory queries. "
@@ -237,7 +245,7 @@ QUESTION SKELETON:
   Sub-concepts tested: {sub_concept_topics}
   Aspects covered: {aspects_covered}
   Difficulty: {difficulty}
-
+{peer_section}
 QUERY COUNT GUIDANCE:
   {query_count_instruction}
 
@@ -338,7 +346,7 @@ def _build_structured_queries(skeleton) -> List[Dict]:
 
 # ── Google Search query builder ───────────────────────────────────────────────
 
-def _build_ca_search_queries(skeleton) -> List[str]:
+def _build_ca_search_queries(skeleton, recency_months: int = 8) -> List[str]:
     """
     Build Google Search queries for a CA-flagged skeleton (70% structured + 30% exploratory).
 
@@ -350,39 +358,43 @@ def _build_ca_search_queries(skeleton) -> List[str]:
       3. "{concept} latest developments" (recent news angle)
       4. "{concept} policy impact current" (policy + impact angle)
 
+    Uses a dynamic recency cutoff (default: 8 months back) via Google's after: operator.
     Returns list of query strings for Gemini Google Search tool.
     """
+    # Dynamic recency cutoff: e.g. "after:2025-10-06" for 6 months back
+    cutoff_date = (datetime.now() - timedelta(days=recency_months * 30)).strftime("%Y-%m-%d")
+    current_year = datetime.now().year
+
     queries = []
+    first_topic = skeleton.sub_concepts[0].topic[:50] if skeleton.sub_concepts else ""
 
     # 70% STRUCTURED
-    # Query 1: ca_event from blueprint (most targeted)
+    # Query 1: ca_event from blueprint (most targeted) — with recency filter
     if skeleton.ca_event:
         queries.append(
-            f"{skeleton.ca_event} {skeleton.concept} India 2024 2025 official"
+            f"{skeleton.ca_event} {skeleton.concept} India after:{cutoff_date} official"
         )
     else:
-        # Fallback: concept + first topic
-        first_topic = skeleton.sub_concepts[0].topic[:50] if skeleton.sub_concepts else ""
+        # Fallback: concept + first topic with recency
         queries.append(
-            f"{skeleton.concept} {first_topic} UPSC Prelims 2024 2025 India"
+            f"{skeleton.concept} {first_topic} UPSC Prelims {current_year} India after:{cutoff_date}"
         )
 
-    # Query 2: Government source anchor (static content)
-    first_topic = skeleton.sub_concepts[0].topic[:50] if skeleton.sub_concepts else ""
+    # Query 2: Government source anchor — recency filter on official sources
     queries.append(
         f"site:pib.gov.in OR site:indiabudget.gov.in OR site:moes.gov.in "
-        f"{skeleton.concept} {first_topic}"
+        f"{skeleton.concept} {first_topic} after:{cutoff_date}"
     )
 
     # 30% EXPLORATORY
     # Query 3: Recent developments / latest news
     queries.append(
-        f"{skeleton.concept} latest developments 2024 2025 news India"
+        f"{skeleton.concept} latest developments {current_year} news India after:{cutoff_date}"
     )
 
     # Query 4: Policy impact / implications
     queries.append(
-        f"{skeleton.concept} policy impact implementation India current"
+        f"{skeleton.concept} policy impact implementation India {current_year} after:{cutoff_date}"
     )
 
     logger.info(
@@ -541,9 +553,13 @@ async def retrieve_for_skeleton(
     pinecone_handler,
     gemini_client,
     subject: str,
+    peer_concepts: Optional[List[str]] = None,
 ) -> RetrievalResult:
     """
     Full retrieval for one skeleton: 70% structured + 30% exploratory (except pure CA).
+
+    peer_concepts: other concept names in the same test batch — passed to the exploratory
+      query LLM so it can generate cross-domain linking queries at no extra API cost.
 
     TWO TYPES OF RETRIEVAL:
 
@@ -554,7 +570,8 @@ async def retrieve_for_skeleton(
 
     2. CA-LINKED / REGULAR QUESTIONS (pure_ca=False):
        - Build structured queries from skeleton.sub_concepts (variable count)
-       - LLM generates exploratory queries (variable count)
+       - LLM generates exploratory queries (variable count), including cross-domain
+         links to peer concepts when available
        - Pinecone retrieval: fetch 20 per query, MMR select 5 (randomized lambda)
        - Result: (query_count × 5) chunks for that skeleton
          Example: 2 queries → 10 chunks, 3 queries → 15 chunks, 1 query → 5 chunks
@@ -590,11 +607,13 @@ async def retrieve_for_skeleton(
         structured_queries = all_structured[:struct_count]
 
         # Generate exploratory queries from LLM (within bounds)
+        # Pass peer_concepts so cross-domain links are folded into the existing call
         exploratory_query_texts = await _generate_exploratory_queries(
             skeleton,
             gemini_client,
             min_queries=expl_min,
-            max_queries=expl_max
+            max_queries=expl_max,
+            peer_concepts=peer_concepts,
         )
         exploratory_queries = [
             {
@@ -673,15 +692,27 @@ async def retrieve_for_all_skeletons(
 ) -> List[RetrievalResult]:
     """
     Run retrieval for all skeletons concurrently.
+
+    Cross-domain linking is folded into each skeleton's existing exploratory query
+    domains. All peer concept names are passed to
+    _generate_exploratory_queries so it can produce at least one cross-domain query
+    as one of its exploratory angles.
+
     Google Search calls are rate-limited by semaphore.
     Pinecone calls are fast enough to run fully parallel.
     """
     semaphore = asyncio.Semaphore(concurrency)
 
+    # Pre-compute all concept names — passed as peer_concepts to each skeleton's retrieval
+    all_concepts = list(dict.fromkeys(sk.concept for sk in skeletons))
+
     async def bounded(skeleton):
         async with semaphore:
+            # Peers = all concepts except this skeleton's own
+            peers = [c for c in all_concepts if c != skeleton.concept]
             return await retrieve_for_skeleton(
-                skeleton, pinecone_handler, gemini_client, subject
+                skeleton, pinecone_handler, gemini_client, subject,
+                peer_concepts=peers,
             )
 
     results = await asyncio.gather(*[bounded(s) for s in skeletons])
