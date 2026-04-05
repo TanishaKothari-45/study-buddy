@@ -65,8 +65,13 @@ class V2GeneratedQuestion(BaseModel):
     # Quality flags set by Stage 4
     trap_verified: bool = False
     ca_in_stem: bool = False                  # CA event appears in question stem (not explanation only)
-    quality_score: float = 0.0
+    quality_score: float = 0.0               # 0-100 composite (Phase 2)
     distractor_quality: float = 1.0          # fraction of wrong options in plausible similarity range
+    # Quality breakdown (Phase 2 sub-scores, each 0-1)
+    quality_breakdown: Dict[str, float] = Field(default_factory=dict)
+    # failure_reason: why this question was hard-failed (Phase 1) or rejected in selection (Phase 3)
+    failure_reason: Optional[str] = None     # e.g. "STRUCTURE_FAIL" | "CONSTRAINT_VIOLATION" | "DUPLICATE_88" | "DUPLICATE_75"
+    is_extra: bool = False                   # True if generated as 20% buffer (no primary skeleton)
     # Source metadata
     sub_domain: str = ""
     difficulty: str = ""

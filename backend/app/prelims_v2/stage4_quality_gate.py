@@ -218,194 +218,385 @@ def _embed_texts(embedder, texts: List[str]) -> List[List[float]]:
     )
 
 
+# ── Phase 2: Quality scoring helpers ────────────────────────────────────────
+
+def _score_trap(q: V2GeneratedQuestion, sk: QuestionSkeleton) -> float:
+    """
+    0-1: how well the trap is embedded in the question.
+      0.5 — trap keyword found in at least one wrong option
+      0.3 — trap mechanism explicitly named in explanation
+      0.2 — explanation contains reasoning words (because/since/therefore/whereas)
+    """
+    trap_id    = sk.trap_strategy if sk else ""
+    hints      = _TRAP_KEYWORDS.get(trap_id, _GENERIC_TRAP_WORDS)
+    wrong_text = " ".join(_wrong_options(q)).lower()
+    expl_lower = q.explanation.lower()
+
+    score = 0.0
+    # Trap present in wrong options
+    if any(re.search(re.escape(h), wrong_text, re.IGNORECASE) for h in hints):
+        score += 0.5
+    # Trap mechanism mentioned in explanation
+    if any(h.lower() in expl_lower for h in hints):
+        score += 0.3
+    # Explanation contains causal/contrastive reasoning
+    if re.search(r"\b(because|since|therefore|whereas|however|but|although)\b", expl_lower):
+        score += 0.2
+    return min(score, 1.0)
+
+
+def _score_explanation(q: V2GeneratedQuestion) -> float:
+    """
+    0-1: depth and quality of the explanation.
+      0.4 — word count ≥ 80 (thorough); 0.2 for ≥ 40 (adequate)
+      0.3 — mentions at least 2 wrong option letters (A/B/C/D) → explains why wrong
+      0.3 — contains reasoning words (because/since/incorrect/correct/explains)
+    """
+    words     = q.explanation.split()
+    expl_lower = q.explanation.lower()
+
+    score = 0.0
+    # Word count depth
+    if len(words) >= 80:
+        score += 0.4
+    elif len(words) >= 40:
+        score += 0.2
+
+    # Wrong option letters mentioned
+    letters_mentioned = sum(
+        1 for letter in ("a)", "b)", "c)", "d)", "option a", "option b", "option c", "option d")
+        if letter in expl_lower
+    )
+    if letters_mentioned >= 2:
+        score += 0.3
+    elif letters_mentioned >= 1:
+        score += 0.15
+
+    # Reasoning / correctness vocabulary
+    if re.search(r"\b(because|since|therefore|incorrect|correct|explains|reason|whereas)\b", expl_lower):
+        score += 0.3
+
+    return min(score, 1.0)
+
+
+def _score_coverage(q: V2GeneratedQuestion, sk: QuestionSkeleton) -> float:
+    """
+    0-1: CA integration + sub_concept aspect coverage.
+      0.5 — CA in stem (if ca_flag) or CA not required
+      0.5 — aspect keywords from sub_concepts present in question + explanation
+    """
+    score = 0.0
+
+    # CA integration
+    if not sk or not sk.ca_flag:
+        score += 0.5  # Not required → full marks
+    else:
+        q.ca_in_stem = _check_ca_in_stem(q, sk)
+        if q.ca_in_stem:
+            score += 0.5
+
+    # Aspect coverage
+    if sk and sk.sub_concepts:
+        combined = (q.question + " " + q.explanation).lower()
+        aspects  = [sc.aspect.lower() for sc in sk.sub_concepts]
+        matched  = sum(1 for asp in aspects if asp in combined)
+        score   += 0.5 * (matched / len(aspects))
+    else:
+        score += 0.5  # No sub_concepts to check → full marks
+
+    return min(score, 1.0)
+
+
+def _score_distractor_from_embeddings(
+    correct_emb: List[float],
+    wrong_embs: List[List[float]],
+    wrong_texts: List[str],
+) -> float:
+    """
+    0-1: fraction of wrong options in the plausible [0.55–0.85] similarity range.
+    Options outside this range are either near-copies or completely unrelated fillers.
+    """
+    if not wrong_embs:
+        return 1.0
+    good = 0
+    for w_text, w_emb in zip(wrong_texts, wrong_embs):
+        sim        = _cosine_sim(correct_emb, w_emb)
+        word_count = len(w_text.split())
+        too_close  = sim > _DISTRACTOR_TOO_SIMILAR
+        too_far    = sim < _DISTRACTOR_TOO_DISTANT and word_count >= _DISTRACTOR_MIN_WORDS
+        if not too_close and not too_far:
+            good += 1
+    return round(good / len(wrong_embs), 2)
+
+
+def _compute_composite_score(
+    trap: float,
+    distractor: float,
+    explanation: float,
+    coverage: float,
+) -> float:
+    """Combine sub-scores (each 0-1) into a 0-100 composite."""
+    return round(trap * 40 + distractor * 30 + explanation * 20 + coverage * 10, 1)
+
+
+# ── Phase 3: MMR-style diversity selection ──────────────────────────────────
+
+def _mmr_select(
+    questions: List[V2GeneratedQuestion],
+    embeddings: List[List[float]],
+    target: int,
+    sim_threshold: float,
+) -> Tuple[List[V2GeneratedQuestion], List[V2GeneratedQuestion]]:
+    """
+    Greedy diversity-aware selection.
+    Questions are pre-sorted by quality_score (desc) before calling this.
+    Picks up to `target` questions ensuring no two selected are more similar
+    than `sim_threshold` (cosine).
+
+    Returns (selected, rejected).
+    """
+    selected:      List[V2GeneratedQuestion] = []
+    selected_embs: List[List[float]]         = []
+    rejected:      List[V2GeneratedQuestion] = []
+
+    for q, emb in zip(questions, embeddings):
+        if len(selected) >= target:
+            rejected.append(q)
+            continue
+        too_similar = any(
+            _cosine_sim(emb, prev_emb) >= sim_threshold
+            for prev_emb in selected_embs
+        )
+        if too_similar:
+            rejected.append(q)
+        else:
+            selected.append(q)
+            selected_embs.append(emb)
+
+    return selected, rejected
+
+
+# ── Main entry point ─────────────────────────────────────────────────────────
+
 async def run_quality_gate(
     questions: List[V2GeneratedQuestion],
     skeletons: List[QuestionSkeleton],
     embedder=None,
-    dedup_threshold: float = 0.85,
+    dedup_threshold: float = 0.85,  # kept for backwards compat, not used directly
 ) -> Tuple[List[V2GeneratedQuestion], List[str]]:
     """
-    Stage 4: validate questions. Returns (passed, failed_skeleton_ids).
+    Stage 4 — 3-phase quality gate. Returns (selected, failed_skeleton_ids).
 
-    Checks (in order):
-    1. Structural validity
-    2. v4.5 Controlled constraints: question_type + trap_id must match skeleton's available lists
-    3. Trap presence in wrong options / explanation
-    4. CA event in question stem (for ca_flag=True)
-    5. Distractor plausibility — wrong options must be in plausible similarity range
-    6. Semantic deduplication against all prior passed questions
+    PHASE 1 — Hard gates (per-question, no embeddings):
+      a) Structural check: 4 options, valid answer letter, non-trivial text
+      b) Constraint check: question_type + trap_id match v4.5 skeleton
+      → Failures immediately discarded with failure_reason set
+
+    PHASE 2 — Quality scoring (batch embeddings for distractors):
+      a) Trap score      (0-40): trap in wrong options + explanation reasoning
+      b) Distractor score(0-30): fraction of wrong options in plausible range
+      c) Explanation score(0-20): depth, reasoning words, wrong options addressed
+      d) Coverage score  (0-10): CA integration + sub_concept aspects
+      → composite quality_score 0-100 assigned to each question
+
+    PHASE 3 — MMR diversity selection:
+      a) Sort all scored questions by quality_score (desc)
+      b) Greedy pick at 88% similarity threshold → keep top target_count
+      c) Gap fill: if < target, lower to 75% on rejected pool
+      d) Questions still short → returned as failed (trigger Stage 5 retry)
     """
-    logger.info(f"🔍 [Stage 4] Running quality gate on {len(questions)} questions …")
+    target = len(skeletons)  # Primary skeleton count = how many we need
+    logger.info(
+        f"🔍 [Stage 4] Running 3-phase quality gate on {len(questions)} questions "
+        f"(target={target}) …"
+    )
 
     skeleton_map: Dict[str, QuestionSkeleton] = {sk.skeleton_id: sk for sk in skeletons}
-    passed: List[V2GeneratedQuestion] = []
     failed_ids: List[str] = []
 
+    # ── PHASE 1: Hard gates ──────────────────────────────────────────────────
+    logger.info("   [P1] Hard gates …")
+    survivors: List[V2GeneratedQuestion] = []
+
     for q in questions:
-        sk = skeleton_map.get(q.skeleton_id)
-        if sk is None:
-            logger.warning(f"⚠️ [Stage 4] No skeleton found for {q.skeleton_id} — skipping")
-            failed_ids.append(q.skeleton_id)
-            continue
+        sk = skeleton_map.get(q.skeleton_id)  # None for extra/buffer questions
 
-        # 1. Structure
+        # Structural check
         if not _structural_check(q):
+            q.failure_reason = "STRUCTURE_FAIL"
             logger.debug(f"   ❌ {q.skeleton_id} — structural check failed")
-            failed_ids.append(q.skeleton_id)
+            if not q.is_extra:
+                failed_ids.append(q.skeleton_id)
             continue
 
-        # 2. v4.5 Controlled constraint validation
-        v45_ok, v45_reason = _check_v45_controlled_constraints(q, sk)
-        if not v45_ok:
-            logger.debug(f"   ❌ {q.skeleton_id} — v4.5 constraint violated: {v45_reason}")
-            failed_ids.append(q.skeleton_id)
-            continue
+        # Constraint check (only for primary skeleton questions)
+        if sk is not None:
+            v45_ok, v45_reason = _check_v45_controlled_constraints(q, sk)
+            if not v45_ok:
+                q.failure_reason = "CONSTRAINT_VIOLATION"
+                logger.debug(f"   ❌ {q.skeleton_id} — constraint violated: {v45_reason}")
+                failed_ids.append(q.skeleton_id)
+                continue
 
-        # 3. Trap presence
-        trap_ok = _check_trap_presence(q, sk)
-        q.trap_verified = trap_ok
-        if not trap_ok:
-            logger.debug(f"   ⚠️ {q.skeleton_id} — trap not detected in wrong options")
-            # Soft check — mark but do not fail
+        survivors.append(q)
 
-        # 4. CA in stem
-        ca_ok = _check_ca_in_stem(q, sk)
-        q.ca_in_stem = ca_ok
-        if sk.ca_flag and not ca_ok:
-            logger.debug(f"   ⚠️ {q.skeleton_id} — CA event not found in stem")
-            # Soft check — mark but do not fail
+    logger.info(
+        f"   [P1] {len(survivors)}/{len(questions)} passed hard gates "
+        f"({len(questions) - len(survivors)} failed)"
+    )
 
-        # Quality score (0–1); distractor_quality updated in step 5
-        score = 0.5
-        if trap_ok:
-            score += 0.3
-        if ca_ok or not sk.ca_flag:
-            score += 0.2
-        q.quality_score = round(score, 2)
+    if not survivors:
+        return [], failed_ids
 
-        passed.append(q)
+    # ── PHASE 2: Quality scoring (batch embeddings) ──────────────────────────
+    logger.info(f"   [P2] Quality scoring {len(survivors)} questions …")
 
-    # 5. Distractor plausibility check (batch embedding)
-    if embedder and passed:
-        logger.info(f"   🎯 Running distractor plausibility check on {len(passed)} questions …")
+    # Trap + explanation + coverage scores (no embeddings needed)
+    for q in survivors:
+        sk             = skeleton_map.get(q.skeleton_id)
+        trap_s         = _score_trap(q, sk)
+        explanation_s  = _score_explanation(q)
+        coverage_s     = _score_coverage(q, sk)
+        q.trap_verified = trap_s >= 0.5
+
+        q.quality_breakdown = {
+            "trap":        round(trap_s, 3),
+            "distractor":  0.0,     # filled after embeddings
+            "explanation": round(explanation_s, 3),
+            "coverage":    round(coverage_s, 3),
+        }
+
+    # Distractor score: batch-embed all options in one call
+    if embedder:
         try:
-            # Collect all option texts (4 per question) in one flat list for a single embed call
-            correct_texts: List[str] = []
+            correct_texts:    List[str]       = []
             wrong_texts_per_q: List[List[str]] = []
 
-            for q in passed:
+            for q in survivors:
                 correct_idx = ord(q.correct_answer) - ord("A")
                 correct_raw = q.options[correct_idx] if correct_idx < len(q.options) else ""
                 correct_texts.append(_strip_option_prefix(correct_raw))
-
                 wrong_raw = [
                     _strip_option_prefix(opt)
-                    for j, opt in enumerate(q.options)
-                    if j != correct_idx
+                    for j, opt in enumerate(q.options) if j != correct_idx
                 ]
                 wrong_texts_per_q.append(wrong_raw)
 
-            # Flatten wrong option texts for one embed_documents batch call
             flat_wrong: List[str] = []
-            flat_offsets: List[int] = []  # start index in flat_wrong for each question
+            flat_offsets: List[int] = []
             for wrongs in wrong_texts_per_q:
                 flat_offsets.append(len(flat_wrong))
                 flat_wrong.extend(wrongs)
 
-            # Embed correct answers + all wrong options in two batches
-            correct_embs: List[List[float]] = await asyncio.to_thread(
-                _embed_texts, embedder, correct_texts
-            )
-            wrong_embs: List[List[float]] = await asyncio.to_thread(
-                _embed_texts, embedder, flat_wrong
-            ) if flat_wrong else []
+            correct_embs = await asyncio.to_thread(_embed_texts, embedder, correct_texts)
+            wrong_embs   = await asyncio.to_thread(_embed_texts, embedder, flat_wrong) if flat_wrong else []
 
-            distractor_failed: List[str] = []
-            for idx, q in enumerate(passed):
-                c_emb = correct_embs[idx]
-                start = flat_offsets[idx]
+            for idx, q in enumerate(survivors):
+                c_emb   = correct_embs[idx]
+                start   = flat_offsets[idx]
                 w_texts = wrong_texts_per_q[idx]
                 w_embs  = wrong_embs[start: start + len(w_texts)]
 
-                good = 0
-                bad  = 0
-                for w_text, w_emb in zip(w_texts, w_embs):
-                    sim = _cosine_sim(c_emb, w_emb)
-                    word_count = len(w_text.split())
-                    too_close = sim > _DISTRACTOR_TOO_SIMILAR
-                    # Only flag "too distant" for options with enough content to judge
-                    too_far   = sim < _DISTRACTOR_TOO_DISTANT and word_count >= _DISTRACTOR_MIN_WORDS
-                    if too_close or too_far:
-                        bad += 1
-                        reason = "near-copy" if too_close else f"unrelated (sim={sim:.2f})"
-                        logger.debug(
-                            f"   ⚠️ {q.skeleton_id} — bad distractor [{reason}]: "
-                            f"'{w_text[:60]}'"
-                        )
-                    else:
-                        good += 1
-
-                total_wrong = len(w_texts)
-                dq_score = round(good / total_wrong, 2) if total_wrong else 1.0
-                q.distractor_quality = dq_score
-
-                if bad > 0:
-                    # Any bad distractor triggers a hard fail — gap fill will regenerate
-                    distractor_failed.append(q.skeleton_id)
-                    logger.debug(
-                        f"   ❌ {q.skeleton_id} — distractor quality fail "
-                        f"({bad}/{total_wrong} bad distractors, score={dq_score})"
-                    )
-
-            if distractor_failed:
-                logger.info(
-                    f"   [4] Distractor check: {len(distractor_failed)} questions failed "
-                    f"({len(passed) - len(distractor_failed)} passed)"
-                )
-                failed_ids.extend(distractor_failed)
-                passed = [q for q in passed if q.skeleton_id not in set(distractor_failed)]
-            else:
-                logger.info(f"   [4] Distractor check: all {len(passed)} questions passed")
+                d_score = _score_distractor_from_embeddings(c_emb, w_embs, w_texts)
+                q.distractor_quality                  = d_score
+                q.quality_breakdown["distractor"]     = d_score
 
         except Exception as e:
-            logger.warning(f"⚠️ [Stage 4] Distractor check failed: {e} — skipping")
+            logger.warning(f"⚠️ [Stage 4] Distractor embedding failed: {e} — using default score")
+            for q in survivors:
+                q.quality_breakdown["distractor"] = 0.8  # neutral default
 
-    # 6. Semantic deduplication
-    if embedder and len(passed) > 1:
-        logger.info(f"   🔗 Running embedding-based dedup on {len(passed)} questions …")
+    # Assign composite quality_score
+    for q in survivors:
+        bd = q.quality_breakdown
+        q.quality_score = _compute_composite_score(
+            trap        = bd.get("trap", 0.5),
+            distractor  = bd.get("distractor", 0.8),
+            explanation = bd.get("explanation", 0.5),
+            coverage    = bd.get("coverage", 0.5),
+        )
+
+    # Sort by quality_score descending before MMR selection
+    survivors.sort(key=lambda q: q.quality_score, reverse=True)
+
+    logger.info(
+        f"   [P2] Quality scores: "
+        + ", ".join(f"{q.skeleton_id}={q.quality_score}" for q in survivors)
+    )
+
+    # ── PHASE 3: MMR diversity selection ────────────────────────────────────
+    logger.info(f"   [P3] MMR selection (target={target}) …")
+
+    if not embedder or len(survivors) <= 1:
+        # No embedder — just take top-target by quality score
+        selected  = survivors[:target]
+        remainder = survivors[target:]
+        for q in remainder:
+            q.failure_reason = "QUALITY_RANK_DROP"
+            if not q.is_extra:
+                failed_ids.append(q.skeleton_id)
+    else:
         try:
-            texts = [q.question for q in passed]
-            embeddings = await asyncio.to_thread(_embed_texts, embedder, texts)
+            stem_texts = [q.question for q in survivors]
+            stem_embs  = await asyncio.to_thread(_embed_texts, embedder, stem_texts)
 
-            kept: List[V2GeneratedQuestion] = []
-            kept_embeddings: List[List[float]] = []
-            seen_ids: Set[str] = set()
+            # Phase 3a: strict MMR at 88%
+            selected, rejected = _mmr_select(survivors, stem_embs, target, sim_threshold=0.88)
+            logger.info(
+                f"   [P3a] MMR@0.88: {len(selected)} selected, {len(rejected)} rejected"
+            )
 
-            for q, emb in zip(passed, embeddings):
-                too_similar = any(
-                    _cosine_sim(emb, prev_emb) >= dedup_threshold
-                    for prev_emb in kept_embeddings
+            # Phase 3b: gap fill at 75% if we're short
+            if len(selected) < target and rejected:
+                still_need = target - len(selected)
+                logger.info(
+                    f"   [P3b] Gap fill needed ({len(selected)}/{target}). "
+                    f"Loosening to 0.75 on {len(rejected)} candidates …"
                 )
-                if too_similar:
-                    logger.debug(f"   🔁 {q.skeleton_id} — duplicate detected, dropping")
+                # Sort gap candidates by quality desc (survivors was already sorted, rejected preserves that order)
+                selected_embs = [stem_embs[survivors.index(q)] for q in selected]
+                gap_fill, still_rejected = [], []
+
+                for q in rejected:
+                    if len(gap_fill) >= still_need:
+                        still_rejected.append(q)
+                        continue
+                    q_emb = stem_embs[survivors.index(q)]
+                    all_embs = selected_embs + [stem_embs[survivors.index(gq)] for gq in gap_fill]
+                    too_similar = any(_cosine_sim(q_emb, e) >= 0.75 for e in all_embs)
+                    if not too_similar:
+                        gap_fill.append(q)
+                        logger.debug(f"   ✓ {q.skeleton_id} gap-filled at 0.75")
+                    else:
+                        still_rejected.append(q)
+
+                selected.extend(gap_fill)
+                rejected = still_rejected
+                logger.info(f"   [P3b] After gap fill: {len(selected)}/{target}")
+
+            # Mark rejected questions with failure reason
+            for q in rejected:
+                q.failure_reason = "DUPLICATE_DEDUP" if not q.failure_reason else q.failure_reason
+                if not q.is_extra:
                     failed_ids.append(q.skeleton_id)
-                else:
-                    kept.append(q)
-                    kept_embeddings.append(emb)
-                    seen_ids.add(q.skeleton_id)
 
-            passed = kept
         except Exception as e:
-            logger.warning(f"⚠️ [Stage 4] Dedup failed: {e} — skipping dedup step")
+            logger.warning(f"⚠️ [Stage 4] MMR selection failed: {e} — falling back to quality sort")
+            selected  = survivors[:target]
+            remainder = survivors[target:]
+            for q in remainder:
+                q.failure_reason = "QUALITY_RANK_DROP"
+                if not q.is_extra:
+                    failed_ids.append(q.skeleton_id)
 
-    # Sub-domain entropy check
+    # Sub-domain entropy
     sd_counts: Dict[str, int] = defaultdict(int)
-    for q in passed:
+    for q in selected:
         sd_counts[q.sub_domain or "Unknown"] += 1
     logger.info(f"   📊 Sub-domain distribution: {dict(sd_counts)}")
 
     logger.info(
-        f"✅ [Stage 4] Quality gate complete: "
-        f"{len(passed)} passed, {len(failed_ids)} failed"
+        f"✅ [Stage 4] Complete: {len(selected)} selected, {len(failed_ids)} failed "
+        f"(need retry in Stage 5)"
     )
-    return passed, failed_ids
+    return selected, failed_ids

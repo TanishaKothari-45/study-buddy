@@ -127,6 +127,10 @@ def _to_wire_format(q: V2GeneratedQuestion, index: int, job_id: str, topics: Lis
             "trap_verified": q.trap_verified,
             "ca_in_stem": q.ca_in_stem,
             "quality_score": q.quality_score,
+            "quality_breakdown": q.quality_breakdown,
+            "distractor_quality": q.distractor_quality,
+            "failure_reason": q.failure_reason,
+            "is_extra": q.is_extra,
             "question_id": f"{job_id}_v2_q{index + 1}",
         },
     }

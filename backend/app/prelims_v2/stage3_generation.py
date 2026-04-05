@@ -236,65 +236,115 @@ def _format_chunks(chunks: List[Dict]) -> str:
     return "\n\n".join(lines)
 
 
-# ── Difficulty rules ──────────────────────────────────────────────────────────
 
-_DIFFICULTY_RULES = {
-    "easy": """
-DIFFICULTY: EASY
-- One clear correct answer, 3 obviously wrong distractors
-- Test direct recall of one fact from the retrieved context
-- Avoid qualifiers like 'only', 'always', 'never' — keep statements clean
-- Suitable for match_pair or direct_fact type
-""",
-    "medium": """
-DIFFICULTY: MEDIUM
-- At least one distractor must be partially true or plausible on first reading
-- For multi_statement: 2-3 statements where at least one is subtly wrong
-- Use qualifier traps: 'always' vs 'usually', 'only' vs 'primarily'
-- Student must reason through each option, not just recall
-""",
-    "hard": """
-DIFFICULTY: HARD
-- The trap strategy below MUST be visible in the question
-- For multi_statement: exactly one statement should be false, and it must be
-  the statement students are MOST LIKELY to believe is true
-- For assertion_reason: the Reason must be true but NOT explain the Assertion,
-  OR the Assertion must be false for a subtle factual reason
-- Distractors must all be real facts — just wrong for this specific question
-- A student who has studied but not deeply reasoned will get this wrong
-""",
+# -- Difficulty type loader (from JSON) -----------------------------------------
+
+_V2_DIR = Path(__file__).parent
+_difficulty_type_cache: dict = {}
+
+_DIFFICULTY_FALLBACK = {
+    "easy": "Test direct recall. One clear correct answer. Distractors are plausible but clearly distinguishable with basic knowledge.",
+    "medium": "At least one distractor must be partially true. Student must reason through each option, not just recall. Use qualifier precision: 'always' vs 'usually', 'only' vs 'primarily'.",
+    "hard": "All distractors must be real facts -- just wrong for this specific question. A student who has studied but not deeply reasoned should get this wrong. The trap must be clearly visible in the question structure.",
 }
 
 
-# ── Trap injection block ──────────────────────────────────────────────────────
+def _load_difficulty_types(subject: str) -> dict:
+    """Load and cache difficulty_types JSON for a subject."""
+    global _difficulty_type_cache
+    key = subject.lower().replace(" ", "_")
+    if key in _difficulty_type_cache:
+        return _difficulty_type_cache[key]
+
+    filename = f"difficulty_types_{key}_base.json"
+    path = _V2_DIR / filename
+    if not path.exists():
+        logger.warning(f"[Stage3] Difficulty types file not found: {path}")
+        _difficulty_type_cache[key] = {}
+        return {}
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        types = data.get("difficulty_types", {})
+        _difficulty_type_cache[key] = types
+        logger.info(f"[Stage3] Loaded {len(types)} difficulty types for {subject}")
+        return types
+    except Exception as e:
+        logger.error(f"[Stage3] Failed to load difficulty types: {e}")
+        _difficulty_type_cache[key] = {}
+        return {}
+
+
+def _get_difficulty_block(skeleton, subject: str) -> str:
+    """
+    Build difficulty instruction from the specific difficulty_type JSON.
+    Falls back to generic easy/medium/hard if no match found.
+    """
+    diff_type = getattr(skeleton, "difficulty_type", "")
+    diff = skeleton.difficulty
+
+    types = _load_difficulty_types(subject)
+    dt_data = types.get(diff_type, {}) if diff_type else {}
+
+    if dt_data:
+        characteristics = "\n".join(f"  - {c}" for c in dt_data.get("characteristics", []))
+        gen_rules = "\n".join(f"  {i+1}. {r}" for i, r in enumerate(dt_data.get("generation_rules", [])))
+        q_structure = dt_data.get("question_structure", "")
+
+        return f"""DIFFICULTY: {diff.upper()} -- Type: {diff_type}
+  {dt_data.get('description', '')}
+
+  Characteristics:
+{characteristics}
+
+  Question structure: {q_structure}
+
+  Generation steps:
+{gen_rules}"""
+    else:
+        return f"DIFFICULTY: {diff.upper()}\n  {_DIFFICULTY_FALLBACK.get(diff, _DIFFICULTY_FALLBACK['medium'])}"
+
+
+# -- Trap injection block (enriched) -------------------------------------------
 
 def _trap_injection(trap: dict, question_type: str) -> str:
+    """Inject full trap data including generation_rules and distractor_strategy."""
     if not trap:
         return ""
-    name        = trap.get("name", "")
-    mechanism   = trap.get("mechanism", "")
-    how_to      = trap.get("how_to_generate", "")
-    pyq_example = trap.get("real_pyq_example", "")
 
-    return f"""
-TRAP STRATEGY TO USE: {name}
-  Mechanism (why students get this wrong): {mechanism}
-  How to build this trap in your question:
-    {how_to}
-  Real UPSC example of this trap (use as style reference, not as the question):
-    {pyq_example}
+    name      = trap.get("name", "")
+    mechanism = trap.get("mechanism", "")
+    how_to    = trap.get("how_to_generate", "")
+    error_type = trap.get("error_type", "")
+    distractor_strategy = trap.get("distractor_strategy", "")
+    gen_rules = trap.get("generation_rules", [])
+    pyq_example = trap.get("real_pyq_example", trap.get("example_question", ""))
 
-Your question MUST use this trap. The false statement or wrong option must
-be specifically designed using the mechanism above.
-"""
+    lines = [f"TRAP STRATEGY: {name}"]
+    if error_type:
+        lines.append(f"  Error type: {error_type} (the specific mistake students make)")
+    lines.append(f"  Mechanism: {mechanism}")
+    if distractor_strategy:
+        lines.append(f"  Distractor strategy: {distractor_strategy}")
+    if gen_rules:
+        lines.append("  Steps to build this trap:")
+        for i, rule in enumerate(gen_rules, 1):
+            lines.append(f"    {i}. {rule}")
+    if how_to:
+        lines.append(f"  How to generate: {how_to}")
+    if pyq_example:
+        lines.append(f"  UPSC reference (style only, do not copy): {pyq_example[:300]}")
+
+    return "\n".join(lines)
 
 
-# ── Cross-concept instruction ─────────────────────────────────────────────────
+# -- Cross-concept instruction -------------------------------------------------
 
 def _cross_concept_instruction(skeleton) -> str:
     """
     If sub_concepts contain borrowed topics (source_concept != ""),
-    tell the LLM explicitly how to use them.
+    guide the LLM on how to use cross-concept material.
     """
     borrowed = [
         sc for sc in skeleton.sub_concepts
@@ -303,7 +353,7 @@ def _cross_concept_instruction(skeleton) -> str:
     if not borrowed:
         return ""
 
-    lines = "\n".join(
+    blines = "\n".join(
         f'  - "{sc.topic}" (from {sc.source_concept})'
         for sc in borrowed
     )
@@ -312,23 +362,185 @@ def _cross_concept_instruction(skeleton) -> str:
     ar_note = ""
     if linked and skeleton.question_type == "assertion_reason":
         ar_note = (
-            f"\nFor this Assertion-Reason question:\n"
-            f"  Assertion = fact about {skeleton.concept}\n"
-            f"  Reason    = mechanism from {linked} that explains (or SEEMS to explain) the Assertion\n"
-            f"  The hard trap: Reason is TRUE but does NOT correctly explain the Assertion."
+            f"\n  For this Assertion-Reason question:"
+            f"\n    Assertion = fact about {skeleton.concept}"
+            f"\n    Reason = mechanism from {linked} that explains (or SEEMS to explain) the Assertion"
+            f"\n    Hard trap: Reason is TRUE but does NOT correctly explain the Assertion."
         )
 
+    return f"""CROSS-CONCEPT LINKAGE:
+  These sub_concepts are borrowed from other concepts. They should appear
+  in the question or distractors -- not only in the explanation.
+{blines}{ar_note}"""
+
+
+# -- Shared per-question block builder ------------------------------------------
+
+def _build_question_block(
+    idx: int,
+    skeleton,
+    retrieval_map: dict,
+    trap_registry_path: Path,
+    pyq_chunks: Optional[List[Dict]],
+    subject: str,
+) -> str:
+    """
+    Build the prompt block for a single skeleton.
+    Used by both assemble_skeleton_prompt and assemble_batch_prompt.
+    """
+    concept = skeleton.concept
+    qtype   = skeleton.question_type
+    diff    = skeleton.difficulty
+
+    # Sub_concepts
+    sc_lines = "\n".join(
+        f'    - {sc.topic} [aspect={sc.aspect}'
+        + (f', from={sc.source_concept}' if sc.source_concept else '') + ']'
+        for sc in skeleton.sub_concepts
+    )
+
+    # Difficulty type rules (from JSON, not generic)
+    diff_block = _get_difficulty_block(skeleton, subject)
+
+    # Trap (enriched: generation_rules + distractor_strategy)
+    trap     = _get_trap(skeleton.trap_strategy, trap_registry_path)
+    trap_blk = _trap_injection(trap, qtype)
+
+    # Cross-concept
+    cross_blk = _cross_concept_instruction(skeleton)
+
+    # Static chunks
+    retrieval_result = retrieval_map.get(skeleton.skeleton_id)
+    is_pure_ca = getattr(skeleton, "pure_ca", False)
+
+    if is_pure_ca:
+        static_text = ""
+        logger.info(
+            f"[Stage3][Q{idx}/{skeleton.skeleton_id}] Pure CA -- skipping static chunks"
+        )
+    elif retrieval_result:
+        chunks_to_use = retrieval_result.static_chunks
+        static_text = _format_chunks(chunks_to_use)
+        logger.info(
+            f"[Stage3][Q{idx}/{skeleton.skeleton_id}] {len(chunks_to_use)} chunks"
+        )
+    else:
+        static_text = "No static content retrieved. Use your knowledge grounded in NCERT texts."
+        logger.warning(f"[Stage3][Q{idx}] No retrieval result for {skeleton.skeleton_id}")
+
+    # CA context
+    ca_block = ""
+    if skeleton.ca_flag and retrieval_result and retrieval_result.ca_context:
+        if is_pure_ca:
+            ca_block = (
+                f"\n  PURE CURRENT AFFAIRS QUESTION:"
+                f"\n  {retrieval_result.ca_context[:1500]}"
+                f"\n  Create a question entirely about this event/development."
+                f"\n  Test impact, causes, policy responses, or factual details."
+            )
+        else:
+            ca_block = (
+                f"\n  CURRENT AFFAIRS CONTEXT:"
+                f"\n  {retrieval_result.ca_context[:1200]}"
+                f"\n  Integrate this event naturally into the question stem."
+                f"\n  The static concept drives correctness; CA provides contemporary framing."
+            )
+
+    # Constraints
+    available_qts = getattr(skeleton, "available_question_types", [qtype])
+    available_traps = getattr(skeleton, "available_trap_ids", [skeleton.trap_strategy])
+
+    constraints_info = ""
+    if available_qts:
+        constraints_info += f"  Valid question_types: {', '.join(available_qts)}\n"
+    if available_traps:
+        constraints_info += f"  Valid trap_ids: {', '.join(available_traps)}\n"
+
+    # PYQ
+    pyq_display = "Standard UPSC Prelims style -- formal, concise."
+    if pyq_chunks:
+        relevant = [
+            c for c in pyq_chunks
+            if qtype.replace("_", "").lower() in
+               c.get("metadata", {}).get("pattern_type", "").replace("_", "").lower()
+        ] or pyq_chunks[:1]
+        if relevant:
+            pyq_display = relevant[0].get("content", "")[:250] or pyq_display
+
     return f"""
-CROSS-CONCEPT LINKAGE:
-The following sub_concepts are borrowed from other concepts.
-They MUST appear in the question — not just the explanation.
-{lines}
-{ar_note}
-This cross-concept structure is what makes UPSC hard questions.
+---
+QUESTION {idx}:
+  concept: {concept}
+  question_type: {qtype}
+  difficulty: {diff}
+  trap_strategy: {skeleton.trap_strategy}
+{constraints_info}
+  sub_concepts:
+{sc_lines}
+
+{diff_block}
+
+{trap_blk}
+
+{cross_blk}
+
+  REFERENCE CONTENT (primarily for this question; you may draw from other material if it genuinely strengthens the question):
+{static_text if static_text else '(Pure CA question -- no static content)'}
+{ca_block}
+
+  PYQ STYLE: {pyq_display}
 """
 
 
-# ── Main prompt assembler ─────────────────────────────────────────────────────
+# -- Question type formatting rules (trimmed to relevant types) ----------------
+
+_TYPE_FORMAT = {
+    "multi_statement": """multi_statement: "Consider the following statements regarding [topic]:
+  1. [Statement 1]
+  2. [Statement 2]
+  3. [Statement 3]
+  Which of the statements given above is/are correct?"
+  Options: (a) 1 only  (b) 1 and 2 only  (c) 2 and 3 only  (d) 1, 2 and 3""",
+
+    "assertion_reason": """assertion_reason: "Assertion (A): [text]
+  Reason (R): [text]
+  Which of the following is correct?"
+  Options: (a) Both A and R are true and R is the correct explanation of A
+           (b) Both A and R are true but R is NOT the correct explanation of A
+           (c) A is true but R is false
+           (d) A is false but R is true""",
+
+    "match_pair": """match_pair: "Match the following:
+  List I              List II
+  1. [Item 1]         (a) [Match a]
+  2. [Item 2]         (b) [Match b]
+  3. [Item 3]         (c) [Match c]
+  4. [Item 4]         (d) [Match d]
+  Select the correct answer using the code given below:"
+  Options encode column pairings, e.g. (a) 1-b, 2-a, 3-d, 4-c""",
+
+    "direct_fact": "direct_fact: Single stem question, 4 options (a)-(d), one correct.",
+    "spatial": "spatial: Test geographic location, distribution, or map-based reasoning. 4 options (a)-(d).",
+    "chronology": "chronology: Test correct temporal ordering of events/processes. 4 options (a)-(d).",
+    "data_based": "data_based: Present data (table/figure description) and test interpretation. 4 options (a)-(d).",
+}
+
+
+def _get_type_format_rules(question_types: List[str]) -> str:
+    """Return formatting rules only for the question types in this batch."""
+    unique_types = sorted(set(question_types))
+    rules = []
+    for qt in unique_types:
+        if qt in _TYPE_FORMAT:
+            rules.append(_TYPE_FORMAT[qt])
+        elif qt == "pure_ca" and "direct_fact" in _TYPE_FORMAT:
+            rules.append(_TYPE_FORMAT["direct_fact"])
+    if not rules:
+        rules = [_TYPE_FORMAT["direct_fact"]]
+    return "QUESTION TYPE FORMATS:\n" + "\n\n".join(rules)
+
+
+# -- Single-question prompt assembler (fallback) -------------------------------
 
 def assemble_skeleton_prompt(
     skeleton,
@@ -337,165 +549,48 @@ def assemble_skeleton_prompt(
     pyq_chunks: Optional[List[Dict]] = None,
 ) -> str:
     """
-    Build the per-skeleton generation prompt.
-
-    Args:
-        skeleton:            QuestionSkeleton from Stage 0
-        retrieval_result:    RetrievalResult from Stage 1
-        trap_registry_path:  Path to trap_registry.json
-        pyq_chunks:          Optional PYQ style examples (fetched once, shared)
-
-    Returns:
-        Complete prompt string for one Gemini Pro call.
+    Build a prompt for generating ONE question (per-skeleton fallback).
+    Uses _build_question_block for the question spec, wraps in full prompt.
     """
-    subject  = skeleton.sub_domain
-    concept  = skeleton.concept
-    qtype    = skeleton.question_type
-    diff     = skeleton.difficulty
+    subject = skeleton.sub_domain
+    retrieval_map = {skeleton.skeleton_id: retrieval_result}
 
-    # Subject cognitive framework (from old prompting file — unchanged)
-    framework = get_cognitive_framework(subject)
-
-    # Retrieved static content
-    static_text = _format_chunks(retrieval_result.static_chunks)
-
-    # Trap injection
-    trap     = _get_trap(skeleton.trap_strategy, trap_registry_path)
-    trap_blk = _trap_injection(trap, qtype)
-
-    # Difficulty rules
-    diff_rules = _DIFFICULTY_RULES.get(diff, _DIFFICULTY_RULES["medium"])
-
-    # Cross-concept instruction
-    cross_blk = _cross_concept_instruction(skeleton)
-
-    # Sub_concepts list for the prompt
-    sc_lines = "\n".join(
-        f'  - {sc.topic} [aspect={sc.aspect}'
-        + (f', from={sc.source_concept}' if sc.source_concept else '') + ']'
-        for sc in skeleton.sub_concepts
+    question_block = _build_question_block(
+        idx=1,
+        skeleton=skeleton,
+        retrieval_map=retrieval_map,
+        trap_registry_path=trap_registry_path,
+        pyq_chunks=pyq_chunks,
+        subject=subject,
     )
 
-    # PYQ style examples — filter to same question type if possible
-    pyq_text = ""
-    if pyq_chunks:
-        relevant = [
-            c for c in pyq_chunks
-            if qtype.replace("_", "").lower() in
-               c.get("metadata", {}).get("pattern_type", "").replace("_", "").lower()
-        ] or pyq_chunks[:2]
-        pyq_text = "\n---\n".join(
-            c.get("content", "")[:300] for c in relevant[:2]
-        )
-
-    # CA context block
-    ca_block = ""
-    if skeleton.ca_flag and retrieval_result.ca_context:
-        ca_block = f"""
-CURRENT AFFAIRS CONTEXT (use this to ground the question in a real recent event):
-{retrieval_result.ca_context[:1500]}
-
-The question MUST link this current event to the static concept.
-The current event should appear in the question STEM (not just the explanation).
-"""
-
-    # Question type formatting rules (from old prompt — exact same text)
-    type_format_rules = """
-FORMATTING RULES BY QUESTION TYPE:
-
-For multi_statement: "Consider the following statements regarding [topic]:
-1. [Statement 1]
-2. [Statement 2]
-3. [Statement 3]
-
-Which of the statements given above is/are correct?"
-Options: (a) 1 only  (b) 1 and 2 only  (c) 2 and 3 only  (d) 1, 2 and 3
-
-For assertion_reason: "Assertion (A): [Assertion text]
-Reason (R): [Reason text]
-
-Which of the following is correct?"
-Options: (a) Both A and R are true and R is the correct explanation of A
-         (b) Both A and R are true but R is NOT the correct explanation of A
-         (c) A is true but R is false
-         (d) A is false but R is true
-
-For match_pair: "Match the following:
-List I              List II
-1. [Item 1]         (a) [Match a]
-2. [Item 2]         (b) [Match b]
-3. [Item 3]         (c) [Match c]
-4. [Item 4]         (d) [Match d]
-Select the correct answer using the code given below:"
-
-For direct_fact: Single stem question, 4 options (a)–(d), one correct.
-"""
-
-    # v4.5 Controlled: Constraints from Stage 0
-    available_qts = getattr(skeleton, "available_question_types", [qtype])
-    available_traps = getattr(skeleton, "available_trap_ids", [skeleton.trap_strategy])
-
-    constraints_block = ""
-    if available_qts:
-        constraints_block += f"\nValid question_types for this skeleton: {', '.join(available_qts)}"
-    if available_traps:
-        constraints_block += f"\nValid trap_ids for this concept: {', '.join(available_traps)}"
+    type_rules = _get_type_format_rules([skeleton.question_type])
 
     prompt = f"""You are an expert UPSC Prelims question paper setter.
-Generate exactly ONE question. Not a batch. ONE question.
+Generate exactly 1 question.
 
-═══════════════════════════════════════════════
-QUESTION SPECIFICATION (v4.5 Controlled)
-  concept       : {concept}
-  question_type : {qtype} (MUST use this type)
-  difficulty    : {diff}
-  trap_strategy : {skeleton.trap_strategy} (MUST use this trap){constraints_block}
-  sub_concepts to test (MUST appear in the question):
-{sc_lines}
+{type_rules}
 
-═══════════════════════════════════════════════
-SUBJECT FRAMEWORK
-{framework}
+{question_block}
 
-═══════════════════════════════════════════════
-{diff_rules}
+EXPLANATION QUALITY:
+  Explain the correct answer with factual reasoning. For each wrong option,
+  state what specific fact or mechanism makes it wrong. If a trap was used,
+  explain what a student who got this wrong would have been thinking.
 
-═══════════════════════════════════════════════
-{trap_blk}
-
-═══════════════════════════════════════════════
-{cross_blk}
-
-═══════════════════════════════════════════════
-STATIC CONTENT (factual grounding — use for statements and distractors):
-{static_text}
-
-═══════════════════════════════════════════════
-{ca_block}
-
-═══════════════════════════════════════════════
-PYQ STYLE REFERENCE (match this tone and structure exactly):
-{pyq_text if pyq_text else "Standard UPSC Prelims style — formal, concise, no ambiguity."}
-
-═══════════════════════════════════════════════
-{type_format_rules}
-
-═══════════════════════════════════════════════
-OUTPUT FORMAT — return ONLY this JSON, nothing else:
-{{
-  "question":       "Full question text with all statements/options embedded",
+OUTPUT -- return ONLY this JSON, no markdown:
+{{{{
+  "question":       "Full question text",
   "options":        ["(a) ...", "(b) ...", "(c) ...", "(d) ..."],
-  "correct_answer": "A" | "B" | "C" | "D",
-  "explanation":    "Justify correct answer. Explain why each wrong option is wrong. Reference the trap mechanism if applicable.",
-  "source":         {{"concept": "{concept}", "sub_domain": "{subject}", "trap_used": "{skeleton.trap_strategy}"}}
-}}
-
-Do NOT wrap in markdown. Do NOT add extra keys. Start with {{ end with }}.
+  "correct_answer": "A",
+  "explanation":    "Detailed explanation as described above.",
+  "source":         {{{{"concept": "{skeleton.concept}", "sub_domain": "{subject}", "trap_used": "{skeleton.trap_strategy}"}}}}
+}}}}
 """
     return prompt.strip()
 
 
-# \u2500\u2500 Batch prompt assembler \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+# -- Batch prompt assembler -------------------------------------------------
 
 def assemble_batch_prompt(
     skeletons:          list,
@@ -505,248 +600,76 @@ def assemble_batch_prompt(
     subject:            str = "",
 ) -> str:
     """
-    Build a single structured prompt for all N skeletons (direct Stage 0 → 1 → 3).
-
-    INPUTS from Stage 1:
-      - skeletons:      List[QuestionSkeleton] with v4.5 Controlled metadata
-      - retrieval_map:  Dict[skeleton_id → RetrievalResult] with 65 chunks (70% structured + 30% exploratory)
-
-    SHARED ONCE (saves tokens):
-      - Subject cognitive framework
-      - Question-type formatting rules
-      - Output schema instructions
-
-    PER-QUESTION (bounded to that skeleton only):
-      - QUESTION N: header
-      - Spec: concept, type, difficulty, trap_strategy, available constraints
-      - Difficulty rules (easy/medium/hard)
-      - Trap strategy block (lookup from trap_registry on-demand)
-      - Cross-concept instruction (if borrowed sub_concepts)
-      - Static chunks (65 per skeleton: 50 structured + 15 exploratory from Stage 1)
-      - CA context if ca_flag=True (4 queries: 2 structured + 2 exploratory)
-
-    No Stage 2 intermediary — direct data flow.
+    Build a single prompt for N skeletons + 20% extra.
+    Uses _build_question_block for each skeleton (shared with single-question path).
     """
     if not skeletons:
         return ""
 
-    n          = len(skeletons)
-    # Use first skeleton's sub_domain as subject if not passed
-    subj       = subject or (skeletons[0].sub_domain if skeletons else "")
+    n        = len(skeletons)
+    n_target = math.ceil(n * 1.2)  # 20% extra: 6 for 5, 12 for 10
+    subj     = subject or (skeletons[0].sub_domain if skeletons else "")
 
-    # LOG BATCH INPUT STRUCTURE (variable chunks per skeleton)
-    # Each skeleton has: (# of queries) × 5 chunks
-    # E.g., 2 queries = 10 chunks, 3 queries = 15 chunks, 1 query = 5 chunks
     logger.info(
-        f"[Stage3][BatchPrompt] Building batch prompt for {n} skeletons "
-        f"(chunk count = Σ of [query_count × 5] per skeleton)"
+        f"[Stage3][BatchPrompt] Building batch prompt: {n} skeletons, "
+        f"requesting {n_target} questions"
     )
-    framework  = get_cognitive_framework(subj)
 
-    # \u2500 Shared type rules block \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-    type_format_rules = """
-FORMATTING RULES BY QUESTION TYPE:
+    # Type format rules -- only for types in this batch
+    batch_types = [sk.question_type for sk in skeletons]
+    type_rules  = _get_type_format_rules(batch_types)
 
-For multi_statement: "Consider the following statements regarding [topic]:
-1. [Statement 1]
-2. [Statement 2]
-3. [Statement 3]
-
-Which of the statements given above is/are correct?"
-Options: (a) 1 only  (b) 1 and 2 only  (c) 2 and 3 only  (d) 1, 2 and 3
-
-For assertion_reason: "Assertion (A): [Assertion text]
-Reason (R): [Reason text]
-
-Which of the following is correct?"
-Options: (a) Both A and R are true and R is the correct explanation of A
-         (b) Both A and R are true but R is NOT the correct explanation of A
-         (c) A is true but R is false
-         (d) A is false but R is true
-
-For match_pair: "Match the following:
-List I              List II
-1. [Item 1]         (a) [Match a]
-2. [Item 2]         (b) [Match b]
-3. [Item 3]         (c) [Match c]
-4. [Item 4]         (d) [Match d]
-Select the correct answer using the code given below:"
-
-For direct_fact: Single stem question, 4 options (a)\u2013(d), one correct.
-"""
-
-    # \u2500 Per-question blocks \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    # Per-question blocks via shared helper
     question_blocks = []
     for idx, skeleton in enumerate(skeletons, 1):
-        concept = skeleton.concept
-        qtype   = skeleton.question_type
-        diff    = skeleton.difficulty
-
-        # Sub_concepts
-        sc_lines = "\n".join(
-            f'  - {sc.topic} [aspect={sc.aspect}'
-            + (f', from={sc.source_concept}' if sc.source_concept else '') + ']'
-            for sc in skeleton.sub_concepts
+        block = _build_question_block(
+            idx=idx,
+            skeleton=skeleton,
+            retrieval_map=retrieval_map,
+            trap_registry_path=trap_registry_path,
+            pyq_chunks=pyq_chunks,
+            subject=subj,
         )
-
-        # Difficulty rules
-        diff_rules = _DIFFICULTY_RULES.get(diff, _DIFFICULTY_RULES["medium"])
-
-        # Trap
-        trap     = _get_trap(skeleton.trap_strategy, trap_registry_path)
-        trap_blk = _trap_injection(trap, qtype)
-
-        # Cross-concept
-        cross_blk = _cross_concept_instruction(skeleton)
-
-        # Static chunks \u2500 BOUNDED to THIS skeleton only
-        # From Stage 1: 65 chunks (50 structured + 15 exploratory from LLM-generated queries)
-        retrieval_result = retrieval_map.get(skeleton.skeleton_id)
-        is_pure_ca = getattr(skeleton, "pure_ca", False)
-
-        if is_pure_ca:
-            # Pure CA question: NO concept retrieval, only CA context
-            static_text = ""
-            logger.info(
-                f"[Stage3][Q{idx}/{skeleton.skeleton_id}] Pure CA question — "
-                f"skipping static chunks (using CA context only)"
-            )
-        elif retrieval_result:
-            # Regular / CA-linked question: use Pinecone chunks
-            # USE ALL CHUNKS FROM STAGE 1 (already pre-filtered per query)
-            # Stage 1 returns: for each query → 20 fetched → cross-encode → MMR select 5
-            # So chunks are already the best from each query angle
-            # Variable count per skeleton: 1 query=5 chunks, 2 queries=10 chunks, 3 queries=15 chunks, etc.
-            chunks_to_use = retrieval_result.static_chunks
-            static_text = _format_chunks(chunks_to_use)
-
-            # Log chunk distribution (variable per skeleton based on query count)
-            if hasattr(retrieval_result, 'query_metadata') and retrieval_result.query_metadata:
-                structured_count = sum(1 for m in retrieval_result.query_metadata if not m.get('is_exploratory', False))
-                exploratory_count = len(retrieval_result.query_metadata) - structured_count
-                logger.info(
-                    f"[Stage3][Q{idx}/{skeleton.skeleton_id}] "
-                    f"{len(chunks_to_use)} chunks from {len(retrieval_result.query_metadata)} queries "
-                    f"({structured_count} structured, {exploratory_count} exploratory)"
-                )
-            else:
-                logger.info(
-                    f"[Stage3][Q{idx}/{skeleton.skeleton_id}] {len(chunks_to_use)} chunks"
-                )
-        else:
-            static_text = "No static content retrieved. Use your knowledge grounded in NCERT texts."
-            logger.warning(f"[Stage3][Q{idx}] ❌ No retrieval result for {skeleton.skeleton_id}")
-
-        # CA context \u2500 BOUNDED to THIS skeleton only
-        ca_block = ""
-        if skeleton.ca_flag and retrieval_result and retrieval_result.ca_context:
-            if is_pure_ca:
-                # Pure CA: this is the ONLY source of content
-                ca_block = (
-                    f"\n  PURE CURRENT AFFAIRS QUESTION (ONLY INPUT):\n"
-                    f"  {retrieval_result.ca_context[:1500]}\n"
-                    f"\n  Your task:\n"
-                    f"    - Create a question 100% focused on this event/development\n"
-                    f"    - Explore impact, causes, policy responses, factual details\n"
-                    f"    - Example: 'Explain the 2023 monsoon floods and its impact on agriculture'\n"
-                    f"    - Example: 'What were the key policy responses to [recent event]?'\n"
-                )
-            else:
-                # CA-linked: context to link with static concept
-                ca_block = (
-                    f"\n  CURRENT AFFAIRS CONTEXT (MANDATORY for this question):\n"
-                    f"{retrieval_result.ca_context[:1200]}\n"
-                    f"  CA-Linked Question (Type 2):\n"
-                    f"    - Link this CA event to the static concept\n"
-                    f"    - Use as a statement: 'Recent floods in 2023 showed X pattern related to [concept]'\n"
-                    f"    - Use in match pair: 'Floods 2023' ← 'Policy Response'\n"
-                    f"    - Integrate naturally into the question stem\n"
-                    f"    - Do NOT use CA in other questions.\n"
-                )
-
-        # v4.5 Controlled: Constraints from Stage 0
-        available_qts = getattr(skeleton, "available_question_types", [qtype])
-        available_traps = getattr(skeleton, "available_trap_ids", [skeleton.trap_strategy])
-
-        constraints_info = ""
-        if available_qts:
-            constraints_info += f"  Valid question_types: {', '.join(available_qts)}\n"
-        if available_traps:
-            constraints_info += f"  Valid trap_ids: {', '.join(available_traps)}\n"
-
-        # PYQ style for this question type
-        pyq_text = ""
-        if pyq_chunks:
-            relevant = [
-                c for c in pyq_chunks
-                if qtype.replace("_", "").lower() in
-                   c.get("metadata", {}).get("pattern_type", "").replace("_", "").lower()
-            ] or pyq_chunks[:1]
-            pyq_text = relevant[0].get("content", "")[:250] if relevant else ""
-
-        pyq_display = pyq_text if pyq_text else "Standard UPSC Prelims style — formal, concise."
-
-        question_blocks.append(f"""
-══════════════════════════════════════════════════
-QUESTION {idx}:
-  concept       : {concept}
-  question_type : {qtype} (MUST use this type)
-  difficulty    : {diff}
-  trap_strategy : {skeleton.trap_strategy} (MUST use this trap)
-{constraints_info}
-  sub_concepts to test (MUST appear in the question):
-{sc_lines}
-{diff_rules}
-{trap_blk}
-{cross_blk}
-  STATIC CONTENT (use ONLY for question {idx} — do NOT use for other questions):
-{static_text if static_text else '(No static content for Pure CA questions)'}
-{ca_block}
-  PYQ STYLE REFERENCE: {pyq_display}
-""")
+        question_blocks.append(block)
 
     questions_section = "\n".join(question_blocks)
 
     return f"""You are an expert UPSC Prelims question paper setter.
-Generate exactly {n} questions, one per slot below.
+Generate exactly {n_target} questions.
 
-CRITICAL RULES:
-  1. Context (static chunks, CA context) under each QUESTION N: block applies ONLY to that question.
-     Do NOT use context from one question's block when writing another question.
-  2. Each question must follow its own difficulty, trap strategy, and sub_concepts exactly.
-  3. ENFORCE: question_type and trap_strategy MUST match the values specified for each question.
-     The valid_question_types and valid_trap_ids lists show all acceptable options.
-  4. Use the sub_domain cognitive framework below to ensure conceptually rigorous questions.
+GUIDELINES:
+  1. Each question spec below has its own context, difficulty type, and trap strategy.
+     Follow them closely. You may draw from any provided material if it genuinely
+     strengthens a question, but each question must primarily test its specified concept.
+  2. Each question must use the specified question_type and trap_strategy.
+  3. Every question must be distinct -- test different angles, facts, or mechanisms.
+  4. All {n_target} questions must be equally high quality.
 
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-SUBJECT COGNITIVE FRAMEWORK
-{framework}
+{type_rules}
 
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-{type_format_rules}
-
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-QUESTION SLOTS ({n} questions to generate):
 {questions_section}
 
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-OUTPUT FORMAT \u2014 return ONLY this JSON, no markdown:
-{{
+EXPLANATION QUALITY:
+  For each question, the explanation must:
+  - State the correct answer with factual reasoning
+  - For each wrong option, explain what specific fact or mechanism makes it wrong
+  - If a trap was used, explain what a student who got this wrong would have been thinking
+
+OUTPUT -- return ONLY this JSON, no markdown:
+{{{{
   "questions": [
-    {{
+    {{{{
       "question":       "Full question text",
       "options":        ["(a) ...", "(b) ...", "(c) ...", "(d) ..."],
       "correct_answer": "A",
-      "explanation":    "Justify correct answer. Explain why each wrong option is wrong.",
-      "source":         {{"concept": "<concept name>", "sub_domain": "<subject>", "trap_used": "<trap_id>"}}
-    }},
-    ... (one entry per QUESTION slot, in order)
+      "explanation":    "Detailed explanation as described above.",
+      "source":         {{{{"concept": "<concept name>", "sub_domain": "<subject>", "trap_used": "<trap_id>"}}}}
+    }}}}
   ]
-}}
+}}}}
 
-Generate exactly {n} objects in the "questions" array, one per slot in order.
+Generate exactly {n_target} objects in the "questions" array.
 """.strip()
-
 
 # \u2500\u2500 Batch response parser \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
@@ -775,16 +698,30 @@ def parse_batch_response(
         if not q_text or len(options) < 4 or correct not in ("A", "B", "C", "D"):
             return None
         src = data.get("source", {})
-        return V2GeneratedQuestion(
-            skeleton_id    = skeleton.skeleton_id,
-            question       = q_text,
-            options        = options[:4],
-            correct_answer = correct,
-            explanation    = expl,
-            sub_domain     = src.get("sub_domain", skeleton.sub_domain),
-            difficulty     = skeleton.difficulty,
-            question_type  = skeleton.question_type,
-        )
+        # Handle extra questions with no assigned skeleton
+        if skeleton:
+            return V2GeneratedQuestion(
+                skeleton_id    = skeleton.skeleton_id,
+                question       = q_text,
+                options        = options[:4],
+                correct_answer = correct,
+                explanation    = expl,
+                sub_domain     = src.get("sub_domain", skeleton.sub_domain),
+                difficulty     = skeleton.difficulty,
+                question_type  = skeleton.question_type,
+            )
+        else:
+            # Extra question — use source or defaults
+            return V2GeneratedQuestion(
+                skeleton_id    = f"extra_{id(q_text)}",  # Synthetic ID for extra questions
+                question       = q_text,
+                options        = options[:4],
+                correct_answer = correct,
+                explanation    = expl,
+                sub_domain     = src.get("sub_domain", "Unknown"),
+                difficulty     = src.get("difficulty", "medium"),
+                question_type  = src.get("question_type", "mcq"),
+            )
 
     text = text.strip()
 
@@ -792,13 +729,17 @@ def parse_batch_response(
     try:
         batch = GeneratedQuestionBatch.model_validate_json(text)
         results = []
-        for i, skeleton in enumerate(skeletons):
-            if i < len(batch.questions):
-                q = _make_q(batch.questions[i].model_dump(), skeleton)
-                results.append(q)
-            else:
-                results.append(None)
-        logger.info(f"[Stage3][Batch] Pydantic parse: {sum(1 for r in results if r)} / {len(skeletons)} OK")
+        for i, q_data in enumerate(batch.questions):
+            # Map first N to skeletons, rest are extras
+            skeleton = skeletons[i] if i < len(skeletons) else None
+            q = _make_q(q_data.model_dump(), skeleton)
+            results.append(q)
+
+        passed = sum(1 for r in results if r)
+        logger.info(
+            f"[Stage3][Batch] Pydantic parse: {passed} / {len(batch.questions)} questions OK "
+            f"({len(skeletons)} primary slots + {len(batch.questions) - len(skeletons)} extras)"
+        )
         return results
     except Exception:
         pass
@@ -808,13 +749,17 @@ def parse_batch_response(
     try:
         batch = GeneratedQuestionBatch.model_validate_json(cleaned)
         results = []
-        for i, skeleton in enumerate(skeletons):
-            if i < len(batch.questions):
-                q = _make_q(batch.questions[i].model_dump(), skeleton)
-                results.append(q)
-            else:
-                results.append(None)
-        logger.info(f"[Stage3][Batch] Cleaned Pydantic parse: {sum(1 for r in results if r)} / {len(skeletons)} OK")
+        for i, q_data in enumerate(batch.questions):
+            # Map first N to skeletons, rest are extras
+            skeleton = skeletons[i] if i < len(skeletons) else None
+            q = _make_q(q_data.model_dump(), skeleton)
+            results.append(q)
+
+        passed = sum(1 for r in results if r)
+        logger.info(
+            f"[Stage3][Batch] Cleaned Pydantic parse: {passed} / {len(batch.questions)} questions OK "
+            f"({len(skeletons)} primary slots + {len(batch.questions) - len(skeletons)} extras)"
+        )
         return results
     except Exception:
         pass
@@ -823,17 +768,20 @@ def parse_batch_response(
     logger.warning("[Stage3][Batch] Pydantic parse failed, falling back to regex extraction")
     objects = _re.findall(r'\{[^{}]*"question"[^{}]*\}', cleaned, _re.DOTALL)
     results = []
-    for i, skeleton in enumerate(skeletons):
-        if i < len(objects):
-            try:
-                data = json.loads(objects[i])
-                results.append(_make_q(data, skeleton))
-            except Exception:
-                results.append(None)
-        else:
+    for i, obj_text in enumerate(objects):
+        try:
+            data = json.loads(obj_text)
+            # Map first N to skeletons, rest are extras
+            skeleton = skeletons[i] if i < len(skeletons) else None
+            results.append(_make_q(data, skeleton))
+        except Exception:
             results.append(None)
+
     ok = sum(1 for r in results if r)
-    logger.info(f"[Stage3][Batch] Regex fallback: {ok} / {len(skeletons)} OK")
+    logger.info(
+        f"[Stage3][Batch] Regex fallback: {ok} / {len(objects)} questions OK "
+        f"({len(skeletons)} primary slots + {len(objects) - len(skeletons)} extras)"
+    )
     return results
 
 
@@ -917,19 +865,28 @@ async def generate_questions_batch(
 
             questions = parse_batch_response(response_text, batch)
 
-            # Track results
-            for q, skeleton in zip(questions, batch):
-                if q:
-                    all_questions.append(q)
-                    logger.debug(f"[Stage3] ✓ {skeleton.skeleton_id}: {skeleton.question_type}")
+            # Track results: first N map to batch, rest are extras
+            skeleton_map = {sk.skeleton_id: sk for sk in batch}
+            for i, q in enumerate(questions):
+                if i < len(batch):
+                    skeleton = batch[i]
+                    if q:
+                        all_questions.append(q)
+                        logger.debug(f"[Stage3] ✓ {skeleton.skeleton_id}: {skeleton.question_type}")
+                    else:
+                        failed_ids.append(skeleton.skeleton_id)
+                        logger.debug(f"[Stage3] ✗ {skeleton.skeleton_id}: parse failed")
                 else:
-                    failed_ids.append(skeleton.skeleton_id)
-                    logger.debug(f"[Stage3] ✗ {skeleton.skeleton_id}: parse failed")
+                    # Extra question
+                    if q:
+                        all_questions.append(q)
+                        logger.debug(f"[Stage3] ✓ EXTRA: {q.question_type}")
 
             logger.info(
                 f"[Stage3] Batch {batch_idx + 1} complete: "
-                f"{sum(1 for q in questions if q)}/{len(batch)} OK "
-                f"(temp={temperature})"
+                f"{sum(1 for q in questions if q)}/{len(questions)} OK "
+                f"({len(batch)} primary + {len(questions) - len(batch)} extras), "
+                f"temp={temperature}"
             )
 
         except Exception as e:

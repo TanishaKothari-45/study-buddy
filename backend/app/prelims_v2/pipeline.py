@@ -359,13 +359,22 @@ async def run_v2_pipeline(
             )
             batch_results = parse_batch_response(response_text, batch_skeletons)
 
-            for sk, result in zip(batch_skeletons, batch_results):
+            # Iterate ALL results — extras beyond skeleton count are buffer questions
+            for i, result in enumerate(batch_results):
                 if result is not None:
                     generated.append(result)
-                    logger.info(f"  ✅ {sk.skeleton_id} | {sk.question_type} | {sk.concept} — GENERATED")
+                    if i < len(batch_skeletons):
+                        sk = batch_skeletons[i]
+                        logger.info(f"  ✅ {sk.skeleton_id} | {sk.question_type} | {sk.concept} — GENERATED")
+                    else:
+                        logger.info(f"  ✅ EXTRA[{i}] — buffer question generated")
                 else:
-                    logger.warning(f"  ❌ {sk.skeleton_id} | {sk.concept} — FAILED (None from batch)")
-                    batch_failed = True
+                    if i < len(batch_skeletons):
+                        sk = batch_skeletons[i]
+                        logger.warning(f"  ❌ {sk.skeleton_id} | {sk.concept} — FAILED (None from batch)")
+                        batch_failed = True
+                    else:
+                        logger.debug(f"  ⚠️ EXTRA[{i}] — buffer question parse failed (non-critical)")
 
         except Exception as e:
             logger.error(f"  [3] Batch {batch_idx+1} failed: {e} — falling back to per-skeleton calls")
@@ -394,8 +403,10 @@ async def run_v2_pipeline(
                 else:
                     logger.warning(f"  ❌ {sk.skeleton_id} | {sk.concept} — FALLBACK FAILED")
 
+    n_primary = sum(1 for q in generated if not q.is_extra)
+    n_extra   = sum(1 for q in generated if q.is_extra)
     logger.info(
-        f"\n[V2][STAGE 3] {len(generated)}/{len(skeletons)} questions generated"
+        f"\n[V2][STAGE 3] {n_primary}/{len(skeletons)} primary + {n_extra} buffer questions generated"
         + (" (some sub-batches used per-skeleton fallback)" if batch_failed else " via batch call")
     )
     if not generated:
