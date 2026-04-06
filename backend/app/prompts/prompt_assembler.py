@@ -1,3 +1,4 @@
+import json
 import logging
 from .core.ibc_core_rules import IBC_FORMAT_RULES
 from .core.directive_decoder import DIRECTIVE_DECODER
@@ -252,6 +253,159 @@ The directive determines:
 
     logger.info("Prompt assembly completed successfully.")
     return system_prompt
+
+def assemble_generator_system_prompt(gs_paper: str, subject: str) -> str:
+    """
+    Stage 2 generator system prompt.
+
+    Contains: IBC rules + GS overlay + Subject overlay + Visual SYNTAX rules.
+    Does NOT contain directive decoder (blueprint handled that) or trigger rules.
+    Smaller and more focused than the legacy assemble_mains_prompt().
+    """
+    gs_overlay = GS_MAP.get((gs_paper or "").upper(), "")
+    subject_overlay = resolve_subject_overlay(subject or "")
+
+    return f"""You are an expert UPSC Mains answer writer specialising in \
+{subject if subject else 'General Studies'}.
+
+{IBC_FORMAT_RULES}
+
+# CONTEXTUAL OVERLAYS
+{gs_overlay}
+
+{subject_overlay}
+
+# FORMAT & VISUAL RULES
+# NOTE: Visual trigger decisions (map_needed, diagram_type) are already locked
+# in the ANSWER BLUEPRINT below.  The rules here define SYNTAX ONLY — how to
+# write Mermaid and map-json blocks.  Do NOT re-assess whether to add visuals.
+{BULLET_DISCIPLINE_RULES}
+
+{MERMAID_DIAGRAM_RULES}
+
+{MAP_GENERATION_RULES}
+
+{DIAGRAM_TOKEN_BUDGET}
+
+{SCORING_RUBRIC}
+
+{WORD_COUNT_COMPRESSION_RULES}
+
+{FACTUAL_ACCURACY_RULES}
+
+**CRITICAL REMINDERS**:
+- Follow the ANSWER BLUEPRINT in the user message exactly — it specifies subheadings, \
+word allocation, and visual requirements.
+- VISUAL DECISIONS ARE LOCKED BY BLUEPRINT: Do NOT independently decide whether to add \
+or skip diagrams/maps/tables.  If blueprint says map_needed: true → you MUST include a \
+map-json block.  If blueprint says diagram_type: flowchart → include a flowchart.  \
+If blueprint says diagram_type: none → do NOT add any Mermaid diagram.  The visual rules \
+in this system prompt tell you HOW to write the syntax, not WHETHER to include visuals.
+- CONTEXT PRIORITY: For each section, FIRST use the FOUNDATIONAL CONTEXT provided.  \
+Only fall back to general knowledge when context is absent or insufficient for that section.
+- Keep to the word allocation per section in the blueprint.
+- Write bullets as natural English sentences with strategic citations.
+"""
+
+
+def assemble_generator_user_prompt(
+    question: str,
+    word_count: int,
+    blueprint,
+    dimension_context: dict,
+) -> str:
+    """
+    Stage 2 generator user prompt.
+
+    Presents the blueprint as a structured instruction followed by
+    dimension-labelled context (each subheading sees its own chunks + CA).
+    This replaces the old monolithic context dump.
+    """
+    # ── Blueprint block ───────────────────────────────────────────────────────
+    allocation_lines = "\n".join(
+        f"  • {k}: ~{v} words" for k, v in blueprint.word_allocation.items()
+    )
+    if blueprint.diagram_type != "none":
+        placement = f" — place {blueprint.diagram_placement}" if blueprint.diagram_placement else ""
+        visual_line = f"{blueprint.diagram_type.capitalize()} diagram{placement}"
+    else:
+        visual_line = "No Mermaid diagram"
+    map_line = "Map required (map-json block MANDATORY)" if blueprint.map_needed else "No map"
+
+    blueprint_block = f"""═══════════════════════ ANSWER BLUEPRINT ═══════════════════════
+Directive Intent : {blueprint.directive_intent}
+Subheadings      : {" → ".join(blueprint.subheadings)}
+Way Forward      : {"Required" if blueprint.way_forward_needed else "Not required"}
+Word Allocation  :
+{allocation_lines}
+Diagram          : {visual_line}
+Map              : {map_line}
+═════════════════════════════════════════════════════════════════"""
+
+    # ── Intro / Conclusion CA blocks ─────────────────────────────────────────
+    # ── All sections inline (intro, body, conclusion) ────────────────────────
+    # Word budget shown at each section header so generator sees it at point of writing.
+    # CA bullets inline with their section — not in a separate framing block.
+    context_sections = []
+
+    def _section_block(name: str, chunks: str, ca_bullets: list, word_budget: int) -> str:
+        budget_str = f"~{word_budget}w" if word_budget else ""
+        header = f"── {name} ({budget_str}) ──\n" if budget_str else f"── {name} ──\n"
+        block = header
+        if ca_bullets:
+            block += "CURRENT AFFAIRS:\n" + "\n".join(f"- {b}" for b in ca_bullets) + "\n"
+        if chunks:
+            block += f"FOUNDATIONAL CONTEXT:\n{chunks}\n"
+        elif not ca_bullets:
+            block += "CONTEXT: [Use general knowledge]\n"
+        return block
+
+    # Introduction
+    intro_budget = blueprint.word_allocation.get("Introduction", 0)
+    intro_dim = dimension_context.get("Introduction", {})
+    context_sections.append(_section_block(
+        "Introduction", "", intro_dim.get("ca_bullets") or [], intro_budget
+    ))
+
+    # Body subheadings
+    for subheading in blueprint.subheadings:
+        dim = dimension_context.get(subheading, {})
+        budget = blueprint.word_allocation.get(subheading, 0)
+        context_sections.append(_section_block(
+            subheading,
+            (dim.get("chunks") or "").strip(),
+            dim.get("ca_bullets") or [],
+            budget,
+        ))
+
+    # Conclusion
+    conclusion_budget = blueprint.word_allocation.get("Conclusion", 0)
+    conclusion_dim = dimension_context.get("Conclusion", {})
+    context_sections.append(_section_block(
+        "Conclusion", "", conclusion_dim.get("ca_bullets") or [], conclusion_budget
+    ))
+
+    context_block = "\n".join(context_sections)
+
+    return f"""Question: {question}
+
+{blueprint_block}
+
+══════════════════════ SECTION CONTEXT ══════════════════════════
+Word budget per section shown in header.  STRICT: stay within budget.
+Use provided context; fall back to general UPSC knowledge if absent.
+Do NOT swap context between sections.
+
+{context_block}
+══════════════════════════════════════════════════════════════════
+
+ANSWER REQUIREMENTS:
+- TOTAL word count: ~{word_count} words. Hard ceiling: {int(word_count * 1.3)} words.
+- Each section MUST stay within its budget shown above.
+- Tone: concise, exam-style, zero fluff
+- Output: Answer only (no preamble), markdown bullets + sub-headings
+"""
+
 
 def assemble_improved_answer_prompt(gs_paper: str, subject: str) -> str:
     """

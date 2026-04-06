@@ -605,8 +605,9 @@ async def evaluate_answer_task(
         # ============================================================
         logger.info(f"🤖 [JOB {job_id}] STEP 3: Calling Gemini with user lock...")
         
-        # Re-applied increased timeout for evaluation (Gemini 2.5 Pro can be slow)
-        async with redis.lock(f"lock:user:{user_id}", timeout=600, blocking_timeout=70):
+        # Lock timeout: 120s is enough for Gemini calls (typically 20-60s) while not
+        # blocking the user for 10 minutes if something goes wrong (old: 600s)
+        async with redis.lock(f"lock:user:{user_id}", timeout=120, blocking_timeout=70):
             logger.info(f"🔐 [JOB {job_id}] Lock acquired, calling Gemini...")
             await check_cancellation(ctx, job_id)
             
@@ -1873,79 +1874,176 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
         
         # Imports
         from .prompts.mains_prompt import assemble_mains_prompt
-        from .utils.context_retriever import retrieve_context_for_question
-        from .utils.current_affairs_fetcher import fetch_current_affairs_for_question, format_bullets_for_context
+        from .prompts.prompt_assembler import (
+            assemble_generator_system_prompt,
+            assemble_generator_user_prompt,
+        )
+        from .utils.answer_blueprint import generate_blueprint
+        from .utils.targeted_retriever import run_targeted_retrieval
         from .utils.map_proxy import parse_and_generate_maps, check_map_service_health
         from .utils.answer_compressor import compress_answer
-        
-        gemini_client = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_PRO)
+        from .routes.mains_answer import enforce_diagrams
+
+        pro_client   = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_PRO)
+        flash_client = get_gemini_client(ctx, gemini_api_key, settings.GEMINI_MODEL_FLASH)
+        gemini_client = pro_client  # keep alias for compression reuse below
         cache = get_cache_manager()
         pinecone_handler = ctx.get("pinecone_handler")
-        
-        
-        # Determine strict Pinecone usage based on subject
-        # Default: Enable retrieval for ALL subjects (Blacklist approach)
-        # Exception: Skip for Science & Tech and Ethics (no vector data yet)
+
+        # Determine retrieval eligibility
         blacklist_subjects = ["science", "science & tech", "science & technology", "ethics"]
-        skip_vector_search = False # Default to ENABLE (unlike before)
-        
+        skip_vector_search = False
         if subject:
-            subject_lower = subject.lower()
             for blacklisted in blacklist_subjects:
-                if blacklisted in subject_lower:
+                if blacklisted in subject.lower():
                     skip_vector_search = True
-                    logger.info(f"⏩ Subject '{subject}' is blacklisted for retrieval. Skipping Pinecone search.")
+                    logger.info(f"⏩ Subject '{subject}' blacklisted for retrieval. Skipping Pinecone.")
                     break
-        
         if not skip_vector_search:
-             logger.info(f"✅ Subject '{subject}' allowed for retrieval. Enabling Pinecone search.")
+            logger.info(f"✅ Subject '{subject}' allowed for retrieval.")
 
         # ============================================================
-        # PHASE 2: ALIGNED RETRIEVAL & NEWS PIPELINE
+        # PHASE 0a: CORPUS SCAN (generic k=8, fast — informs blueprint only)
+        # Result is NOT sent to generator. Used only as corpus snapshot for
+        # blueprint so it can write corpus-aware retrieval queries.
         # ============================================================
-        pipeline_result = await run_enriched_pipeline(
-            ctx=ctx,
-            job_id=job_id,
-            query=query,
-            gemini_api_key=gemini_api_key,
-            skip_vector_search=skip_vector_search,
-            skip_current_affairs=False # Mains uses the separate research pipeline
-        )
-        
-        context = pipeline_result["context"]
-        sources = pipeline_result["sources"]
-        parsed_topics = pipeline_result["parsed_topics"]
-        current_affairs_bullets = pipeline_result["current_affairs_bullets"]
-        current_affairs_section = pipeline_result["current_affairs"]
-        map_service_healthy = pipeline_result["map_service_healthy"]
+        corpus_snapshot: str = ""
+        if pinecone_handler and not skip_vector_search:
+            try:
+                from .utils.context_retriever import retrieve_context_for_question
+                import asyncio as _asyncio
+                _loop = _asyncio.get_event_loop()
+                _snap_text, _ = await _loop.run_in_executor(
+                    None,
+                    lambda: retrieve_context_for_question(
+                        search_query=query,
+                        vector_handler=pinecone_handler,
+                        mode="mains",
+                        k=8,
+                    ),
+                )
+                # Pass only first ~600 tokens worth to blueprint (top surface chunks)
+                corpus_snapshot = (_snap_text or "")[:2400].strip()
+                if corpus_snapshot:
+                    logger.info(f"📚 [JOB {job_id}] Corpus snapshot: {len(corpus_snapshot)} chars for blueprint")
+            except Exception as exc:
+                logger.warning(f"⚠️ [JOB {job_id}] Corpus scan failed ({exc}). Blueprint will proceed without it.")
 
         # ============================================================
-        # GENERATE (User Locked)
+        # PHASE 0b: BLUEPRINT (Gemini Flash — focused directive+IBC call)
         # ============================================================
-        
-        # Prompt
-        prompt_pair = assemble_mains_prompt(
-            question=query,
-            context=context,
-            current_bullets=current_affairs_section,
-            word_count=word_count,
-            gs_paper=gs_paper,
-            subject=subject
-        )
-        
+        blueprint = None
+        try:
+            blueprint = await generate_blueprint(
+                question=query,
+                word_count=word_count,
+                gs_paper=gs_paper or "",
+                subject=subject or "",
+                gemini_client=flash_client,
+                corpus_snapshot=corpus_snapshot,
+            )
+            if blueprint:
+                logger.info(
+                    f"✅ [JOB {job_id}] Blueprint: {len(blueprint.subheadings)} subheadings, "
+                    f"diagram={blueprint.diagram_type}, map={blueprint.map_needed}"
+                )
+                import json as _json
+                logger.info(
+                    f"📋 [JOB {job_id}] BLUEPRINT DETAIL:\n"
+                    + _json.dumps(blueprint.model_dump(), indent=2)
+                )
+        except Exception as exc:
+            logger.warning(f"⚠️ [JOB {job_id}] Blueprint failed ({exc}). Using legacy pipeline.")
+
+        await check_cancellation(ctx, job_id)
+
+        # ============================================================
+        # PHASE 1: RETRIEVAL — targeted (blueprint) or legacy fallback
+        # ============================================================
+        sources = []
+        map_service_healthy = False
+
+        if blueprint:
+            # Targeted: k=3 per dimension, CA per dimension
+            # Pinecone handler may be None if subject is blacklisted — that's OK,
+            # targeted_retriever handles None gracefully (empty chunks, CA still runs)
+            dimension_context, sources = await run_targeted_retrieval(
+                blueprint=blueprint,
+                pinecone_handler=pinecone_handler if not skip_vector_search else None,
+                flash_client=flash_client,
+                k_per_query=3,
+            )
+            map_service_healthy = await check_map_service_health()
+        else:
+            # Legacy: single generic retrieval + full CA search
+            from .utils.context_retriever import retrieve_context_for_question
+            from .utils.current_affairs_fetcher import (
+                fetch_current_affairs_for_question,
+                format_bullets_for_context,
+            )
+            pipeline_result = await run_enriched_pipeline(
+                ctx=ctx,
+                job_id=job_id,
+                query=query,
+                gemini_api_key=gemini_api_key,
+                skip_vector_search=skip_vector_search,
+                skip_current_affairs=False,
+            )
+            sources = pipeline_result["sources"]
+            map_service_healthy = pipeline_result["map_service_healthy"]
+            dimension_context = {
+                "General Context": {
+                    "chunks": pipeline_result["context"],
+                    "ca_bullets": pipeline_result["current_affairs_bullets"],
+                }
+            }
+
+        await check_cancellation(ctx, job_id)
+
+        # ============================================================
+        # PHASE 2: PROMPT ASSEMBLY
+        # ============================================================
+        if blueprint:
+            system_prompt = assemble_generator_system_prompt(
+                gs_paper=gs_paper or "",
+                subject=subject or "",
+            )
+            user_prompt = assemble_generator_user_prompt(
+                question=query,
+                word_count=word_count,
+                blueprint=blueprint,
+                dimension_context=dimension_context,
+            )
+        else:
+            # Legacy prompt assembly
+            ctx_text = dimension_context.get("General Context", {}).get("chunks", "")
+            ca_bullets = dimension_context.get("General Context", {}).get("ca_bullets", [])
+            from .utils.current_affairs_fetcher import format_bullets_for_context
+            prompt_pair = assemble_mains_prompt(
+                question=query,
+                context=ctx_text,
+                current_bullets=format_bullets_for_context(ca_bullets),
+                word_count=word_count,
+                gs_paper=gs_paper,
+                subject=subject,
+            )
+            system_prompt = prompt_pair["system"]
+            user_prompt = prompt_pair["user"]
+
         lock_key = f"lock:user:{user_id}"
         logger.info(f"🔐 [JOB {job_id}] Acquiring lock {lock_key}...")
         
         try:
-            # Re-applied increased timeout for mock test generation
-            async with redis.lock(lock_key, timeout=600, blocking_timeout=70):
+            # Lock timeout: 120s is enough for Gemini calls (typically 20-60s) while not
+            # blocking the user for 10 minutes if something goes wrong (old: 600s)
+            async with redis.lock(lock_key, timeout=120, blocking_timeout=70):
                  await check_cancellation(ctx, job_id)
                  logger.info(f"🤖 [JOB {job_id}] Calling Gemini (Locked)...")
                  
                  # Create API call task
-                 gemini_task = asyncio.create_task(gemini_client.generate_response(
-                     user_prompt=prompt_pair["user"],
-                     system_prompt=prompt_pair["system"],
+                 gemini_task = asyncio.create_task(pro_client.generate_response(
+                     user_prompt=user_prompt,
+                     system_prompt=system_prompt,
                      temperature=0.15,
                      max_retries=2
                  ))
@@ -1994,10 +2092,16 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
             }
              
         answer_text = response_text.strip()
-        word_count_actual = count_words_excluding_visuals(answer_text)
-        
+
         # ============================================================
-        # PHASE 5: MAPS
+        # PHASE 3: ENFORCE DIAGRAMS (blueprint-aware)
+        # ============================================================
+        answer_text = enforce_diagrams(answer_text, blueprint=blueprint, required=1)
+
+        word_count_actual = count_words_excluding_visuals(answer_text)
+
+        # ============================================================
+        # PHASE 4: MAPS
         # ============================================================
         if map_service_healthy:
             try:
@@ -2006,7 +2110,7 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
                 logger.warning(f"Map generation failed: {e}")
         
         # ============================================================
-        # PHASE 6: COMPRESSION
+        # PHASE 5: COMPRESSION
         # ============================================================
         compressed_answer = None
         word_count_compressed = None
@@ -2025,7 +2129,7 @@ async def generate_mains_answer_task(ctx, job_id: str, query: str, user_id: str,
             logger.warning(f"Compression failed: {e}")
             
         # ============================================================
-        # PHASE 7: CACHE & SAVE
+        # PHASE 6: CACHE & SAVE
         # ============================================================
         result = {
             "question": query,

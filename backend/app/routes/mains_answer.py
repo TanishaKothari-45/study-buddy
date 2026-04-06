@@ -52,16 +52,35 @@ OPENAI_API_KEY = settings.OPENAI_API_KEY
 limiter = Limiter(key_func=get_remote_address)
 
 # -- Utility small guards and postprocessors --
-def enforce_diagrams(answer: str, required: int = 1) -> str:
+def enforce_diagrams(answer: str, blueprint=None, required: int = 1) -> str:
     """
-    Ensure at least `required` Mermaid diagrams exist in the answer.
-    If not, insert a safe, minimal Mermaid diagram (flowchart)
-    in a stable location (after first sub-heading and before bullets).
+    Enforce visual requirements.  When a blueprint is provided, checks
+    blueprint.map_needed and blueprint.diagram_type to decide what to inject.
+    Falls back to required-count enforcement when no blueprint.
+
+    Injection point: after the first ### subheading line in the answer.
     """
-    # quick check: count existing mermaid fenced blocks
     mermaid_count = answer.count("```mermaid")
-    if mermaid_count >= required:
-        return answer
+    map_count = answer.count("```map-json")
+
+    needs_diagram = blueprint.diagram_type not in ("none", "") if blueprint else (mermaid_count < required)
+    needs_map = blueprint.map_needed if blueprint else False
+
+    if (not needs_diagram or mermaid_count > 0) and (not needs_map or map_count > 0):
+        return answer  # Nothing to inject
+
+    # Find insertion point: right after the first ### heading line
+    import re as _re
+    heading_match = _re.search(r"(###[^\n]+\n)", answer)
+    insert_at = heading_match.end() if heading_match else len(answer)
+
+    # Log missing visuals but do NOT inject generic placeholders —
+    # empty/generic diagrams hurt answer quality more than missing ones.
+    if needs_map and map_count == 0:
+        logger.warning("enforce_diagrams: blueprint required map but generator did not produce one")
+    if needs_diagram and mermaid_count == 0:
+        diagram_type = blueprint.diagram_type if blueprint else "unknown"
+        logger.warning(f"enforce_diagrams: blueprint required {diagram_type} but generator did not produce one")
 
     return answer
 

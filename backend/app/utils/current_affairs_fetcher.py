@@ -181,6 +181,101 @@ def format_bullets_for_context(bullets: List[str], header: str = "LATEST CURRENT
     return formatted
 
 
+async def fetch_targeted_ca_bullets(
+    query: str,
+    subheading: str,
+    gemini_client,
+    max_bullets: int = 3,
+) -> list[str]:
+    """
+    Fetch CA bullets for one specific blueprint dimension.
+
+    Unlike fetch_current_affairs_for_question(), this function does NOT
+    re-plan dimensions internally.  It takes a pre-crafted targeted query
+    (from the blueprint's ca_dimension_queries), calls Gemini Flash with
+    Google Search, and returns 2–3 bullets directly relevant to that
+    query — no dimension re-planning, no MECE breakdown.
+
+    Args:
+        query:       Targeted Google Search query for this dimension.
+        subheading:  The blueprint subheading this query serves (for logging).
+        gemini_client: GeminiClient instance (should be Flash model).
+        max_bullets: Max bullets to return (default 3).
+
+    Returns:
+        List of bullet strings (20–30 words each).
+    """
+    import json as _json
+    import re as _re
+    from datetime import date as _date, timedelta as _timedelta
+
+    _today = _date.today()
+    _start = _today - _timedelta(days=240)  # ~8 months back
+    _date_range = f"{_start.strftime('%B %Y')} to {_today.strftime('%B %Y')}"
+
+    system_prompt = (
+        "You are a UPSC Mains research assistant. Use Google Search to find the most recent "
+        "relevant facts for the given query and return 2–3 concise bullet points.\n\n"
+        "Rules:\n"
+        "- Each bullet: 20–30 words, must contain one hard fact (data, report, policy, year, event)\n"
+        f"- Focus on developments from {_date_range} only — prioritise most recent first\n"
+        "- UPSC administrative or journalistic language\n"
+        "- Return ONLY a JSON array of strings: [\"bullet1\", \"bullet2\"]\n"
+        "- No preamble, no explanation, no markdown wrapper"
+    )
+    user_prompt = (
+        f"Dimension: {subheading}\n"
+        f"Search query: {query}\n"
+        f"Date window: {_date_range} (most recent results preferred)\n\n"
+        "Find the latest relevant facts and return as JSON array of bullets."
+    )
+
+    try:
+        raw = await gemini_client.generate_response(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            use_google_search=True,
+            temperature=0.0,
+            max_retries=1,
+        )
+
+        # Parse JSON array from response
+        text = raw.strip()
+        # Strip accidental code fences
+        if text.startswith("```"):
+            text = _re.sub(r"```[a-z]*\n?", "", text).strip().rstrip("`").strip()
+
+        # Try JSON array first
+        match = _re.search(r"\[.*\]", text, _re.DOTALL)
+        if match:
+            try:
+                bullets = _json.loads(match.group(0))
+                if isinstance(bullets, list):
+                    return [str(b).strip() for b in bullets if b][:max_bullets]
+            except _json.JSONDecodeError:
+                pass
+
+        # Fallback: parse markdown bullet list (* or - or •)
+        lines = text.splitlines()
+        bullets = []
+        for line in lines:
+            line = line.strip()
+            if line.startswith(("* ", "- ", "• ")):
+                bullet = line[2:].strip()
+                if bullet:
+                    bullets.append(bullet)
+        if bullets:
+            logger.info(f"CA bullets parsed via markdown fallback for '{subheading}'")
+            return bullets[:max_bullets]
+
+        logger.warning(f"Could not parse CA bullets for '{subheading}'. Raw: {raw[:200]}")
+        return []
+
+    except Exception as exc:
+        logger.warning(f"Targeted CA fetch failed for '{subheading}': {exc}")
+        return []
+
+
 # Synchronous wrapper for non-async contexts
 def fetch_current_affairs_sync(
     parsed_keywords: Dict[str, Any],
