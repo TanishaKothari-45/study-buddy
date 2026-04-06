@@ -1,0 +1,2121 @@
+{
+  "subject": "Geography",
+  "domain": "Physical Geography",
+  "subdomain": "Natural Disasters",
+  "description": "Concept pool for UPSC Prelims — Geography > Physical Geography > Natural Disasters. Covers earthquakes, cyclones, floods, droughts, landslides, tsunamis, and disaster management frameworks as tested in UPSC Prelims 2014–2024. Each concept carries priority (frequency in papers), tested_as_question_types, sub_concepts (specific testable facts with aspects and linkages), links_to (intra-domain cross-concept linkages for hard A/R questions), and interlink_domains (cross-subject domain linkages).",
+  "core_concepts": [
+    "Earthquakes and Seismic Activity",
+    "Cyclones and Tropical Storms",
+    "Floods and Flood Management",
+    "Landslides and Mass Movements",
+    "Droughts",
+    "Tsunamis",
+    "Volcanic Eruptions",
+    "Heat Waves and Cold Waves",
+    "Disaster Management Framework (NDMA, SDMA, NDRF)",
+    "Sendai Framework for Disaster Risk Reduction",
+    "Lightning and Thunderstorms",
+    "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+    "Cloud Bursts and Flash Floods",
+    "Urban Flooding",
+    "Biological Disasters"
+  ],
+  "concepts": {
+    "Earthquakes and Seismic Activity": {
+      "priority": "ultra_high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "assertion_reason",
+        "match_pair",
+        "direct_fact",
+        "how_many"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Seismic waves — P-waves (compressional, travel through all media, arrive first) vs S-waves (shear, transverse, travel only through solids, cause more surface damage)",
+          "aspects": [
+            "mechanism",
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Tsunamis",
+            "Volcanic Eruptions"
+          ]
+        },
+        {
+          "topic": "India's seismic zones — Zone II (least hazard) to Zone V (highest hazard); Northeast India, Himalayan belt, and Andaman-Nicobar in Zone V",
+          "aspects": [
+            "classification",
+            "geography",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Landslides and Mass Movements",
+            "Tsunamis"
+          ]
+        },
+        {
+          "topic": "Richter scale vs Moment Magnitude Scale (Mw) — Richter measures amplitude of seismic waves, Mw measures total energy released; modern seismology uses Mw for large earthquakes",
+          "aspects": [
+            "classification",
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Tsunamis"
+          ]
+        },
+        {
+          "topic": "Focus (hypocenter) vs epicenter — focus is underground point of rupture, epicenter is point on surface directly above focus; shallow focus earthquakes cause more surface damage",
+          "aspects": [
+            "mechanism",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Tsunamis",
+            "Landslides and Mass Movements"
+          ]
+        },
+        {
+          "topic": "Liquefaction — waterlogged loose sediments lose shear strength during earthquake shaking, behaving like liquid; coastal and deltaic areas most vulnerable",
+          "aspects": [
+            "mechanism",
+            "geography"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Floods and Flood Management",
+            "Landslides and Mass Movements"
+          ]
+        },
+        {
+          "topic": "Aftershocks vs foreshocks — foreshocks precede main quake (difficult to identify in real time), aftershocks follow; aftershock sequence can last months",
+          "aspects": [
+            "classification",
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Landslides and Mass Movements"
+          ]
+        }
+      ],
+      "links_to": [
+        "Tsunamis",
+        "Landslides and Mass Movements",
+        "Volcanic Eruptions",
+        "Floods and Flood Management"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Tectonic Landforms",
+            "Mass Wasting & Slope Processes",
+            "Coastal Geomorphology",
+            "Aeolian Landforms"
+          ]
+        },
+        {
+          "domain": "Disaster Management",
+          "concepts": [
+            "NDMA",
+            "NDRF",
+            "Sendai Framework"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Ocean floor topography",
+            "Subduction zones",
+            "Mid-ocean ridges",
+            "Tides and Tidal Forces",
+            "Ocean Temperature Distribution",
+            "Ocean Upwelling",
+            "Ocean Zones (Light-based classification)",
+            "Marine Ecosystems and Biodiversity",
+            "Ocean Trenches and Submarine Topography"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Biodiversity Hotspots",
+            "Ecosystems",
+            "Food Chains and Energy Flow",
+            "Natural Vegetation of India",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Wetlands and Ramsar Sites",
+            "Mangroves",
+            "Coral Reefs",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Sacred Groves and Social Forestry",
+            "Forest Cover and Deforestation",
+            "Bird and Animal Migration"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Atmospheric Radiation & Heat Transfer",
+            "Jet Streams",
+            "Temperature Distribution",
+            "Climate Classification"
+          ]
+        }
+      ]
+    },
+    "Cyclones and Tropical Storms": {
+      "priority": "ultra_high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "assertion_reason",
+        "direct_fact",
+        "match_pair",
+        "how_many"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Cyclone formation conditions — SST ≥26–27°C, low vertical wind shear, presence of Coriolis force (absent within 5° latitude of equator), high humidity in troposphere",
+          "aspects": [
+            "mechanism",
+            "classification",
+            "geography"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves"
+          ]
+        },
+        {
+          "topic": "IMD cyclone intensity classification — Depression, Deep Depression, Cyclonic Storm, Severe CS, Very Severe CS, Extremely Severe CS, Super Cyclonic Storm; Saffir-Simpson (US) scale is different",
+          "aspects": [
+            "classification",
+            "comparison",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Heat Waves and Cold Waves"
+          ]
+        },
+        {
+          "topic": "Bay of Bengal vs Arabian Sea cyclones — Bay of Bengal generates ~80% of Indian cyclones due to warmer SST, lower salinity, weaker Coriolis deflection; Arabian Sea cyclones are fewer but intensifying with climate change",
+          "aspects": [
+            "geography",
+            "comparison",
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Droughts",
+            "Floods and Flood Management"
+          ]
+        },
+        {
+          "topic": "Cyclone eye and eyewall — calm low-pressure center (eye), most violent winds in eyewall; storm surge (not wind) is the primary cause of death in coastal cyclones",
+          "aspects": [
+            "mechanism",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Floods and Flood Management",
+            "Tsunamis"
+          ]
+        },
+        {
+          "topic": "India's cyclone-prone coasts — East coast (Odisha, Andhra Pradesh, Tamil Nadu) more vulnerable than west coast; Odisha most frequently affected state",
+          "aspects": [
+            "geography",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Floods and Flood Management",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        }
+      ],
+      "links_to": [
+        "Floods and Flood Management",
+        "Droughts",
+        "Tsunamis",
+        "Heat Waves and Cold Waves",
+        "Urban Flooding"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Cyclones",
+            "Monsoon",
+            "ENSO",
+            "Jet Streams",
+            "Western Disturbances",
+            "Atmospheric Radiation & Heat Transfer",
+            "ITCZ",
+            "Pressure Belts",
+            "Indian Ocean Dipole",
+            "Local Winds",
+            "Rainfall Types",
+            "Climate Classification",
+            "Air Masses"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Sea Surface Temperature",
+            "Ocean currents",
+            "Storm surge",
+            "Ocean Currents",
+            "Tides and Tidal Forces",
+            "Ocean Salinity",
+            "El Niño Southern Oscillation (ENSO)",
+            "Indian Ocean Dipole",
+            "Thermohaline Circulation",
+            "Ocean Upwelling",
+            "Ocean Zones (Light-based classification)",
+            "Marine Ecosystems and Biodiversity"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Mangroves",
+            "Wetlands and Ramsar Sites",
+            "Biomes of the World",
+            "Biodiversity Hotspots",
+            "Ecosystems",
+            "Food Chains and Energy Flow",
+            "Ecological Succession",
+            "Natural Vegetation of India",
+            "Soil Types and Formation",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Coral Reefs",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Sacred Groves and Social Forestry",
+            "Forest Cover and Deforestation",
+            "Bird and Animal Migration"
+          ]
+        },
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Coastal Geomorphology",
+            "Fluvial Processes & Landforms",
+            "Weathering & Soil Formation",
+            "Tectonic Landforms",
+            "Aeolian Landforms",
+            "Isostatic Rebound",
+            "Human-Induced Geomorphic Change",
+            "Landform Classification Systems"
+          ]
+        }
+      ]
+    },
+    "Floods and Flood Management": {
+      "priority": "ultra_high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason",
+        "match_pair",
+        "scenario"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Types of floods — riverine (slow-rise, long-duration), flash flood (rapid onset, high velocity), coastal (storm surge, tsunami), urban (stormwater drainage failure); distinct triggers and management approaches",
+          "aspects": [
+            "classification",
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Cyclones and Tropical Storms",
+            "Cloud Bursts and Flash Floods",
+            "Urban Flooding"
+          ]
+        },
+        {
+          "topic": "India's flood-prone zones — Brahmaputra and Ganga floodplains most affected; 40 million hectares flood-prone; Assam, Bihar, UP, West Bengal chronically vulnerable",
+          "aspects": [
+            "geography",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Droughts",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "Flood management structures — embankments vs dams vs wetland restoration; embankments can increase downstream flood risk; National Water Policy 2012 emphasizes non-structural measures",
+          "aspects": [
+            "policy",
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Droughts",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "Floodplain zoning and 100-year flood concept — 100-year flood has 1% probability of occurring in any given year (not once in 100 years); zoning restricts development in high-risk zones",
+          "aspects": [
+            "policy",
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Urban Flooding",
+            "Droughts"
+          ]
+        },
+        {
+          "topic": "Integrated Flood Management (IFM) — combines structural and non-structural measures; promotes flood risk management over flood control; WMO/GWP framework",
+          "aspects": [
+            "policy",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Sendai Framework for Disaster Risk Reduction"
+          ]
+        }
+      ],
+      "links_to": [
+        "Cyclones and Tropical Storms",
+        "Cloud Bursts and Flash Floods",
+        "Urban Flooding",
+        "Droughts",
+        "Disaster Management Framework (NDMA, SDMA, NDRF)"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Fluvial Processes & Landforms",
+            "Coastal Geomorphology",
+            "River Piracy & Channel Migration"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Monsoon",
+            "ENSO",
+            "Rainfall Types",
+            "Pressure Belts",
+            "Temperature Distribution",
+            "Western Disturbances",
+            "Climate Classification"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Wetlands and Ramsar Sites",
+            "Mangroves",
+            "Forest Cover and Deforestation",
+            "Biomes of the World",
+            "Biodiversity Hotspots",
+            "Ecosystems",
+            "Ecological Succession",
+            "Natural Vegetation of India",
+            "Soil Types and Formation",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Coral Reefs",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Sacred Groves and Social Forestry"
+          ]
+        },
+        {
+          "domain": "Polity",
+          "concepts": [
+            "National Water Policy",
+            "Disaster Management Act 2005",
+            "State Disaster Management Authorities"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Ocean Temperature Distribution",
+            "Thermohaline Circulation",
+            "Ocean Upwelling",
+            "Ocean Zones (Light-based classification)",
+            "Marine Ecosystems and Biodiversity"
+          ]
+        }
+      ]
+    },
+    "Landslides and Mass Movements": {
+      "priority": "ultra_high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason",
+        "match_pair"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Types of mass movements — creep (slow, imperceptible), flow (debris/mudflow), slide (rotational/translational), fall (rockfall); classified by material type and velocity",
+          "aspects": [
+            "classification",
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Earthquakes and Seismic Activity"
+          ]
+        },
+        {
+          "topic": "Primary triggers in Indian context — rainfall is the dominant trigger (>70% of landslides in Himalayas and Western Ghats); earthquakes are secondary trigger; deforestation and road-cutting increase susceptibility",
+          "aspects": [
+            "mechanism",
+            "geography",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management"
+          ]
+        },
+        {
+          "topic": "Landslide-prone zones in India — Himalayan belt (Uttarakhand, HP, J&K, NE India), Western Ghats (Kerala, Karnataka), Nilgiris; Geological Survey of India (GSI) maintains national landslide atlas",
+          "aspects": [
+            "geography",
+            "policy",
+            "classification"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Cloud Bursts and Flash Floods"
+          ]
+        },
+        {
+          "topic": "Debris flow vs mudslide — debris flow is mixture of rock fragments, soil, and water (faster, more destructive); mudslide is finer sediment-dominated (slower, thixotropic behavior)",
+          "aspects": [
+            "classification",
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Cloud Bursts and Flash Floods",
+            "Floods and Flood Management"
+          ]
+        },
+        {
+          "topic": "Dam-induced landslide hazard — reservoir impoundment changes pore water pressure in adjacent slopes; Tehri Dam area and Koyna reservoir (1967 Koyna earthquake, M6.3) are Indian examples of reservoir-induced seismicity",
+          "aspects": [
+            "mechanism",
+            "geography",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management"
+          ]
+        }
+      ],
+      "links_to": [
+        "Earthquakes and Seismic Activity",
+        "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+        "Cloud Bursts and Flash Floods",
+        "Floods and Flood Management"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Mass Wasting & Slope Processes",
+            "Fluvial Processes & Landforms",
+            "Glacial Landforms",
+            "Weathering & Soil Formation",
+            "River Piracy & Channel Migration",
+            "Human-Induced Geomorphic Change"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Monsoon",
+            "Rainfall Types",
+            "Western Disturbances",
+            "Jet Streams",
+            "Cyclones",
+            "Pressure Belts",
+            "ENSO",
+            "Indian Ocean Dipole",
+            "Climate Classification",
+            "Air Masses"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Forest Cover and Deforestation",
+            "Biomes of the World",
+            "Biodiversity Hotspots",
+            "Ecosystems",
+            "Food Chains and Energy Flow",
+            "Ecological Succession",
+            "Natural Vegetation of India",
+            "Soil Types and Formation",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Wetlands and Ramsar Sites",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Sacred Groves and Social Forestry",
+            "Bird and Animal Migration"
+          ]
+        },
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Deforestation",
+            "Himalayan ecosystem fragility"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Tides and Tidal Forces",
+            "El Niño Southern Oscillation (ENSO)",
+            "Indian Ocean Dipole",
+            "Thermohaline Circulation",
+            "Ocean Upwelling",
+            "Ocean Zones (Light-based classification)"
+          ]
+        }
+      ]
+    },
+    "Droughts": {
+      "priority": "ultra_high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason",
+        "match_pair",
+        "how_many"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Drought classification — meteorological (rainfall deficiency ≥25% below normal), hydrological (reduced stream/reservoir levels), agricultural (soil moisture inadequate for crops), socio-economic (when drought impacts human welfare)",
+          "aspects": [
+            "classification",
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves"
+          ]
+        },
+        {
+          "topic": "IMD drought definition — meteorological drought declared when annual rainfall deficiency ≥25%; severe drought when ≥50% deficiency; 'drought' and 'scarcity' are distinct administrative categories",
+          "aspects": [
+            "classification",
+            "policy",
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Heat Waves and Cold Waves",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "El Niño and Indian drought — El Niño weakens Indian Ocean warm pool, suppresses monsoon convection, increases drought probability; relationship is probabilistic (not deterministic); ~50% of El Niño years see deficient Indian monsoon",
+          "aspects": [
+            "mechanism",
+            "comparison",
+            "geography"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Floods and Flood Management",
+            "Cyclones and Tropical Storms"
+          ]
+        },
+        {
+          "topic": "Drought-prone regions of India — Rajasthan, parts of Gujarat, Marathwada and Vidarbha (Maharashtra), Telangana, interior Karnataka, Bundelkhand; Rajasthan chronically affected",
+          "aspects": [
+            "geography",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Heat Waves and Cold Waves",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "National Drought Management Policy and PMFBY — Pradhan Mantri Fasal Bima Yojana (2016) as drought risk transfer mechanism; National Contingency Crop Plan for agriculture adaptation",
+          "aspects": [
+            "policy",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Sendai Framework for Disaster Risk Reduction"
+          ]
+        }
+      ],
+      "links_to": [
+        "Floods and Flood Management",
+        "Heat Waves and Cold Waves",
+        "Cyclones and Tropical Storms",
+        "Disaster Management Framework (NDMA, SDMA, NDRF)"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Monsoon",
+            "ENSO",
+            "Rainfall Types",
+            "Jet Streams",
+            "Atmospheric Radiation & Heat Transfer",
+            "Cyclones",
+            "Pressure Belts",
+            "Temperature Distribution",
+            "Indian Ocean Dipole",
+            "Climate Classification",
+            "Air Masses"
+          ]
+        },
+        {
+          "domain": "Economy",
+          "concepts": [
+            "Agricultural distress",
+            "Food security",
+            "Crop insurance"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Forest Cover and Deforestation",
+            "Biomes of the World",
+            "Biodiversity Hotspots",
+            "Food Chains and Energy Flow",
+            "Natural Vegetation of India",
+            "Soil Types and Formation",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Wetlands and Ramsar Sites",
+            "Mangroves",
+            "Coral Reefs",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Sacred Groves and Social Forestry",
+            "Bird and Animal Migration"
+          ]
+        },
+        {
+          "domain": "Polity",
+          "concepts": [
+            "State Disaster Relief Fund",
+            "National Disaster Response Fund"
+          ]
+        },
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Human-Induced Geomorphic Change",
+            "Landform Classification Systems"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Ocean Currents",
+            "Ocean Salinity",
+            "Ocean Temperature Distribution",
+            "El Niño Southern Oscillation (ENSO)",
+            "Ocean Acidification",
+            "Indian Ocean Dipole",
+            "Ocean Upwelling",
+            "Ocean Zones (Light-based classification)",
+            "Ocean Trenches and Submarine Topography"
+          ]
+        }
+      ]
+    },
+    "Tsunamis": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason",
+        "match_pair"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Tsunami generation mechanism — requires underwater earthquake WITH vertical seafloor displacement; horizontal fault movement or strike-slip faults do NOT typically generate tsunamis; also generated by submarine landslides and volcanic eruptions",
+          "aspects": [
+            "mechanism",
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Earthquakes and Seismic Activity",
+            "Volcanic Eruptions"
+          ]
+        },
+        {
+          "topic": "Tsunami wave characteristics — long wavelength (100–1000 km), low amplitude in open ocean (<1 m), high wave speed (~700–900 km/h); amplitude increases dramatically as water shallows (shoaling effect)",
+          "aspects": [
+            "mechanism",
+            "comparison",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Cyclones and Tropical Storms",
+            "Earthquakes and Seismic Activity"
+          ]
+        },
+        {
+          "topic": "Indian Ocean Tsunami Warning System (IOTWS) — established after 2004 Sumatra earthquake-tsunami (M9.1); India's INCOIS (Hyderabad) is the regional tsunami warning center for Indian Ocean",
+          "aspects": [
+            "policy",
+            "geography"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Earthquakes and Seismic Activity",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "Andaman-Nicobar Islands — most tsunami-vulnerable Indian territory; located close to Sunda subduction zone; 2004 tsunami killed 10,000+ in Andaman-Nicobar",
+          "aspects": [
+            "geography",
+            "classification"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Earthquakes and Seismic Activity",
+            "Cyclones and Tropical Storms"
+          ]
+        },
+        {
+          "topic": "Tsunami vs storm surge — tsunami is seismically generated, wave period in minutes, arrives as series of waves; storm surge is meteorologically generated, driven by cyclone low pressure and wind, single prolonged inundation",
+          "aspects": [
+            "comparison",
+            "mechanism",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Cyclones and Tropical Storms",
+            "Floods and Flood Management"
+          ]
+        }
+      ],
+      "links_to": [
+        "Earthquakes and Seismic Activity",
+        "Volcanic Eruptions",
+        "Cyclones and Tropical Storms",
+        "Floods and Flood Management"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Tectonic Landforms",
+            "Coastal Geomorphology",
+            "Fluvial Processes & Landforms",
+            "Mass Wasting & Slope Processes"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Ocean floor topography",
+            "Subduction zones",
+            "Plate boundaries",
+            "Ocean Currents",
+            "Ocean Salinity",
+            "Ocean Temperature Distribution",
+            "El Niño Southern Oscillation (ENSO)",
+            "Ocean Acidification",
+            "Indian Ocean Dipole",
+            "Thermohaline Circulation",
+            "Ocean Upwelling",
+            "Ocean Zones (Light-based classification)",
+            "Ocean Trenches and Submarine Topography"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Coral Reefs",
+            "Mangroves",
+            "Biodiversity Hotspots",
+            "Food Chains and Energy Flow",
+            "Ecological Succession",
+            "Natural Vegetation of India",
+            "Soil Types and Formation",
+            "Endangered Species and IUCN Categories",
+            "Wetlands and Ramsar Sites",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Forest Cover and Deforestation"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Atmospheric Radiation & Heat Transfer",
+            "Monsoon",
+            "Jet Streams",
+            "ITCZ",
+            "Cyclones",
+            "Pressure Belts",
+            "Temperature Distribution",
+            "ENSO",
+            "Indian Ocean Dipole",
+            "Western Disturbances",
+            "Local Winds",
+            "Rainfall Types",
+            "Air Masses"
+          ]
+        }
+      ]
+    },
+    "Volcanic Eruptions": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "match_pair",
+        "assertion_reason"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Volcanic hazards — lava flows, pyroclastic flows (fastest and most lethal), volcanic ash, lahars (volcanic mudflows), toxic gas emissions (SO2, CO2, H2S)",
+          "aspects": [
+            "classification",
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Earthquakes and Seismic Activity",
+            "Tsunamis"
+          ]
+        },
+        {
+          "topic": "India's only active volcano — Barren Island (Andaman Sea, Bay of Bengal); Narcondam Island is dormant; both in Andaman-Nicobar; Barren Island last major eruption 2017–2018",
+          "aspects": [
+            "geography",
+            "classification"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Earthquakes and Seismic Activity",
+            "Tsunamis"
+          ]
+        },
+        {
+          "topic": "Volcanic Explosivity Index (VEI) — logarithmic scale 0–8; VEI 8 is ultra-Plinian (supervolcano); Krakatoa 1883 was VEI 6; Pinatubo 1991 was VEI 6, caused global cooling of ~0.5°C",
+          "aspects": [
+            "classification",
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Heat Waves and Cold Waves"
+          ]
+        },
+        {
+          "topic": "Ring of Fire — Pacific Ocean basin perimeter; 90% of world's earthquakes and 75% of active volcanoes; India is NOT in the Ring of Fire (Indian plate boundary lies in Himalaya and Andaman arc)",
+          "aspects": [
+            "geography",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Earthquakes and Seismic Activity",
+            "Tsunamis"
+          ]
+        },
+        {
+          "topic": "Deccan Traps — ancient flood basalts from volcanic eruptions ~66 million years ago; associated with mass extinction at K-Pg boundary; not tectonically active today",
+          "aspects": [
+            "geography",
+            "mechanism",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Earthquakes and Seismic Activity"
+          ]
+        }
+      ],
+      "links_to": [
+        "Earthquakes and Seismic Activity",
+        "Tsunamis",
+        "Heat Waves and Cold Waves"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Tectonic Landforms",
+            "Coastal Geomorphology",
+            "Mass Wasting & Slope Processes"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Rainfall Types",
+            "Jet Streams",
+            "Atmospheric Radiation & Heat Transfer",
+            "Monsoon",
+            "Temperature Distribution",
+            "ENSO",
+            "Indian Ocean Dipole",
+            "Air Masses"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Ocean floor topography",
+            "Plate boundaries",
+            "Ocean Currents",
+            "Ocean Salinity",
+            "Ocean Temperature Distribution",
+            "El Niño Southern Oscillation (ENSO)",
+            "Ocean Acidification",
+            "Indian Ocean Dipole",
+            "Thermohaline Circulation",
+            "Ocean Upwelling",
+            "Ocean Zones (Light-based classification)",
+            "Ocean Trenches and Submarine Topography"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Biodiversity Hotspots",
+            "Natural Vegetation of India",
+            "Soil Types and Formation",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Wetlands and Ramsar Sites",
+            "Mangroves",
+            "Coral Reefs",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Forest Cover and Deforestation"
+          ]
+        }
+      ]
+    },
+    "Heat Waves and Cold Waves": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason",
+        "scenario"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "IMD heat wave definition — plains: maximum temperature ≥40°C AND departure ≥4.5°C above normal; OR maximum temperature ≥45°C regardless of departure; coastal stations: ≥37°C AND departure ≥4.5°C; hills: ≥30°C AND departure ≥4.5°C",
+          "aspects": [
+            "classification",
+            "policy",
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Droughts",
+            "Lightning and Thunderstorms"
+          ]
+        },
+        {
+          "topic": "Severe heat wave — departure ≥6.4°C above normal OR temperature ≥47°C on plains; heat wave declared over region if conditions persist for 2+ consecutive days",
+          "aspects": [
+            "classification",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Droughts",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "IMD cold wave definition — minimum temperature ≤10°C on plains AND departure ≥4.5°C below normal; severe cold wave: departure ≥6.4°C below normal",
+          "aspects": [
+            "classification",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Droughts"
+          ]
+        },
+        {
+          "topic": "Heat stress and urban heat island effect — urban areas 2–5°C warmer than surroundings; dark surfaces, lack of vegetation, waste heat amplify heat wave impact in cities",
+          "aspects": [
+            "mechanism",
+            "geography",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Urban Flooding",
+            "Droughts"
+          ]
+        },
+        {
+          "topic": "National Action Plan on Heat — Heat Action Plans mandated for cities after 2010 Ahmedabad heat wave (1300+ deaths); Ahmedabad HAP was India's first; WHO guidance on cooling centers and early warning",
+          "aspects": [
+            "policy",
+            "geography"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Sendai Framework for Disaster Risk Reduction"
+          ]
+        }
+      ],
+      "links_to": [
+        "Droughts",
+        "Lightning and Thunderstorms",
+        "Disaster Management Framework (NDMA, SDMA, NDRF)",
+        "Urban Flooding"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "ENSO",
+            "Monsoon",
+            "Jet Streams",
+            "Western Disturbances",
+            "Atmospheric Radiation & Heat Transfer",
+            "Cyclones",
+            "Temperature Distribution",
+            "Indian Ocean Dipole",
+            "Local Winds",
+            "Rainfall Types"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Forest Cover and Deforestation",
+            "Biomes of the World",
+            "Biodiversity Hotspots",
+            "Natural Vegetation of India",
+            "Soil Types and Formation",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Wetlands and Ramsar Sites",
+            "Mangroves",
+            "Coral Reefs",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Sacred Groves and Social Forestry"
+          ]
+        },
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Urban heat island",
+            "Climate change adaptation"
+          ]
+        },
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Coastal Geomorphology",
+            "Glacial Landforms",
+            "Weathering & Soil Formation",
+            "Denudation Chronology"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Ocean Currents",
+            "Ocean Temperature Distribution",
+            "El Niño Southern Oscillation (ENSO)",
+            "Ocean Acidification",
+            "Indian Ocean Dipole",
+            "Thermohaline Circulation",
+            "Ocean Upwelling",
+            "Ocean Zones (Light-based classification)",
+            "Marine Ecosystems and Biodiversity"
+          ]
+        }
+      ]
+    },
+    "Disaster Management Framework (NDMA, SDMA, NDRF)": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "match_pair",
+        "how_many",
+        "assertion_reason"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "National Disaster Management Authority (NDMA) — apex body under Disaster Management Act 2005; chaired by Prime Minister; issues guidelines, approves National Disaster Management Plan; NOT an operational response force",
+          "aspects": [
+            "classification",
+            "policy",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Sendai Framework for Disaster Risk Reduction"
+          ]
+        },
+        {
+          "topic": "National Disaster Response Force (NDRF) — operational arm for rescue and relief; under NDMA; 16 battalions drawn from paramilitary forces (CRPF, BSF, CISF, ITBP, SSB); DG NDRF reports to NDMA",
+          "aspects": [
+            "classification",
+            "policy",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Earthquakes and Seismic Activity",
+            "Cyclones and Tropical Storms",
+            "Floods and Flood Management"
+          ]
+        },
+        {
+          "topic": "State Disaster Management Authority (SDMA) — state-level body chaired by Chief Minister; district-level DDMA chaired by Collector/District Magistrate; hierarchical structure mirrors NDMA at state/district levels",
+          "aspects": [
+            "policy",
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Sendai Framework for Disaster Risk Reduction"
+          ]
+        },
+        {
+          "topic": "National Disaster Response Fund (NDRF) vs State Disaster Response Fund (SDRF) — NDRF supplements SDRF when state resources are inadequate; SDRF is primary fund for disaster relief; both constituted under DM Act 2005",
+          "aspects": [
+            "policy",
+            "comparison",
+            "classification"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Droughts",
+            "Floods and Flood Management"
+          ]
+        },
+        {
+          "topic": "National Disaster Management Plan (NDMP) 2016 — India's first national plan; aligned with Sendai Framework 2015–2030 targets; covers all hazard types; revised 2019",
+          "aspects": [
+            "policy",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Sendai Framework for Disaster Risk Reduction"
+          ]
+        }
+      ],
+      "links_to": [
+        "Sendai Framework for Disaster Risk Reduction",
+        "Floods and Flood Management",
+        "Cyclones and Tropical Storms",
+        "Earthquakes and Seismic Activity",
+        "Droughts"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Polity",
+          "concepts": [
+            "Article 355 (Union duty to protect states)",
+            "Concurrent List",
+            "Paramilitary forces",
+            "Disaster Management Act 2005"
+          ]
+        },
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Climate change adaptation",
+            "Disaster risk reduction"
+          ]
+        },
+        {
+          "domain": "Economy",
+          "concepts": [
+            "Fiscal federalism",
+            "Finance Commission recommendations on disaster funds"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Biodiversity Hotspots",
+            "Ecosystems",
+            "Food Chains and Energy Flow",
+            "Ecological Succession",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Wetlands and Ramsar Sites",
+            "Mangroves",
+            "Coral Reefs",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Sacred Groves and Social Forestry",
+            "Forest Cover and Deforestation"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Cyclones"
+          ]
+        },
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Isostatic Rebound"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Tides and Tidal Forces",
+            "Ocean Trenches and Submarine Topography"
+          ]
+        }
+      ]
+    },
+    "Sendai Framework for Disaster Risk Reduction": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "match_pair",
+        "how_many",
+        "assertion_reason"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Sendai Framework 2015–2030 — adopted March 2015 in Sendai, Japan; successor to Hyogo Framework for Action (HFA) 2005–2015; 4 priorities, 7 global targets; first global DRR framework with outcome goal",
+          "aspects": [
+            "policy",
+            "comparison",
+            "classification"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "Sendai's 4 priorities — (1) Understanding disaster risk, (2) Strengthening disaster risk governance, (3) Investing in DRR for resilience, (4) Enhancing disaster preparedness for effective response",
+          "aspects": [
+            "policy",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "Sendai 7 global targets — reduce mortality, reduce affected people, reduce economic losses, reduce damage to critical infrastructure, increase national/local strategies, international cooperation, availability of early warning systems; targets measured against 2005–2015 baseline",
+          "aspects": [
+            "policy",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "Hyogo Framework vs Sendai Framework — HFA 2005–2015: 5 priorities, no quantified targets, no explicit economic loss goal; Sendai 2015–2030: 4 priorities, 7 measurable targets, explicit outcome (reduce disaster risk and losses)",
+          "aspects": [
+            "comparison",
+            "policy",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "SFDRR role of UNDRR — UN Office for Disaster Risk Reduction (formerly UNISDR) is the custodian; Sendai is non-binding (voluntary commitment); monitoring through Sendai Monitor platform",
+          "aspects": [
+            "policy",
+            "classification"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        }
+      ],
+      "links_to": [
+        "Disaster Management Framework (NDMA, SDMA, NDRF)"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Polity",
+          "concepts": [
+            "International agreements",
+            "UN system",
+            "Sustainable Development Goals"
+          ]
+        },
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Paris Agreement synergies",
+            "Ecosystem-based disaster risk reduction"
+          ]
+        },
+        {
+          "domain": "Economy",
+          "concepts": [
+            "Disaster risk financing",
+            "Resilient infrastructure"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Biodiversity Hotspots",
+            "Ecosystems",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Wetlands and Ramsar Sites",
+            "Tiger Reserves and Project Tiger",
+            "Sacred Groves and Social Forestry",
+            "Forest Cover and Deforestation"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Cyclones",
+            "Temperature Distribution",
+            "ENSO",
+            "Indian Ocean Dipole",
+            "Local Winds"
+          ]
+        },
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Weathering & Soil Formation"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "El Niño Southern Oscillation (ENSO)",
+            "Ocean Acidification",
+            "Indian Ocean Dipole",
+            "Thermohaline Circulation",
+            "Ocean Upwelling"
+          ]
+        }
+      ]
+    },
+    "Lightning and Thunderstorms": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason",
+        "scenario"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Lightning formation mechanism — charge separation in cumulonimbus clouds; ice crystals (positive charge) rise, graupel (heavy ice, negative charge) sinks; lightning discharges potential difference between cloud and ground or within cloud",
+          "aspects": [
+            "mechanism",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Cloud Bursts and Flash Floods",
+            "Heat Waves and Cold Waves"
+          ]
+        },
+        {
+          "topic": "Cloud-to-ground vs intra-cloud lightning — intra-cloud (sheet lightning) is most common (~75%); cloud-to-ground is most dangerous to humans; cloud-to-cloud lightning also occurs",
+          "aspects": [
+            "classification",
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Cloud Bursts and Flash Floods"
+          ]
+        },
+        {
+          "topic": "Path of least resistance myth — lightning does NOT always strike the tallest object; it follows the ionized path of least electrical resistance (stepped leader); tall objects increase probability but do not guarantee strike",
+          "aspects": [
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Heat Waves and Cold Waves"
+          ]
+        },
+        {
+          "topic": "India's lightning-prone states — Bihar, Jharkhand, Odisha, West Bengal, UP most affected; pre-monsoon season (April–June) has highest frequency; lightning kills 2000–2500 people annually in India",
+          "aspects": [
+            "geography",
+            "classification"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Droughts",
+            "Cloud Bursts and Flash Floods"
+          ]
+        },
+        {
+          "topic": "Damini app and lightning forecasting — IMD's Damini app provides real-time lightning alerts; Lightning Resilient India Campaign (LRIC); Integrated Lightning Protection System recommended for buildings",
+          "aspects": [
+            "policy",
+            "geography"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        }
+      ],
+      "links_to": [
+        "Cloud Bursts and Flash Floods",
+        "Heat Waves and Cold Waves",
+        "Disaster Management Framework (NDMA, SDMA, NDRF)"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Monsoon",
+            "Rainfall Types",
+            "Western Disturbances",
+            "Atmospheric Radiation & Heat Transfer",
+            "ITCZ",
+            "Cyclones",
+            "Pressure Belts",
+            "Temperature Distribution",
+            "ENSO",
+            "Indian Ocean Dipole",
+            "Local Winds",
+            "Climate Classification",
+            "Air Masses"
+          ]
+        },
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Atmospheric electricity",
+            "Nitrogen fixation by lightning"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Biodiversity Hotspots",
+            "Natural Vegetation of India",
+            "Soil Types and Formation",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Wetlands and Ramsar Sites",
+            "Mangroves",
+            "Coral Reefs",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Sacred Groves and Social Forestry",
+            "Forest Cover and Deforestation",
+            "Bird and Animal Migration"
+          ]
+        },
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Fluvial Processes & Landforms",
+            "Weathering & Soil Formation",
+            "Tectonic Landforms",
+            "Aeolian Landforms",
+            "Periglacial Processes"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "El Niño Southern Oscillation (ENSO)",
+            "Indian Ocean Dipole",
+            "Thermohaline Circulation",
+            "Ocean Upwelling"
+          ]
+        }
+      ]
+    },
+    "Avalanches and Glacial Lake Outburst Floods (GLOFs)": {
+      "priority": "medium",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason",
+        "match_pair"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "GLOF mechanism — glacial lakes (moraine-dammed, ice-dammed, bedrock) breach suddenly releasing stored water; NOT a snowslide or avalanche; Himalayas and Andes most affected globally",
+          "aspects": [
+            "mechanism",
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Landslides and Mass Movements",
+            "Floods and Flood Management"
+          ]
+        },
+        {
+          "topic": "GLOF-prone regions in India — Uttarakhand (Chamoli GLOF 2021), Sikkim (South Lhonak Lake GLOF 2023), Himachal Pradesh; inventory by GSI and ISRO; 4,000+ glacial lakes in Indian Himalayas",
+          "aspects": [
+            "geography",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Floods and Flood Management",
+            "Landslides and Mass Movements"
+          ]
+        },
+        {
+          "topic": "Avalanche types — loose-snow (point release), slab (cohesive mass), wet (dense, slow), powder (fast, airblast); slab avalanches are most dangerous to humans",
+          "aspects": [
+            "classification",
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Landslides and Mass Movements"
+          ]
+        },
+        {
+          "topic": "Snow avalanche hazard zones in India — J&K, Himachal Pradesh, Uttarakhand; SASE (Snow and Avalanche Study Establishment) under DRDO provides avalanche forecasting",
+          "aspects": [
+            "geography",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Landslides and Mass Movements",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "Glacial retreat and GLOF risk — climate change accelerating glacial melt creates new glacial lakes; increasing GLOF frequency; linked to upstream infrastructure vulnerability (hydropower dams)",
+          "aspects": [
+            "mechanism",
+            "policy",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Floods and Flood Management",
+            "Droughts"
+          ]
+        }
+      ],
+      "links_to": [
+        "Landslides and Mass Movements",
+        "Floods and Flood Management",
+        "Droughts"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Glacial Landforms",
+            "Mass Wasting & Slope Processes",
+            "Fluvial Processes & Landforms",
+            "Isostatic Rebound",
+            "Human-Induced Geomorphic Change"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Western Disturbances",
+            "Monsoon",
+            "Temperature Distribution",
+            "ENSO",
+            "Indian Ocean Dipole",
+            "Local Winds",
+            "Rainfall Types",
+            "Climate Classification",
+            "Air Masses"
+          ]
+        },
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Himalayan glaciers",
+            "Climate change impacts on cryosphere"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Biodiversity Hotspots",
+            "Ecosystems",
+            "Ecological Succession",
+            "Natural Vegetation of India",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Forest Cover and Deforestation"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Ocean Currents",
+            "El Niño Southern Oscillation (ENSO)",
+            "Indian Ocean Dipole",
+            "Thermohaline Circulation",
+            "Ocean Upwelling",
+            "Ocean Zones (Light-based classification)",
+            "Ocean Trenches and Submarine Topography"
+          ]
+        }
+      ]
+    },
+    "Cloud Bursts and Flash Floods": {
+      "priority": "medium",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason",
+        "scenario"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Cloudburst definition — IMD defines cloudburst as rainfall ≥100 mm/hour over a small area (~10 km² or less); very localized, intense convective precipitation; common in mountainous terrain",
+          "aspects": [
+            "classification",
+            "mechanism",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Landslides and Mass Movements",
+            "Floods and Flood Management"
+          ]
+        },
+        {
+          "topic": "Orographic enhancement of cloudbursts — moisture-laden winds forced up mountain slopes cool adiabatically, condensing rapidly; Himalayan foothills and Western Ghats particularly prone",
+          "aspects": [
+            "mechanism",
+            "geography"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Landslides and Mass Movements",
+            "Floods and Flood Management"
+          ]
+        },
+        {
+          "topic": "Flash flood vs riverine flood — flash flood onset within 6 hours of rainfall, high velocity, short duration; riverine flood slow onset (days to weeks), sustained duration; different warning and response timescales",
+          "aspects": [
+            "classification",
+            "comparison",
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Floods and Flood Management",
+            "Urban Flooding"
+          ]
+        },
+        {
+          "topic": "Kedarnath 2013 disaster — cloudburst on Chorabari Lake combined with extreme rainfall caused catastrophic debris flow; >5000 deaths; declared India's worst cloudburst event; led to revision of disaster preparedness in Himalayas",
+          "aspects": [
+            "geography",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Landslides and Mass Movements",
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)"
+          ]
+        }
+      ],
+      "links_to": [
+        "Landslides and Mass Movements",
+        "Floods and Flood Management",
+        "Urban Flooding",
+        "Avalanches and Glacial Lake Outburst Floods (GLOFs)"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Fluvial Processes & Landforms",
+            "Mass Wasting & Slope Processes",
+            "Tectonic Landforms"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Monsoon",
+            "Rainfall Types",
+            "Western Disturbances",
+            "Atmospheric Radiation & Heat Transfer",
+            "Jet Streams",
+            "Cyclones",
+            "Pressure Belts",
+            "ENSO",
+            "Indian Ocean Dipole",
+            "Local Winds",
+            "Climate Classification"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Forest Cover and Deforestation",
+            "Biomes of the World",
+            "Biodiversity Hotspots",
+            "Food Chains and Energy Flow",
+            "Natural Vegetation of India",
+            "Soil Types and Formation",
+            "Wetlands and Ramsar Sites",
+            "Mangroves",
+            "Coral Reefs",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Bird and Animal Migration"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Indian Ocean Dipole"
+          ]
+        }
+      ]
+    },
+    "Urban Flooding": {
+      "priority": "medium",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason",
+        "scenario"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Urban flooding causes — impervious surfaces reduce infiltration, overwhelm stormwater drainage; encroachment on natural drainage channels, wetlands, and floodplains eliminates flood buffering capacity",
+          "aspects": [
+            "mechanism",
+            "policy",
+            "geography"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Floods and Flood Management",
+            "Cloud Bursts and Flash Floods"
+          ]
+        },
+        {
+          "topic": "Mumbai floods 2005 (944 mm in 24 hours) — highlighted urban drainage failure; Chennai floods 2015 (excess reservoir releases + extreme rainfall); Bengaluru 2022 — IT hub flooding due to lake encroachment",
+          "aspects": [
+            "geography",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Cyclones and Tropical Storms",
+            "Cloud Bursts and Flash Floods"
+          ]
+        },
+        {
+          "topic": "National Urban Flood Risk Mitigation Plan — emphasis on stormwater master plans, drainage GIS mapping, enforcement of floodplain zoning regulations, BWSSB and BBMP roles in Bengaluru",
+          "aspects": [
+            "policy",
+            "classification"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Floods and Flood Management",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "Sponge city concept — urban planning approach integrating permeable surfaces, green infrastructure, and wetland restoration to absorb excess rainfall; China's pilot programs; relevance to India",
+          "aspects": [
+            "policy",
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves"
+          ]
+        }
+      ],
+      "links_to": [
+        "Floods and Flood Management",
+        "Cloud Bursts and Flash Floods",
+        "Cyclones and Tropical Storms",
+        "Heat Waves and Cold Waves"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Fluvial Processes & Landforms",
+            "Coastal Geomorphology",
+            "River Piracy & Channel Migration",
+            "Denudation Chronology"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Wetlands and Ramsar Sites",
+            "Mangroves",
+            "Ecosystems",
+            "Natural Vegetation of India",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Coral Reefs",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Sacred Groves and Social Forestry",
+            "Forest Cover and Deforestation",
+            "Bird and Animal Migration"
+          ]
+        },
+        {
+          "domain": "Polity",
+          "concepts": [
+            "74th Constitutional Amendment",
+            "Municipal governance",
+            "Smart Cities Mission"
+          ]
+        },
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Urban heat island",
+            "Ecosystem services"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Temperature Distribution",
+            "ENSO",
+            "Climate Classification"
+          ]
+        }
+      ]
+    },
+    "Biological Disasters": {
+      "priority": "medium",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "match_pair",
+        "assertion_reason"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Classification under NDMA — biological disasters include epidemics/pandemics, pest attacks (locust swarms), invasive species outbreaks; classified as biological, NOT meteorological or natural geophysical disasters",
+          "aspects": [
+            "classification",
+            "policy",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "Locust swarms (Desert Locust — Schistocerca gregaria) — triggered by sudden vegetation growth after rare desert rains (often El Niño related); one km² swarm eats same amount as 35,000 people daily; FAO leads international response",
+          "aspects": [
+            "mechanism",
+            "classification",
+            "geography"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Droughts",
+            "Cyclones and Tropical Storms"
+          ]
+        },
+        {
+          "topic": "India's locust threat — Rajasthan-Gujarat border (Thar Desert zone) is primary breeding ground; Locust Warning Organisation (LWO) under Ministry of Agriculture; 2019–2020 invasion was worst in 25 years",
+          "aspects": [
+            "geography",
+            "policy"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Droughts",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        },
+        {
+          "topic": "Epidemic vs pandemic — epidemic is widespread occurrence of disease in a community/region above expected; pandemic is epidemic occurring worldwide across multiple countries simultaneously; WHO declares Public Health Emergency of International Concern (PHEIC)",
+          "aspects": [
+            "classification",
+            "policy",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        }
+      ],
+      "links_to": [
+        "Droughts",
+        "Disaster Management Framework (NDMA, SDMA, NDRF)",
+        "Floods and Flood Management"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "ENSO",
+            "Monsoon",
+            "Cyclones",
+            "Rainfall Types",
+            "Climate Classification",
+            "Air Masses"
+          ]
+        },
+        {
+          "domain": "Biogeography",
+          "concepts": [
+            "Forest Cover and Deforestation",
+            "Biomes of the World",
+            "Biodiversity Hotspots",
+            "Ecosystems",
+            "Food Chains and Energy Flow",
+            "Ecological Succession",
+            "Natural Vegetation of India",
+            "Soil Types and Formation",
+            "Protected Areas",
+            "Endangered Species and IUCN Categories",
+            "Wetlands and Ramsar Sites",
+            "Mangroves",
+            "Coral Reefs",
+            "Invasive Species",
+            "Tiger Reserves and Project Tiger",
+            "Sacred Groves and Social Forestry"
+          ]
+        },
+        {
+          "domain": "Polity",
+          "concepts": [
+            "Epidemic Diseases Act 1897",
+            "National Health Mission",
+            "WHO PHEIC declaration"
+          ]
+        },
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Zoonotic diseases",
+            "One Health approach"
+          ]
+        },
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Fluvial Processes & Landforms",
+            "Aeolian Landforms",
+            "Landform Classification Systems"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Tides and Tidal Forces",
+            "Ocean Zones (Light-based classification)",
+            "Ocean Trenches and Submarine Topography"
+          ]
+        }
+      ]
+    }
+  },
+  "notes": [
+    "All seismic zone data from BIS IS-1893 (Part 1) 2016 — India uses 4-zone classification (II, III, IV, V); Zone I was abolished.",
+    "IMD cyclone and heat wave thresholds are frequently tested — memorize exact values as UPSC tests threshold precision.",
+    "NDMA vs NDRF vs SDMA roles are a perennial trap; NDMA is policy body, NDRF is operational force, SDMA is state-level mirror of NDMA.",
+    "Sendai Framework targets and Hyogo Framework comparison appear in multi-statement questions; note: Sendai is non-binding.",
+    "GLOF events (Chamoli 2021, Sikkim 2023) are high CA-relevance; connect to glacial lake inventory and climate change.",
+    "Biological disasters (locust, epidemic) are classified separately from hydro-meteorological and geophysical disasters in NDMA framework.",
+    "Urban flooding links to Polity (municipal governance), Environment (wetland encroachment), and Economy (disaster losses); watch for CA triggers.",
+    "Lightning kills more people annually in India than cyclones or earthquakes — counterintuitive fact UPSC tests."
+  ]
+}

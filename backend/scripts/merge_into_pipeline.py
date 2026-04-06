@@ -10,11 +10,18 @@ Usage:
     --domain "Oceanography" \
     --research-dir "config/research/2026-04-03_1530_Geography_Oceanography/"
 
+  # Run only interlink update (e.g. after manually writing a concept pool):
+  python3 merge_into_pipeline.py \
+    --subject "Geography" \
+    --domain "Natural Disasters" \
+    --interlinks-only
+
 Operations:
 1. Create/Update concept_pools/geography_{domain}.json
 2. Update traps_geography.json (shared, add new patterns)
 3. Create traps_geography_{domain}.json (domain-specific)
 4. Update difficulty_types_geography_base.json (add percentage_in_{domain} fields)
+5. Update interlink_domains across ALL concept pool files for the new domain
 """
 
 import json
@@ -331,38 +338,214 @@ def operation_4_update_difficulty_types(subject, domain, research_dir):
     return updated
 
 
+_STOPWORDS = {
+    "and", "the", "of", "in", "for", "with", "from", "its", "are",
+    "that", "this", "all", "any", "both", "each", "their", "into",
+    "more", "than", "when", "where", "also", "very", "over", "some",
+    "type", "types", "kind", "kinds", "form", "forms", "other",
+    "between", "through", "under", "above", "below", "world", "india",
+}
+_MIN_TOKEN_LEN = 5
+
+
+def _concept_tokens(concept_name: str, sub_concepts: list | None = None) -> set[str]:
+    """
+    Extract meaningful tokens from a concept name and optionally its sub_concept topics.
+    Used to detect semantic overlap between concepts across different domain pools.
+    """
+    text = concept_name
+    if sub_concepts:
+        for sc in sub_concepts:
+            text += " " + sc.get("topic", "")
+    tokens: set[str] = set()
+    for word in text.lower().replace("&", " ").replace("/", " ").replace("-", " ").split():
+        word = word.strip("(),.'\"")
+        if len(word) >= _MIN_TOKEN_LEN and word not in _STOPWORDS:
+            tokens.add(word)
+    return tokens
+
+
+def _normalize_interlink_domains(raw: list) -> list:
+    """
+    Normalise interlink_domains to a list of dicts: [{domain, concepts[]}].
+    Handles: list of strings, list of dicts, or mixed.
+    """
+    result = []
+    for entry in raw:
+        if isinstance(entry, str):
+            result.append({"domain": entry, "concepts": []})
+        elif isinstance(entry, dict):
+            result.append(entry)
+    return result
+
+
+def _upsert_interlink(concept_data: dict, domain_name: str, concept_list: list[str]) -> bool:
+    """
+    Add or merge an interlink_domains entry {domain, concepts} into concept_data.
+    Returns True if the concept_data was modified.
+    """
+    raw = concept_data.get("interlink_domains", [])
+    interlink = _normalize_interlink_domains(raw)
+    existing = next(
+        (e for e in interlink if isinstance(e, dict) and e.get("domain", "").lower() == domain_name.lower()),
+        None,
+    )
+    if existing is None:
+        interlink.append({"domain": domain_name, "concepts": sorted(concept_list)})
+        concept_data["interlink_domains"] = interlink
+        return True
+    else:
+        new_to_add = sorted(set(concept_list) - set(existing.get("concepts", [])))
+        if new_to_add:
+            existing["concepts"].extend(new_to_add)
+            return True
+    return False
+
+
+def operation_5_update_interlink_domains(subject, domain):
+    """
+    After adding a new domain concept pool, run a bidirectional keyword-overlap
+    cross-reference update across ALL concept pool files.
+
+    Strategy (no LLM, no exact-name matching):
+      For every pair (new_concept, other_concept) across pools:
+        - Compute token sets for each (concept name + sub_concept topics, ≥5-char non-stopwords)
+        - If shared tokens ≥ 1 → they are semantically linked
+
+      For a match between new_concept A (new domain) and other_concept B (other domain):
+        - In the OTHER pool: add interlink entry {domain: new_domain, concepts: [A]}
+        - In the NEW pool:   add interlink entry {domain: other_domain, concepts: [B]}
+
+    Only adds; never removes. Idempotent — skips entries already present.
+    """
+    print(f"\nOperation 5: Update interlink_domains (bidirectional keyword matching)")
+
+    domain_snake = domain_to_snake_case(domain)
+    subject_lower = subject.lower()
+
+    # Pool can live in flat or nested directory layout
+    new_pool_candidates = [
+        CONCEPT_POOLS_DIR / subject_lower / domain_snake / f"{subject_lower}_{domain_snake}.json",
+        CONCEPT_POOLS_DIR / f"{subject_lower}_{domain_snake}.json",
+    ]
+    new_pool_path = next((p for p in new_pool_candidates if p.exists()), None)
+
+    if new_pool_path is None:
+        print(f"  ✗ Cannot find concept pool for {subject} > {domain}. Skipping.")
+        return 0
+
+    new_pool = load_json(new_pool_path)
+    if not new_pool or not isinstance(new_pool.get("concepts"), dict):
+        print(f"  ✗ Empty or unreadable pool at {new_pool_path}. Skipping.")
+        return 0
+
+    new_pool_concepts = new_pool.get("concepts", {})
+
+    # Pre-compute token sets for each concept in the new pool
+    new_tokens: dict[str, set[str]] = {
+        cname: _concept_tokens(cname, cdata.get("sub_concepts"))
+        for cname, cdata in new_pool_concepts.items()
+    }
+
+    all_pool_files = sorted(CONCEPT_POOLS_DIR.rglob("*.json"))
+    total_updated = 0
+    new_pool_modified = False
+
+    for pool_file in all_pool_files:
+        if pool_file.resolve() == new_pool_path.resolve():
+            continue
+
+        other_pool = load_json(pool_file)
+        if not other_pool or not isinstance(other_pool.get("concepts"), dict):
+            continue
+
+        other_subdomain = other_pool.get("subdomain", pool_file.stem)
+        other_modified = False
+
+        for other_cname, other_cdata in other_pool["concepts"].items():
+            other_tok = _concept_tokens(other_cname, other_cdata.get("sub_concepts"))
+
+            # Find new-pool concepts that share keywords with this other concept
+            matched_new: list[str] = [
+                nc for nc, ntok in new_tokens.items() if ntok & other_tok
+            ]
+            if not matched_new:
+                continue
+
+            # Update OTHER pool: add new domain as interlink source
+            if _upsert_interlink(other_cdata, domain, matched_new):
+                other_modified = True
+                total_updated += len(matched_new)
+
+            # Update NEW pool: add other domain as interlink source for each matched new concept
+            for nc in matched_new:
+                if _upsert_interlink(new_pool_concepts[nc], other_subdomain, [other_cname]):
+                    new_pool_modified = True
+                    total_updated += 1
+
+        if other_modified:
+            save_json(pool_file, other_pool)
+
+    if new_pool_modified:
+        save_json(new_pool_path, new_pool)
+
+    print(f"  ✓ interlink_domains entries added/updated: {total_updated}")
+    return total_updated
+
+
 def main():
     parser = argparse.ArgumentParser(description="Merge PYQ analysis into prelims pipeline")
     parser.add_argument("--subject", required=True, help="Subject (e.g., 'Geography')")
     parser.add_argument("--domain", required=True, help="Domain (e.g., 'Oceanography')")
-    parser.add_argument("--research-dir", required=True, help="Path to research output directory")
+    parser.add_argument("--research-dir", help="Path to research output directory (not needed with --interlinks-only)")
+    parser.add_argument(
+        "--interlinks-only",
+        action="store_true",
+        help="Skip ops 1-4; only run operation 5 (update interlink_domains). "
+             "Use after manually writing a concept pool.",
+    )
 
     args = parser.parse_args()
 
-    research_dir = Path(args.research_dir)
-    if not research_dir.exists():
-        print(f"✗ Research directory not found: {research_dir}")
-        sys.exit(1)
-
     print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print(f"Merging PYQ Analysis: {args.subject} > {args.domain}")
-    print(f"Research dir: {research_dir}")
+    print(f"Pipeline merge: {args.subject} > {args.domain}")
+    if args.interlinks_only:
+        print(f"Mode: interlinks-only (ops 1–4 skipped)")
+    else:
+        print(f"Research dir: {args.research_dir}")
     print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-    # Run all 4 operations
     try:
-        op1_result = operation_1_merge_concepts(args.subject, args.domain, research_dir)
-        op2_result = operation_2_update_shared_traps(args.subject, args.domain, research_dir)
-        operation_3_create_domain_traps(args.subject, args.domain, research_dir)
-        op4_result = operation_4_update_difficulty_types(args.subject, args.domain, research_dir)
+        if args.interlinks_only:
+            op5_result = operation_5_update_interlink_domains(args.subject, args.domain)
+            print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print(f"Summary (interlinks-only):")
+            print(f"  interlink_domains entries added/updated: {op5_result}")
+            print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        else:
+            if not args.research_dir:
+                print("✗ --research-dir is required unless --interlinks-only is set")
+                sys.exit(1)
 
-        print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print(f"Summary:")
-        print(f"  Concepts added: {op1_result['added']}, merged: {op1_result['merged']}")
-        print(f"  Traps added to shared: {op2_result['added']}, skipped (duplicates): {op2_result['skipped']}")
-        print(f"  Domain-specific trap file: created")
-        print(f"  Difficulty type percentages updated: {op4_result}")
-        print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            research_dir = Path(args.research_dir)
+            if not research_dir.exists():
+                print(f"✗ Research directory not found: {research_dir}")
+                sys.exit(1)
+
+            op1_result = operation_1_merge_concepts(args.subject, args.domain, research_dir)
+            op2_result = operation_2_update_shared_traps(args.subject, args.domain, research_dir)
+            operation_3_create_domain_traps(args.subject, args.domain, research_dir)
+            op4_result = operation_4_update_difficulty_types(args.subject, args.domain, research_dir)
+            op5_result = operation_5_update_interlink_domains(args.subject, args.domain)
+
+            print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print(f"Summary:")
+            print(f"  Concepts added: {op1_result['added']}, merged: {op1_result['merged']}")
+            print(f"  Traps added to shared: {op2_result['added']}, skipped (duplicates): {op2_result['skipped']}")
+            print(f"  Domain-specific trap file: created")
+            print(f"  Difficulty type percentages updated: {op4_result}")
+            print(f"  interlink_domains entries added/updated: {op5_result}")
+            print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
     except Exception as e:
         print(f"\n✗ Error during merge: {e}")

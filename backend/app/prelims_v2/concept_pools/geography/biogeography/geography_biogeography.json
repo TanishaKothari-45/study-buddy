@@ -1,0 +1,2095 @@
+{
+  "subject": "Geography",
+  "domain": "Physical Geography",
+  "subdomain": "Biogeography",
+  "description": "Concept pool for UPSC Prelims — Geography > Physical Geography > Biogeography. Covers biomes, ecosystems, biodiversity, protected areas, wetlands, vegetation, and forest ecology as tested in UPSC Prelims 2014–2024. Each concept carries trap_affinity (which trap IDs historically apply), links_to (cross-concept interlinkages for hard A/R questions), and ca_trigger_types (what current affairs events activate this concept as a UPSC question).",
+  "core_concepts": [
+    "Biomes of the World",
+    "Biodiversity Hotspots",
+    "Ecosystems",
+    "Food Chains and Energy Flow",
+    "Ecological Succession",
+    "Natural Vegetation of India",
+    "Soil Types and Formation",
+    "Protected Areas",
+    "Endangered Species and IUCN Categories",
+    "Wetlands and Ramsar Sites",
+    "Mangroves",
+    "Coral Reefs",
+    "Invasive Species",
+    "Tiger Reserves and Project Tiger",
+    "Sacred Groves and Social Forestry",
+    "Forest Cover and Deforestation",
+    "Bird and Animal Migration"
+  ],
+  "concepts": {
+    "Biomes of the World": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Tropical rainforest — equatorial location, high biodiversity, year-round rainfall",
+          "aspects": [
+            "classification",
+            "distribution",
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Natural Vegetation of India",
+            "Biodiversity Hotspots"
+          ]
+        },
+        {
+          "topic": "Savanna — tropical grassland with distinct wet and dry seasons, between equatorial and desert biomes",
+          "aspects": [
+            "classification",
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Biomes of the World",
+            "Ecosystems"
+          ]
+        },
+        {
+          "topic": "Taiga (boreal forest) — coniferous forest, cold winters, short summers, dominates Canada/Russia",
+          "aspects": [
+            "classification",
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Natural Vegetation of India"
+          ]
+        },
+        {
+          "topic": "Tundra — treeless, permafrost, Arctic/alpine, mosses and lichens dominant",
+          "aspects": [
+            "classification",
+            "distribution",
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Soil Types and Formation",
+            "Ecosystems"
+          ]
+        },
+        {
+          "topic": "Temperate deciduous forest — seasonal leaf shedding, moderate rainfall, broadleaved trees",
+          "aspects": [
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Natural Vegetation of India"
+          ]
+        },
+        {
+          "topic": "Mediterranean shrubland (chaparral) — dry hot summers, mild wet winters, fire-adapted vegetation",
+          "aspects": [
+            "classification",
+            "mechanism",
+            "distribution"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Biomes of the World",
+            "Ecosystems"
+          ]
+        }
+      ],
+      "links_to": [
+        "Natural Vegetation of India",
+        "Biodiversity Hotspots",
+        "Ecosystems",
+        "Soil Types and Formation"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Climate Classification",
+            "Rainfall Types"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Vegetation Zones",
+            "Agro-climatic Zones"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T01",
+        "GEO_B_T02",
+        "GEO_B_T08"
+      ],
+      "ca_trigger_types": [
+        "Amazon deforestation news",
+        "Congo basin carbon sink reports",
+        "boreal forest fires",
+        "permafrost melting",
+        "ENSO-linked biome shifts"
+      ],
+      "pyq_frequency": "high"
+    },
+    "Biodiversity Hotspots": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact",
+        "how_many"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "India's four biodiversity hotspots — Western Ghats, Eastern Himalayas, Indo-Burma, Sundaland",
+          "aspects": [
+            "classification",
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Protected Areas",
+            "Endangered Species and IUCN Categories"
+          ]
+        },
+        {
+          "topic": "Hotspot criteria — must have ≥1500 endemic vascular plant species AND ≥70% habitat loss",
+          "aspects": [
+            "mechanism",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Endangered Species and IUCN Categories"
+          ]
+        },
+        {
+          "topic": "Western Ghats — overlap with multiple states, rich endemic amphibians/reptiles",
+          "aspects": [
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Natural Vegetation of India",
+            "Protected Areas"
+          ]
+        },
+        {
+          "topic": "Eastern Himalayas hotspot — includes NE India, Bhutan, SW China; distinct from Indo-Burma",
+          "aspects": [
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Natural Vegetation of India"
+          ]
+        },
+        {
+          "topic": "Global hotspot count — 36 recognized hotspots covering ~2.4% of Earth's land area but >50% of endemic species",
+          "aspects": [
+            "comparison",
+            "impact"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Endangered Species and IUCN Categories"
+          ]
+        }
+      ],
+      "links_to": [
+        "Protected Areas",
+        "Endangered Species and IUCN Categories",
+        "Natural Vegetation of India",
+        "Ecosystems"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Convention on Biological Diversity",
+            "Nagoya Protocol"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Physiographic Regions",
+            "State Boundaries"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Tsunamis",
+            "Volcanic Eruptions"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T02",
+        "GEO_B_T03",
+        "GEO_B_T09"
+      ],
+      "ca_trigger_types": [
+        "CBD COP meetings",
+        "new species discovery in hotspot",
+        "Western Ghats ESZ news",
+        "deforestation in NE India",
+        "Biological Diversity Act amendments"
+      ],
+      "pyq_frequency": "high"
+    },
+    "Ecosystems": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "assertion_reason",
+        "direct_fact",
+        "match_pair"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Ecosystem services — provisioning, regulating, cultural, supporting (MA framework)",
+          "aspects": [
+            "classification",
+            "application"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Wetlands and Ramsar Sites",
+            "Mangroves"
+          ]
+        },
+        {
+          "topic": "Biotic vs abiotic components — organisms vs physical/chemical environment interactions",
+          "aspects": [
+            "classification",
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Food Chains and Energy Flow",
+            "Ecological Succession"
+          ]
+        },
+        {
+          "topic": "Carrying capacity and population regulation in ecosystems",
+          "aspects": [
+            "mechanism",
+            "process"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Endangered Species and IUCN Categories"
+          ]
+        },
+        {
+          "topic": "Wetland ecosystems — transition zones between aquatic and terrestrial, high productivity",
+          "aspects": [
+            "classification",
+            "impact",
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Wetlands and Ramsar Sites",
+            "Mangroves"
+          ]
+        },
+        {
+          "topic": "Marine vs freshwater ecosystem differences — salinity, productivity, species composition",
+          "aspects": [
+            "comparison",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Coral Reefs",
+            "Mangroves"
+          ]
+        }
+      ],
+      "links_to": [
+        "Food Chains and Energy Flow",
+        "Ecological Succession",
+        "Wetlands and Ramsar Sites",
+        "Biomes of the World"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Carbon Cycle",
+            "Nitrogen Cycle",
+            "Biodiversity Convention"
+          ]
+        },
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Marine Productivity",
+            "Coastal Zones"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Landslides and Mass Movements",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Urban Flooding"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T04",
+        "GEO_B_T05",
+        "GEO_B_T01"
+      ],
+      "ca_trigger_types": [
+        "ecosystem degradation reports",
+        "wetland conversion news",
+        "coral reef bleaching events",
+        "invasive species ecosystem impact"
+      ],
+      "pyq_frequency": "high"
+    },
+    "Food Chains and Energy Flow": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "assertion_reason",
+        "direct_fact",
+        "how_many"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "10% energy transfer rule (Lindemann's law) — only 10% energy transferred between trophic levels",
+          "aspects": [
+            "mechanism",
+            "process"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Ecosystems",
+            "Ecological Succession"
+          ]
+        },
+        {
+          "topic": "Trophic level hierarchy — producers (Level 1), primary consumers, secondary, tertiary consumers",
+          "aspects": [
+            "classification",
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Ecosystems"
+          ]
+        },
+        {
+          "topic": "Grazing food chain vs detritus food chain — different energy pathways",
+          "aspects": [
+            "comparison",
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Ecosystems"
+          ]
+        },
+        {
+          "topic": "Ecological pyramids — pyramid of numbers, biomass, energy; inverted pyramid cases",
+          "aspects": [
+            "classification",
+            "comparison",
+            "counterintuitive"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Ecosystems"
+          ]
+        },
+        {
+          "topic": "Bioaccumulation and biomagnification — concentration increases up trophic levels (DDT, mercury)",
+          "aspects": [
+            "mechanism",
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Invasive Species",
+            "Endangered Species and IUCN Categories"
+          ]
+        }
+      ],
+      "links_to": [
+        "Ecosystems",
+        "Ecological Succession",
+        "Endangered Species and IUCN Categories"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Persistent Organic Pollutants",
+            "Chemical Pollution"
+          ]
+        },
+        {
+          "domain": "Economy",
+          "concepts": [
+            "Fisheries",
+            "Agricultural Ecology"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Landslides and Mass Movements",
+            "Tsunamis"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T04",
+        "GEO_B_T05",
+        "GEO_B_T08"
+      ],
+      "ca_trigger_types": [
+        "mercury poisoning in fish",
+        "pesticide residue news",
+        "fisheries collapse reports"
+      ],
+      "pyq_frequency": "high"
+    },
+    "Ecological Succession": {
+      "priority": "medium",
+      "tested_as_question_types": [
+        "multi_statement",
+        "assertion_reason",
+        "direct_fact",
+        "chronology"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Primary succession — starts on bare substrate (rock, sand, lava), pioneer community to climax",
+          "aspects": [
+            "process",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Ecosystems",
+            "Soil Types and Formation"
+          ]
+        },
+        {
+          "topic": "Secondary succession — starts on disturbed but soil-bearing land, faster than primary",
+          "aspects": [
+            "process",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Forest Cover and Deforestation"
+          ]
+        },
+        {
+          "topic": "Climax community — stable self-perpetuating community; type depends on climate",
+          "aspects": [
+            "classification",
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Biomes of the World",
+            "Natural Vegetation of India"
+          ]
+        },
+        {
+          "topic": "Hydrosere — aquatic succession from open water to marsh to terrestrial climax",
+          "aspects": [
+            "process",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Wetlands and Ramsar Sites"
+          ]
+        },
+        {
+          "topic": "Xerosere — succession in dry/arid conditions; lithosere as subtype on bare rock",
+          "aspects": [
+            "process",
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Soil Types and Formation"
+          ]
+        }
+      ],
+      "links_to": [
+        "Ecosystems",
+        "Soil Types and Formation",
+        "Natural Vegetation of India",
+        "Forest Cover and Deforestation"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Soil Formation",
+            "Weathering"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Climate Classification"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Floods and Flood Management",
+            "Landslides and Mass Movements",
+            "Tsunamis"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T05",
+        "GEO_B_T08"
+      ],
+      "ca_trigger_types": [
+        "post-flood vegetation recovery",
+        "forest fire aftermath reports",
+        "abandoned agricultural land recovery"
+      ],
+      "pyq_frequency": "medium"
+    },
+    "Natural Vegetation of India": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact",
+        "spatial"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Tropical evergreen forest — rainfall >200 cm, West Coast, NE India, dense multilayer canopy, no distinct dry season",
+          "aspects": [
+            "classification",
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Biomes of the World",
+            "Biodiversity Hotspots"
+          ]
+        },
+        {
+          "topic": "Tropical moist deciduous — monsoon forests, teak dominant, 100–200 cm rainfall zone",
+          "aspects": [
+            "classification",
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Natural Vegetation of India"
+          ]
+        },
+        {
+          "topic": "Tropical dry deciduous — 70–100 cm rainfall, broader distribution in Deccan interior, sal and teak",
+          "aspects": [
+            "classification",
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Natural Vegetation of India"
+          ]
+        },
+        {
+          "topic": "Thorny scrub/arid vegetation — <70 cm rainfall, Rajasthan, acacia, cactus-like plants",
+          "aspects": [
+            "classification",
+            "distribution"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Biomes of the World",
+            "Soil Types and Formation"
+          ]
+        },
+        {
+          "topic": "Montane forests — altitudinal zonation: temperate forests → subalpine → alpine pastures in Himalayas",
+          "aspects": [
+            "classification",
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Biodiversity Hotspots"
+          ]
+        },
+        {
+          "topic": "Mangrove forests — tidal inundation zones, delta coasts, Sundarbans as largest in India",
+          "aspects": [
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Mangroves",
+            "Wetlands and Ramsar Sites"
+          ]
+        }
+      ],
+      "links_to": [
+        "Biomes of the World",
+        "Soil Types and Formation",
+        "Protected Areas",
+        "Mangroves"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Rainfall Types",
+            "Monsoon"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "River Systems",
+            "Coastal Regions",
+            "State Boundaries"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Tsunamis",
+            "Urban Flooding",
+            "Volcanic Eruptions"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T01",
+        "GEO_B_T02",
+        "GEO_B_T09"
+      ],
+      "ca_trigger_types": [
+        "forest fire in specific region",
+        "state forest policy changes",
+        "timber smuggling reports",
+        "vegetation survey data release"
+      ],
+      "pyq_frequency": "high"
+    },
+    "Soil Types and Formation": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact",
+        "spatial"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Alluvial soil — Indo-Gangetic plains, khadar (new) vs bangar (old), most fertile, deposited by rivers",
+          "aspects": [
+            "classification",
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Natural Vegetation of India"
+          ]
+        },
+        {
+          "topic": "Black cotton soil (Regur) — volcanic Deccan plateau, expansive when wet, ideal for cotton",
+          "aspects": [
+            "classification",
+            "distribution",
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Natural Vegetation of India"
+          ]
+        },
+        {
+          "topic": "Red and yellow soil — iron oxide presence, Eastern India, less fertile than alluvial",
+          "aspects": [
+            "classification",
+            "distribution",
+            "mechanism"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Natural Vegetation of India"
+          ]
+        },
+        {
+          "topic": "Laterite soil — high rainfall leached of silica, leaves iron/aluminium oxides, Western Ghats, not good for crops",
+          "aspects": [
+            "classification",
+            "distribution",
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Ecological Succession"
+          ]
+        },
+        {
+          "topic": "Arid/desert soil — sandy, low organic content, saline patches, Rajasthan",
+          "aspects": [
+            "classification",
+            "distribution"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Natural Vegetation of India",
+            "Biomes of the World"
+          ]
+        },
+        {
+          "topic": "Soil horizon development (O-A-B-C) and pedogenic processes in different climates",
+          "aspects": [
+            "mechanism",
+            "process",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Ecological Succession"
+          ]
+        }
+      ],
+      "links_to": [
+        "Natural Vegetation of India",
+        "Ecological Succession",
+        "Biomes of the World"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Geomorphology",
+          "concepts": [
+            "Weathering",
+            "Erosion",
+            "Depositional Landforms"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Rainfall Types",
+            "Climate Classification"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Agricultural Regions",
+            "Mineral Distribution"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Tsunamis",
+            "Volcanic Eruptions"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T10",
+        "GEO_B_T02"
+      ],
+      "ca_trigger_types": [
+        "soil degradation/desertification news",
+        "soil health card scheme",
+        "crop failure due to soil issues"
+      ],
+      "pyq_frequency": "high"
+    },
+    "Protected Areas": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact",
+        "how_many"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "National Park — highest protection, no human activity or settlement inside, boundary fixed by legislation",
+          "aspects": [
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Tiger Reserves and Project Tiger",
+            "Endangered Species and IUCN Categories"
+          ]
+        },
+        {
+          "topic": "Wildlife Sanctuary — allows some human activity, boundary modifiable by state govt, less restrictive than NP",
+          "aspects": [
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Tiger Reserves and Project Tiger"
+          ]
+        },
+        {
+          "topic": "Biosphere Reserve — UNESCO MAB programme, three zones (core, buffer, transition), people allowed in outer zones",
+          "aspects": [
+            "classification",
+            "comparison",
+            "application"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Wetlands and Ramsar Sites",
+            "Protected Areas"
+          ]
+        },
+        {
+          "topic": "Community Reserve and Conservation Reserve — lower categories, community involvement, Section 36 WPA",
+          "aspects": [
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Sacred Groves and Social Forestry"
+          ]
+        },
+        {
+          "topic": "Eco-sensitive zones (ESZ) — buffer around protected areas, development restrictions",
+          "aspects": [
+            "application",
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Biodiversity Hotspots"
+          ]
+        }
+      ],
+      "links_to": [
+        "Tiger Reserves and Project Tiger",
+        "Endangered Species and IUCN Categories",
+        "Wetlands and Ramsar Sites",
+        "Biodiversity Hotspots"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Polity",
+          "concepts": [
+            "Wildlife Protection Act 1972",
+            "Forest Rights Act",
+            "Environment Protection Act"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "State Boundaries",
+            "River Systems"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Urban Flooding",
+            "Volcanic Eruptions"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T06",
+        "GEO_B_T03",
+        "GEO_B_T09"
+      ],
+      "ca_trigger_types": [
+        "new national park notification",
+        "ESZ notification conflict",
+        "UNESCO Biosphere Reserve designation",
+        "wildlife census release",
+        "poaching incidents"
+      ],
+      "pyq_frequency": "high"
+    },
+    "Endangered Species and IUCN Categories": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact",
+        "how_many"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "IUCN Red List categories — EX, EW, CR, EN, VU, NT, LC, DD, NE; order from most to least threatened",
+          "aspects": [
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Protected Areas",
+            "Tiger Reserves and Project Tiger"
+          ]
+        },
+        {
+          "topic": "Critically Endangered species of India — Great Indian Bustard, Hangul, Asiatic Cheetah (EW), Gharial",
+          "aspects": [
+            "classification",
+            "distribution"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Protected Areas"
+          ]
+        },
+        {
+          "topic": "CITES Appendices — Appendix I (ban on commercial trade), II (regulated trade), III (national protection)",
+          "aspects": [
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Invasive Species"
+          ]
+        },
+        {
+          "topic": "Endemic vs indigenous vs exotic — species origin and distribution categories",
+          "aspects": [
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Biodiversity Hotspots",
+            "Invasive Species"
+          ]
+        },
+        {
+          "topic": "In-situ vs ex-situ conservation — protected areas vs zoos/seed banks/botanical gardens",
+          "aspects": [
+            "classification",
+            "comparison",
+            "application"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Protected Areas",
+            "Biodiversity Hotspots"
+          ]
+        }
+      ],
+      "links_to": [
+        "Protected Areas",
+        "Biodiversity Hotspots",
+        "Tiger Reserves and Project Tiger",
+        "Invasive Species"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Convention on Biological Diversity",
+            "CITES",
+            "CMS"
+          ]
+        },
+        {
+          "domain": "Polity",
+          "concepts": [
+            "Wildlife Protection Act",
+            "Forest Rights Act"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Tsunamis",
+            "Urban Flooding",
+            "Volcanic Eruptions"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T03",
+        "GEO_B_T06",
+        "GEO_B_T09"
+      ],
+      "ca_trigger_types": [
+        "new species listed on Red List",
+        "cheetah reintroduction news",
+        "Great Indian Bustard conservation order",
+        "species delisting from threatened category"
+      ],
+      "pyq_frequency": "high"
+    },
+    "Wetlands and Ramsar Sites": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact",
+        "how_many"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Ramsar Convention — 1971, Ramsar Iran, 'Convention on Wetlands of International Importance'",
+          "aspects": [
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Protected Areas",
+            "Bird and Animal Migration"
+          ]
+        },
+        {
+          "topic": "Ramsar designation criteria — 9 criteria including >20,000 waterfowl support, 1% of species population",
+          "aspects": [
+            "mechanism",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "India's major Ramsar sites — Chilika Lake (Odisha), Keoladeo (Rajasthan), Loktak Lake (Manipur), Sundarbans",
+          "aspects": [
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Mangroves",
+            "Bird and Animal Migration"
+          ]
+        },
+        {
+          "topic": "Wetland ecosystem functions — carbon sequestration, flood buffering, water purification, nutrient cycling",
+          "aspects": [
+            "mechanism",
+            "impact",
+            "application"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Ecosystems",
+            "Mangroves"
+          ]
+        },
+        {
+          "topic": "Montreux Record — list of Ramsar sites under threat needing priority conservation attention",
+          "aspects": [
+            "classification",
+            "application"
+          ],
+          "ca_connectable": true,
+          "linked_to": []
+        }
+      ],
+      "links_to": [
+        "Protected Areas",
+        "Mangroves",
+        "Bird and Animal Migration",
+        "Ecosystems"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Carbon Sequestration",
+            "Biodiversity Convention"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "River Deltas",
+            "Coastal Regions",
+            "Lake Distribution"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Tsunamis",
+            "Urban Flooding",
+            "Volcanic Eruptions"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T07",
+        "GEO_B_T06",
+        "GEO_B_T09"
+      ],
+      "ca_trigger_types": [
+        "new Ramsar site addition in India",
+        "Montreux Record listings",
+        "wetland encroachment news",
+        "waterbird census",
+        "COP13 Ramsar discussions"
+      ],
+      "pyq_frequency": "high"
+    },
+    "Mangroves": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Mangrove distribution — tidal inundation coasts, deltas, tropical/subtropical, not rocky coasts",
+          "aspects": [
+            "distribution",
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Natural Vegetation of India",
+            "Wetlands and Ramsar Sites"
+          ]
+        },
+        {
+          "topic": "Sundarbans — world's largest mangrove, India-Bangladesh shared delta, Royal Bengal Tiger habitat",
+          "aspects": [
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Tiger Reserves and Project Tiger",
+            "Wetlands and Ramsar Sites"
+          ]
+        },
+        {
+          "topic": "Mangrove ecological functions — coastal protection, nursery habitat for fish, blue carbon storage",
+          "aspects": [
+            "mechanism",
+            "impact",
+            "application"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Ecosystems",
+            "Coral Reefs"
+          ]
+        },
+        {
+          "topic": "Mangrove adaptations — prop roots (Rhizophora), pneumatophores (Avicennia), viviparous germination",
+          "aspects": [
+            "mechanism",
+            "process"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "India's mangrove coasts — West Bengal (Sundarbans) largest; Andaman and Gujarat also significant",
+          "aspects": [
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Natural Vegetation of India"
+          ]
+        }
+      ],
+      "links_to": [
+        "Wetlands and Ramsar Sites",
+        "Coral Reefs",
+        "Natural Vegetation of India",
+        "Tiger Reserves and Project Tiger"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Coastal Processes",
+            "Sea Level Rise"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "River Deltas",
+            "Coastal Regions"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Lightning and Thunderstorms",
+            "Tsunamis",
+            "Volcanic Eruptions"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T09",
+        "GEO_B_T06",
+        "GEO_B_T07"
+      ],
+      "ca_trigger_types": [
+        "Sundarbans erosion/sea level rise",
+        "mangrove plantation news",
+        "cyclone damage to mangrove coasts",
+        "blue carbon policy"
+      ],
+      "pyq_frequency": "high"
+    },
+    "Coral Reefs": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "multi_statement",
+        "assertion_reason",
+        "match_pair",
+        "direct_fact"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Coral bleaching — thermal stress causes expulsion of zooxanthellae algae, resulting in white appearance",
+          "aspects": [
+            "mechanism",
+            "process"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Ecosystems",
+            "Endangered Species and IUCN Categories"
+          ]
+        },
+        {
+          "topic": "Coral reef types — fringing, barrier, atoll; formation and position relative to coast",
+          "aspects": [
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": []
+        },
+        {
+          "topic": "Coral reef distribution — warm shallow tropical waters, 23.5°N-23.5°S, India's reefs: Lakshadweep, Andaman, Gulf of Mannar",
+          "aspects": [
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Wetlands and Ramsar Sites"
+          ]
+        },
+        {
+          "topic": "Zooxanthellae — symbiotic algae providing 90% of coral's energy via photosynthesis",
+          "aspects": [
+            "mechanism",
+            "process"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Ecosystems"
+          ]
+        },
+        {
+          "topic": "Ocean acidification impact on coral — CO2 dissolves to form carbonic acid, reduces carbonate for skeleton",
+          "aspects": [
+            "mechanism",
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Ecosystems"
+          ]
+        }
+      ],
+      "links_to": [
+        "Ecosystems",
+        "Wetlands and Ramsar Sites",
+        "Endangered Species and IUCN Categories",
+        "Mangroves"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Oceanography",
+          "concepts": [
+            "Sea Surface Temperature",
+            "Ocean Acidification"
+          ]
+        },
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Climate Change",
+            "Carbon Cycle"
+          ]
+        },
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "ENSO"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Lightning and Thunderstorms",
+            "Tsunamis",
+            "Urban Flooding",
+            "Volcanic Eruptions"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T01",
+        "GEO_B_T04",
+        "GEO_B_T09"
+      ],
+      "ca_trigger_types": [
+        "mass coral bleaching events",
+        "Great Barrier Reef news",
+        "Lakshadweep coral bleaching",
+        "IPCC report on oceans",
+        "ocean acidification studies"
+      ],
+      "pyq_frequency": "high"
+    },
+    "Invasive Species": {
+      "priority": "medium",
+      "tested_as_question_types": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact",
+        "how_many"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Water hyacinth (Eichhornia crassipes) — native to South America, invasive in India's freshwater bodies",
+          "aspects": [
+            "classification",
+            "distribution",
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Wetlands and Ramsar Sites",
+            "Ecosystems"
+          ]
+        },
+        {
+          "topic": "Lantana camara — native to Central/South America, invasive in Indian forests, displaces native vegetation",
+          "aspects": [
+            "classification",
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Natural Vegetation of India",
+            "Protected Areas"
+          ]
+        },
+        {
+          "topic": "Parthenium hysterophorus (congress grass) — native to Americas, allergen, impacts biodiversity",
+          "aspects": [
+            "classification",
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Natural Vegetation of India"
+          ]
+        },
+        {
+          "topic": "Common Myna and Rose-ringed Parakeet — invasive birds in urban India affecting native species",
+          "aspects": [
+            "classification",
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Endangered Species and IUCN Categories"
+          ]
+        },
+        {
+          "topic": "Island biogeography and invasion risk — islands more vulnerable to invasive species than mainland",
+          "aspects": [
+            "mechanism",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Ecosystems",
+            "Biodiversity Hotspots"
+          ]
+        }
+      ],
+      "links_to": [
+        "Ecosystems",
+        "Endangered Species and IUCN Categories",
+        "Wetlands and Ramsar Sites",
+        "Natural Vegetation of India"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Environment",
+          "concepts": [
+            "CBD Invasive Species Protocol",
+            "Aichi Targets"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Freshwater Bodies",
+            "Agricultural Pest Management"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Tsunamis",
+            "Urban Flooding",
+            "Volcanic Eruptions"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T08",
+        "GEO_B_T02"
+      ],
+      "ca_trigger_types": [
+        "new invasive species spread",
+        "control measures for water hyacinth",
+        "invasive fish species in Himalayan rivers"
+      ],
+      "pyq_frequency": "medium"
+    },
+    "Tiger Reserves and Project Tiger": {
+      "priority": "high",
+      "tested_as_question_types": [
+        "match_pair",
+        "multi_statement",
+        "direct_fact",
+        "how_many"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Project Tiger — launched 1973, core-buffer zone approach, National Tiger Conservation Authority (NTCA)",
+          "aspects": [
+            "classification",
+            "application",
+            "process"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Protected Areas",
+            "Endangered Species and IUCN Categories"
+          ]
+        },
+        {
+          "topic": "Tiger census methodology — camera trapping, pugmark, landscape-scale estimates every 4 years",
+          "aspects": [
+            "application",
+            "process"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Protected Areas"
+          ]
+        },
+        {
+          "topic": "Specific tiger reserves — Jim Corbett (first, Uttarakhand), Sundarbans, Ranthambore, Kaziranga, Nagarhole",
+          "aspects": [
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Protected Areas"
+          ]
+        },
+        {
+          "topic": "Tiger reserve overlap with protected area types — core = NP/WLS, buffer = can include community land",
+          "aspects": [
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Protected Areas"
+          ]
+        },
+        {
+          "topic": "India's tiger population recovery — from 1827 (2014) to 3682 (2022), ~70% of world's tigers",
+          "aspects": [
+            "comparison",
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Endangered Species and IUCN Categories"
+          ]
+        }
+      ],
+      "links_to": [
+        "Protected Areas",
+        "Endangered Species and IUCN Categories",
+        "Mangroves",
+        "Wetlands and Ramsar Sites"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Polity",
+          "concepts": [
+            "Wildlife Protection Act",
+            "Forest Rights Act",
+            "NTCA"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "River Basins",
+            "State Boundaries"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Tsunamis",
+            "Urban Flooding",
+            "Volcanic Eruptions"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T06",
+        "GEO_B_T03",
+        "GEO_B_T07"
+      ],
+      "ca_trigger_types": [
+        "tiger census results",
+        "new tiger reserve notification",
+        "tiger-human conflict news",
+        "poaching arrests",
+        "NTCA annual reports"
+      ],
+      "pyq_frequency": "high"
+    },
+    "Sacred Groves and Social Forestry": {
+      "priority": "low",
+      "tested_as_question_types": [
+        "direct_fact",
+        "multi_statement",
+        "match_pair"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Sacred groves (Devvans/Kovils) — community-protected forest patches, India-specific, religious prohibition on cutting",
+          "aspects": [
+            "classification",
+            "application"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Forest Cover and Deforestation",
+            "Protected Areas"
+          ]
+        },
+        {
+          "topic": "Social forestry — planting on community/non-forest land (roadsides, degraded areas) for local use",
+          "aspects": [
+            "classification",
+            "application"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Forest Cover and Deforestation"
+          ]
+        },
+        {
+          "topic": "Agroforestry — integrating trees with crops/livestock; multilayer, improved soil, reduced runoff",
+          "aspects": [
+            "classification",
+            "mechanism",
+            "application"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Soil Types and Formation",
+            "Ecological Succession"
+          ]
+        },
+        {
+          "topic": "Joint Forest Management (JFM) — community-state partnership for forest protection and benefit sharing",
+          "aspects": [
+            "application",
+            "classification"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Forest Cover and Deforestation"
+          ]
+        }
+      ],
+      "links_to": [
+        "Forest Cover and Deforestation",
+        "Protected Areas",
+        "Soil Types and Formation"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Polity",
+          "concepts": [
+            "Forest Rights Act",
+            "Panchayati Raj",
+            "Tribal Areas"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "Tribal Belt Distribution"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Biological Disasters",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Urban Flooding"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T06"
+      ],
+      "ca_trigger_types": [
+        "sacred grove destruction news",
+        "agroforestry policy",
+        "JFM programme evaluation"
+      ],
+      "pyq_frequency": "low"
+    },
+    "Forest Cover and Deforestation": {
+      "priority": "medium",
+      "tested_as_question_types": [
+        "multi_statement",
+        "direct_fact",
+        "assertion_reason",
+        "pure_ca"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "India's forest cover — FSI biennial assessment, ~21-22% of geographical area (ISFR 2021)",
+          "aspects": [
+            "comparison",
+            "application"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Natural Vegetation of India",
+            "Biodiversity Hotspots"
+          ]
+        },
+        {
+          "topic": "Forest types by density — Very Dense Forest (>70% canopy), Moderately Dense (40–70%), Open Forest (10–40%)",
+          "aspects": [
+            "classification",
+            "comparison"
+          ],
+          "ca_connectable": false,
+          "linked_to": [
+            "Natural Vegetation of India"
+          ]
+        },
+        {
+          "topic": "Deforestation drivers — agriculture expansion, logging, infrastructure, mining; differs by region",
+          "aspects": [
+            "mechanism",
+            "impact"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Biodiversity Hotspots",
+            "Invasive Species"
+          ]
+        },
+        {
+          "topic": "REDD+ mechanism — reducing emissions from deforestation in developing countries; UNFCCC framework",
+          "aspects": [
+            "application",
+            "classification"
+          ],
+          "ca_connectable": true,
+          "linked_to": []
+        },
+        {
+          "topic": "Carbon stock in forests — tropical forests store more carbon than temperate; peatlands as huge carbon sink",
+          "aspects": [
+            "comparison",
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Ecosystems",
+            "Wetlands and Ramsar Sites"
+          ]
+        }
+      ],
+      "links_to": [
+        "Natural Vegetation of India",
+        "Biodiversity Hotspots",
+        "Ecosystems",
+        "Ecological Succession"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Environment",
+          "concepts": [
+            "Carbon Cycle",
+            "Climate Change",
+            "UNFCCC"
+          ]
+        },
+        {
+          "domain": "Economy",
+          "concepts": [
+            "Forest Economy",
+            "Tribal Livelihood"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Tsunamis",
+            "Urban Flooding",
+            "Volcanic Eruptions"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T05",
+        "GEO_B_T01"
+      ],
+      "ca_trigger_types": [
+        "ISFR report release",
+        "Amazon deforestation data",
+        "carbon credit forest news",
+        "forest diversion orders in India"
+      ],
+      "pyq_frequency": "medium"
+    },
+    "Bird and Animal Migration": {
+      "priority": "medium",
+      "tested_as_question_types": [
+        "direct_fact",
+        "match_pair",
+        "multi_statement",
+        "pure_ca"
+      ],
+      "sub_concepts": [
+        {
+          "topic": "Bar-headed goose — flies over Himalayas; Siberian crane to Keoladeo; Amur Falcon to Nagaland",
+          "aspects": [
+            "distribution",
+            "comparison"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Wetlands and Ramsar Sites",
+            "Protected Areas"
+          ]
+        },
+        {
+          "topic": "Central Asian Flyway — migratory bird route through India; key wetlands as stop-over points",
+          "aspects": [
+            "distribution",
+            "mechanism"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Wetlands and Ramsar Sites"
+          ]
+        },
+        {
+          "topic": "Olive Ridley turtles — mass nesting (Arribada) on Odisha coasts, Gahirmatha Beach",
+          "aspects": [
+            "distribution",
+            "process"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Endangered Species and IUCN Categories"
+          ]
+        },
+        {
+          "topic": "Elephant corridors — landscape connectivity for seasonal migration, human-elephant conflict",
+          "aspects": [
+            "mechanism",
+            "application"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Protected Areas",
+            "Forest Cover and Deforestation"
+          ]
+        },
+        {
+          "topic": "Snow leopard migration — trans-Himalayan range, altitudinal migration seasonally",
+          "aspects": [
+            "distribution",
+            "process"
+          ],
+          "ca_connectable": true,
+          "linked_to": [
+            "Endangered Species and IUCN Categories",
+            "Protected Areas"
+          ]
+        }
+      ],
+      "links_to": [
+        "Wetlands and Ramsar Sites",
+        "Protected Areas",
+        "Endangered Species and IUCN Categories"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Climatology",
+          "concepts": [
+            "Monsoon",
+            "Seasonal Temperature Patterns"
+          ]
+        },
+        {
+          "domain": "Indian Geography",
+          "concepts": [
+            "River Systems",
+            "Coastal Regions"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Urban Flooding"
+          ]
+        }
+      ],
+      "trap_affinity": [
+        "GEO_B_T07",
+        "GEO_B_T03"
+      ],
+      "ca_trigger_types": [
+        "migratory bird arrival season",
+        "Olive Ridley nesting news",
+        "bird flu linked to migratory birds",
+        "elephant corridor notification"
+      ],
+      "pyq_frequency": "medium"
+    }
+  }
+}

@@ -23,7 +23,12 @@
   "concepts": {
     "Atmospheric Radiation & Heat Transfer": {
       "priority": "high",
-      "tested_as_question_types": ["direct_fact", "multi_statement", "assertion_reason", "match_pair"],
+      "tested_as_question_types": [
+        "direct_fact",
+        "multi_statement",
+        "assertion_reason",
+        "match_pair"
+      ],
       "sub_concepts": [
         {
           "topic": "Solar radiation absorption and reflection",
@@ -105,6 +110,19 @@
             "Urban Heat Island Effect",
             "Microclimate"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Heat Waves and Cold Waves",
+            "Lightning and Thunderstorms",
+            "Tsunamis",
+            "Volcanic Eruptions"
+          ]
         }
       ],
       "trap_affinity": [
@@ -115,7 +133,13 @@
     },
     "Monsoon": {
       "priority": "high",
-      "tested_as_question_types": ["assertion_reason", "multi_statement", "match_pair", "pure_ca", "scenario"],
+      "tested_as_question_types": [
+        "assertion_reason",
+        "multi_statement",
+        "match_pair",
+        "pure_ca",
+        "scenario"
+      ],
       "sub_concepts": [
         {
           "topic": "Monsoon Onset",
@@ -227,6 +251,21 @@
             "Drought",
             "Extreme Weather"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Tsunamis",
+            "Volcanic Eruptions"
+          ]
         }
       ],
       "trap_affinity": [
@@ -238,7 +277,12 @@
     },
     "Jet Streams": {
       "priority": "high",
-      "tested_as_question_types": ["assertion_reason", "multi_statement", "match_pair", "direct_fact"],
+      "tested_as_question_types": [
+        "assertion_reason",
+        "multi_statement",
+        "match_pair",
+        "direct_fact"
+      ],
       "sub_concepts": [
         {
           "topic": "Subtropical Jet",
@@ -320,6 +364,17 @@
             "Winter Rainfall",
             "Weather Patterns"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Landslides and Mass Movements",
+            "Tsunamis"
+          ]
         }
       ],
       "trap_affinity": [
@@ -330,7 +385,12 @@
     },
     "ITCZ": {
       "priority": "high",
-      "tested_as_question_types": ["match_pair", "assertion_reason", "multi_statement", "pure_ca"],
+      "tested_as_question_types": [
+        "match_pair",
+        "assertion_reason",
+        "multi_statement",
+        "pure_ca"
+      ],
       "sub_concepts": [
         {
           "topic": "ITCZ Position",
@@ -375,6 +435,14 @@
           "concepts": [
             "Sea Surface Temperature"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Cyclones and Tropical Storms",
+            "Lightning and Thunderstorms",
+            "Tsunamis"
+          ]
         }
       ],
       "trap_affinity": [
@@ -385,7 +453,13 @@
     },
     "Cyclones": {
       "priority": "high",
-      "tested_as_question_types": ["assertion_reason", "match_pair", "pure_ca", "multi_statement", "scenario"],
+      "tested_as_question_types": [
+        "assertion_reason",
+        "match_pair",
+        "pure_ca",
+        "multi_statement",
+        "scenario"
+      ],
       "sub_concepts": [
         {
           "topic": "Cyclone Formation Conditions",
@@ -461,6 +535,21 @@
           "concepts": [
             "Coastal Regions"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)",
+            "Droughts",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Tsunamis"
+          ]
         }
       ],
       "trap_affinity": [
@@ -472,7 +561,12 @@
     },
     "Pressure Belts": {
       "priority": "medium",
-      "tested_as_question_types": ["match_pair", "direct_fact", "assertion_reason", "multi_statement"],
+      "tested_as_question_types": [
+        "match_pair",
+        "direct_fact",
+        "assertion_reason",
+        "multi_statement"
+      ],
       "sub_concepts": [
         {
           "topic": "Pressure Belt Distribution",
@@ -516,11 +610,29 @@
         "GEO_T04",
         "GEO_T06",
         "GEO_T03"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Floods and Flood Management",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Tsunamis"
+          ]
+        }
       ]
     },
     "Heat Budget": {
       "priority": "low",
-      "tested_as_question_types": ["multi_statement", "assertion_reason", "direct_fact"],
+      "tested_as_question_types": [
+        "multi_statement",
+        "assertion_reason",
+        "direct_fact"
+      ],
       "sub_concepts": [
         {
           "topic": "Earth Heat Budget",
@@ -543,7 +655,11 @@
     },
     "Temperature Distribution": {
       "priority": "low",
-      "tested_as_question_types": ["direct_fact", "multi_statement", "assertion_reason"],
+      "tested_as_question_types": [
+        "direct_fact",
+        "multi_statement",
+        "assertion_reason"
+      ],
       "sub_concepts": [
         {
           "topic": "Latitudinal Distribution",
@@ -600,11 +716,34 @@
         "GEO_T01",
         "GEO_T04",
         "GEO_T08"
+      ],
+      "interlink_domains": [
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Tsunamis",
+            "Urban Flooding",
+            "Volcanic Eruptions"
+          ]
+        }
       ]
     },
     "ENSO": {
       "priority": "high",
-      "tested_as_question_types": ["assertion_reason", "multi_statement", "pure_ca", "match_pair", "scenario"],
+      "tested_as_question_types": [
+        "assertion_reason",
+        "multi_statement",
+        "pure_ca",
+        "match_pair",
+        "scenario"
+      ],
       "sub_concepts": [
         {
           "topic": "El Nino — Walker Circulation weakening",
@@ -697,6 +836,23 @@
             "Rainfall Distribution",
             "Drought"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Tsunamis",
+            "Urban Flooding",
+            "Volcanic Eruptions"
+          ]
         }
       ],
       "trap_affinity": [
@@ -708,7 +864,12 @@
     },
     "Indian Ocean Dipole": {
       "priority": "medium",
-      "tested_as_question_types": ["assertion_reason", "multi_statement", "pure_ca", "match_pair"],
+      "tested_as_question_types": [
+        "assertion_reason",
+        "multi_statement",
+        "pure_ca",
+        "match_pair"
+      ],
       "sub_concepts": [
         {
           "topic": "Positive IOD — warmer western, cooler eastern Indian Ocean",
@@ -771,6 +932,21 @@
           "concepts": [
             "Sea Surface Temperature"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Tsunamis",
+            "Volcanic Eruptions"
+          ]
         }
       ],
       "trap_affinity": [
@@ -781,7 +957,12 @@
     },
     "Western Disturbances": {
       "priority": "high",
-      "tested_as_question_types": ["assertion_reason", "multi_statement", "pure_ca", "direct_fact"],
+      "tested_as_question_types": [
+        "assertion_reason",
+        "multi_statement",
+        "pure_ca",
+        "direct_fact"
+      ],
       "sub_concepts": [
         {
           "topic": "Origin in Mediterranean Sea",
@@ -849,6 +1030,15 @@
             "Rabi Crops",
             "Cold Wave"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Cloud Bursts and Flash Floods",
+            "Floods and Flood Management",
+            "Landslides and Mass Movements",
+            "Tsunamis"
+          ]
         }
       ],
       "trap_affinity": [
@@ -860,7 +1050,12 @@
     },
     "Local Winds": {
       "priority": "medium",
-      "tested_as_question_types": ["direct_fact", "match_pair", "pure_ca", "assertion_reason"],
+      "tested_as_question_types": [
+        "direct_fact",
+        "match_pair",
+        "pure_ca",
+        "assertion_reason"
+      ],
       "sub_concepts": [
         {
           "topic": "Loo — hot dry wind over North India plains",
@@ -931,6 +1126,18 @@
             "Heat Wave",
             "Weather Patterns"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Heat Waves and Cold Waves",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction",
+            "Tsunamis"
+          ]
         }
       ],
       "trap_affinity": [
@@ -943,7 +1150,13 @@
     },
     "Rainfall Types": {
       "priority": "high",
-      "tested_as_question_types": ["assertion_reason", "multi_statement", "pure_ca", "match_pair", "scenario"],
+      "tested_as_question_types": [
+        "assertion_reason",
+        "multi_statement",
+        "pure_ca",
+        "match_pair",
+        "scenario"
+      ],
       "sub_concepts": [
         {
           "topic": "Convectional rainfall in equatorial regions",
@@ -1012,6 +1225,20 @@
             "Rainfall Distribution",
             "Drought"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Tsunamis"
+          ]
         }
       ],
       "trap_affinity": [
@@ -1024,7 +1251,12 @@
     },
     "Climate Classification": {
       "priority": "medium",
-      "tested_as_question_types": ["match_pair", "direct_fact", "assertion_reason", "multi_statement"],
+      "tested_as_question_types": [
+        "match_pair",
+        "direct_fact",
+        "assertion_reason",
+        "multi_statement"
+      ],
       "sub_concepts": [
         {
           "topic": "Koppen classification key types and letter codes",
@@ -1105,6 +1337,21 @@
           "concepts": [
             "Climate Change"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Urban Flooding"
+          ]
         }
       ],
       "trap_affinity": [
@@ -1115,7 +1362,12 @@
     },
     "Air Masses": {
       "priority": "medium",
-      "tested_as_question_types": ["match_pair", "assertion_reason", "multi_statement", "direct_fact"],
+      "tested_as_question_types": [
+        "match_pair",
+        "assertion_reason",
+        "multi_statement",
+        "direct_fact"
+      ],
       "sub_concepts": [
         {
           "topic": "Classification — cT, mT, cP, mP, cA",
@@ -1182,6 +1434,19 @@
           "concepts": [
             "Weather Patterns",
             "Cold Wave"
+          ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Tsunamis",
+            "Volcanic Eruptions"
           ]
         }
       ],

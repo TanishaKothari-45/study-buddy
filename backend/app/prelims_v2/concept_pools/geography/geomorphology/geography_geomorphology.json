@@ -131,6 +131,18 @@
             "Plains Morphology",
             "Alluvial Deposits"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Biological Disasters",
+            "Cyclones and Tropical Storms",
+            "Floods and Flood Management",
+            "Lightning and Thunderstorms",
+            "Tsunamis",
+            "Urban Flooding"
+          ]
         }
       ]
     },
@@ -225,6 +237,15 @@
             "Bay of Bengal",
             "Arabian Sea Coasts"
           ]
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Cyclones and Tropical Storms",
+            "Earthquakes and Seismic Activity",
+            "Floods and Flood Management",
+            "Heat Waves and Cold Waves"
+          ]
         }
       ]
     },
@@ -306,7 +327,17 @@
         "Periglacial Processes"
       ],
       "interlink_domains": [
-        "Climatology"
+        {
+          "domain": "Climatology",
+          "concepts": []
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Heat Waves and Cold Waves"
+          ]
+        }
       ]
     },
     "Weathering & Soil Formation": {
@@ -383,7 +414,20 @@
         "Climatology"
       ],
       "interlink_domains": [
-        "Climatology"
+        {
+          "domain": "Climatology",
+          "concepts": []
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Cyclones and Tropical Storms",
+            "Heat Waves and Cold Waves",
+            "Landslides and Mass Movements",
+            "Lightning and Thunderstorms",
+            "Sendai Framework for Disaster Risk Reduction"
+          ]
+        }
       ]
     },
     "Tectonic Landforms": {
@@ -446,7 +490,17 @@
         "Fluvial Processes & Landforms",
         "Denudation Chronology"
       ],
-      "interlink_domains": []
+      "interlink_domains": [
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Cloud Bursts and Flash Floods",
+            "Cyclones and Tropical Storms",
+            "Lightning and Thunderstorms",
+            "Volcanic Eruptions"
+          ]
+        }
+      ]
     },
     "Aeolian Landforms": {
       "priority": "medium",
@@ -493,7 +547,19 @@
         "Climatology"
       ],
       "interlink_domains": [
-        "Climatology"
+        {
+          "domain": "Climatology",
+          "concepts": []
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Biological Disasters",
+            "Cyclones and Tropical Storms",
+            "Earthquakes and Seismic Activity",
+            "Lightning and Thunderstorms"
+          ]
+        }
       ]
     },
     "River Piracy & Channel Migration": {
@@ -545,7 +611,16 @@
         "Fluvial Processes & Landforms",
         "Tectonic Landforms"
       ],
-      "interlink_domains": []
+      "interlink_domains": [
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Floods and Flood Management",
+            "Landslides and Mass Movements",
+            "Urban Flooding"
+          ]
+        }
+      ]
     },
     "Isostatic Rebound": {
       "priority": "medium",
@@ -583,7 +658,16 @@
         "Glacial Landforms",
         "Tectonic Landforms"
       ],
-      "interlink_domains": []
+      "interlink_domains": [
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Cyclones and Tropical Storms",
+            "Disaster Management Framework (NDMA, SDMA, NDRF)"
+          ]
+        }
+      ]
     },
     "Mass Wasting & Slope Processes": {
       "priority": "medium",
@@ -632,7 +716,19 @@
         "Tectonic Landforms"
       ],
       "interlink_domains": [
-        "Climatology"
+        {
+          "domain": "Climatology",
+          "concepts": []
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Cloud Bursts and Flash Floods",
+            "Landslides and Mass Movements",
+            "Tsunamis",
+            "Volcanic Eruptions"
+          ]
+        }
       ]
     },
     "Denudation Chronology": {
@@ -669,7 +765,15 @@
         "Tectonic Landforms",
         "Fluvial Processes & Landforms"
       ],
-      "interlink_domains": []
+      "interlink_domains": [
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Heat Waves and Cold Waves",
+            "Urban Flooding"
+          ]
+        }
+      ]
     },
     "Human-Induced Geomorphic Change": {
       "priority": "low",
@@ -721,7 +825,19 @@
         "Mass Wasting & Slope Processes"
       ],
       "interlink_domains": [
-        "Climatology"
+        {
+          "domain": "Climatology",
+          "concepts": []
+        },
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
+            "Cyclones and Tropical Storms",
+            "Droughts",
+            "Landslides and Mass Movements"
+          ]
+        }
       ]
     },
     "Landform Classification Systems": {
@@ -753,7 +869,16 @@
         }
       ],
       "links_to": [],
-      "interlink_domains": []
+      "interlink_domains": [
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Biological Disasters",
+            "Cyclones and Tropical Storms",
+            "Droughts"
+          ]
+        }
+      ]
     },
     "Erosion & Deposition Cycles": {
       "priority": "medium",
@@ -859,7 +984,14 @@
         "Weathering & Soil Formation",
         "Glacial Landforms"
       ],
-      "interlink_domains": []
+      "interlink_domains": [
+        {
+          "domain": "Natural Disasters",
+          "concepts": [
+            "Lightning and Thunderstorms"
+          ]
+        }
+      ]
     }
   },
   "notes": [

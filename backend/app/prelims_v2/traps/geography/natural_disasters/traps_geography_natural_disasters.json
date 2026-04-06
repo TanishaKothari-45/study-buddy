@@ -1,0 +1,293 @@
+{
+  "subject": "Geography",
+  "subdomain": "Natural Disasters",
+  "description": "UPSC Prelims Natural Disasters-specific trap patterns. Derived from PYQ analysis 2014–2024. Focuses on scale/magnitude confusion, mechanism reversals, seismic zone errors, agency-role mix-ups, policy framework confusion (Sendai vs Hyogo), drought classification errors, and India-specific disaster threshold precision traps.",
+  "concept_trap_mapping": {
+    "Earthquakes and Seismic Activity": ["GEO_ND_T01", "GEO_ND_T02", "GEO_ND_T03"],
+    "Tsunamis": ["GEO_ND_T04", "GEO_ND_T03"],
+    "Cyclones and Tropical Storms": ["GEO_ND_T05"],
+    "Droughts": ["GEO_ND_T06", "GEO_ND_T09"],
+    "Disaster Management Framework (NDMA, SDMA, NDRF)": ["GEO_ND_T07"],
+    "Sendai Framework for Disaster Risk Reduction": ["GEO_ND_T08"],
+    "Floods and Flood Management": ["GEO_ND_T10"],
+    "Landslides and Mass Movements": ["GEO_ND_T11"],
+    "Avalanches and Glacial Lake Outburst Floods (GLOFs)": ["GEO_ND_T12"],
+    "Heat Waves and Cold Waves": ["GEO_ND_T13"],
+    "Lightning and Thunderstorms": ["GEO_ND_T14"],
+    "Biological Disasters": ["GEO_ND_T15"]
+  },
+  "trap_patterns": {
+    "GEO_ND_T01": {
+      "trap_id": "GEO_ND_T01",
+      "name": "Richter scale vs Moment Magnitude Scale confusion",
+      "category": "scale_confusion",
+      "frequency": 0.16,
+      "difficulty": "medium",
+      "mechanism": "Student knows 'Richter scale' as the earthquake measurement standard but is unaware that modern seismology uses Moment Magnitude Scale (Mw) for large earthquakes, while Richter (local magnitude, ML) was limited to California and moderate quakes; the media still uses 'Richter' colloquially.",
+      "error_type": "scale_confusion",
+      "distractor_strategy": "State that all large earthquakes (M7+) are measured on the Richter scale, or equate Richter with Mw; alternatively claim Richter measures total energy while Mw measures wave amplitude",
+      "applicable_concepts": ["Earthquakes and Seismic Activity"],
+      "pattern_example": {
+        "true": "The Moment Magnitude Scale (Mw) has replaced the Richter scale for measuring large earthquakes; Mw measures the total seismic energy released from the entire fault rupture, while the Richter scale (ML) measured amplitude of seismic waves and was calibrated only for Southern California.",
+        "misconception": "The Richter scale is the universal standard for measuring all earthquakes globally; it measures the total energy released and is suitable for earthquakes of all magnitudes and locations.",
+        "note": "Students memorise 'Richter = earthquake magnitude' from early schooling; the transition to Mw is a UPSC-worthy factual distinction that appears in multi-statement questions about seismic measurement"
+      }
+    },
+    "GEO_ND_T02": {
+      "trap_id": "GEO_ND_T02",
+      "name": "P-wave vs S-wave — arrival order and damage potential reversal",
+      "category": "mechanism_reversal",
+      "frequency": 0.18,
+      "difficulty": "medium",
+      "mechanism": "Student reverses the arrival order of P-waves and S-waves, or incorrectly attributes more destructive power to P-waves (which arrive first but cause less damage) rather than S-waves (which arrive second and cause most structural destruction), or confuses which wave type travels through liquids.",
+      "error_type": "sequence_reversal",
+      "distractor_strategy": "State that S-waves (secondary) arrive before P-waves (primary), or assert that P-waves cause more structural damage because they arrive first; or claim S-waves travel through liquid layers of Earth's interior",
+      "applicable_concepts": ["Earthquakes and Seismic Activity"],
+      "pattern_example": {
+        "true": "P-waves (primary, compressional) travel through solids, liquids, and gases and arrive at seismographs first; S-waves (secondary, shear) travel only through solids, arrive second, and cause far greater structural damage because they shake the ground perpendicular to their direction of travel.",
+        "misconception": "P-waves cause greater structural damage than S-waves because they are the first to arrive and their compressional motion acts on building foundations directly; S-waves travel through all media including liquids.",
+        "note": "Students link 'primary = more important = more destructive' — this conflates arrival order with damage potential; S-waves are the primary killer in earthquakes, not P-waves"
+      }
+    },
+    "GEO_ND_T03": {
+      "trap_id": "GEO_ND_T03",
+      "name": "India seismic zone reversal — Zone V highest, Zone II lowest",
+      "category": "scale_confusion",
+      "frequency": 0.20,
+      "difficulty": "easy",
+      "mechanism": "Student confuses India's seismic zone numbering: Zone V is the HIGHEST risk (most seismically active), Zone II is the LOWEST risk; many students assume Zone I = most severe (as in Grade I = top rank) or invert the scale entirely.",
+      "error_type": "scale_inversion",
+      "distractor_strategy": "State that Zone I represents the highest seismic hazard, or that Zone V is the safest zone; alternatively, state that India has five seismic zones (BIS abolished Zone I in 2002 revision)",
+      "applicable_concepts": ["Earthquakes and Seismic Activity", "Tsunamis"],
+      "pattern_example": {
+        "true": "India's seismic zonation (BIS IS-1893:2016) has four zones — II (lowest hazard), III, IV, and V (highest hazard); Zone V encompasses the Himalayan belt, Northeast India, Andaman-Nicobar, Rann of Kutch, and parts of Kashmir; Zone I was abolished in the 2002 revision.",
+        "misconception": "India's seismic zonation has five zones (I through V), with Zone I representing the highest seismic hazard and Zone V representing the lowest-risk regions in Peninsular India.",
+        "note": "The abolition of Zone I creates a double trap — students assume 5 zones exist AND reverse the hazard gradient; UPSC specifically tests whether students know Zone V = maximum risk and that only 4 zones remain"
+      }
+    },
+    "GEO_ND_T04": {
+      "trap_id": "GEO_ND_T04",
+      "name": "Underwater earthquake does not always cause tsunami — vertical displacement requirement",
+      "category": "mechanism_reversal",
+      "frequency": 0.17,
+      "difficulty": "hard",
+      "mechanism": "Student assumes any underwater earthquake automatically triggers a tsunami; in reality, tsunami generation requires VERTICAL seafloor displacement (thrust/reverse faults); strike-slip faults produce horizontal movement and rarely generate tsunamis; magnitude alone is insufficient — fault type and depth matter.",
+      "error_type": "overgeneralisation",
+      "distractor_strategy": "State that any submarine earthquake above M6.0 will generate a tsunami, or claim that all earthquake types (including strike-slip) cause tsunami if underwater; omit the vertical displacement condition",
+      "applicable_concepts": ["Tsunamis", "Earthquakes and Seismic Activity"],
+      "pattern_example": {
+        "true": "A tsunami is generated only when a submarine earthquake causes significant vertical displacement of the seafloor; reverse/thrust faults (as in subduction zones) typically produce this vertical movement; strike-slip faults predominantly cause horizontal displacement and rarely trigger tsunamis even at high magnitudes.",
+        "misconception": "Any underwater earthquake with magnitude above M6.5 will generate a tsunami, as the seismic energy transmitted through water is sufficient to produce destructive waves regardless of fault type.",
+        "note": "The 2004 Indian Ocean tsunami came from a thrust fault at the Sunda subduction zone — the subduction context is essential; students confuse 'submarine earthquake' with 'tsunami-generating earthquake' without understanding the fault geometry requirement"
+      }
+    },
+    "GEO_ND_T05": {
+      "trap_id": "GEO_ND_T05",
+      "name": "Bay of Bengal vs Arabian Sea cyclone frequency and naming convention confusion",
+      "category": "classification_error",
+      "frequency": 0.15,
+      "difficulty": "medium",
+      "mechanism": "Students confuse cyclone frequency between the two seas (Bay of Bengal is more frequent), or conflate IMD's intensity classification with the US Saffir-Simpson scale, or misattribute naming responsibility (WMO Regional Specialised Meteorological Centres, not individual countries, name cyclones through a pre-agreed list).",
+      "error_type": "adjacent_fact_confusion",
+      "distractor_strategy": "State that Arabian Sea cyclones are more frequent because it is warmer, or claim India independently names all cyclones in the North Indian Ocean, or equate IMD's 'Super Cyclonic Storm' with Saffir-Simpson Category 5",
+      "applicable_concepts": ["Cyclones and Tropical Storms"],
+      "pattern_example": {
+        "true": "The Bay of Bengal generates approximately 4–5 times more cyclones than the Arabian Sea annually; IMD's cyclone intensity scale (Depression → Deep Depression → Cyclonic Storm → Severe → Very Severe → Extremely Severe → Super Cyclonic Storm) is distinct from the Saffir-Simpson Hurricane Wind Scale used in the Atlantic basin; North Indian Ocean cyclones are named by IMD as the RSMC for the region.",
+        "misconception": "The Arabian Sea generates more intense cyclones than the Bay of Bengal because it has higher sea surface temperatures; cyclones are named independently by each affected country, and India's 'Extremely Severe Cyclonic Storm' category is equivalent to Saffir-Simpson Category 4.",
+        "note": "Arabian Sea cyclones are increasing in intensity due to climate change, making it a plausible but wrong distractor; the naming system is a coordinated regional WMO process, not country-specific; the two scales are incommensurable because they use different parameters"
+      }
+    },
+    "GEO_ND_T06": {
+      "trap_id": "GEO_ND_T06",
+      "name": "El Niño causes Indian drought — probabilistic not deterministic relationship",
+      "category": "mechanism_reversal",
+      "frequency": 0.19,
+      "difficulty": "hard",
+      "mechanism": "Students treat El Niño as a certain cause of Indian monsoon failure and drought; the actual relationship is probabilistic — approximately 50% of El Niño years see below-normal Indian monsoon, but many El Niño years have normal or even above-normal rainfall in India; Indian Ocean warming patterns (positive IOD) can counteract El Niño's suppressive effect.",
+      "error_type": "causal_overgeneralisation",
+      "distractor_strategy": "State that El Niño years always produce drought in India, or that every Indian drought is caused by El Niño; conversely, state that La Niña invariably produces flood-level excess rainfall",
+      "applicable_concepts": ["Droughts", "Cyclones and Tropical Storms"],
+      "pattern_example": {
+        "true": "El Niño suppresses Indian Ocean warm pool convection and weakens the monsoon circulation, increasing the probability of below-normal rainfall in India; however, the relationship is statistical (not deterministic) — several El Niño years (e.g., 1997–98, 2015) have coincided with near-normal Indian monsoon due to compensating positive Indian Ocean Dipole (IOD) conditions.",
+        "misconception": "El Niño events invariably cause drought in India by blocking moisture-bearing southwest monsoon winds; every significant El Niño episode corresponds to a monsoon failure and agricultural drought across the subcontinent.",
+        "note": "The IOD's countervailing effect is the key sophistication; UPSC tests whether students understand ENSO-monsoon as a probabilistic teleconnection rather than a mechanistic determinism — assertion-reason questions often exploit this"
+      }
+    },
+    "GEO_ND_T07": {
+      "trap_id": "GEO_ND_T07",
+      "name": "NDMA vs NDRF vs SDMA — roles, authority, and composition confusion",
+      "category": "agency_confusion",
+      "frequency": 0.22,
+      "difficulty": "medium",
+      "mechanism": "Students confuse the roles of the three key institutions: NDMA (policy and guidelines, chaired by PM), NDRF (operational rescue force under NDMA, 16 battalions from paramilitary), and SDMA (state-level policy body chaired by CM); common errors include attributing operational response to NDMA directly, or saying NDRF is under the Home Ministry independently.",
+      "error_type": "role_confusion",
+      "distractor_strategy": "State that NDMA is the operational first-responder force (confuse with NDRF), or that SDMA is chaired by the Governor (not CM), or that NDRF battalions are drawn from Army regiments (not paramilitary); alternatively, state NDRF reports directly to Ministry of Home Affairs (not through NDMA)",
+      "applicable_concepts": ["Disaster Management Framework (NDMA, SDMA, NDRF)"],
+      "pattern_example": {
+        "true": "NDMA (National Disaster Management Authority) is the apex policy body under the Disaster Management Act 2005, chaired by the Prime Minister; NDRF (National Disaster Response Force) is the operational rescue force under NDMA's control, comprising 16 battalions drawn from CRPF, BSF, CISF, ITBP, and SSB; SDMA (State DMA) is chaired by the Chief Minister and mirrors NDMA at the state level.",
+        "misconception": "NDMA functions as both the policy body and the operational first-responder force for major disasters; NDRF operates independently under the Ministry of Home Affairs and its battalions are sourced from regular Army regiments; SDMA is chaired by the Governor of the state.",
+        "note": "NDMA vs NDRF distinction is the most-tested agency confusion in Prelims; the paramilitary (not Army) composition of NDRF and the PM-as-chairperson for NDMA are precise facts that distractors deliberately distort"
+      }
+    },
+    "GEO_ND_T08": {
+      "trap_id": "GEO_ND_T08",
+      "name": "Sendai Framework vs Hyogo Framework — targets, timeline, and priority area mix-up",
+      "category": "policy_framework",
+      "frequency": 0.21,
+      "difficulty": "hard",
+      "mechanism": "Students mix up attributes of the Sendai Framework (2015–2030, 4 priorities, 7 targets, adopted in Sendai Japan) and the Hyogo Framework for Action (HFA, 2005–2015, 5 priorities, no quantified global targets); common errors include attributing HFA's 5 priorities to Sendai, or stating Sendai has no binding targets (it has 7 non-binding but measurable targets), or misidentifying the host city.",
+      "error_type": "framework_swap",
+      "distractor_strategy": "State Sendai has 5 priorities (HFA's number), or that HFA 2005–2015 introduced the 7 global targets (it did not), or claim Sendai Framework was adopted in Kobe Japan (Hyogo is in Japan, HFA was adopted in Kobe 2005), or assert Sendai Framework is legally binding",
+      "applicable_concepts": ["Sendai Framework for Disaster Risk Reduction", "Disaster Management Framework (NDMA, SDMA, NDRF)"],
+      "pattern_example": {
+        "true": "The Sendai Framework for Disaster Risk Reduction (2015–2030) was adopted in Sendai, Japan in March 2015; it has 4 priority areas and 7 measurable global targets (to be achieved by 2030); its predecessor, the Hyogo Framework for Action (HFA), was adopted in Kobe, Japan in 2005, had 5 priority areas, and set no quantified global targets.",
+        "misconception": "The Sendai Framework (2015–2030) has 5 priority areas and was adopted in Kobe, Japan in 2015; it introduced quantified legally-binding targets for disaster risk reduction — the Hyogo Framework that preceded it had no priority structure.",
+        "note": "Kobe-Sendai confusion is easy (both are Japanese cities); the 4 vs 5 priority swap is the most-tested numerical distinction; Sendai targets are measurable but voluntary/non-binding — students often call them 'binding' by analogy with the Paris Agreement"
+      }
+    },
+    "GEO_ND_T09": {
+      "trap_id": "GEO_ND_T09",
+      "name": "Drought classification — meteorological vs hydrological vs agricultural vs socio-economic",
+      "category": "classification_error",
+      "frequency": 0.17,
+      "difficulty": "medium",
+      "mechanism": "Students know 'drought' has multiple types but misclassify which definition corresponds to which type — particularly confusing meteorological (rainfall deficiency) with agricultural (soil moisture/crop stress) and hydrological (stream/groundwater depletion); they also miss that socio-economic drought requires economic and social impact criteria on top of physical deficiency.",
+      "error_type": "classification_error",
+      "distractor_strategy": "Define meteorological drought as low groundwater (hydrological definition), or describe agricultural drought by rainfall deficiency alone without reference to soil moisture and crop evapotranspiration demand; swap 'hydrological' and 'meteorological' definitions",
+      "applicable_concepts": ["Droughts"],
+      "pattern_example": {
+        "true": "Meteorological drought is defined by rainfall deficiency (IMD: ≥25% below normal); hydrological drought refers to below-normal surface water (rivers, reservoirs) and groundwater levels; agricultural drought is soil moisture insufficient for crop evapotranspiration demand; socio-economic drought occurs when physical water shortage affects economic activity and social welfare systems.",
+        "misconception": "Meteorological drought is defined by low groundwater table and depleted river flow because insufficient rainfall ultimately reduces all water resources; agricultural drought and hydrological drought are interchangeable terms referring to water stress affecting crops and rivers simultaneously.",
+        "note": "The four types occur in sequence (meteorological → agricultural → hydrological → socio-economic) with time lags, but UPSC tests the definitions independently; conflating meteorological with hydrological is the most common error"
+      }
+    },
+    "GEO_ND_T10": {
+      "trap_id": "GEO_ND_T10",
+      "name": "Flash flood vs riverine flood vs coastal flood — trigger and onset time confusion",
+      "category": "classification_error",
+      "frequency": 0.14,
+      "difficulty": "medium",
+      "mechanism": "Students know flood types by name but confuse their triggers and onset characteristics — flash floods (rapid onset within 6 hours, intense localised rainfall or GLOF), riverine floods (slow-rise over days from basin-wide rainfall), and coastal floods (storm surge, cyclone or tsunami); incorrect management strategies follow from misclassification.",
+      "error_type": "adjacent_fact_confusion",
+      "distractor_strategy": "Attribute flash flood to slow riverine accumulation, or describe coastal flooding as caused by upstream dam break rather than ocean-driven processes; claim riverine floods have onset within 6 hours like flash floods",
+      "applicable_concepts": ["Floods and Flood Management", "Cloud Bursts and Flash Floods"],
+      "pattern_example": {
+        "true": "Flash floods are characterised by rapid onset (within 0–6 hours of the causative event), high flow velocity, and localised impact — typically triggered by cloudbursts, intense convective rainfall, or GLOF events; riverine floods are slow-onset (days to weeks), sustained, and result from prolonged basin-wide rainfall upstream; coastal floods are driven by storm surges (cyclone) or tsunamis and involve seawater inundation.",
+        "misconception": "Flash floods and riverine floods share the same slow-onset characteristic because both result from excess rainfall accumulating in river channels; coastal floods are caused by upstream dam failures sending water down to coastal deltas.",
+        "note": "The 6-hour onset definition is the UPSC-testable threshold that distinguishes flash from riverine; dam break floods are a separate category (dam-failure floods); coastal vs riverine confusion is exploited in scenario-based questions"
+      }
+    },
+    "GEO_ND_T11": {
+      "trap_id": "GEO_ND_T11",
+      "name": "Landslide primary trigger in India — rainfall not earthquake",
+      "category": "mechanism_reversal",
+      "frequency": 0.16,
+      "difficulty": "medium",
+      "mechanism": "Students assume earthquakes are the primary trigger of landslides in the Himalayas and Western Ghats because of the tectonic setting; in the Indian context, rainfall (intense monsoon and cloudbursts) is the statistically dominant trigger — over 70% of recorded Indian landslides are rainfall-induced; earthquakes act as secondary/predisposing factors.",
+      "error_type": "causation_reversal",
+      "distractor_strategy": "State that seismic activity is the dominant trigger of landslides in the Himalayan region because of plate collision, or present earthquake triggering as primary and rainfall as secondary without Indian-specific data",
+      "applicable_concepts": ["Landslides and Mass Movements"],
+      "pattern_example": {
+        "true": "In India, rainfall (especially intense monsoon precipitation and cloudbursts) is the primary trigger for over 70% of recorded landslides in the Himalayan belt and Western Ghats; earthquakes contribute as a secondary predisposing factor by weakening slope material, but rainfall-induced saturation of soils is the dominant immediate cause.",
+        "misconception": "Earthquakes are the primary trigger of landslides in the Himalayas because the region lies in a tectonically active zone; rainfall contributes to slope instability but plays a secondary role compared to seismic shaking.",
+        "note": "The Himalayan tectonic setting creates the intuitive (but wrong) inference that earthquakes dominate; statistical PYQ-level knowledge requires knowing rainfall primacy; the Kedarnath 2013 disaster (cloudburst-triggered) exemplifies this — no earthquake was involved"
+      }
+    },
+    "GEO_ND_T12": {
+      "trap_id": "GEO_ND_T12",
+      "name": "GLOF vs avalanche — GLOF is glacial lake outburst, not a snowslide",
+      "category": "classification_error",
+      "frequency": 0.13,
+      "difficulty": "medium",
+      "mechanism": "Students confuse GLOF (Glacial Lake Outburst Flood — sudden release of water from a moraine- or ice-dammed glacial lake) with avalanche (rapid downslope movement of snow and ice mass); the two are mechanistically distinct, have different triggers, and require different hazard mitigation approaches.",
+      "error_type": "definitional_confusion",
+      "distractor_strategy": "Define GLOF as a large-scale snow avalanche from glaciated slopes, or conflate the two by claiming GLOF occurs when glaciers slide down and release water; describe GLOF as purely a cryosphere phenomenon indistinguishable from an ice avalanche",
+      "applicable_concepts": ["Avalanches and Glacial Lake Outburst Floods (GLOFs)", "Landslides and Mass Movements"],
+      "pattern_example": {
+        "true": "A Glacial Lake Outburst Flood (GLOF) is the sudden drainage of a glacial lake when its moraine, ice, or bedrock dam fails; it is a hydrological hazard producing catastrophic downstream flooding — distinct from an avalanche, which is the rapid mass movement of snow/ice down a slope without a lake breach; the 2021 Chamoli disaster involved a combination of rock-ice avalanche and GLOF-like flow.",
+        "misconception": "GLOF refers to a massive avalanche of glacial ice and snow that rushes down mountain slopes and melts rapidly, causing flooding in valleys below — essentially a large-scale ice slide generating a flood wave.",
+        "note": "The 2023 Sikkim GLOF (South Lhonak Lake) and 2021 Chamoli disaster brought GLOF into UPSC relevance; the definitional distinction from avalanche is precise and frequently tested in CA-connected multi-statement questions"
+      }
+    },
+    "GEO_ND_T13": {
+      "trap_id": "GEO_ND_T13",
+      "name": "IMD heat wave temperature threshold — exact numbers routinely misremembered",
+      "category": "threshold_precision",
+      "frequency": 0.18,
+      "difficulty": "hard",
+      "mechanism": "IMD's heat wave definition has precise, multi-condition thresholds that students routinely misquote: plains heat wave is ≥40°C AND ≥4.5°C above normal, OR ≥45°C regardless of departure; severe heat wave is ≥6.4°C departure OR ≥47°C; students confuse the departure threshold (4.5°C, not 5°C or 4°C) and the absolute threshold values, or miss that coastal and hill station thresholds are different.",
+      "error_type": "threshold_error",
+      "distractor_strategy": "State the departure threshold as ≥5°C above normal (instead of 4.5°C), or claim heat wave is declared when temperature exceeds 40°C alone without requiring departure from normal; omit the dual-condition nature of the definition or quote ≥44°C as the stand-alone threshold",
+      "applicable_concepts": ["Heat Waves and Cold Waves"],
+      "pattern_example": {
+        "true": "IMD declares a heat wave when the maximum temperature of a plains station reaches ≥40°C AND the departure from normal is ≥4.5°C, OR when the maximum temperature reaches ≥45°C irrespective of departure; a severe heat wave requires departure ≥6.4°C OR temperature ≥47°C; coastal stations use a lower absolute threshold (≥37°C) with the same departure condition.",
+        "misconception": "IMD declares a heat wave when the maximum temperature exceeds 40°C for two consecutive days, regardless of departure from normal; a severe heat wave is declared when temperature exceeds 44°C, and the threshold is uniform across all terrain types including coasts and hills.",
+        "note": "The 4.5°C departure threshold is the single most misquoted number — students round to 5°C; the dual-condition structure (absolute OR departure) and the terrain-specific thresholds (plains/coastal/hills) are multi-statement question favourites"
+      }
+    },
+    "GEO_ND_T14": {
+      "trap_id": "GEO_ND_T14",
+      "name": "Lightning strikes path of least resistance, not always tallest object",
+      "category": "myth_correction",
+      "frequency": 0.11,
+      "difficulty": "medium",
+      "mechanism": "Popular belief states lightning always strikes the tallest object; the physical reality is lightning follows the ionised path of least electrical resistance (formed by the stepped leader from cloud to ground); tall objects do increase the probability of a strike by creating a shorter path, but are not guaranteed to be struck if a more conductive or better-positioned path exists.",
+      "error_type": "folk_physics_error",
+      "distractor_strategy": "State as an absolute rule that lightning always strikes the tallest object in an area, or claim that standing near (but not being) the tallest object fully protects a person because lightning will redirect to the tallest point",
+      "applicable_concepts": ["Lightning and Thunderstorms"],
+      "pattern_example": {
+        "true": "Lightning does not invariably strike the tallest object; it follows the path of least electrical resistance between cloud and ground, established by the stepped leader — a downward-propagating ionised channel; taller objects increase strike probability by shortening the path length, but conductivity, ground conditions, and ionisation geometry determine the actual strike point.",
+        "misconception": "Lightning always strikes the tallest object in any given area because it takes the shortest path to ground; standing next to (but shorter than) a tall tree or building provides complete protection since lightning is guaranteed to hit the taller structure.",
+        "note": "This myth is safety-critical and UPSC-tested; the 'path of least resistance' principle is the correct physics; the practical consequence (tall trees offer no guaranteed shelter) is the UPSC-relevant implication"
+      }
+    },
+    "GEO_ND_T15": {
+      "trap_id": "GEO_ND_T15",
+      "name": "Locust swarm classified as biological disaster, not meteorological",
+      "category": "classification_error",
+      "frequency": 0.14,
+      "difficulty": "medium",
+      "mechanism": "Locust swarms are classified as biological disasters under NDMA's framework; students commonly classify them as meteorological disasters (because they are triggered by rainfall patterns linked to ENSO) or as agricultural disasters (a distinct administrative category); the UPSC tests the NDMA classification, not the causal trigger.",
+      "error_type": "classification_error",
+      "distractor_strategy": "Classify locust swarms as meteorological disasters because they are triggered by rainfall anomalies, or as agro-climatic disasters because they destroy crops; state that locusts are managed by the Ministry of Environment rather than the Ministry of Agriculture",
+      "applicable_concepts": ["Biological Disasters", "Disaster Management Framework (NDMA, SDMA, NDRF)"],
+      "pattern_example": {
+        "true": "Under India's disaster management framework (NDMA), locust swarms are classified as biological disasters — not meteorological or agricultural disasters; the Locust Warning Organisation (LWO) under the Ministry of Agriculture and Farmers Welfare monitors and manages locust threats; Desert Locust (Schistocerca gregaria) is the primary species threatening India via Rajasthan and Gujarat.",
+        "misconception": "Locust swarms are classified as meteorological disasters in India's disaster management framework because they are directly caused by abnormal rainfall patterns associated with El Niño; they are therefore managed by the India Meteorological Department in coordination with state agriculture departments.",
+        "note": "The trigger (weather) vs classification (biological) distinction is the exact trap; NDMA's typology groups disasters as natural (geophysical, hydro-meteorological, biological, space-related) and man-made; locusts fall under biological regardless of their climatological trigger"
+      }
+    }
+  },
+  "notes_for_blueprint": {
+    "highest_frequency_traps": [
+      "GEO_ND_T07 (NDMA/NDRF/SDMA agency confusion, 0.22)",
+      "GEO_ND_T08 (Sendai vs Hyogo framework swap, 0.21)",
+      "GEO_ND_T03 (seismic zone inversion, 0.20)",
+      "GEO_ND_T06 (El Niño-drought determinism, 0.19)",
+      "GEO_ND_T02 (P-wave vs S-wave reversal, 0.18)",
+      "GEO_ND_T13 (heat wave threshold precision, 0.18)"
+    ],
+    "hardest_traps": [
+      "GEO_ND_T04 (tsunami vertical displacement requirement)",
+      "GEO_ND_T06 (El Niño probabilistic relationship)",
+      "GEO_ND_T08 (Sendai vs Hyogo detail comparison)",
+      "GEO_ND_T13 (IMD heat wave exact thresholds)"
+    ],
+    "ca_activated_traps": [
+      "GEO_ND_T12 (GLOF — Chamoli 2021, Sikkim 2023)",
+      "GEO_ND_T05 (cyclone frequency — Arabian Sea intensification news)",
+      "GEO_ND_T06 (El Niño years — 2023 IOD-ENSO interaction)",
+      "GEO_ND_T13 (heat wave — annual heat wave deaths, city HAPs)",
+      "GEO_ND_T15 (locust — 2019–20 invasion)"
+    ],
+    "question_type_fit": {
+      "multi_statement": ["GEO_ND_T03", "GEO_ND_T07", "GEO_ND_T08", "GEO_ND_T09"],
+      "assertion_reason": ["GEO_ND_T02", "GEO_ND_T04", "GEO_ND_T06", "GEO_ND_T11"],
+      "direct_fact": ["GEO_ND_T01", "GEO_ND_T05", "GEO_ND_T13", "GEO_ND_T15"],
+      "match_pair": ["GEO_ND_T07", "GEO_ND_T08", "GEO_ND_T09"],
+      "how_many": ["GEO_ND_T03", "GEO_ND_T07", "GEO_ND_T08", "GEO_ND_T10"],
+      "scenario": ["GEO_ND_T04", "GEO_ND_T10", "GEO_ND_T13", "GEO_ND_T14"]
+    },
+    "pattern_example_usage": "These examples show the distortion structure — LLM should use these as shape guides, not copy the content. Each pattern_example.true is an UPSC-standard verifiable statement; pattern_example.misconception is the specific distorted version that appears as a wrong option or wrong assertion in UPSC questions."
+  }
+}

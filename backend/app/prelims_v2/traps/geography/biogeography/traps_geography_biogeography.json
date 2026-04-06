@@ -1,0 +1,445 @@
+{
+  "subject": "Geography",
+  "subdomain": "Biogeography",
+  "description": "UPSC Prelims Biogeography-specific trap patterns. Derived from PYQ analysis 2014–2024. Focuses on protected area type confusion, IUCN category reversals, biome misclassification, ecological process errors, and India-specific biodiversity location traps.",
+  "concept_trap_mapping": {
+    "Biomes of the World": ["GEO_B_T01", "GEO_B_T02"],
+    "Biodiversity Hotspots": ["GEO_B_T03"],
+    "Ecosystems": ["GEO_B_T04", "GEO_B_T05"],
+    "Food Chains and Energy Flow": ["GEO_B_T05", "GEO_B_T06"],
+    "Ecological Succession": ["GEO_B_T07"],
+    "Natural Vegetation of India": ["GEO_B_T01", "GEO_B_T08"],
+    "Soil Types and Formation": ["GEO_B_T09"],
+    "Protected Areas": ["GEO_B_T10", "GEO_B_T11"],
+    "Endangered Species and IUCN Categories": ["GEO_B_T12"],
+    "Wetlands and Ramsar Sites": ["GEO_B_T13"],
+    "Mangroves": ["GEO_B_T08", "GEO_B_T04"],
+    "Coral Reefs": ["GEO_B_T04", "GEO_B_T14"],
+    "Invasive Species": ["GEO_B_T15"],
+    "Tiger Reserves and Project Tiger": ["GEO_B_T10", "GEO_B_T11"],
+    "Bird and Animal Migration": ["GEO_B_T13", "GEO_B_T15"]
+  },
+  "trap_patterns": {
+    "GEO_B_T01": {
+      "pattern_id": "GEO_B_T01",
+      "name": "Biome-vegetation type misclassification",
+      "category": "classification_error",
+      "frequency": 0.16,
+      "difficulty": "medium",
+      "mechanism": "Student confuses vegetation types that share overlapping characteristics — tropical dry deciduous vs tropical moist deciduous vs tropical evergreen. All are 'tropical' but differ in rainfall thresholds and leaf-shedding behaviour.",
+      "error_type": "classification_error",
+      "distractor_strategy": "Offer adjacent vegetation type (e.g., 'tropical moist deciduous' when correct is 'tropical dry deciduous') that shares the correct biome but wrong sub-category",
+      "applicable_concepts": ["Biomes of the World", "Natural Vegetation of India"],
+      "generation_rules": [
+        "State a rainfall range or seasonal characteristic (e.g., 75–150 cm annual rainfall)",
+        "Ask which vegetation type dominates",
+        "Wrong answers use adjacent rainfall band (slightly too high or low)",
+        "Tests whether student has internalized the specific thresholds, not just type names"
+      ],
+      "question_type_fit": ["direct_fact", "match_pair", "multi_statement"],
+      "pattern_example": {
+        "true": "Tropical dry deciduous forests in India occur in areas receiving 75–150 cm of rainfall annually and shed leaves during the dry season to conserve moisture.",
+        "misconception": "Tropical dry deciduous forests in India occur in areas receiving 150–250 cm of rainfall annually — the same range as tropical moist deciduous forests.",
+        "note": "Shift the rainfall threshold upward — each vegetation sub-type occupies a specific rainfall band; overlapping the bands with the next wetter category is the trap"
+      },
+      "example_question": "Which forest type dominates in areas of India receiving 75–100 cm annual rainfall? (a) Tropical evergreen (b) Tropical moist deciduous (c) Tropical dry deciduous (d) Montane subtropical"
+    },
+    "GEO_B_T02": {
+      "pattern_id": "GEO_B_T02",
+      "name": "Biome latitude-climate mispairing",
+      "category": "location_confusion",
+      "frequency": 0.12,
+      "difficulty": "medium",
+      "mechanism": "Student knows biome names but pairs them with wrong latitudinal or climatic zones. E.g., placing taiga in subtropical latitudes, or confusing savanna with tropical rainforest location.",
+      "error_type": "location_confusion",
+      "distractor_strategy": "Use correct biome name with wrong latitude band or climate type",
+      "applicable_concepts": ["Biomes of the World"],
+      "generation_rules": [
+        "Name a biome and ask for its characteristic climate or latitude",
+        "Wrong answers shift the latitude by 15–20° (adjacent zone)",
+        "Or swap key climate parameter (precipitation vs temperature dominance)"
+      ],
+      "question_type_fit": ["match_pair", "direct_fact", "multi_statement"],
+      "pattern_example": {
+        "true": "The boreal forest (taiga) biome is found at high latitudes (50°–70°N) and is characterised by coniferous trees adapted to long cold winters and short summers.",
+        "misconception": "The boreal forest (taiga) biome is found at mid-latitudes (30°–50°N) in temperate zones with moderate precipitation year-round.",
+        "note": "Shift the latitude band southward into temperate zone — taiga is subarctic/boreal, not temperate; temperate zone hosts deciduous forests"
+      },
+      "example_question": "Which biome is characterised by coniferous trees and found between 50°–70° North latitude? (a) Temperate deciduous forest (b) Tropical rainforest (c) Taiga (d) Savanna"
+    },
+    "GEO_B_T03": {
+      "pattern_id": "GEO_B_T03",
+      "name": "India biodiversity hotspot boundary confusion",
+      "category": "spatial_precision",
+      "frequency": 0.18,
+      "difficulty": "medium",
+      "mechanism": "Student knows India has 4 biodiversity hotspots but incorrectly maps their geographic extent or states covered. Western Ghats vs Eastern Ghats, or misplacing the Himalayan hotspot boundaries.",
+      "error_type": "spatial_precision",
+      "distractor_strategy": "Swap state coverage between hotspots (e.g., assign Eastern Ghats states to Western Ghats hotspot), or include a non-hotspot region as if it is one",
+      "applicable_concepts": ["Biodiversity Hotspots"],
+      "generation_rules": [
+        "Name a biodiversity hotspot and ask which states/region it covers",
+        "Wrong answers include adjacent states or swap with another hotspot",
+        "Or ask how many of India's hotspots are correct from a list of 4–5 options (some with wrong names)"
+      ],
+      "question_type_fit": ["multi_statement", "direct_fact", "how_many"],
+      "pattern_example": {
+        "true": "India's four biodiversity hotspots are: Western Ghats and Sri Lanka, Himalaya, Indo-Burma, and Sundaland (includes Nicobar Islands).",
+        "misconception": "India's four biodiversity hotspots are: Western Ghats and Sri Lanka, Eastern Ghats, Indo-Burma, and Sundaland.",
+        "note": "Substitute Eastern Ghats for Himalaya — Eastern Ghats is not a recognized biodiversity hotspot; the Himalaya hotspot is often forgotten while Eastern Ghats sounds plausible"
+      },
+      "example_question": "Which of the following is NOT one of India's recognized biodiversity hotspots? (a) Western Ghats and Sri Lanka (b) Eastern Ghats (c) Indo-Burma (d) Himalaya"
+    },
+    "GEO_B_T04": {
+      "pattern_id": "GEO_B_T04",
+      "name": "Ecosystem service misattribution",
+      "category": "adjacent_fact_confusion",
+      "frequency": 0.11,
+      "difficulty": "medium",
+      "mechanism": "Student confuses which ecosystem provides which service. E.g., attributes carbon sequestration primarily to mangroves when tropical forests sequester more carbon overall; or attributes coastal protection to coral reefs when mangroves are more effective at buffering storm surge.",
+      "error_type": "adjacent_fact_confusion",
+      "distractor_strategy": "Swap ecosystem services between two ecologically related systems (mangroves vs coral reefs vs seagrasses)",
+      "applicable_concepts": ["Ecosystems", "Mangroves", "Coral Reefs"],
+      "generation_rules": [
+        "State an ecosystem service (coastal protection, carbon sequestration, nursery habitat)",
+        "Ask which ecosystem provides it most effectively",
+        "Wrong answers assign it to an adjacent ecosystem that also provides the service but to a lesser degree"
+      ],
+      "question_type_fit": ["assertion_reason", "multi_statement"],
+      "pattern_example": {
+        "true": "Mangrove forests are more effective than coral reefs at buffering coastal communities from storm surges and wave energy because of their dense root systems and above-ground biomass.",
+        "misconception": "Coral reefs are more effective than mangroves at buffering coastal communities from storm surges because their rigid structure absorbs wave energy.",
+        "note": "Swap the more effective ecosystem — coral reefs do reduce wave energy but mangroves are the primary buffer for storm surge; both provide protection but mechanism and magnitude differ"
+      },
+      "example_question": "A: Mangroves provide greater protection from storm surges than coral reefs. R: Because mangrove root systems dissipate wave energy more effectively than rigid coral structures. Code: (a) Both A and R true, R explains A (b) Both true, R does not explain A (c) A false, R true (d) Both false"
+    },
+    "GEO_B_T05": {
+      "pattern_id": "GEO_B_T05",
+      "name": "Trophic level energy transfer error",
+      "category": "quantitative_error",
+      "frequency": 0.13,
+      "difficulty": "medium",
+      "mechanism": "Student knows the 10% energy transfer rule but misapplies it — either calculating the wrong trophic level, reversing producer/consumer, or confusing biomass pyramid with energy pyramid.",
+      "error_type": "quantitative_error",
+      "distractor_strategy": "Offer energy values calculated from wrong trophic level, or use 90% instead of 10% for transfer efficiency",
+      "applicable_concepts": ["Food Chains and Energy Flow", "Ecosystems"],
+      "generation_rules": [
+        "State energy available at one trophic level",
+        "Ask for energy at the next level (or two levels up)",
+        "Wrong answers multiply instead of dividing by 10, or apply to wrong direction",
+        "Or mix up which level is primary producer vs primary consumer"
+      ],
+      "question_type_fit": ["direct_fact", "multi_statement", "how_many"],
+      "pattern_example": {
+        "true": "If 10,000 kcal of energy is available at the producer level in a food chain, approximately 100 kcal will be available to secondary consumers (second-level carnivores).",
+        "misconception": "If 10,000 kcal of energy is available at the producer level, approximately 1,000 kcal will be available to secondary consumers.",
+        "note": "Off by one trophic level — 1,000 kcal is correct for PRIMARY consumers; secondary consumers receive 10% of that (100 kcal); student stops one step early"
+      },
+      "example_question": "In a food chain with 10,000 kcal at the producer level, how much energy is available to secondary consumers? (a) 1,000 kcal (b) 100 kcal (c) 10 kcal (d) 5,000 kcal"
+    },
+    "GEO_B_T06": {
+      "pattern_id": "GEO_B_T06",
+      "name": "Food web vs food chain distinction error",
+      "category": "conceptual_gap",
+      "frequency": 0.08,
+      "difficulty": "medium",
+      "mechanism": "Student confuses properties of food chains vs food webs — stability, complexity, and response to removal of a species. A food web is more stable than a food chain because of alternate energy pathways.",
+      "error_type": "conceptual_gap",
+      "distractor_strategy": "Attribute food web properties to food chains or vice versa; or misstate what happens when a species is removed from each",
+      "applicable_concepts": ["Food Chains and Energy Flow"],
+      "generation_rules": [
+        "State a property (stability, number of pathways, response to species loss)",
+        "Ask whether it applies to food chain or food web",
+        "Wrong answers swap chain and web properties"
+      ],
+      "question_type_fit": ["assertion_reason", "multi_statement"],
+      "pattern_example": {
+        "true": "A food web is more stable than a food chain because multiple feeding pathways exist — removal of one species does not cause complete ecosystem collapse.",
+        "misconception": "A food chain is more stable than a food web because its linear structure prevents cascading effects when one species is removed.",
+        "note": "Reverse stability relationship — linear structure (chain) is LESS stable; multiple pathways (web) provide ecological redundancy and resilience"
+      },
+      "example_question": "A: Food webs are more ecologically stable than food chains. R: Because interconnected feeding pathways allow energy to flow through alternate routes when one species population declines. Code: (a) Both A and R true, R explains A (b) Both true, R doesn't explain A (c) A false, R true (d) Both false"
+    },
+    "GEO_B_T07": {
+      "pattern_id": "GEO_B_T07",
+      "name": "Ecological succession sequence reversal",
+      "category": "process_inversion",
+      "frequency": 0.10,
+      "difficulty": "hard",
+      "mechanism": "Student confuses primary vs secondary succession, or reverses the pioneer-to-climax sequence. Also confuses what constitutes a climax community vs a seral stage.",
+      "error_type": "process_inversion",
+      "distractor_strategy": "Reverse the succession direction (start from climax and move backward), or mislabel secondary as primary succession",
+      "applicable_concepts": ["Ecological Succession"],
+      "generation_rules": [
+        "Describe a succession scenario (e.g., 'bare rock colonised by lichens')",
+        "Ask whether it is primary or secondary succession",
+        "Or present the seral stages in wrong order as options",
+        "Wrong answers reverse the sequence or misidentify the starting condition"
+      ],
+      "question_type_fit": ["direct_fact", "multi_statement", "assertion_reason"],
+      "pattern_example": {
+        "true": "Primary succession begins on bare, lifeless substrate (bare rock, newly formed volcanic island) with pioneer species (lichens, mosses) gradually building soil for subsequent communities.",
+        "misconception": "Primary succession begins on substrate that previously supported life but was cleared by a disturbance (fire, flood), with pioneer species rapidly recolonising from remnant soil and seeds.",
+        "note": "That description is secondary succession — primary requires no prior biological activity or soil; secondary succession starts from remnant soil/seedbank after a disturbance"
+      },
+      "example_question": "Which of the following is an example of PRIMARY succession? (a) Revegetation of a burnt forest floor (b) Plant colonisation of a recently formed volcanic island (c) Regrowth after agricultural land abandonment (d) Recovery of a flood-affected meadow"
+    },
+    "GEO_B_T08": {
+      "pattern_id": "GEO_B_T08",
+      "name": "India natural vegetation coastal zone confusion",
+      "category": "location_confusion",
+      "frequency": 0.12,
+      "difficulty": "medium",
+      "mechanism": "Student confuses which coasts of India have mangroves vs other vegetation. Assumes mangroves are equal on both coasts when the Sundarbans (east coast/delta) dominate, while the western coast has patchy distribution.",
+      "error_type": "location_confusion",
+      "distractor_strategy": "Swap east-west coast attributes for mangrove distribution, or pair wrong delta with mangrove concentration",
+      "applicable_concepts": ["Natural Vegetation of India", "Mangroves"],
+      "generation_rules": [
+        "Ask about largest/most extensive mangrove concentration in India",
+        "Wrong answers point to west coast or Gujarat instead of Sundarbans",
+        "Or ask about vegetation type on a specific coastal region"
+      ],
+      "question_type_fit": ["direct_fact", "multi_statement"],
+      "pattern_example": {
+        "true": "The Sundarbans in West Bengal, at the Ganga-Brahmaputra delta, contains the world's largest contiguous mangrove forest and is both a UNESCO World Heritage Site and a Ramsar site.",
+        "misconception": "The Gujarat coast (Gulf of Kutch) contains India's largest mangrove forest due to its extensive tidal flats and sheltered estuarine environment.",
+        "note": "Gujarat does have significant mangroves (second largest in India) making it a plausible distractor, but Sundarbans is definitively the largest"
+      },
+      "example_question": "India's largest contiguous mangrove forest is located in: (a) Gulf of Kutch, Gujarat (b) Bhitarkanika, Odisha (c) Sundarbans, West Bengal (d) Pichavaram, Tamil Nadu"
+    },
+    "GEO_B_T09": {
+      "pattern_id": "GEO_B_T09",
+      "name": "Soil type crop-region mispairing",
+      "category": "adjacent_fact_confusion",
+      "frequency": 0.14,
+      "difficulty": "medium",
+      "mechanism": "Student knows soil type names but pairs them with wrong crops or wrong states. E.g., attributing black cotton soil (regur) to Punjab instead of Deccan Plateau, or saying laterite soil is good for rice.",
+      "error_type": "adjacent_fact_confusion",
+      "distractor_strategy": "Swap characteristic crop of one soil type with that of another, or assign the soil to a geographically adjacent but incorrect region",
+      "applicable_concepts": ["Soil Types and Formation"],
+      "generation_rules": [
+        "Name a soil type and ask for its characteristic crop OR dominant region",
+        "Wrong answers use an adjacent soil type's crop or a nearby but wrong region",
+        "Black cotton soil (regur) and cotton is the classic pair — test the reverse"
+      ],
+      "question_type_fit": ["match_pair", "direct_fact", "multi_statement"],
+      "pattern_example": {
+        "true": "Black cotton soil (regur) is best suited for cotton cultivation and is predominantly found in the Deccan Plateau states — Maharashtra, Madhya Pradesh, Gujarat, and Andhra Pradesh.",
+        "misconception": "Black cotton soil (regur) is predominantly found in the Indo-Gangetic Plains of Punjab and Haryana, where it supports wheat and rice cultivation.",
+        "note": "Shift black soil from Deccan (correct) to Indo-Gangetic Plains (alluvial soil region) — Punjab/Haryana have alluvial soil, not regur; the 'cotton' association triggers wrong region recall"
+      },
+      "example_question": "Black cotton soil (regur) is predominantly found in which region of India? (a) Indo-Gangetic Plain (b) Deccan Plateau (c) Coastal plains of Kerala (d) Brahmaputra valley"
+    },
+    "GEO_B_T10": {
+      "pattern_id": "GEO_B_T10",
+      "name": "Protected area type rule confusion — NP vs WLS vs BR",
+      "category": "classification_error",
+      "frequency": 0.17,
+      "difficulty": "medium",
+      "mechanism": "Student confuses the legal and operational rules between National Park, Wildlife Sanctuary, and Biosphere Reserve — especially human activity permissions, buffer zone rules, and governing legislation.",
+      "error_type": "classification_error",
+      "distractor_strategy": "Assign the rule (no human activity allowed) to Wildlife Sanctuary when it applies to National Park, or attribute buffer zone concept to National Park when it belongs to Biosphere Reserve",
+      "applicable_concepts": ["Protected Areas", "Tiger Reserves and Project Tiger"],
+      "generation_rules": [
+        "State a rule about protected area management (e.g., 'human habitation permitted')",
+        "Ask to which category it applies",
+        "Key distinction: NP = no human activity/settlement; WLS = limited human use allowed; BR = core + buffer + transition zones with graduated human use"
+      ],
+      "question_type_fit": ["multi_statement", "how_many", "direct_fact"],
+      "pattern_example": {
+        "true": "In a National Park, no human activity — including grazing, forestry, and permanent settlement — is permitted; the boundary is fixed by legislation and cannot be altered except by a legislature.",
+        "misconception": "In a Wildlife Sanctuary, no human activity including grazing or settlement is permitted — the rules are identical to a National Park.",
+        "note": "Wildlife Sanctuaries DO allow some human activities (grazing, forest produce collection) with permission — National Parks have absolute prohibition; students confuse the strictness levels"
+      },
+      "example_question": "Which of the following statements is CORRECT? (a) Wildlife Sanctuaries prohibit all human activity like National Parks (b) National Park boundaries can be altered by the state government (c) Biosphere Reserves have a core zone where human activity is strictly prohibited (d) Tiger Reserves are declared under the Wildlife Protection Act only"
+    },
+    "GEO_B_T11": {
+      "pattern_id": "GEO_B_T11",
+      "name": "Tiger reserve vs national park vs wildlife sanctuary overlap confusion",
+      "category": "classification_error",
+      "frequency": 0.11,
+      "difficulty": "hard",
+      "mechanism": "A Tiger Reserve often overlaps with and encompasses a National Park AND a Wildlife Sanctuary. Student assumes these are mutually exclusive categories and gets confused when asked about a specific reserve's status.",
+      "error_type": "conceptual_gap",
+      "distractor_strategy": "State that a location is only a Tiger Reserve and not also a National Park, when it is legally both",
+      "applicable_concepts": ["Protected Areas", "Tiger Reserves and Project Tiger"],
+      "generation_rules": [
+        "Ask about a specific reserve's multiple designations (e.g., Jim Corbett)",
+        "Wrong answers assert only one designation when multiple apply",
+        "Or ask which legislation governs — Wildlife Protection Act (NP/WLS), Project Tiger (Tiger Reserve)"
+      ],
+      "question_type_fit": ["multi_statement", "assertion_reason", "how_many"],
+      "pattern_example": {
+        "true": "Jim Corbett National Park in Uttarakhand is both a National Park (under Wildlife Protection Act 1972) and a Tiger Reserve (under Project Tiger, launched 1973) — it was India's first national park AND first tiger reserve.",
+        "misconception": "Jim Corbett is designated as a Tiger Reserve and therefore cannot simultaneously hold National Park status — these are distinct, mutually exclusive categories under Indian wildlife law.",
+        "note": "Tiger Reserves are project-level designations that overlay existing NP/WLS areas — they are not mutually exclusive; a Tiger Reserve typically includes a NP as its core"
+      },
+      "example_question": "Consider: (1) Jim Corbett is India's first National Park. (2) Jim Corbett is India's first Tiger Reserve. (3) Tiger Reserves and National Parks are mutually exclusive designations. How many of the above statements are correct? (a) Only one (b) Only two (c) All three (d) None"
+    },
+    "GEO_B_T12": {
+      "pattern_id": "GEO_B_T12",
+      "name": "IUCN Red List category reversal",
+      "category": "classification_error",
+      "frequency": 0.13,
+      "difficulty": "easy_medium",
+      "mechanism": "Student knows IUCN categories exist but reverses the severity order or misidentifies which category a species belongs to. Critically Endangered > Endangered > Vulnerable > Near Threatened is the correct order of decreasing threat.",
+      "error_type": "classification_error",
+      "distractor_strategy": "Swap Critically Endangered with Endangered, or place Vulnerable higher than Endangered in the threat hierarchy",
+      "applicable_concepts": ["Endangered Species and IUCN Categories"],
+      "generation_rules": [
+        "State a species and ask for its IUCN category",
+        "Or state a category and ask what it means relative to others",
+        "Wrong answers use adjacent categories (Endangered vs Critically Endangered)",
+        "Famous species traps: Snow Leopard is Vulnerable (not Endangered); Great Indian Bustard is Critically Endangered"
+      ],
+      "question_type_fit": ["direct_fact", "multi_statement", "match_pair"],
+      "pattern_example": {
+        "true": "The Great Indian Bustard (Ardeotis nigriceps) is listed as Critically Endangered on the IUCN Red List due to habitat loss and hunting, with fewer than 150 individuals remaining.",
+        "misconception": "The Great Indian Bustard is listed as Endangered on the IUCN Red List — the same category as the Bengal Tiger.",
+        "note": "Downgrade from Critically Endangered to Endangered — GIB is more threatened than tiger; students often confuse the two as both are 'endangered birds/animals in India'"
+      },
+      "example_question": "Which of the following correctly lists IUCN Red List categories in order of INCREASING threat level? (a) Vulnerable → Near Threatened → Endangered → Critically Endangered (b) Near Threatened → Vulnerable → Endangered → Critically Endangered (c) Critically Endangered → Endangered → Vulnerable → Near Threatened (d) Endangered → Critically Endangered → Vulnerable → Near Threatened"
+    },
+    "GEO_B_T13": {
+      "pattern_id": "GEO_B_T13",
+      "name": "Ramsar site location or designation error",
+      "category": "spatial_precision",
+      "frequency": 0.12,
+      "difficulty": "medium",
+      "mechanism": "Student confuses which wetland is a Ramsar site or places it in the wrong state/region. India has 75+ Ramsar sites (as of 2023) but UPSC tests the famous ones — Chilika, Loktak, Wular, Sambhar, Bhoj Wetland.",
+      "error_type": "spatial_precision",
+      "distractor_strategy": "Pair a Ramsar site with the wrong state, or include a famous wetland that is NOT a Ramsar site",
+      "applicable_concepts": ["Wetlands and Ramsar Sites", "Bird and Animal Migration"],
+      "generation_rules": [
+        "Name a Ramsar site and ask which state it is in",
+        "Or ask which among a list is NOT a Ramsar site",
+        "Wrong answers use nearby states or non-Ramsar wetlands that are well known"
+      ],
+      "question_type_fit": ["direct_fact", "match_pair", "multi_statement"],
+      "pattern_example": {
+        "true": "Loktak Lake in Manipur is a Ramsar site and is famous for its phumdis (floating islands of vegetation) — it is the largest freshwater lake in Northeast India.",
+        "misconception": "Loktak Lake in Assam is a Ramsar site, known for its floating islands and as a habitat for the Sangai (brow-antlered deer).",
+        "note": "Swap Manipur for Assam — both are Northeast India states making the swap plausible; Loktak is definitively in Manipur, not Assam"
+      },
+      "example_question": "Loktak Lake, a Ramsar Wetland of International Importance, is located in which Indian state? (a) Assam (b) Meghalaya (c) Manipur (d) Mizoram"
+    },
+    "GEO_B_T14": {
+      "pattern_id": "GEO_B_T14",
+      "name": "Coral bleaching mechanism confusion",
+      "category": "mechanism_confusion",
+      "frequency": 0.10,
+      "difficulty": "medium",
+      "mechanism": "Student knows coral bleaching occurs due to warming but reverses the mechanism — bleaching is caused by expulsion of zooxanthellae (symbiotic algae), not by direct killing of coral polyps. Student may also confuse bleaching with coral death.",
+      "error_type": "causation_reversal",
+      "distractor_strategy": "Describe bleaching as direct thermal death of polyps rather than as expulsion of symbiotic algae; or say bleached coral is already dead",
+      "applicable_concepts": ["Coral Reefs"],
+      "generation_rules": [
+        "State a cause-effect chain for coral bleaching",
+        "Ask whether bleached coral is dead or stressed",
+        "Wrong answers conflate bleaching (reversible stress response) with coral death"
+      ],
+      "question_type_fit": ["assertion_reason", "multi_statement"],
+      "pattern_example": {
+        "true": "Coral bleaching occurs when elevated sea surface temperatures cause corals to expel their symbiotic zooxanthellae algae, turning white; bleached corals are still alive but stressed and vulnerable to disease.",
+        "misconception": "Coral bleaching occurs when elevated temperatures directly kill the coral polyps, permanently whitening the reef structure; bleached corals cannot recover.",
+        "note": "Conflate bleaching (reversible stress) with coral death (irreversible) — bleaching is the expulsion of algae by living polyps; recovery is possible if temperature stress is removed"
+      },
+      "example_question": "A: Coral bleaching is a reversible condition if thermal stress is removed promptly. R: Because bleaching involves expulsion of zooxanthellae algae from living polyps, not death of the coral itself. Code: (a) Both A and R true, R explains A (b) Both true, R doesn't explain A (c) A false, R true (d) Both false"
+    },
+    "GEO_B_T15": {
+      "pattern_id": "GEO_B_T15",
+      "name": "Invasive species origin confusion",
+      "category": "adjacent_fact_confusion",
+      "frequency": 0.09,
+      "difficulty": "easy_medium",
+      "mechanism": "Student knows the named invasive species but confuses its geographic origin. Water hyacinth (South America, not Africa), Lantana (South America, not Asia), Parthenium (Mexico, not South Asia).",
+      "error_type": "adjacent_fact_confusion",
+      "distractor_strategy": "Assign wrong continent of origin — use adjacent or ecologically similar region",
+      "applicable_concepts": ["Invasive Species", "Bird and Animal Migration"],
+      "generation_rules": [
+        "Name an invasive species and ask for its geographic origin",
+        "Wrong answers use adjacent continent or region",
+        "Or ask which among a list is native to India (trick: most invasive plants are not)"
+      ],
+      "question_type_fit": ["direct_fact", "match_pair", "multi_statement"],
+      "pattern_example": {
+        "true": "Water hyacinth (Eichhornia crassipes), India's most problematic aquatic invasive plant, originates from the Amazon Basin in South America.",
+        "misconception": "Water hyacinth (Eichhornia crassipes) originates from sub-Saharan Africa, where it naturally grows in shallow freshwater bodies.",
+        "note": "Swap South America for Africa — both are tropical regions with extensive freshwater bodies; water hyacinth is definitively South American in origin"
+      },
+      "example_question": "Water hyacinth (Eichhornia crassipes), an invasive aquatic weed in India, originally belongs to which region? (a) Sub-Saharan Africa (b) Southeast Asia (c) Amazon Basin, South America (d) Central America and Mexico"
+    }
+  },
+  "generation_guidance_by_question_type": {
+    "multi_statement": {
+      "recommended_traps": ["GEO_B_T01", "GEO_B_T03", "GEO_B_T05", "GEO_B_T10"],
+      "strategy": "Mix statements testing classification (T01, T10) with quantitative facts (T05). One statement should test a counterintuitive truth to elevate difficulty."
+    },
+    "assertion_reason": {
+      "recommended_traps": ["GEO_B_T04", "GEO_B_T06", "GEO_B_T07", "GEO_B_T14"],
+      "strategy": "Use mechanism-based traps. Assertion usually TRUE, Reason either wrong mechanism or true-but-not-explanatory. Ecosystem service and bleaching traps work well here."
+    },
+    "direct_fact": {
+      "recommended_traps": ["GEO_B_T02", "GEO_B_T08", "GEO_B_T09", "GEO_B_T12", "GEO_B_T13", "GEO_B_T15"],
+      "strategy": "Test location precision and classification recall. Wrong answers use adjacent regions, adjacent categories, or near-correct values."
+    },
+    "match_pair": {
+      "recommended_traps": ["GEO_B_T02", "GEO_B_T09", "GEO_B_T12", "GEO_B_T13", "GEO_B_T15"],
+      "strategy": "Pair concept with property (soil type → crop, biome → latitude, Ramsar site → state). One pair should have a plausible-but-wrong pairing."
+    },
+    "how_many": {
+      "recommended_traps": ["GEO_B_T03", "GEO_B_T10", "GEO_B_T11"],
+      "strategy": "Use protected area and hotspot traps for how_many format — requires evaluating each statement independently. Mix clearly correct, clearly wrong, and subtly wrong statements."
+    }
+  },
+  "common_misconceptions_by_concept": {
+    "Protected Areas": {
+      "primary_misconceptions": [
+        "National Parks and Wildlife Sanctuaries have identical rules (NP is stricter)",
+        "Tiger Reserves are separate from National Parks (they often overlap)",
+        "Biosphere Reserves are under Wildlife Protection Act (they are UNESCO designations, not statutory)"
+      ],
+      "traps_to_inject": ["GEO_B_T10", "GEO_B_T11"]
+    },
+    "Ecological Succession": {
+      "primary_misconceptions": [
+        "Primary and secondary succession start from same conditions (primary = no soil/life; secondary = remnant soil)",
+        "Climax community is permanent and unchanging (it is the stable end-state but can shift with climate)",
+        "Pioneer species in primary succession are flowering plants (actually lichens/mosses)"
+      ],
+      "traps_to_inject": ["GEO_B_T07"]
+    },
+    "Food Chains and Energy Flow": {
+      "primary_misconceptions": [
+        "90% energy is transferred between trophic levels (only 10% is transferred; 90% is lost)",
+        "Herbivores are always primary consumers (true, but students confuse with primary producers)",
+        "More trophic levels = more food chain stability (more levels = less stability; more pathways = more stability)"
+      ],
+      "traps_to_inject": ["GEO_B_T05", "GEO_B_T06"]
+    },
+    "Coral Reefs": {
+      "primary_misconceptions": [
+        "Bleached coral is dead coral (bleaching is reversible stress response)",
+        "Coral reefs grow in deep, cold waters (they need warm shallow sunlit water)",
+        "India has no coral reefs (India has reefs in Lakshadweep, Andaman, Gulf of Mannar, Gulf of Kutch)"
+      ],
+      "traps_to_inject": ["GEO_B_T14"]
+    },
+    "Biodiversity Hotspots": {
+      "primary_misconceptions": [
+        "India has only 2 hotspots (it has 4: Western Ghats+Sri Lanka, Himalaya, Indo-Burma, Sundaland)",
+        "Eastern Ghats is a biodiversity hotspot (it is not; Western Ghats is)",
+        "Hotspots are designated by government (designated by Conservation International based on endemic species + threat criteria)"
+      ],
+      "traps_to_inject": ["GEO_B_T03"]
+    }
+  },
+  "notes_for_blueprint": {
+    "usage": "When Blueprint samples a concept (e.g., Protected Areas), check concept_trap_mapping to get assigned trap IDs. Generator pulls these traps when crafting distractors.",
+    "frequency_calibration": "Trap frequencies based on 2014–2024 PYQ analysis. T10 (protected area rules) and T03 (hotspot confusion) are highest frequency — appear in 60–70% of relevant questions.",
+    "difficulty_calibration": "Mix T12 (IUCN easy-medium) with T11 (Tiger Reserve overlap, hard) for difficulty variation. T07 (succession) and T11 are hard traps requiring deep conceptual understanding.",
+    "cross_domain_synergy": "Biogeography links strongly to Climatology (biome ↔ climate), Geomorphology (soil formation), and Natural Disasters (ecosystem degradation post-disaster). Use interlink_domains in concept pool for cross-domain questions.",
+    "ca_integration": "Highly CA-relevant traps: T03 (hotspot additions), T10 (new protected areas), T13 (new Ramsar sites), T14 (coral bleaching events), T15 (new invasive species alerts). Monitor announcements of new designations.",
+    "pattern_example_usage": "pattern_example shows the error pattern shape — do not reuse content. LLM derives statements from retrieved chunks or UPSC-standard books."
+  }
+}
