@@ -29,7 +29,7 @@ Client  ──GET── /status/{job_id}  ──Redis poll──►  job_status:
 | **Job TTL** | 1 hour (3600 s) |
 | **Job timeout** | 15 min max (`job_timeout = 900`) |
 | **Max retries** | 1 (no automatic retry on failure) |
-| **Concurrency** | `max_jobs = 20`, user-level Redis lock (`lock:user:{user_id}`, timeout=600s) |
+| **Concurrency** | `max_jobs = 20`, user-level Redis lock (`lock:user:{user_id}`, timeout=120s) |
 | **Gemini client** | Cached per `(api_key_prefix, model_name)` — avoids re-initialisation across jobs |
 | **LangSmith** | `@trace_chain`, `@trace_gemini`, `@trace_retriever` decorators on all major functions |
 
@@ -68,7 +68,7 @@ POST /mains-answer/generate
                     └─────────────────────────────────────────────────────┘
                              ↓
                     ┌─ Phase 4: Gemini 2.5 Pro (User Locked) ─────────── ┐
-                    │  temperature = 0.15, max_retries = 2, timeout 600s  │
+                    │  temperature = 0.15, max_retries = 2, timeout 120s  │
                     │  cancellation watcher runs in parallel              │
                     └─────────────────────────────────────────────────────┘
                              ↓
@@ -277,7 +277,7 @@ ANSWER REQUIREMENTS:
 ### Phase 4: Gemini 2.5 Pro (User Locked Generation)
 
 ```python
-async with redis.lock(f"lock:user:{user_id}", timeout=600, blocking_timeout=70):
+async with redis.lock(f"lock:user:{user_id}", timeout=120, blocking_timeout=70):
     gemini_task = asyncio.create_task(
         gemini_client.generate_response(
             user_prompt    = prompt_pair["user"],
@@ -552,7 +552,7 @@ TASK: Read the student's handwritten answer from the uploaded file and provide d
 ### Step 3: Gemini Evaluation (User Locked)
 
 ```python
-async with redis.lock(f"lock:user:{user_id}", timeout=600, blocking_timeout=70):
+async with redis.lock(f"lock:user:{user_id}", timeout=120, blocking_timeout=70):
     if all_is_pdf:
         response_text = await gemini_client.generate_response(
             user_prompt    = user_prompt,

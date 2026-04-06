@@ -20,1239 +20,556 @@
   "concepts": {
     "Ocean Currents": {
       "priority": "high",
-      "tested_as_question_types": [
-        "assertion_reason",
-        "multi_statement",
-        "match_pair",
-        "how_many",
-        "single_best_answer"
-      ],
+      "tested_as_question_types": ["assertion_reason", "multi_statement", "match_pair", "how_many", "single_best_answer"],
       "sub_concepts": [
         {
           "topic": "Warm ocean currents",
-          "aspects": [
-            "mechanism",
-            "global distribution",
-            "temperature classification"
-          ],
+          "aspects": ["mechanism", "global distribution", "temperature classification"],
           "ca_connectable": true,
-          "linked_to": [
-            "Temperature Distribution",
-            "Monsoon"
-          ]
+          "linked_to": ["Temperature Distribution", "Monsoon"]
         },
         {
           "topic": "Cold ocean currents",
-          "aspects": [
-            "mechanism",
-            "location",
-            "upwelling zones"
-          ],
+          "aspects": ["mechanism", "location", "upwelling zones"],
           "ca_connectable": true,
-          "linked_to": [
-            "Temperature Distribution",
-            "Ocean Upwelling"
-          ]
+          "linked_to": ["Temperature Distribution", "Ocean Upwelling"]
         },
         {
           "topic": "Major ocean currents (Gulf Stream, Kuroshio, Benguela, Labrador, Antarctic Circumpolar)",
-          "aspects": [
-            "identification",
-            "direction",
-            "characteristics"
-          ],
+          "aspects": ["identification", "direction", "characteristics"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean Zones",
-            "Climate patterns"
-          ]
+          "linked_to": ["Ocean Zones", "Climate patterns"]
         },
         {
           "topic": "Equatorial currents",
-          "aspects": [
-            "mechanism",
-            "Coriolis effect"
-          ],
+          "aspects": ["mechanism", "Coriolis effect"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean Upwelling"
-          ]
+          "linked_to": ["Ocean Upwelling"]
         },
         {
           "topic": "Effect of ocean currents on climate",
-          "aspects": [
-            "impact",
-            "regional variation"
-          ],
+          "aspects": ["impact", "regional variation"],
           "ca_connectable": true,
-          "linked_to": [
-            "Temperature Distribution",
-            "Monsoon"
-          ]
+          "linked_to": ["Temperature Distribution", "Monsoon"]
         }
       ],
-      "links_to": [
-        "Temperature Distribution",
-        "Monsoon",
-        "Ocean Upwelling",
-        "Wind patterns"
-      ],
+      "links_to": ["Temperature Distribution", "Monsoon", "Ocean Upwelling", "Wind patterns"],
       "interlink_domains": [
         {
           "domain": "Climatology",
-          "concepts": [
-            "Wind patterns",
-            "Pressure Belts",
-            "Monsoon"
-          ]
+          "concepts": ["Wind patterns", "Pressure Belts", "Monsoon"]
         },
         {
           "domain": "Indian Geography",
-          "concepts": [
-            "Monsoon effect",
-            "Coastal climate"
-          ]
-        },
-        {
-          "domain": "Natural Disasters",
-          "concepts": [
-            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
-            "Cyclones and Tropical Storms",
-            "Droughts",
-            "Heat Waves and Cold Waves",
-            "Tsunamis",
-            "Volcanic Eruptions"
-          ]
+          "concepts": ["Monsoon effect", "Coastal climate"]
         }
       ],
-      "trap_affinity": [
-        "GEO_OCN_T01",
-        "GEO_OCN_T03",
-        "GEO_OCN_T05"
-      ]
+      "trap_affinity": ["GEO_OCN_T01", "GEO_OCN_T03", "GEO_OCN_T05"]
     },
     "Tides and Tidal Forces": {
       "priority": "high",
-      "tested_as_question_types": [
-        "how_many",
-        "multi_statement",
-        "assertion_reason",
-        "single_best_answer"
-      ],
+      "tested_as_question_types": ["how_many", "multi_statement", "assertion_reason", "single_best_answer"],
       "sub_concepts": [
         {
           "topic": "Lunar tides — primary cause",
-          "aspects": [
-            "mechanism",
-            "lunar gravity"
-          ],
+          "aspects": ["mechanism", "lunar gravity"],
           "ca_connectable": false,
-          "linked_to": [
-            "Moon influence"
-          ]
+          "linked_to": ["Moon influence"]
         },
         {
           "topic": "Solar tides — secondary contribution",
-          "aspects": [
-            "mechanism",
-            "comparison with lunar"
-          ],
+          "aspects": ["mechanism", "comparison with lunar"],
           "ca_connectable": false,
-          "linked_to": [
-            "Sun influence"
-          ]
+          "linked_to": ["Sun influence"]
         },
         {
           "topic": "Spring tides — Sun-Moon alignment",
-          "aspects": [
-            "mechanism",
-            "timing"
-          ],
+          "aspects": ["mechanism", "timing"],
           "ca_connectable": false,
-          "linked_to": [
-            "Neap tides"
-          ]
+          "linked_to": ["Neap tides"]
         },
         {
           "topic": "Neap tides — Sun-Moon perpendicular",
-          "aspects": [
-            "mechanism",
-            "timing",
-            "tidal range"
-          ],
+          "aspects": ["mechanism", "timing", "tidal range"],
           "ca_connectable": false,
-          "linked_to": [
-            "Spring tides"
-          ]
+          "linked_to": ["Spring tides"]
         },
         {
           "topic": "Tidal ranges and bores",
-          "aspects": [
-            "variation",
-            "geographic distribution"
-          ],
+          "aspects": ["variation", "geographic distribution"],
           "ca_connectable": true,
-          "linked_to": [
-            "Coastal impacts"
-          ]
+          "linked_to": ["Coastal impacts"]
         }
       ],
-      "links_to": [
-        "Moon influence",
-        "Gravitational effects",
-        "Coastal processes"
-      ],
+      "links_to": ["Moon influence", "Gravitational effects", "Coastal processes"],
       "interlink_domains": [
         {
           "domain": "Geology",
-          "concepts": [
-            "Coastal erosion",
-            "Sedimentation"
-          ]
-        },
-        {
-          "domain": "Natural Disasters",
-          "concepts": [
-            "Biological Disasters",
-            "Cyclones and Tropical Storms",
-            "Disaster Management Framework (NDMA, SDMA, NDRF)",
-            "Earthquakes and Seismic Activity",
-            "Landslides and Mass Movements"
-          ]
+          "concepts": ["Coastal erosion", "Sedimentation"]
         }
       ],
-      "trap_affinity": [
-        "GEO_OCN_T02",
-        "GEO_OCN_T04"
-      ]
+      "trap_affinity": ["GEO_OCN_T02", "GEO_OCN_T04"]
     },
     "Ocean Salinity": {
       "priority": "high",
-      "tested_as_question_types": [
-        "multi_statement",
-        "how_many",
-        "match_pair",
-        "assertion_reason"
-      ],
+      "tested_as_question_types": ["multi_statement", "how_many", "match_pair", "assertion_reason"],
       "sub_concepts": [
         {
           "topic": "Factors affecting salinity",
-          "aspects": [
-            "evaporation",
-            "precipitation",
-            "river discharge",
-            "ice formation"
-          ],
+          "aspects": ["evaporation", "precipitation", "river discharge", "ice formation"],
           "ca_connectable": false,
-          "linked_to": [
-            "Salinity variation",
-            "Water balance"
-          ]
+          "linked_to": ["Salinity variation", "Water balance"]
         },
         {
           "topic": "Salinity variation by latitude and location",
-          "aspects": [
-            "equatorial regions",
-            "polar regions",
-            "enclosed seas"
-          ],
+          "aspects": ["equatorial regions", "polar regions", "enclosed seas"],
           "ca_connectable": false,
-          "linked_to": [
-            "Temperature Distribution"
-          ]
+          "linked_to": ["Temperature Distribution"]
         },
         {
           "topic": "Salinity of major ocean basins",
-          "aspects": [
-            "Atlantic vs Pacific vs Indian",
-            "Mediterranean vs Atlantic"
-          ],
+          "aspects": ["Atlantic vs Pacific vs Indian", "Mediterranean vs Atlantic"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean characteristics"
-          ]
+          "linked_to": ["Ocean characteristics"]
         },
         {
           "topic": "Salinity and density stratification",
-          "aspects": [
-            "dense water formation",
-            "ocean layers"
-          ],
+          "aspects": ["dense water formation", "ocean layers"],
           "ca_connectable": false,
-          "linked_to": [
-            "Thermohaline Circulation"
-          ]
+          "linked_to": ["Thermohaline Circulation"]
         },
         {
           "topic": "Salinity and marine life",
-          "aspects": [
-            "impact on organisms",
-            "salt tolerance"
-          ],
+          "aspects": ["impact on organisms", "salt tolerance"],
           "ca_connectable": true,
-          "linked_to": [
-            "Marine Ecosystems"
-          ]
+          "linked_to": ["Marine Ecosystems"]
         }
       ],
-      "links_to": [
-        "Temperature Distribution",
-        "Ocean Density",
-        "Thermohaline Circulation"
-      ],
+      "links_to": ["Temperature Distribution", "Ocean Density", "Thermohaline Circulation"],
       "interlink_domains": [
         {
           "domain": "Environment",
-          "concepts": [
-            "Water quality",
-            "Marine conservation"
-          ]
-        },
-        {
-          "domain": "Natural Disasters",
-          "concepts": [
-            "Cyclones and Tropical Storms",
-            "Droughts",
-            "Tsunamis",
-            "Volcanic Eruptions"
-          ]
+          "concepts": ["Water quality", "Marine conservation"]
         }
       ],
-      "trap_affinity": [
-        "GEO_OCN_T06"
-      ]
+      "trap_affinity": ["GEO_OCN_T06"]
     },
     "Ocean Temperature Distribution": {
       "priority": "high",
-      "tested_as_question_types": [
-        "multi_statement",
-        "assertion_reason",
-        "single_best_answer"
-      ],
+      "tested_as_question_types": ["multi_statement", "assertion_reason", "single_best_answer"],
       "sub_concepts": [
         {
           "topic": "Thermocline — rapid temperature transition",
-          "aspects": [
-            "depth range",
-            "location",
-            "characteristics"
-          ],
+          "aspects": ["depth range", "location", "characteristics"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean stratification"
-          ]
+          "linked_to": ["Ocean stratification"]
         },
         {
           "topic": "Temperature variation with depth",
-          "aspects": [
-            "epipelagic",
-            "mesopelagic",
-            "bathypelagic zones"
-          ],
+          "aspects": ["epipelagic", "mesopelagic", "bathypelagic zones"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean Zones"
-          ]
+          "linked_to": ["Ocean Zones"]
         },
         {
           "topic": "Latitudinal temperature variation",
-          "aspects": [
-            "equator to poles",
-            "surface patterns"
-          ],
+          "aspects": ["equator to poles", "surface patterns"],
           "ca_connectable": false,
-          "linked_to": [
-            "Heat distribution"
-          ]
+          "linked_to": ["Heat distribution"]
         },
         {
           "topic": "Seasonal temperature variation",
-          "aspects": [
-            "summer vs winter",
-            "hemisphere differences"
-          ],
+          "aspects": ["summer vs winter", "hemisphere differences"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean Currents"
-          ]
+          "linked_to": ["Ocean Currents"]
         },
         {
           "topic": "Sea surface temperature anomalies",
-          "aspects": [
-            "measurement",
-            "impacts",
-            "climate connection"
-          ],
+          "aspects": ["measurement", "impacts", "climate connection"],
           "ca_connectable": true,
-          "linked_to": [
-            "ENSO",
-            "Indian Ocean Dipole"
-          ]
+          "linked_to": ["ENSO", "Indian Ocean Dipole"]
         }
       ],
-      "links_to": [
-        "Ocean Salinity",
-        "Thermocline structure",
-        "Ocean Stratification"
-      ],
+      "links_to": ["Ocean Salinity", "Thermocline structure", "Ocean Stratification"],
       "interlink_domains": [
         {
           "domain": "Climatology",
-          "concepts": [
-            "Heat budget",
-            "Climate zones"
-          ]
-        },
-        {
-          "domain": "Natural Disasters",
-          "concepts": [
-            "Droughts",
-            "Earthquakes and Seismic Activity",
-            "Floods and Flood Management",
-            "Heat Waves and Cold Waves",
-            "Tsunamis",
-            "Volcanic Eruptions"
-          ]
+          "concepts": ["Heat budget", "Climate zones"]
         }
       ],
-      "trap_affinity": [
-        "GEO_OCN_T07"
-      ]
+      "trap_affinity": ["GEO_OCN_T07"]
     },
     "El Niño Southern Oscillation (ENSO)": {
       "priority": "high",
-      "tested_as_question_types": [
-        "assertion_reason",
-        "multi_statement",
-        "pure_ca",
-        "match_pair",
-        "scenario"
-      ],
+      "tested_as_question_types": ["assertion_reason", "multi_statement", "pure_ca", "match_pair", "scenario"],
       "sub_concepts": [
         {
           "topic": "El Niño phase — warmer than normal Pacific",
-          "aspects": [
-            "mechanism",
-            "Walker Circulation weakening"
-          ],
+          "aspects": ["mechanism", "Walker Circulation weakening"],
           "ca_connectable": true,
-          "linked_to": [
-            "Monsoon",
-            "Indian monsoon failure"
-          ]
+          "linked_to": ["Monsoon", "Indian monsoon failure"]
         },
         {
           "topic": "La Niña phase — cooler than normal Pacific",
-          "aspects": [
-            "mechanism",
-            "Walker Circulation strengthening"
-          ],
+          "aspects": ["mechanism", "Walker Circulation strengthening"],
           "ca_connectable": true,
-          "linked_to": [
-            "Monsoon",
-            "Enhanced monsoon"
-          ]
+          "linked_to": ["Monsoon", "Enhanced monsoon"]
         },
         {
           "topic": "Southern Oscillation Index",
-          "aspects": [
-            "definition",
-            "measurement",
-            "indicators"
-          ],
+          "aspects": ["definition", "measurement", "indicators"],
           "ca_connectable": false,
-          "linked_to": [
-            "ENSO phases"
-          ]
+          "linked_to": ["ENSO phases"]
         },
         {
           "topic": "ENSO impact on Indian monsoon",
-          "aspects": [
-            "rainfall variation",
-            "prediction",
-            "forecasting"
-          ],
+          "aspects": ["rainfall variation", "prediction", "forecasting"],
           "ca_connectable": true,
-          "linked_to": [
-            "Monsoon",
-            "Agricultural impact"
-          ]
+          "linked_to": ["Monsoon", "Agricultural impact"]
         },
         {
           "topic": "Global impacts of ENSO",
-          "aspects": [
-            "weather patterns",
-            "regional variation"
-          ],
+          "aspects": ["weather patterns", "regional variation"],
           "ca_connectable": true,
-          "linked_to": [
-            "Global climate"
-          ]
+          "linked_to": ["Global climate"]
         }
       ],
-      "links_to": [
-        "Monsoon",
-        "Indian Ocean Dipole",
-        "Sea Surface Temperature",
-        "Global weather patterns"
-      ],
+      "links_to": ["Monsoon", "Indian Ocean Dipole", "Sea Surface Temperature", "Global weather patterns"],
       "interlink_domains": [
         {
           "domain": "Climatology",
-          "concepts": [
-            "Monsoon",
-            "Rainfall variability"
-          ]
+          "concepts": ["Monsoon", "Rainfall variability"]
         },
         {
           "domain": "Indian Geography",
-          "concepts": [
-            "Monsoon failure",
-            "Drought"
-          ]
+          "concepts": ["Monsoon failure", "Drought"]
         },
         {
           "domain": "Environment",
-          "concepts": [
-            "Climate change",
-            "Extreme weather"
-          ]
-        },
-        {
-          "domain": "Natural Disasters",
-          "concepts": [
-            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
-            "Cyclones and Tropical Storms",
-            "Droughts",
-            "Heat Waves and Cold Waves",
-            "Landslides and Mass Movements",
-            "Lightning and Thunderstorms",
-            "Sendai Framework for Disaster Risk Reduction",
-            "Tsunamis",
-            "Volcanic Eruptions"
-          ]
+          "concepts": ["Climate change", "Extreme weather"]
         }
       ],
-      "trap_affinity": [
-        "GEO_OCN_T08",
-        "GEO_OCN_T11"
-      ]
+      "trap_affinity": ["GEO_OCN_T08", "GEO_OCN_T11"]
     },
     "Ocean Acidification": {
       "priority": "high",
-      "tested_as_question_types": [
-        "multi_statement",
-        "assertion_reason"
-      ],
+      "tested_as_question_types": ["multi_statement", "assertion_reason"],
       "sub_concepts": [
         {
           "topic": "CO2 dissolution in seawater",
-          "aspects": [
-            "mechanism",
-            "chemical reaction"
-          ],
+          "aspects": ["mechanism", "chemical reaction"],
           "ca_connectable": true,
-          "linked_to": [
-            "Atmosphere-ocean interaction"
-          ]
+          "linked_to": ["Atmosphere-ocean interaction"]
         },
         {
           "topic": "pH reduction and carbonate saturation",
-          "aspects": [
-            "pH scale",
-            "saturation state",
-            "impact"
-          ],
+          "aspects": ["pH scale", "saturation state", "impact"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean chemistry"
-          ]
+          "linked_to": ["Ocean chemistry"]
         },
         {
           "topic": "Impact on marine organisms",
-          "aspects": [
-            "calcium carbonate shells",
-            "pteropods",
-            "corals",
-            "shellfish"
-          ],
+          "aspects": ["calcium carbonate shells", "pteropods", "corals", "shellfish"],
           "ca_connectable": true,
-          "linked_to": [
-            "Marine biodiversity"
-          ]
+          "linked_to": ["Marine biodiversity"]
         },
         {
           "topic": "Coral bleaching and ecosystem collapse",
-          "aspects": [
-            "mechanism",
-            "temperature link",
-            "biodiversity impact"
-          ],
+          "aspects": ["mechanism", "temperature link", "biodiversity impact"],
           "ca_connectable": true,
-          "linked_to": [
-            "Marine Ecosystems"
-          ]
+          "linked_to": ["Marine Ecosystems"]
         },
         {
           "topic": "Acidification rates and projections",
-          "aspects": [
-            "measurement",
-            "future trends"
-          ],
+          "aspects": ["measurement", "future trends"],
           "ca_connectable": true,
-          "linked_to": [
-            "Climate change"
-          ]
+          "linked_to": ["Climate change"]
         }
       ],
-      "links_to": [
-        "Climate change",
-        "Marine Ecosystems",
-        "Atmospheric CO2"
-      ],
+      "links_to": ["Climate change", "Marine Ecosystems", "Atmospheric CO2"],
       "interlink_domains": [
         {
           "domain": "Environment",
-          "concepts": [
-            "Climate change",
-            "Marine pollution",
-            "Conservation"
-          ]
+          "concepts": ["Climate change", "Marine pollution", "Conservation"]
         },
         {
           "domain": "Biology",
-          "concepts": [
-            "Marine organisms",
-            "Biodiversity"
-          ]
-        },
-        {
-          "domain": "Natural Disasters",
-          "concepts": [
-            "Droughts",
-            "Heat Waves and Cold Waves",
-            "Sendai Framework for Disaster Risk Reduction",
-            "Tsunamis",
-            "Volcanic Eruptions"
-          ]
+          "concepts": ["Marine organisms", "Biodiversity"]
         }
       ],
-      "trap_affinity": [
-        "GEO_OCN_T09"
-      ]
+      "trap_affinity": ["GEO_OCN_T09"]
     },
     "Indian Ocean Dipole": {
       "priority": "high",
-      "tested_as_question_types": [
-        "assertion_reason",
-        "multi_statement",
-        "pure_ca",
-        "match_pair"
-      ],
+      "tested_as_question_types": ["assertion_reason", "multi_statement", "pure_ca", "match_pair"],
       "sub_concepts": [
         {
           "topic": "Positive IOD — warmer western, cooler eastern Indian Ocean",
-          "aspects": [
-            "mechanism",
-            "SST anomalies"
-          ],
+          "aspects": ["mechanism", "SST anomalies"],
           "ca_connectable": true,
-          "linked_to": [
-            "Monsoon enhancement"
-          ]
+          "linked_to": ["Monsoon enhancement"]
         },
         {
           "topic": "Negative IOD — cooler western, warmer eastern Indian Ocean",
-          "aspects": [
-            "mechanism",
-            "comparison"
-          ],
+          "aspects": ["mechanism", "comparison"],
           "ca_connectable": true,
-          "linked_to": [
-            "Monsoon weakening"
-          ]
+          "linked_to": ["Monsoon weakening"]
         },
         {
           "topic": "IOD and Indian monsoon linkage",
-          "aspects": [
-            "impact on rainfall",
-            "interaction with ENSO"
-          ],
+          "aspects": ["impact on rainfall", "interaction with ENSO"],
           "ca_connectable": true,
-          "linked_to": [
-            "Monsoon"
-          ]
+          "linked_to": ["Monsoon"]
         },
         {
           "topic": "IOD phase transitions",
-          "aspects": [
-            "seasonal patterns",
-            "predictability"
-          ],
+          "aspects": ["seasonal patterns", "predictability"],
           "ca_connectable": false,
-          "linked_to": [
-            "IOD phases"
-          ]
+          "linked_to": ["IOD phases"]
         },
         {
           "topic": "Regional and global impacts",
-          "aspects": [
-            "East African rainfall",
-            "Australian climate"
-          ],
+          "aspects": ["East African rainfall", "Australian climate"],
           "ca_connectable": true,
-          "linked_to": [
-            "Regional climates"
-          ]
+          "linked_to": ["Regional climates"]
         }
       ],
-      "links_to": [
-        "Monsoon",
-        "ENSO",
-        "Sea Surface Temperature",
-        "Rainfall distribution"
-      ],
+      "links_to": ["Monsoon", "ENSO", "Sea Surface Temperature", "Rainfall distribution"],
       "interlink_domains": [
         {
           "domain": "Climatology",
-          "concepts": [
-            "Monsoon",
-            "Ocean-atmosphere coupling"
-          ]
+          "concepts": ["Monsoon", "Ocean-atmosphere coupling"]
         },
         {
           "domain": "Indian Geography",
-          "concepts": [
-            "Monsoon variability",
-            "Agricultural planning"
-          ]
-        },
-        {
-          "domain": "Natural Disasters",
-          "concepts": [
-            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
-            "Cloud Bursts and Flash Floods",
-            "Cyclones and Tropical Storms",
-            "Droughts",
-            "Heat Waves and Cold Waves",
-            "Landslides and Mass Movements",
-            "Lightning and Thunderstorms",
-            "Sendai Framework for Disaster Risk Reduction",
-            "Tsunamis",
-            "Volcanic Eruptions"
-          ]
+          "concepts": ["Monsoon variability", "Agricultural planning"]
         }
       ],
-      "trap_affinity": [
-        "GEO_OCN_T11"
-      ]
+      "trap_affinity": ["GEO_OCN_T11"]
     },
     "Thermohaline Circulation": {
       "priority": "high",
-      "tested_as_question_types": [
-        "assertion_reason",
-        "multi_statement",
-        "scenario"
-      ],
+      "tested_as_question_types": ["assertion_reason", "multi_statement", "scenario"],
       "sub_concepts": [
         {
           "topic": "Deep water formation mechanisms",
-          "aspects": [
-            "sinking",
-            "density",
-            "salinity-temperature role"
-          ],
+          "aspects": ["sinking", "density", "salinity-temperature role"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean Salinity",
-            "Temperature Distribution"
-          ]
+          "linked_to": ["Ocean Salinity", "Temperature Distribution"]
         },
         {
           "topic": "North Atlantic Deep Water (NADW)",
-          "aspects": [
-            "formation",
-            "flow pattern",
-            "characteristics"
-          ],
+          "aspects": ["formation", "flow pattern", "characteristics"],
           "ca_connectable": false,
-          "linked_to": [
-            "Deep ocean circulation"
-          ]
+          "linked_to": ["Deep ocean circulation"]
         },
         {
           "topic": "Antarctic Bottom Water (AABW)",
-          "aspects": [
-            "coldest water",
-            "densest water",
-            "global spread"
-          ],
+          "aspects": ["coldest water", "densest water", "global spread"],
           "ca_connectable": false,
-          "linked_to": [
-            "Deep ocean circulation"
-          ]
+          "linked_to": ["Deep ocean circulation"]
         },
         {
           "topic": "Global conveyor belt circulation",
-          "aspects": [
-            "pathway",
-            "timescale",
-            "interconnection"
-          ],
+          "aspects": ["pathway", "timescale", "interconnection"],
           "ca_connectable": true,
-          "linked_to": [
-            "Heat transport",
-            "Climate regulation"
-          ]
+          "linked_to": ["Heat transport", "Climate regulation"]
         },
         {
           "topic": "Climate impact of thermohaline circulation",
-          "aspects": [
-            "heat distribution",
-            "ice age cycles"
-          ],
+          "aspects": ["heat distribution", "ice age cycles"],
           "ca_connectable": true,
-          "linked_to": [
-            "Long-term climate"
-          ]
+          "linked_to": ["Long-term climate"]
         }
       ],
-      "links_to": [
-        "Ocean Salinity",
-        "Temperature Distribution",
-        "Ocean Currents"
-      ],
+      "links_to": ["Ocean Salinity", "Temperature Distribution", "Ocean Currents"],
       "interlink_domains": [
         {
           "domain": "Climatology",
-          "concepts": [
-            "Climate regulation",
-            "Heat transport"
-          ]
+          "concepts": ["Climate regulation", "Heat transport"]
         },
         {
           "domain": "Oceanography",
-          "concepts": [
-            "Deep-sea environments",
-            "Nutrient cycling"
-          ]
-        },
-        {
-          "domain": "Natural Disasters",
-          "concepts": [
-            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
-            "Cyclones and Tropical Storms",
-            "Floods and Flood Management",
-            "Heat Waves and Cold Waves",
-            "Landslides and Mass Movements",
-            "Lightning and Thunderstorms",
-            "Sendai Framework for Disaster Risk Reduction",
-            "Tsunamis",
-            "Volcanic Eruptions"
-          ]
+          "concepts": ["Deep-sea environments", "Nutrient cycling"]
         }
       ],
-      "trap_affinity": [
-        "GEO_OCN_T10"
-      ]
+      "trap_affinity": ["GEO_OCN_T10"]
     },
     "Ocean Upwelling": {
       "priority": "high",
-      "tested_as_question_types": [
-        "single_best_answer",
-        "multi_statement",
-        "assertion_reason"
-      ],
+      "tested_as_question_types": ["single_best_answer", "multi_statement", "assertion_reason"],
       "sub_concepts": [
         {
           "topic": "Ekman upwelling mechanism",
-          "aspects": [
-            "wind-driven",
-            "Coriolis effect",
-            "offshore movement"
-          ],
+          "aspects": ["wind-driven", "Coriolis effect", "offshore movement"],
           "ca_connectable": false,
-          "linked_to": [
-            "Wind patterns"
-          ]
+          "linked_to": ["Wind patterns"]
         },
         {
           "topic": "Coastal upwelling zones",
-          "aspects": [
-            "major upwelling areas",
-            "location",
-            "productivity"
-          ],
+          "aspects": ["major upwelling areas", "location", "productivity"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean Currents"
-          ]
+          "linked_to": ["Ocean Currents"]
         },
         {
           "topic": "Equatorial upwelling",
-          "aspects": [
-            "mechanism",
-            "tropical regions"
-          ],
+          "aspects": ["mechanism", "tropical regions"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean Currents"
-          ]
+          "linked_to": ["Ocean Currents"]
         },
         {
           "topic": "Nutrient availability and productivity",
-          "aspects": [
-            "primary production",
-            "fisheries",
-            "food web"
-          ],
+          "aspects": ["primary production", "fisheries", "food web"],
           "ca_connectable": true,
-          "linked_to": [
-            "Marine Ecosystems"
-          ]
+          "linked_to": ["Marine Ecosystems"]
         },
         {
           "topic": "Seasonal variation in upwelling",
-          "aspects": [
-            "timing",
-            "intensity variation"
-          ],
+          "aspects": ["timing", "intensity variation"],
           "ca_connectable": false,
-          "linked_to": [
-            "Temperature Distribution"
-          ]
+          "linked_to": ["Temperature Distribution"]
         }
       ],
-      "links_to": [
-        "Ocean Currents",
-        "Wind patterns",
-        "Marine Ecosystems"
-      ],
+      "links_to": ["Ocean Currents", "Wind patterns", "Marine Ecosystems"],
       "interlink_domains": [
         {
           "domain": "Oceanography",
-          "concepts": [
-            "Marine productivity",
-            "Fishing grounds"
-          ]
-        },
-        {
-          "domain": "Natural Disasters",
-          "concepts": [
-            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
-            "Cyclones and Tropical Storms",
-            "Droughts",
-            "Earthquakes and Seismic Activity",
-            "Floods and Flood Management",
-            "Heat Waves and Cold Waves",
-            "Landslides and Mass Movements",
-            "Lightning and Thunderstorms",
-            "Sendai Framework for Disaster Risk Reduction",
-            "Tsunamis",
-            "Volcanic Eruptions"
-          ]
+          "concepts": ["Marine productivity", "Fishing grounds"]
         }
       ],
-      "trap_affinity": [
-        "GEO_OCN_T05"
-      ]
+      "trap_affinity": ["GEO_OCN_T05"]
     },
     "Ocean Zones (Light-based classification)": {
       "priority": "medium",
-      "tested_as_question_types": [
-        "multi_statement",
-        "match_pair",
-        "assertion_reason"
-      ],
+      "tested_as_question_types": ["multi_statement", "match_pair", "assertion_reason"],
       "sub_concepts": [
         {
           "topic": "Photic zone — euphotic and disphotic regions",
-          "aspects": [
-            "depth range",
-            "light penetration",
-            "life distribution"
-          ],
+          "aspects": ["depth range", "light penetration", "life distribution"],
           "ca_connectable": false,
-          "linked_to": [
-            "Light penetration"
-          ]
+          "linked_to": ["Light penetration"]
         },
         {
           "topic": "Aphotic zone — complete darkness",
-          "aspects": [
-            "depth",
-            "temperature",
-            "pressure"
-          ],
+          "aspects": ["depth", "temperature", "pressure"],
           "ca_connectable": false,
-          "linked_to": [
-            "Deep-sea environment"
-          ]
+          "linked_to": ["Deep-sea environment"]
         },
         {
           "topic": "Bathypelagic zone — deep benthic",
-          "aspects": [
-            "depth range",
-            "characteristics",
-            "organisms"
-          ],
+          "aspects": ["depth range", "characteristics", "organisms"],
           "ca_connectable": false,
-          "linked_to": [
-            "Deep ocean"
-          ]
+          "linked_to": ["Deep ocean"]
         },
         {
           "topic": "Abyssal zone — abyssal plains",
-          "aspects": [
-            "depth",
-            "extremely cold",
-            "organisms adaptation"
-          ],
+          "aspects": ["depth", "extremely cold", "organisms adaptation"],
           "ca_connectable": false,
-          "linked_to": [
-            "Extreme environments"
-          ]
+          "linked_to": ["Extreme environments"]
         },
         {
           "topic": "Hadal zone — ocean trenches",
-          "aspects": [
-            "deepest zones",
-            "extreme pressure"
-          ],
+          "aspects": ["deepest zones", "extreme pressure"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean Trenches"
-          ]
+          "linked_to": ["Ocean Trenches"]
         }
       ],
-      "links_to": [
-        "Temperature Distribution",
-        "Pressure zones",
-        "Marine Ecosystems"
-      ],
+      "links_to": ["Temperature Distribution", "Pressure zones", "Marine Ecosystems"],
       "interlink_domains": [
         {
           "domain": "Biology",
-          "concepts": [
-            "Deep-sea organisms",
-            "Adaptation"
-          ]
-        },
-        {
-          "domain": "Natural Disasters",
-          "concepts": [
-            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
-            "Biological Disasters",
-            "Cyclones and Tropical Storms",
-            "Droughts",
-            "Earthquakes and Seismic Activity",
-            "Floods and Flood Management",
-            "Heat Waves and Cold Waves",
-            "Landslides and Mass Movements",
-            "Tsunamis",
-            "Volcanic Eruptions"
-          ]
+          "concepts": ["Deep-sea organisms", "Adaptation"]
         }
       ],
-      "trap_affinity": [
-        "GEO_OCN_T12"
-      ]
+      "trap_affinity": ["GEO_OCN_T12"]
     },
     "Marine Ecosystems and Biodiversity": {
       "priority": "medium",
-      "tested_as_question_types": [
-        "match_pair",
-        "multi_statement",
-        "assertion_reason"
-      ],
+      "tested_as_question_types": ["match_pair", "multi_statement", "assertion_reason"],
       "sub_concepts": [
         {
           "topic": "Coral reef ecosystems",
-          "aspects": [
-            "shallow tropical waters",
-            "symbiosis",
-            "biodiversity hotspot"
-          ],
+          "aspects": ["shallow tropical waters", "symbiosis", "biodiversity hotspot"],
           "ca_connectable": true,
-          "linked_to": [
-            "Ocean Acidification",
-            "Temperature"
-          ]
+          "linked_to": ["Ocean Acidification", "Temperature"]
         },
         {
           "topic": "Kelp forests",
-          "aspects": [
-            "cold coastal waters",
-            "kelp species",
-            "ecosystem structure"
-          ],
+          "aspects": ["cold coastal waters", "kelp species", "ecosystem structure"],
           "ca_connectable": false,
-          "linked_to": [
-            "Coastal ecosystems"
-          ]
+          "linked_to": ["Coastal ecosystems"]
         },
         {
           "topic": "Deep-sea hydrothermal vents",
-          "aspects": [
-            "mid-ocean ridges",
-            "chemosynthesis",
-            "unique organisms"
-          ],
+          "aspects": ["mid-ocean ridges", "chemosynthesis", "unique organisms"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean Trenches"
-          ]
+          "linked_to": ["Ocean Trenches"]
         },
         {
           "topic": "Abyssal ecosystems",
-          "aspects": [
-            "deep-sea organisms",
-            "adaptations",
-            "food chains"
-          ],
+          "aspects": ["deep-sea organisms", "adaptations", "food chains"],
           "ca_connectable": false,
-          "linked_to": [
-            "Ocean Zones"
-          ]
+          "linked_to": ["Ocean Zones"]
         },
         {
           "topic": "Coastal and mangrove ecosystems",
-          "aspects": [
-            "nutrient cycling",
-            "nursery habitats"
-          ],
+          "aspects": ["nutrient cycling", "nursery habitats"],
           "ca_connectable": true,
-          "linked_to": [
-            "Coastal impacts"
-          ]
+          "linked_to": ["Coastal impacts"]
         }
       ],
-      "links_to": [
-        "Ocean Zones",
-        "Temperature Distribution",
-        "Ocean Acidification"
-      ],
+      "links_to": ["Ocean Zones", "Temperature Distribution", "Ocean Acidification"],
       "interlink_domains": [
         {
           "domain": "Environment",
-          "concepts": [
-            "Biodiversity",
-            "Conservation",
-            "Ecological zones"
-          ]
+          "concepts": ["Biodiversity", "Conservation", "Ecological zones"]
         },
         {
           "domain": "Biology",
-          "concepts": [
-            "Marine biology",
-            "Adaptation"
-          ]
-        },
-        {
-          "domain": "Natural Disasters",
-          "concepts": [
-            "Cyclones and Tropical Storms",
-            "Earthquakes and Seismic Activity",
-            "Floods and Flood Management",
-            "Heat Waves and Cold Waves"
-          ]
+          "concepts": ["Marine biology", "Adaptation"]
         }
       ],
-      "trap_affinity": [
-        "GEO_OCN_T09"
-      ]
+      "trap_affinity": ["GEO_OCN_T09"]
     },
     "Ocean Trenches and Submarine Topography": {
       "priority": "medium",
-      "tested_as_question_types": [
-        "match_pair",
-        "direct_fact",
-        "single_best_answer"
-      ],
+      "tested_as_question_types": ["match_pair", "direct_fact", "single_best_answer"],
       "sub_concepts": [
         {
           "topic": "Mariana Trench — deepest point",
-          "aspects": [
-            "location",
-            "depth",
-            "characteristics"
-          ],
+          "aspects": ["location", "depth", "characteristics"],
           "ca_connectable": false,
-          "linked_to": [
-            "Pacific Ocean"
-          ]
+          "linked_to": ["Pacific Ocean"]
         },
         {
           "topic": "Major ocean trenches worldwide",
-          "aspects": [
-            "Tonga Trench",
-            "Java Trench",
-            "Kuril-Kamchatka Trench"
-          ],
+          "aspects": ["Tonga Trench", "Java Trench", "Kuril-Kamchatka Trench"],
           "ca_connectable": false,
-          "linked_to": [
-            "Plate boundaries"
-          ]
+          "linked_to": ["Plate boundaries"]
         },
         {
           "topic": "Mid-ocean ridges",
-          "aspects": [
-            "submarine mountain ranges",
-            "plate boundaries",
-            "new crust formation"
-          ],
+          "aspects": ["submarine mountain ranges", "plate boundaries", "new crust formation"],
           "ca_connectable": false,
-          "linked_to": [
-            "Tectonics"
-          ]
+          "linked_to": ["Tectonics"]
         },
         {
           "topic": "Ocean basin structure",
-          "aspects": [
-            "continental shelves",
-            "slopes",
-            "abyssal plains"
-          ],
+          "aspects": ["continental shelves", "slopes", "abyssal plains"],
           "ca_connectable": false,
-          "linked_to": [
-            "Submarine topography"
-          ]
+          "linked_to": ["Submarine topography"]
         },
         {
           "topic": "Relationship to plate tectonics",
-          "aspects": [
-            "subduction zones",
-            "convergent boundaries"
-          ],
+          "aspects": ["subduction zones", "convergent boundaries"],
           "ca_connectable": false,
-          "linked_to": [
-            "Geological processes"
-          ]
+          "linked_to": ["Geological processes"]
         }
       ],
-      "links_to": [
-        "Plate tectonics",
-        "Ocean basin structure"
-      ],
+      "links_to": ["Plate tectonics", "Ocean basin structure"],
       "interlink_domains": [
         {
           "domain": "Geology",
-          "concepts": [
-            "Plate tectonics",
-            "Subduction zones"
-          ]
-        },
-        {
-          "domain": "Natural Disasters",
-          "concepts": [
-            "Avalanches and Glacial Lake Outburst Floods (GLOFs)",
-            "Biological Disasters",
-            "Disaster Management Framework (NDMA, SDMA, NDRF)",
-            "Droughts",
-            "Earthquakes and Seismic Activity",
-            "Tsunamis",
-            "Volcanic Eruptions"
-          ]
+          "concepts": ["Plate tectonics", "Subduction zones"]
         }
       ],
       "trap_affinity": []

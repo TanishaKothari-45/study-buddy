@@ -16,12 +16,22 @@ Usage:
     --domain "Natural Disasters" \
     --interlinks-only
 
+  # Run only difficulty types update (add new types or new domain percentages):
+  python3 merge_into_pipeline.py \
+    --subject "Geography" \
+    --domain "Natural Disasters" \
+    --research-dir "..." \
+    --difficulty-types-only
+
 Operations:
-1. Create/Update concept_pools/geography_{domain}.json
-2. Update traps_geography.json (shared, add new patterns)
-3. Create traps_geography_{domain}.json (domain-specific)
-4. Update difficulty_types_geography_base.json (add percentage_in_{domain} fields)
+1. Create/Update concept_pools/{subject_lower}/{domain_lower}/{subject_lower}_{domain_lower}.json
+2. Update traps_{subject_lower}.json (shared, add new patterns and question types)
+3. Create traps_{subject_lower}_{domain_lower}.json (domain-specific)
+4. Update difficulty_types_{subject_lower}_base.json (add percentage_in_{domain} fields)
 5. Update interlink_domains across ALL concept pool files for the new domain
+     - Uses domain affinity matrix to restrict which pairs can cross-link
+     - Requires threshold=2 shared meaningful tokens (avoids spurious links)
+6. Add entirely new difficulty types discovered by agent (novel patterns not in existing 15)
 """
 
 import json
@@ -344,14 +354,35 @@ _STOPWORDS = {
     "more", "than", "when", "where", "also", "very", "over", "some",
     "type", "types", "kind", "kinds", "form", "forms", "other",
     "between", "through", "under", "above", "below", "world", "india",
+    "effect", "process", "system", "level", "based", "scale", "major",
+    "region", "local", "global", "change", "impact", "related",
 }
 _MIN_TOKEN_LEN = 5
+_INTERLINK_THRESHOLD = 2  # minimum shared meaningful tokens required
+
+# Domain affinity matrix: which domain pairs are logically allowed to cross-link.
+# Prevents spurious links like "Aeolian Landforms → Lightning".
+# Keys and values are snake_case domain names.
+_DOMAIN_AFFINITY: dict[str, set[str]] = {
+    "geomorphology":    {"climatology", "oceanography", "natural_disasters", "biogeography"},
+    "climatology":      {"geomorphology", "oceanography", "natural_disasters", "biogeography"},
+    "oceanography":     {"geomorphology", "climatology", "natural_disasters", "biogeography"},
+    "natural_disasters": {"geomorphology", "climatology", "oceanography"},
+    "biogeography":     {"geomorphology", "climatology", "oceanography"},
+}
+
+
+def _domains_can_link(domain_a: str, domain_b: str) -> bool:
+    """Return True if the two snake_case domains are in each other's affinity sets."""
+    a = domain_a.lower().replace(" ", "_")
+    b = domain_b.lower().replace(" ", "_")
+    return b in _DOMAIN_AFFINITY.get(a, set()) or a in _DOMAIN_AFFINITY.get(b, set())
 
 
 def _concept_tokens(concept_name: str, sub_concepts: list | None = None) -> set[str]:
     """
     Extract meaningful tokens from a concept name and optionally its sub_concept topics.
-    Used to detect semantic overlap between concepts across different domain pools.
+    Tokens: ≥ _MIN_TOKEN_LEN chars, not in _STOPWORDS.
     """
     text = concept_name
     if sub_concepts:
@@ -366,10 +397,7 @@ def _concept_tokens(concept_name: str, sub_concepts: list | None = None) -> set[
 
 
 def _normalize_interlink_domains(raw: list) -> list:
-    """
-    Normalise interlink_domains to a list of dicts: [{domain, concepts[]}].
-    Handles: list of strings, list of dicts, or mixed.
-    """
+    """Normalise interlink_domains to a list of dicts: [{domain, concepts[]}]."""
     result = []
     for entry in raw:
         if isinstance(entry, str):
@@ -382,7 +410,7 @@ def _normalize_interlink_domains(raw: list) -> list:
 def _upsert_interlink(concept_data: dict, domain_name: str, concept_list: list[str]) -> bool:
     """
     Add or merge an interlink_domains entry {domain, concepts} into concept_data.
-    Returns True if the concept_data was modified.
+    Returns True if modified.
     """
     raw = concept_data.get("interlink_domains", [])
     interlink = _normalize_interlink_domains(raw)
@@ -404,26 +432,24 @@ def _upsert_interlink(concept_data: dict, domain_name: str, concept_list: list[s
 
 def operation_5_update_interlink_domains(subject, domain):
     """
-    After adding a new domain concept pool, run a bidirectional keyword-overlap
-    cross-reference update across ALL concept pool files.
+    After adding a new domain concept pool, bidirectionally update interlink_domains
+    across all concept pool files that are in the new domain's affinity set.
 
-    Strategy (no LLM, no exact-name matching):
-      For every pair (new_concept, other_concept) across pools:
-        - Compute token sets for each (concept name + sub_concept topics, ≥5-char non-stopwords)
-        - If shared tokens ≥ 1 → they are semantically linked
-
-      For a match between new_concept A (new domain) and other_concept B (other domain):
-        - In the OTHER pool: add interlink entry {domain: new_domain, concepts: [A]}
-        - In the NEW pool:   add interlink entry {domain: other_domain, concepts: [B]}
+    Strategy:
+      1. Domain affinity check — only cross-link domain pairs listed in _DOMAIN_AFFINITY.
+         Prevents logically unrelated domains from linking (e.g. Natural Disasters → Biogeography).
+      2. Concept-level token matching with threshold=_INTERLINK_THRESHOLD (default=2).
+         Both concepts must share ≥ 2 meaningful tokens (≥5 chars, not stopwords).
+         Prevents surface noise like "Aeolian Landforms → Lightning" (only share "forms").
+      3. Bidirectional: both pools updated in one pass.
 
     Only adds; never removes. Idempotent — skips entries already present.
     """
-    print(f"\nOperation 5: Update interlink_domains (bidirectional keyword matching)")
+    print(f"\nOperation 5: Update interlink_domains (affinity-gated, threshold={_INTERLINK_THRESHOLD})")
 
     domain_snake = domain_to_snake_case(domain)
     subject_lower = subject.lower()
 
-    # Pool can live in flat or nested directory layout
     new_pool_candidates = [
         CONCEPT_POOLS_DIR / subject_lower / domain_snake / f"{subject_lower}_{domain_snake}.json",
         CONCEPT_POOLS_DIR / f"{subject_lower}_{domain_snake}.json",
@@ -441,7 +467,7 @@ def operation_5_update_interlink_domains(subject, domain):
 
     new_pool_concepts = new_pool.get("concepts", {})
 
-    # Pre-compute token sets for each concept in the new pool
+    # Pre-compute token sets for new pool concepts
     new_tokens: dict[str, set[str]] = {
         cname: _concept_tokens(cname, cdata.get("sub_concepts"))
         for cname, cdata in new_pool_concepts.items()
@@ -450,6 +476,7 @@ def operation_5_update_interlink_domains(subject, domain):
     all_pool_files = sorted(CONCEPT_POOLS_DIR.rglob("*.json"))
     total_updated = 0
     new_pool_modified = False
+    skipped_affinity = 0
 
     for pool_file in all_pool_files:
         if pool_file.resolve() == new_pool_path.resolve():
@@ -460,24 +487,30 @@ def operation_5_update_interlink_domains(subject, domain):
             continue
 
         other_subdomain = other_pool.get("subdomain", pool_file.stem)
+        other_subdomain_snake = domain_to_snake_case(other_subdomain)
+
+        # ── Layer 1: Domain affinity gate ────────────────────────────────────
+        if not _domains_can_link(domain_snake, other_subdomain_snake):
+            skipped_affinity += 1
+            continue
+
         other_modified = False
 
         for other_cname, other_cdata in other_pool["concepts"].items():
             other_tok = _concept_tokens(other_cname, other_cdata.get("sub_concepts"))
 
-            # Find new-pool concepts that share keywords with this other concept
+            # ── Layer 2: Token overlap threshold ─────────────────────────────
             matched_new: list[str] = [
-                nc for nc, ntok in new_tokens.items() if ntok & other_tok
+                nc for nc, ntok in new_tokens.items()
+                if len(ntok & other_tok) >= _INTERLINK_THRESHOLD
             ]
             if not matched_new:
                 continue
 
-            # Update OTHER pool: add new domain as interlink source
             if _upsert_interlink(other_cdata, domain, matched_new):
                 other_modified = True
                 total_updated += len(matched_new)
 
-            # Update NEW pool: add other domain as interlink source for each matched new concept
             for nc in matched_new:
                 if _upsert_interlink(new_pool_concepts[nc], other_subdomain, [other_cname]):
                     new_pool_modified = True
@@ -490,7 +523,128 @@ def operation_5_update_interlink_domains(subject, domain):
         save_json(new_pool_path, new_pool)
 
     print(f"  ✓ interlink_domains entries added/updated: {total_updated}")
+    print(f"  ✓ Domains skipped (affinity gate): {skipped_affinity}")
     return total_updated
+
+
+def operation_6_add_new_difficulty_types(subject, domain, research_dir):
+    """
+    Add entirely new difficulty types discovered by the PYQ agent.
+
+    When the agent finds a question pattern that doesn't fit any of the existing
+    difficulty type categories, it outputs a 'new_difficulty_types' array in the
+    research results. This operation adds those entries to the base difficulty types
+    file and sets initial percentage_in_{domain} for the new domain.
+
+    Research file expected: new_difficulty_types_{subject}_{domain}_*.json
+    Structure:
+      [
+        {
+          "name": "hard_process_elimination",          ← unique key
+          "category": "HARD",                          ← EASY/MEDIUM/HARD/PURE_CA
+          "description": "...",
+          "characteristics": ["..."],
+          "question_structure": "...",
+          "example": "...",
+          "percentage_in_{domain}": 0.05,             ← initial estimate for this domain
+          "trap_types_used": ["..."],
+          "typical_question_types": ["..."],
+          "blueprint_selection": "...",
+          "generation_rules": ["..."]
+        }
+      ]
+
+    Also handles adding percentage_in_{domain} to EXISTING types when the research
+    file includes an 'existing_type_percentages' key:
+      { "existing_type_percentages": { "hard_counterintuitive_single_concept": 0.35, ... } }
+    """
+    print(f"\nOperation 6: Add new difficulty types / update existing percentages")
+
+    subject_lower = subject.lower()
+    domain_snake = domain_to_snake_case(domain)
+
+    # Load difficulty types base file
+    difficulty_types_file = PRELIMS_DIR / f"difficulty_types_{subject_lower}_base.json"
+    if not difficulty_types_file.exists():
+        print(f"  ✗ Difficulty types file not found: {difficulty_types_file}")
+        return {"new_added": 0, "percentages_updated": 0}
+
+    difficulty_types = load_json(difficulty_types_file)
+    existing_type_keys = set(difficulty_types.get("difficulty_types", {}).keys())
+
+    # Try to find new_difficulty_types research file
+    new_types_files = list(Path(research_dir).glob(f"new_difficulty_types_{subject}_{domain}_*.json"))
+    new_added = 0
+    percentages_updated = 0
+
+    if not new_types_files:
+        print(f"  ℹ No new_difficulty_types file found — checking for existing type percentages only")
+    else:
+        research_new_types = load_json(new_types_files[0])
+        if not isinstance(research_new_types, list):
+            research_new_types = research_new_types.get("new_difficulty_types", [])
+
+        for new_type in research_new_types:
+            type_name = new_type.get("name", "").strip()
+            if not type_name:
+                continue
+
+            if type_name in existing_type_keys:
+                # Type exists — only update percentage for this domain if not already set
+                pct_key = f"percentage_in_{domain_snake}"
+                existing_entry = difficulty_types["difficulty_types"][type_name]
+                if pct_key not in existing_entry:
+                    pct = new_type.get(pct_key, new_type.get("percentage", 0.0))
+                    existing_entry[pct_key] = pct
+                    percentages_updated += 1
+                    print(f"  + Updated {pct_key} for existing type '{type_name}': {pct}")
+                else:
+                    print(f"  ~ Skipped '{type_name}' — percentage already set")
+                continue
+
+            # Brand new type — add full entry
+            category = new_type.get("category", "MEDIUM").upper()
+            pct_key = f"percentage_in_{domain_snake}"
+            entry = {
+                "category": category,
+                "description": new_type.get("description", ""),
+                "characteristics": new_type.get("characteristics", []),
+                "question_structure": new_type.get("question_structure", ""),
+                "example": new_type.get("example", ""),
+                pct_key: new_type.get(pct_key, new_type.get("percentage", 0.0)),
+                "trap_types_used": new_type.get("trap_types_used", []),
+                "typical_question_types": new_type.get("typical_question_types", []),
+                "blueprint_selection": new_type.get("blueprint_selection", ""),
+                "generation_rules": new_type.get("generation_rules", []),
+            }
+            difficulty_types["difficulty_types"][type_name] = entry
+            new_added += 1
+            print(f"  + Added new difficulty type: '{type_name}' (category: {category})")
+
+            # Update usage_by_blueprint allocation block if present
+            if "usage_by_blueprint" in difficulty_types:
+                alloc = difficulty_types["usage_by_blueprint"].get("allocation", {})
+                if type_name not in alloc:
+                    alloc[type_name] = f"TBD — new type, set allocation after validation"
+                    difficulty_types["usage_by_blueprint"]["allocation"] = alloc
+
+    # Also handle existing_type_percentages block (agent can provide bulk updates)
+    if new_types_files:
+        raw = load_json(new_types_files[0])
+        existing_pcts = raw.get("existing_type_percentages", {}) if isinstance(raw, dict) else {}
+        for type_name, pct in existing_pcts.items():
+            if type_name in difficulty_types["difficulty_types"]:
+                pct_key = f"percentage_in_{domain_snake}"
+                if pct_key not in difficulty_types["difficulty_types"][type_name]:
+                    difficulty_types["difficulty_types"][type_name][pct_key] = pct
+                    percentages_updated += 1
+
+    if new_added > 0 or percentages_updated > 0:
+        save_json(difficulty_types_file, difficulty_types)
+
+    print(f"  ✓ New difficulty types added: {new_added}")
+    print(f"  ✓ Existing type percentages updated: {percentages_updated}")
+    return {"new_added": new_added, "percentages_updated": percentages_updated}
 
 
 def main():
@@ -501,8 +655,14 @@ def main():
     parser.add_argument(
         "--interlinks-only",
         action="store_true",
-        help="Skip ops 1-4; only run operation 5 (update interlink_domains). "
+        help="Skip ops 1-4, 6; only run operation 5 (update interlink_domains). "
              "Use after manually writing a concept pool.",
+    )
+    parser.add_argument(
+        "--difficulty-types-only",
+        action="store_true",
+        help="Skip ops 1-3, 5; only run ops 4 + 6 (difficulty percentages + new types). "
+             "Use after manually writing a new difficulty type.",
     )
 
     args = parser.parse_args()
@@ -510,7 +670,9 @@ def main():
     print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print(f"Pipeline merge: {args.subject} > {args.domain}")
     if args.interlinks_only:
-        print(f"Mode: interlinks-only (ops 1–4 skipped)")
+        print(f"Mode: interlinks-only (ops 1–4, 6 skipped)")
+    elif args.difficulty_types_only:
+        print(f"Mode: difficulty-types-only (ops 1–3, 5 skipped)")
     else:
         print(f"Research dir: {args.research_dir}")
     print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -522,9 +684,24 @@ def main():
             print(f"Summary (interlinks-only):")
             print(f"  interlink_domains entries added/updated: {op5_result}")
             print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+        elif args.difficulty_types_only:
+            if not args.research_dir:
+                print("✗ --research-dir is required for --difficulty-types-only")
+                sys.exit(1)
+            research_dir = Path(args.research_dir)
+            op4_result = operation_4_update_difficulty_types(args.subject, args.domain, research_dir)
+            op6_result = operation_6_add_new_difficulty_types(args.subject, args.domain, research_dir)
+            print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print(f"Summary (difficulty-types-only):")
+            print(f"  Difficulty type percentages updated: {op4_result}")
+            print(f"  New difficulty types added: {op6_result['new_added']}")
+            print(f"  Existing type percentages updated: {op6_result['percentages_updated']}")
+            print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
         else:
             if not args.research_dir:
-                print("✗ --research-dir is required unless --interlinks-only is set")
+                print("✗ --research-dir is required unless --interlinks-only or --difficulty-types-only is set")
                 sys.exit(1)
 
             research_dir = Path(args.research_dir)
@@ -537,6 +714,7 @@ def main():
             operation_3_create_domain_traps(args.subject, args.domain, research_dir)
             op4_result = operation_4_update_difficulty_types(args.subject, args.domain, research_dir)
             op5_result = operation_5_update_interlink_domains(args.subject, args.domain)
+            op6_result = operation_6_add_new_difficulty_types(args.subject, args.domain, research_dir)
 
             print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             print(f"Summary:")
@@ -545,6 +723,8 @@ def main():
             print(f"  Domain-specific trap file: created")
             print(f"  Difficulty type percentages updated: {op4_result}")
             print(f"  interlink_domains entries added/updated: {op5_result}")
+            print(f"  New difficulty types added: {op6_result['new_added']}")
+            print(f"  Existing type percentages updated: {op6_result['percentages_updated']}")
             print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
     except Exception as e:
