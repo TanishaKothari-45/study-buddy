@@ -294,8 +294,15 @@ def assemble_generator_system_prompt(gs_paper: str, subject: str) -> str:
 {FACTUAL_ACCURACY_RULES}
 
 **CRITICAL REMINDERS**:
-- Follow the ANSWER BLUEPRINT in the user message exactly — it specifies subheadings, \
-word allocation, and visual requirements.
+- The ANSWER BLUEPRINT is strong scaffolding — use its subheadings, word allocation, and
+  visual decisions as your primary guide. Do NOT invent new subheadings or reorder structure.
+- BLUEPRINT ENRICHMENT: The blueprint is strong scaffolding — follow its subheadings,
+  word allocation, and structure as the primary guide. But you are the final writer and the
+  question is the authority on scope. If the blueprint clearly missed an entire dimension
+  that the question asks for, you may: (a) add a bullet within the nearest subheading for
+  a minor gap, or (b) insert one additional subheading for a major missing dimension —
+  keeping it within the overall word budget. Use this sparingly: only when the question
+  unambiguously demands coverage the blueprint did not plan for.
 - VISUAL DECISIONS ARE LOCKED BY BLUEPRINT: Do NOT independently decide whether to add \
 or skip diagrams/maps/tables.  If blueprint says map_needed: true → you MUST include a \
 map-json block.  If blueprint says diagram_type: flowchart → include a flowchart.  \

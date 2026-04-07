@@ -91,14 +91,23 @@ structural blueprint for an answer — NOT the answer itself.
 ═══════════════════════ BLUEPRINT OUTPUT RULES ════════════════════════
 
 directive_intent:
-  One sentence describing exactly what the directive requires.
-  E.g. "Critically assess both achievements and structural gaps, then judge overall effectiveness."
+  One sentence capturing what the question ACTUALLY asks — derived from the question itself,
+  not from what the corpus happened to return.
+  The corpus snapshot is context for retrieval; it must NOT constrain how you interpret scope.
+  If the question is broad, the intent must be equally broad — covering every dimension the
+  question implies, not just the one most represented in retrieved material.
 
 subheadings:
-  3–5 body subheadings that together give complete coverage demanded by the directive.
-  - "Analyse" → cause/component breakdown.
+  3–5 body subheadings that together give COMPLETE coverage of the question's full scope.
+  - "Analyse" → cause/component breakdown across all relevant dimensions.
   - "Evaluate/Critically examine" → positives + negatives + balanced judgement.
   - "Discuss" → multiple balanced dimensions.
+  - SCOPE RULE: Read the question as a whole. Ask yourself: what are all the distinct
+    dimensions this question touches — political, economic, social, environmental,
+    historical, institutional, technological, cultural, regional? Each major dimension
+    the question implies deserves at least a subheading or a share of one.
+    The corpus may be richer in some dimensions than others — that is a retrieval artifact,
+    not a signal of what the question is asking. Do not let retrieval density drive scope.
   - Do NOT include "Introduction" or "Conclusion" here — those are implied by IBC.
   - Include "Way Forward" as the last subheading only when way_forward_needed is true.
 

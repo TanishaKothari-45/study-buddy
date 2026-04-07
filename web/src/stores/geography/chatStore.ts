@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
-import { ChatMessage } from '../types';
+import { ChatMessage, Recommendation } from '../types';
 import { CHAT_STORE_KEY, CHAT_MAX_PERSISTED_MESSAGES } from '@/lib/constants';
 
 // Only persist messages and session - input/loading stays local
@@ -12,6 +12,8 @@ interface ChatState {
     updateMessageContent: (id: string, content: string) => void;
     appendToMessageContent: (id: string, content: string) => void;
     setMessageSources: (id: string, sources: ChatMessage['sources']) => void;
+    setMessageRecommendations: (id: string, recommendations: Recommendation[]) => void;
+    resolveMessageMap: (id: string, mapId: number, rendered: string | null) => void;
     startNewChat: () => void;
 }
 
@@ -56,6 +58,26 @@ export const useChatStore = create<ChatState>()(
                         msg.id === id ? { ...msg, sources } : msg
                     ),
                 })),
+
+                setMessageRecommendations: (id, recommendations) => set((state) => ({
+                    messages: state.messages.map((msg) =>
+                        msg.id === id ? { ...msg, recommendations } : msg
+                    ),
+                })),
+
+                // Replace __MAP_N__ placeholder with rendered map markdown, or remove if null
+                resolveMessageMap: (id, mapId, rendered) => set((state) => {
+                    const idx = state.messages.findIndex((m) => m.id === id);
+                    if (idx === -1) return state;
+                    const placeholder = `__MAP_${mapId}__`;
+                    const replacement = rendered ?? "";
+                    const updated = [...state.messages];
+                    updated[idx] = {
+                        ...updated[idx],
+                        content: updated[idx].content.replace(placeholder, replacement),
+                    };
+                    return { messages: updated };
+                }),
 
                 startNewChat: () => set({
                     messages: [createWelcomeMessage("New chat started! How can I help you now?")],

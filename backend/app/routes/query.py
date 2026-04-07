@@ -160,16 +160,22 @@ async def stream_chat(
     current_user: Optional[UserProfile] = Depends(get_current_user_optional)
 ):
     """
-    Streaming chat endpoint with RAG (Retrieval Augmented Generation).
-    
-    1. Retrieves relevant documents from Pinecone (filtered by subject if provided)
-    2. Streams LLM response in real-time via SSE
+    Streaming chat endpoint with RAG (Chat Pipeline v2).
+
+    Pipeline stages:
+      0. Query Analysis — LLM extracts subject/domain + generates multi-query variants
+      1. Enhanced Retrieval — multi-query Pinecone fetch + cross-encoder rerank
+      2. Response Generation — UPSC-aware structured prompt, streamed
+      3. Recommendations — metadata-driven related topics (no LLM)
+
+    SSE events: sources → content (streamed) → recommendations → done
     """
-    # Extract values from request to avoid closure issues
+    from ..services.chat_pipeline import run_chat_pipeline
+
     question = chat_request.question
     subject = chat_request.subject
     k = chat_request.k
-    
+
     # Get Gemini API key upfront
     try:
         direct_key = get_direct_api_key_from_request(request)
@@ -178,96 +184,29 @@ async def stream_chat(
             gemini_api_key = GEMINI_API_KEY_SYSTEM
     except Exception:
         gemini_api_key = GEMINI_API_KEY_SYSTEM
-    
+
     if not gemini_api_key:
         raise HTTPException(400, "No Gemini API key configured")
-    
-    # Get pinecone handler
+
     pinecone_handler = request.app.state.vector_handler
-    
-    async def generate_stream():
-        try:
-            # Build Pinecone filter for subject
-            filter_metadata = None
-            if subject:
-                # Pinecone stores subject as "Geography", "History" etc
-                filter_metadata = {"subject": subject}
-                logger.info(f"🔍 Chat filter: subject={subject}")
-            
-            # Retrieve relevant documents
-            logger.info(f"📚 Retrieving {k} documents for: '{question[:50]}...'")
-            
-            results = pinecone_handler.query_documents(
-                query_text=question,
-                k=k,
-                filter_metadata=filter_metadata,
-                use_content_store=True,
-                re_rank=True,
-                fetch_k=20
-            )
-            
-            # Format sources for frontend
-            sources = []
-            context_chunks = []
-            for doc in results:
-                meta = doc.get("metadata", {})
-                sources.append({
-                    "filename": meta.get("filename", "Unknown"),
-                    "page_number": meta.get("page_number"),
-                    "chapter": meta.get("chapter", "Unknown"),
-                    "subject": meta.get("subject", "Unknown")
-                })
-                content = doc.get("content") or doc.get("page_content", "")
-                if content:
-                    context_chunks.append(content[:2000])  # Limit each chunk
-            
-            # Send sources first
-            yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
-            
-            # Build context for LLM
-            context_text = "\n\n---\n\n".join(context_chunks[:5]) if context_chunks else "No relevant context found."
-            
-            # Build prompt
-            subject_label = f" about {subject}" if subject else ""
-            prompt_text = f"""You are a knowledgeable study assistant{subject_label} for UPSC preparation.
+    gemini_client = GeminiClient(
+        api_key=gemini_api_key,
+        model_name="gemini-2.5-flash",
+        timeout=120.0,
+    )
 
-Use the following context from study materials to answer the question. 
-If the context doesn't contain relevant information, say so and provide what general knowledge you have.
-
-CONTEXT:
-{context_text}
-
-Be concise, accurate, and cite specific details from the context when available.
-
-Question: {question}"""
-
-            # Initialize Gemini client
-            gemini_client = GeminiClient(
-                api_key=gemini_api_key,
-                model_name="gemini-2.5-flash",
-                timeout=120.0
-            )
-            
-            # Stream response
-            async for chunk in gemini_client.generate_response_streaming(
-                text_input=prompt_text,
-                temperature=0.3
-            ):
-                if chunk:
-                    yield f"data: {json.dumps({'type': 'content', 'content': chunk})}\n\n"
-            
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
-            
-        except Exception as e:
-            logger.error(f"❌ Chat stream error: {e}", exc_info=True)
-            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
-    
     return StreamingResponse(
-        generate_stream(),
+        run_chat_pipeline(
+            question=question,
+            subject=subject,
+            pinecone_handler=pinecone_handler,
+            gemini_client=gemini_client,
+            k=k,
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"
-        }
+            "X-Accel-Buffering": "no",
+        },
     )

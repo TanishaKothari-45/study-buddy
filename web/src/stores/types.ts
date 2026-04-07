@@ -8,11 +8,21 @@ export interface Source {
     content_source?: string;
 }
 
+export interface Recommendation {
+    type: "deep_dive" | "related_concept" | "broader_topic" | "pyq_available" | "current_affairs";
+    label: string;
+    topic: string;
+    sub_domain: string;
+    major_domain: string;
+    query: string;
+}
+
 export interface ChatMessage {
     id: string;
     role: "user" | "assistant";
     content: string;
     sources?: Source[];
+    recommendations?: Recommendation[];
     timestamp: string; // Changed from Date to string for localStorage compatibility
 }
 

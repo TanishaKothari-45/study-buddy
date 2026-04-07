@@ -118,13 +118,12 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
                         ref.current.innerHTML = svg;
                         const svgElement = ref.current.querySelector('svg');
                         if (svgElement) {
-                            // Remove fixed dimensions to allow natural sizing
+                            // Let SVG scale to fit container width
                             svgElement.removeAttribute('width');
                             svgElement.removeAttribute('height');
-                            svgElement.style.maxWidth = 'none';
-                            svgElement.style.width = 'auto';
+                            svgElement.style.width = '100%';
+                            svgElement.style.maxWidth = '100%';
                             svgElement.style.height = 'auto';
-                            svgElement.style.minWidth = '300px';
                             svgElement.style.overflow = 'visible';
 
                             // Increase font size on all text elements for better readability
@@ -264,9 +263,72 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
                     className="mermaid-diagram"
                     style={{
                         transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
-                        transformOrigin: 'top center',
+                        transformOrigin: 'top left',
                     }}
                 />
+            </div>
+        </div>
+    );
+}
+
+// Map loading skeleton shown while __MAP_N__ placeholder is being resolved
+function MapLoader() {
+    return (
+        <div className="my-4 rounded-xl border border-[var(--card-border)] bg-[var(--bg-secondary)] overflow-hidden animate-pulse">
+            <div className="h-6 bg-[var(--bg-tertiary)] border-b border-[var(--card-border)] flex items-center px-3 gap-2">
+                <div className="h-3 w-16 rounded bg-[var(--card-border)]" />
+            </div>
+            <div className="h-48 flex flex-col items-center justify-center gap-2 text-[var(--text-faint)] text-xs">
+                <div className="h-4 w-4 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+                Generating map…
+            </div>
+        </div>
+    );
+}
+
+const MAP_PLACEHOLDER_RE = /^__MAP_(\d+)__$/;
+const UPSC_ANGLE_RE = /upsc\s*(angle|relevance)/i;
+
+function extractChildText(children: any): string {
+    if (typeof children === 'string') return children;
+    if (Array.isArray(children)) return children.map(extractChildText).join('');
+    if (children?.props?.children) return extractChildText(children.props.children);
+    return '';
+}
+
+function UpscAngleBlock({ children }: { children: any }) {
+    const fullText = extractChildText(children).replace(/\*\*/g, '').trim();
+    // Strip the label prefix
+    const body = fullText.replace(/^upsc\s*(angle|relevance)\s*[:\-–]?\s*/i, '').trim();
+
+    const hasPrelims = /prelims/i.test(body);
+    const hasMains = /mains/i.test(body);
+    // Remove "Prelims" / "Mains" / "and" fragments from the descriptor text
+    const descriptor = body
+        .replace(/,?\s*(prelims|mains)\s*and\s*(prelims|mains)/gi, '')
+        .replace(/,?\s*(prelims|mains)/gi, '')
+        .replace(/^[\s,\-–&]+|[\s,\-–&]+$/g, '')
+        .trim();
+
+    return (
+        <div className="mt-4 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-900/10 px-3.5 py-2.5 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-amber-700 dark:text-amber-400 text-[11px] uppercase tracking-wide shrink-0">
+                    UPSC
+                </span>
+                {hasPrelims && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-semibold text-[11px] border border-blue-200 dark:border-blue-700">
+                        Prelims
+                    </span>
+                )}
+                {hasMains && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-semibold text-[11px] border border-emerald-200 dark:border-emerald-700">
+                        Mains
+                    </span>
+                )}
+                {descriptor && (
+                    <span className="text-amber-800 dark:text-amber-300/80 leading-snug">{descriptor}</span>
+                )}
             </div>
         </div>
     );
@@ -275,6 +337,17 @@ export function Mermaid({ chart, className = '' }: MermaidProps) {
 // Custom markdown components for ReactMarkdown
 export const markdownComponents = {
     p({ children, ...props }: any) {
+        // Detect __MAP_N__ placeholder — render skeleton loader
+        const rawText = extractChildText(children).trim();
+        if (MAP_PLACEHOLDER_RE.test(rawText)) {
+            return <MapLoader />;
+        }
+
+        // Detect UPSC angle/relevance line — render as styled badge block
+        if (UPSC_ANGLE_RE.test(rawText)) {
+            return <UpscAngleBlock>{children}</UpscAngleBlock>;
+        }
+
         const hasImage = Array.isArray(children)
             ? children.some((child: any) =>
                 child?.type === 'img' ||

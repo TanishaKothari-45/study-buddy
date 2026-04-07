@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Send, User, Bot, BookOpen, Plus, GraduationCap } from "lucide-react";
+import { Send, User, Bot, BookOpen, Plus, GraduationCap, Sparkles, ArrowRight, ChevronDown } from "lucide-react";
 import { InlineLoader } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
 import { TypewriterEffect } from "@/components/ui/typewriter-effect";
@@ -27,6 +27,8 @@ export default function ChatPage() {
         addMessage,
         appendToMessageContent,
         setMessageSources,
+        setMessageRecommendations,
+        resolveMessageMap,
         updateMessageContent,
         startNewChat
     } = useChatStore();
@@ -35,6 +37,7 @@ export default function ChatPage() {
     const [loading, setLoading] = useState(false);
     const [mounted, setMounted] = useState(false);
     const [subject, setSubject] = useState<string>("Geography");
+    const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const abortRef = useRef<AbortController | null>(null);
 
@@ -53,19 +56,20 @@ export default function ChatPage() {
         }
     }, [messages.length]);
 
-    const handleSendMessage = async (e?: React.FormEvent) => {
+    const handleSendMessage = async (e?: React.FormEvent, overrideQuestion?: string) => {
         e?.preventDefault();
-        if (!input.trim() || loading) return;
+        const question = overrideQuestion ?? input.trim();
+        if (!question || loading) return;
 
         const userMessage = {
             id: Date.now().toString(),
             role: "user" as const,
-            content: input.trim(),
+            content: question,
             timestamp: new Date().toISOString(),
         };
 
         addMessage(userMessage);
-        setInput("");
+        if (!overrideQuestion) setInput("");
         setLoading(true);
 
         const botMessageId = (Date.now() + 1).toString();
@@ -88,10 +92,10 @@ export default function ChatPage() {
                 signal,
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    question: userMessage.content,
+                    question: question,
                     subject: subject,
                     session_id: sessionId,
-                    k: 5,
+                    k: 7,
                 }),
             });
 
@@ -119,6 +123,10 @@ export default function ChatPage() {
                                 setMessageSources(botMessageId, data.sources);
                             } else if (data.type === "content") {
                                 appendToMessageContent(botMessageId, data.content);
+                            } else if (data.type === "recommendations") {
+                                setMessageRecommendations(botMessageId, data.items);
+                            } else if (data.type === "map") {
+                                resolveMessageMap(botMessageId, data.id, data.content);
                             } else if (data.type === "done") {
                                 break;
                             } else if (data.type === "error") {
@@ -240,28 +248,81 @@ export default function ChatPage() {
                                             )}
                                         </div>
 
-                                        {/* Sources */}
+                                        {/* Sources — top 2 visible, rest in accordion */}
                                         {message.role === "assistant" && message.sources && message.sources.length > 0 && (
-                                            <div className="bg-[var(--bg-secondary)] border border-[var(--card-border)] rounded-lg p-3 text-xs">
-                                                <div className="flex items-center gap-1.5 text-[var(--text-muted)] font-medium mb-2">
-                                                    <BookOpen className="h-3 w-3" />
-                                                    Sources used
-                                                </div>
-                                                <div className="grid gap-1.5 sm:grid-cols-2">
-                                                    {message.sources.map((source, idx) => (
-                                                        <div key={idx} className="bg-[var(--bg)] p-2 rounded-lg border border-[var(--card-border)]">
-                                                            <p className="font-medium text-[var(--text)] truncate" title={source.filename}>
-                                                                {source.filename}
-                                                            </p>
-                                                            <div className="flex gap-2 text-[var(--text-faint)] mt-0.5">
-                                                                {source.page_number && <span>Page {source.page_number}</span>}
+                                            <div className="text-xs">
+                                                <div className="grid gap-1 sm:grid-cols-2">
+                                                    {message.sources.slice(0, 2).map((source, idx) => (
+                                                        <div key={idx} className="flex items-start gap-1.5 bg-[var(--bg-secondary)] px-2.5 py-1.5 rounded-lg border border-[var(--card-border)]">
+                                                            <BookOpen className="h-3 w-3 mt-0.5 text-[var(--text-faint)] shrink-0" />
+                                                            <div className="min-w-0">
+                                                                <p className="font-medium text-[var(--text-muted)] truncate" title={source.filename}>
+                                                                    {source.filename}
+                                                                </p>
                                                                 {source.chapter && source.chapter !== "Unknown" && (
-                                                                    <span className="truncate max-w-[100px]" title={source.chapter}>
-                                                                        {source.chapter}
-                                                                    </span>
+                                                                    <p className="text-[var(--text-faint)] truncate">{source.chapter}</p>
                                                                 )}
                                                             </div>
                                                         </div>
+                                                    ))}
+                                                </div>
+                                                {message.sources.length > 2 && (
+                                                    <>
+                                                        {expandedSources[message.id] && (
+                                                            <div className="grid gap-1 sm:grid-cols-2 mt-1">
+                                                                {message.sources.slice(2).map((source, idx) => (
+                                                                    <div key={idx} className="flex items-start gap-1.5 bg-[var(--bg-secondary)] px-2.5 py-1.5 rounded-lg border border-[var(--card-border)]">
+                                                                        <BookOpen className="h-3 w-3 mt-0.5 text-[var(--text-faint)] shrink-0" />
+                                                                        <div className="min-w-0">
+                                                                            <p className="font-medium text-[var(--text-muted)] truncate" title={source.filename}>
+                                                                                {source.filename}
+                                                                            </p>
+                                                                            {source.chapter && source.chapter !== "Unknown" && (
+                                                                                <p className="text-[var(--text-faint)] truncate">{source.chapter}</p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        <button
+                                                            onClick={() => setExpandedSources(prev => ({ ...prev, [message.id]: !prev[message.id] }))}
+                                                            className="mt-1 flex items-center gap-1 text-[var(--text-faint)] hover:text-[var(--text-muted)] transition-colors"
+                                                        >
+                                                            <ChevronDown className={cn("h-3 w-3 transition-transform", expandedSources[message.id] && "rotate-180")} />
+                                                            {expandedSources[message.id] ? "fewer sources" : `+${message.sources.length - 2} more`}
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Explore further — prominent, last */}
+                                        {message.role === "assistant" && message.recommendations && message.recommendations.length > 0 && !loading && (
+                                            <div className="mt-2">
+                                                <div className="flex items-center gap-1.5 text-[var(--text-muted)] text-xs font-semibold mb-2 px-0.5">
+                                                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                                                    Explore further
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {message.recommendations.map((rec, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={() => handleSendMessage(undefined, rec.query)}
+                                                            disabled={loading}
+                                                            className={cn(
+                                                                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium",
+                                                                "border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed",
+                                                                rec.type === "deep_dive" && "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40",
+                                                                rec.type === "related_concept" && "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40",
+                                                                rec.type === "pyq_available" && "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/40",
+                                                                rec.type === "current_affairs" && "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40",
+                                                                rec.type === "broader_topic" && "bg-[var(--bg-secondary)] border-[var(--card-border)] text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]"
+                                                            )}
+                                                        >
+                                                            {rec.label}
+                                                            <ArrowRight className="h-2.5 w-2.5 flex-shrink-0" />
+                                                        </button>
                                                     ))}
                                                 </div>
                                             </div>
@@ -283,7 +344,7 @@ export default function ChatPage() {
 
                     {/* Input */}
                     <CardFooter className="p-4 bg-[var(--bg)] border-t border-[var(--card-border)]">
-                        <form onSubmit={handleSendMessage} className="flex w-full gap-2">
+                        <form id="chat-form" onSubmit={handleSendMessage} className="flex w-full gap-2">
                             <Input
                                 placeholder={`Ask about your ${subject.toLowerCase()} notes...`}
                                 value={input}
