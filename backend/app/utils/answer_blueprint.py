@@ -42,7 +42,7 @@ class BlueprintOutput(BaseModel):
     way_forward_needed: bool
     word_allocation: dict[str, int]
     map_needed: bool
-    diagram_type: str          # "flowchart" | "timeline" | "table" | "mindmap" | "none"
+    diagram_type: str          # "flowchart" | "timeline" | "table" | "mindmap" | "pie" | "cycle" | "layered" | "none"
     diagram_placement: str     # e.g. "after Introduction", "end of Dimension 2"
     retrieval_queries: list[str]       # one optimised Pinecone query per subheading (3–5)
     ca_dimension_queries: list[CaDimensionQuery]  # 1–2 targeted CA queries, named by subheading
@@ -50,7 +50,7 @@ class BlueprintOutput(BaseModel):
     @field_validator("diagram_type")
     @classmethod
     def validate_diagram_type(cls, v: str) -> str:
-        allowed = {"flowchart", "timeline", "table", "mindmap", "none"}
+        allowed = {"flowchart", "timeline", "table", "mindmap", "pie", "cycle", "layered", "none"}
         return v if v in allowed else "none"
 
     @field_validator("diagram_placement")

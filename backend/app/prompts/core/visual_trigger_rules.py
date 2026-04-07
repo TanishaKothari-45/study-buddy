@@ -21,25 +21,95 @@ Set map_needed = true when the question involves ANY of:
 - SAARC/ASEAN/regional grouping countries, trade routes, conflict zones (IR)
 - Territorial/boundary changes (History)
 
+Subject-specific map usage (examiner-aligned):
+  Geography (GS1) — Primary & Mandatory:
+    Physical geography (rivers, mountains, climate zones, monsoon patterns)
+    Resource distribution (minerals, crops, industries, coalfields)
+    Environmental phenomena (cyclones, ocean currents, wind belts)
+  History (GS1) — High-Value, Selective:
+    Use ONLY for: battles, revolts, invasions; trade routes, ports, migration; empire expansion/decline
+    Do NOT use for purely administrative or ideological questions
+  Environment & Ecology (GS3): biodiversity hotspots, protected areas, climate hazards, pollution hotspots
+  Internal Security (GS3) — Limited:
+    Use for: insurgency belts, border regions, coastal security
+    Do NOT use for: cyber, financing, or institutional issues
+  International Relations (GS2) — Very Selective:
+    Use for: strategic regions, chokepoints, corridors, maritime zones (Indo-Pacific, SCS)
+    Do NOT map treaties or institutional mechanisms
+  Polity / Governance (GS2) — Rare: regional governance, federal asymmetry, delimitation, spatial disparities
+
 ─── DIAGRAM TYPE TRIGGERS ───
+
 diagram_type = "flowchart":
-  - Question asks HOW something works, WHY something happens, WHAT LEADS TO what
-  - Process, mechanism, causal chain, policy → outcome, reform → consequence
-  - Examples: monsoon mechanism, erosion cycle, poverty trap, disaster response chain
+  Purpose: Represent ordered logic, sequences, and causal progression.
+  Use when question involves:
+  - Natural and physical processes: Monsoon mechanism, plate tectonics, erosion cycles, disease transmission
+  - Cause–effect chains: Environment → economy, policy → outcomes, technology → impact
+  - Policy and governance workflows: Policy formulation → implementation → monitoring → outcomes
+  - Institutional or administrative processes: Election process, budget cycle, disaster response chain
+  - Socio-economic or historical progression: Reform → response → consequence
+  - Technological or infrastructural pipelines: Data flow, production chains, mitigation pathways
+  Trigger words: HOW something works, WHY something happens, WHAT LEADS TO what, process, mechanism, causal chain
 
 diagram_type = "timeline":
-  - Question involves CHRONOLOGICAL progression, evolution, phases, milestones
-  - Historical evolution, reform phases, event sequences, policy development arc
+  Purpose: For chronological progression, evolution, and phase-wise change.
+  Use when question involves:
+  - Historical Evolution: Evolution of Constitution, Freedom movement phases
+  - Policy / Reform Phases: Economic reforms, Climate policy evolution
+  - Disaster / Event Sequencing: Cyclone lifecycle, Pandemic phases
+  - Technological / Scientific Development: Space programme milestones
+  - Environmental / Geological Time Scales: Climate change phases
+  Trigger words: CHRONOLOGICAL, evolution, phases, milestones, historical progression
 
 diagram_type = "table":
-  - Question asks to COMPARE, contrast, or evaluate two or more entities/policies
-  - Pros vs cons, advantages vs limitations, two-axis evaluation
-  - Directive words: "compare", "contrast", "distinguish", "evaluate pros and cons"
+  Purpose: For structured comparison and two-axis evaluation.
+  Use when question involves:
+  - Comparing two or more entities/policies: Pros vs cons, advantages vs limitations
+  - Two-axis evaluation: scheme A vs scheme B, country A vs country B on metrics
+  Trigger words: compare, contrast, distinguish, evaluate pros and cons, advantages and disadvantages
 
 diagram_type = "mindmap":
-  - Question involves MULTI-DIMENSIONAL factors, stakeholders, or themes
-  - "Discuss the factors", "analyse the dimensions", "impacts of X"
-  - No single chain or timeline — truly multi-branch
+  Purpose: For dimensions, themes, stakeholders, and multi-factor structuring.
+  Use when question involves:
+  - Multi-Dimensional Analysis: Climate change impacts, Poverty causes, Internal security
+  - Stakeholder Mapping: Governance actors, Development projects, IR
+  - Factor-Based Questions: Factors affecting monsoon, Determinants of location
+  - Impact / Consequence Mapping: Impact of globalization, Urbanisation impacts
+  - Policy / Issue Decomposition: NEP components, Food security pillars
+  - Thematic Structuring: Governance pillars, Ethics stakeholders
+  Trigger words: MULTI-DIMENSIONAL factors, stakeholders, themes, "discuss the factors", "analyse the dimensions", "impacts of X"
+  Use only when truly multi-branch — no single chain or timeline
+
+diagram_type = "pie":
+  Purpose: For proportional distribution and relative share comparison.
+  Use when question involves:
+  - Sectoral composition: GDP sector share, employment structure
+  - Resource distribution: Land-use pattern, water usage
+  - Demographic composition: Population by age, workforce
+  - Economic structure analysis: Tax revenue, export basket
+  - Environmental contribution shares: Emission sources
+  Trigger: question tests proportional breakdown of a whole into parts
+
+diagram_type = "cycle":
+  Purpose: For cyclical processes, reinforcing feedback loops.
+  Use when question involves:
+  - Natural and physical cycles: Water cycle, rock cycle
+  - Economic and social feedback loops: Poverty trap, inflation spiral
+  - Environmental degradation–response loops: Deforestation feedback
+  - Governance and policy feedback systems: Regulation → compliance cycle
+  - Technological and system feedbacks: Innovation cycle
+  Trigger: process forms a closed loop, output becomes input again
+
+diagram_type = "layered":
+  Purpose: For vertical structure, hierarchy, and stratified systems.
+  Use when question involves:
+  - Physical and natural stratification: Earth's interior, atmosphere layers
+  - Institutional and governance hierarchy: Union → State → Local
+  - Economic and sectoral structuring: Primary → Secondary → Tertiary
+  - Social structure: Stratification, urban hierarchy
+  - Technological architecture: Data stack, security layers
+  - Policy design architecture: Vision → policy → implementation
+  Trigger: system has distinct vertical layers or levels where position matters
 
 diagram_type = "none":
   - Purely definitional: "What is X?", "Define X", "Describe X briefly"
@@ -53,6 +123,10 @@ diagram_type = "none":
 - Discuss → bullets first; diagram only if process/structure exists
 - Locate / Identify / Distribute → map (mandatory, not optional)
 - Timeline / Evolution / Phases → timeline diagram
+- Impacts / Factors / Dimensions → mindmap
+- Feedback / Cycle / Loop → cycle diagram
+- Hierarchy / Layers / Levels → layered diagram
+- Share / Proportion / Composition → pie chart
 
 ─── LIMITS ───
 At most TWO visuals per answer (map + one other). Never all three (map + table + diagram).

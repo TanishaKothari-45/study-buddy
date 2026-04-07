@@ -1,99 +1,24 @@
 # ============================================================
-# MERMAID DIAGRAM INSTRUCTIONS
+# VISUAL SYNTAX RULES — used in Generator system prompt ONLY
+# HOW to write Mermaid diagrams and map-json blocks.
+# WHEN to use each type is decided by Blueprint (visual_trigger_rules.py).
 # ============================================================
 
 MERMAID_DIAGRAM_RULES = """
-**RULE - DIAGRAM DISCIPLINE (Mermaid.js)**:
+**MERMAID DIAGRAM SYNTAX RULES**
 
-For answers with word count ≥ 200: Prefer including **one** Mermaid diagram in the Body (Mermaid_count ≤ 1). This restriction does NOT apply to simple Maps — a Map may be added in addition when spatial clarity improves the answer.
+The diagram type is already decided in the ANSWER BLUEPRINT.
+Your job is to execute the correct syntax for that type.
 
-For answers with word count ≤ 150: Diagrams are **good to have but only if necessary** — include only when visualization adds significant clarity.
+**Syntax by diagram type**:
 
-**Diagram Type Selection Guide**:
-
-1. **Flowchart** (graph TD/LR):
-   **Purpose**: Represent ordered logic, sequences, and causal progression.
-   **Use**:
-   - **Natural and physical processes**: Monsoon mechanism, plate tectonics, erosion cycles, disease transmission.
-   - **Cause–effect chains**: Environment → economy, policy → outcomes, technology → impact.
-   - **Policy and governance workflows**: Policy formulation → implementation → monitoring → outcomes.
-   - **Institutional or administrative processes**: Election process, budget cycle, disaster response chain.
-   - **Socio-economic or historical progression**: Reform → response → consequence.
-   - **Technological or infrastructural pipelines**: Data flow, production chains, mitigation pathways.
-
-   **When to prefer**:
-   - Explaining how or why one stage leads to another.
-   - Showing dependencies, sequencing, or cumulative effects.
-   - When causal clarity improves marks more than prose.
-
-   **Syntax**: `graph TD` (top-down) or `graph LR` (left-right).
-   **Decision Rule**:
-   - Use a Flowchart when the logic is sequential or stage-based.
-   - Use a Cause–Effect diagram when multiple factors simultaneously influence one outcome.
-   - If unsure, default to Flowchart.
-
-2. **Mind Map** (mindmap):
-   **Purpose**: For dimensions, themes, stakeholders, and multi-factor structuring.
-   **Use**:
-   - **Multi-Dimensional Analysis**: Climate change impacts, Poverty causes, Internal security.
-   - **Stakeholder Mapping**: Governance actors, Development projects, IR.
-   - **Factor-Based Questions**: Factors affecting monsoon, Determinants of location.
-   - **Impact / Consequence Mapping**: Impact of globalization, Urbanisation impacts.
-   - **Policy / Issue Decomposition**: NEP components, Food security pillars.
-   - **Thematic Structuring**: Governance pillars, Ethics stakeholders.
-
-   **Syntax**: `mindmap` with root and branches.
-   - Central node = core concept
-   - First-level branches = major dimensions
-   - Second-level branches = sub-points
-   - Keep node text short (1–4 words)
-
-3. **Timeline** (timeline):
-   **Purpose**: For chronological progression, evolution, and phase-wise change.
-   **Use**:
-   - **Historical Evolution**: Evolution of Constitution, Freedom movement phases.
-   - **Policy / Reform Phases**: Economic reforms, Climate policy evolution.
-   - **Disaster / Event Sequencing**: Cyclone lifecycle, Pandemic phases.
-   - **Technological / Scientific Development**: Space programme milestones.
-   - **Environmental / Geological Time Scales**: Climate change phases.
-
-   **Syntax**: `timeline` with chronological events.
-
-4. **Pie Chart** (pie):
-   **Purpose**: For proportional distribution and relative share comparison.
-   **Use**:
-   - **Sectoral composition**: GDP sector share, employment structure.
-   - **Resource distribution**: Land-use pattern, water usage.
-   - **Demographic composition**: Population by age, workforce.
-   - **Economic structure analysis**: Tax revenue, export basket.
-   - **Environmental contribution shares**: Emission sources.
-
-   **Syntax**: `pie` with title and data.
-   - Limit to 4–6 segments.
-   - Use clear labels.
-
-5. **Cycle Diagram** (graph with circular flow):
-   **Purpose**: For cyclical processes, reinforcing, recurring feedback loops.
-   **Use**:
-   - **Natural and physical cycles**: Water cycle, rock cycle.
-   - **Economic and social feedback loops**: Poverty trap, inflation spiral.
-   - **Environmental degradation–response loops**: Deforestation feedback.
-   - **Governance and policy feedback systems**: Regulation → compliance cycle.
-   - **Technological and system feedbacks**: Innovation cycle.
-
-   **Syntax**: `graph TD` or `graph LR` with arrows forming a loop (A->B->C->D->A).
-
-6. **Layered / Block Diagram** (graph TB):
-   **Purpose**: For vertical structure, hierarchy, and stratified systems.
-   **Use**:
-   - **Physical and natural stratification**: Earth’s interior, atmosphere layers.
-   - **Institutional and governance hierarchy**: Union → State → Local.
-   - **Economic and sectoral structuring**: Primary → Secondary → Tertiary.
-   - **Social structure**: Stratification, urban hierarchy.
-   - **Technological architecture**: Data stack, security layers.
-   - **Policy design architecture**: Vision → policy → implementation.
-
-   **Syntax**: `graph TB` with vertical layout.
+flowchart  → `graph TD` (top-down) or `graph LR` (left-right)
+mindmap    → `mindmap` with root and branches; central node = core concept; first-level = major dimensions; keep node text 1–4 words
+timeline   → `timeline` with chronological events
+pie        → `pie title ...` with segments; limit to 4–6 segments; use clear labels
+cycle      → `graph TD` or `graph LR` with arrows forming a closed loop (A→B→C→D→A)
+layered    → `graph TB` with vertical layout showing hierarchy top to bottom
+table      → standard markdown table (not Mermaid); use | headers | and | --- | separator row
 
 **Quality Guidelines**:
 - **Text Safety**: ALWAYS enclose node labels in double quotes (e.g., `A["Label"]`). Keep labels SHORT (max 3-4 words). Use `<br/>` for line breaks.
@@ -105,10 +30,11 @@ For answers with word count ≤ 150: Diagrams are **good to have but only if nec
 **Diagram Placement (CRITICAL)**:
 - **NEVER place a diagram between a sub-heading and its bullet points** — this breaks readability.
 - Place diagram BEFORE the related sub-heading OR at the END of a section AFTER all bullets.
+- Follow the exact placement specified in the ANSWER BLUEPRINT (e.g., "after Introduction", "end of [subheading]").
 
 **Mermaid Syntax Examples**:
 
-**Example 1 - Flowchart (Cause-Effect)**:
+**Flowchart**:
 ```mermaid
 graph TD
     A["Climate Change"] --> B["Rising Temperatures"]
@@ -119,7 +45,7 @@ graph TD
     E --> F
 ```
 
-**Example 2 - Mind Map (Multi-factor Analysis)**:
+**Mind Map**:
 ```mermaid
 mindmap
   root((Urbanisation))
@@ -137,7 +63,7 @@ mindmap
       Service Delivery
 ```
 
-**Example 3 - Timeline (Historical)**:
+**Timeline**:
 ```mermaid
 timeline
     title Climate Policy Evolution
@@ -147,7 +73,7 @@ timeline
     2021 : Net Zero
 ```
 
-**Example 4 - Pie Chart (Distribution)**:
+**Pie Chart**:
 ```mermaid
 pie title Land Use in India
     "Agricultural Land" : 60
@@ -157,7 +83,7 @@ pie title Land Use in India
     "Others" : 10
 ```
 
-**Example 5 - Cycle Diagram (Feedback Loop)**:
+**Cycle Diagram**:
 ```mermaid
 graph TD
     A["Low Income"] --> B["Poor Nutrition"]
@@ -166,7 +92,7 @@ graph TD
     D --> A
 ```
 
-**Example 6 - Layered Diagram (Hierarchy)**:
+**Layered Diagram**:
 ```mermaid
 graph TB
     A["Constitutional Vision"] --> B["Policy Framework"]
@@ -179,113 +105,30 @@ graph TB
 - Wrap diagram in markdown code block: ```mermaid
 - Close with ```
 - Add blank line before and after diagram
-- Do not include other markdown inside the diagram.
-- Include diagram title as markdown heading or bold text
-- If unsure which diagram to choose, use this minimal, safe flowchart:
-
-```mermaid
-graph TD
-    A["Causes"] --> B["Impacts"]
-    B --> C["Mitigation"]
-```
+- Do not include other markdown inside the diagram
+- Include diagram title as markdown heading or bold text above the block
+- If diagram syntax is uncertain, default to safe flowchart: `graph TD` with quoted labels
 
 **Subgraph Syntax (CRITICAL)**:
-- When using subgraphs, ALWAYS quote labels containing parentheses or special characters.
 - ❌ WRONG: `subgraph Push Factors (North)` — parentheses break parser
 - ✅ CORRECT: `subgraph "Push Factors (North)"` — quoted label
 - ✅ SAFER: `subgraph Push Factors - North` — avoid parentheses entirely
-
-**Example Integration in Answer**:
-
-**Diagram: Monsoon Formation Process**
-```mermaid
-graph TD
-    A["Differential Heating"] --> B["Low Pressure"]
-    A --> C["High Pressure"]
-    B --> D["Moist Winds"]
-    D --> E["Orographic Rain"]
-```
-
-### Physical Factors Affecting Monsoons
-
-- **Differential heating** creates pressure gradients driving monsoon winds. For instance, Delhi experiences a temperature gap of 6–8°C (IMD 2023).
-- **Orographic effect**: Western Ghats force air upward causing condensation, leading to Cherrapunji receiving 11,000mm annual rainfall.
-
-**IMPORTANT**: If diagram syntax is complex or uncertain, prefer simpler flowchart (graph TD) format.
 """
 
 
 # ============================================================
-# MAP DIAGRAM INSTRUCTIONS (CORE VISUAL RULES)
+# MAP SYNTAX RULES — used in Generator system prompt ONLY
+# HOW to write map-json blocks.
+# WHEN to use maps is decided by Blueprint (visual_trigger_rules.py).
 # ============================================================
 
 MAP_GENERATION_RULES = """
-**RULE — MAP DIAGRAMS (Spatial Visualization)**
+**MAP OUTPUT SYNTAX (map-json)**
 
-Maps are used to demonstrate spatial relationships, distribution, and location-based causation.
-They are NOT decorative and must be used only when spatial reasoning improves marks.
+Maps are decided by the ANSWER BLUEPRINT (map_needed: true/false).
+Your job is to write a valid map-json block when blueprint requires it.
 
-Maps are IN ADDITION to Mermaid diagrams (which show process, causality, or flow).
-
-------------------------------------------------
-MANDATORY MAP TRIGGERS
-------------------------------------------------
-A MAP MUST be generated when the question involves ANY of the following:
-
-1. Distribution or concentration of:
-   • resources, crops, minerals, industries
-   • population, biodiversity, pollution
-   • hazards, belts, zones, corridors
-
-2. Spatial patterns across:
-   • India OR
-   • World / regions / continents
-
-3. Directive keywords explicitly indicating space:
-   • locate, identify regions, where, areas
-   • belts, hotspots, zones, corridors
-   • mark on map
-
-------------------------------------------------
-SUBJECT-SPECIFIC MAP USAGE (EXAMINER-ALIGNED)
-------------------------------------------------
-
-**Geography (GS1)** — Primary & Mandatory
-• Physical geography (rivers, mountains, climate zones, monsoon patterns)
-• Resource distribution (minerals, crops, industries, coalfields)
-• Environmental phenomena (cyclones, ocean currents, wind belts)
-
-**History (GS1)** — High-Value, Selective
-Use maps ONLY for:
-• battles, revolts, invasions
-• trade routes, ports, migration
-• empire expansion or decline
-Do NOT use maps for purely administrative or ideological questions.
-
-**Environment & Ecology (GS3)**
-• biodiversity hotspots
-• protected areas, ecosystems
-• climate hazards, pollution hotspots
-
-**Internal Security (GS3)** — Limited
-• insurgency belts
-• border regions, coastal security
-Do NOT use maps for cyber, financing, or institutional issues.
-
-**International Relations (GS2)** — Very Selective
-• strategic regions, chokepoints, corridors
-• maritime zones (Indo-Pacific, SCS)
-Do NOT map treaties or institutional mechanisms.
-
-**Polity / Governance (GS2)** — Rare
-• regional governance, federal asymmetry
-• delimitation or spatial disparities
-
-
-------------------------------------------------
-MAP OUTPUT FORMAT (STRICT)
-------------------------------------------------
-Insert a `map-json` code block using the schema below:
+**Output format — insert a `map-json` code block**:
 
 ```map-json
 {
@@ -315,65 +158,34 @@ Insert a `map-json` code block using the schema below:
   "legendTitle": "Legend description",
   "style": {"colorScheme": "YlGn | YlOrRd | Blues | Greens", "theme": "warm"}
 }
-
 ```
 
-**Map Types**:
-1. **choropleth**: Color-coded regions based on data values (e.g., state-wise crop production, rainfall distribution)
-2. **markers**: Point locations (e.g., mineral deposits, cities, ports, industrial centers)
-3. **rivers**: River networks overlay
-4. **combined**: Multiple layers together - rivers + markers + choropleth + paths (use this for physical features)
+**Map types**:
+- `choropleth`: colour-coded regions by data value (state-wise crop production, rainfall)
+- `markers`: point locations (mineral deposits, cities, ports, industrial centres)
+- `rivers`: river network overlay
+- `combined`: multiple layers — rivers + markers + choropleth + paths (use for physical features)
 
-**Rule - Physical Features (Mountains/Plateaus)**:
-- Do NOT use single dots (markers) for mountain ranges (Western Ghats, Himalayas) or elongated physical features.
-- Use **"paths"** to draw a line along the feature.
-- Example for Western Ghats line: `[[73, 20], [74, 15], [77, 9]]`
-- "stroke": "#8B4513" (Brown) for mountains.
+**Physical features rule**:
+- Do NOT use markers (dots) for elongated features like mountain ranges, coastlines
+- Use `paths` to draw a line along the feature
+- Example Western Ghats: `[[73, 20], [74, 15], [77, 9]]`; `"stroke": "#8B4513"` (brown)
 
-**Guidelines**:
-- Keep data simple: max 15-20 states/markers
-- Use clear, short labels (≤ 3 words)
-- Include unit in choropleth data
-- List all markers/labels below the map in text
-- Coordinates format: [longitude, latitude] (e.g., [77.2, 28.6] for Delhi)
+**Region rule**:
+- India questions → `"region": "india"`
+- Global / international / country comparison questions → `"region": "world"`
 
-**Color Schemes**:
-- `YlGn` (Yellow-Green): Crops, vegetation, forest cover
-- `YlOrRd` (Yellow-Orange-Red): Temperature, intensity, population density
-- `Blues`: Water resources, rainfall, humidity
-- `Greens`: Environmental indicators, green cover
+**Color schemes**:
+- `YlGn`: crops, vegetation, forest cover
+- `YlOrRd`: temperature, intensity, population density
+- `Blues`: water resources, rainfall, humidity
+- `Greens`: environmental indicators, green cover
 
-**Coordinate Reference**:
-Major Indian cities (lon, lat):
-- Delhi: [77.2, 28.6]
-- Mumbai: [72.8, 19.1]
-- Kolkata: [88.4, 22.6]
-- Chennai: [80.3, 13.1]
-- Bangalore: [77.6, 12.9]
+**Coordinate reference** (lon, lat):
+- Delhi: [77.2, 28.6] | Mumbai: [72.8, 19.1] | Kolkata: [88.4, 22.6]
+- Chennai: [80.3, 13.1] | Bangalore: [77.6, 12.9]
 
-**Example 1 - Choropleth (State-wise Data)**:
-```map-json
-{
-  "type": "map",
-  "mapType": "choropleth",
-  "region": "india",
-  "title": "Rice Production by State (2023)",
-  "choropleth": {
-    "values": {
-      "West Bengal": 15.75,
-      "Punjab": 11.82,
-      "Uttar Pradesh": 14.5,
-      "Andhra Pradesh": 12.3,
-      "Tamil Nadu": 7.8
-    },
-    "unit": "million tonnes"
-  },
-  "legendTitle": "Rice Production",
-  "style": {"colorScheme": "YlGn", "theme": "warm"}
-}
-```
-
-**Example 2 - Markers (Resource Distribution)**:
+**Example — Markers**:
 ```map-json
 {
   "type": "map",
@@ -383,14 +195,13 @@ Major Indian cities (lon, lat):
   "markers": [
     {"name": "Jharia", "coordinates": [85.62, 23.78], "type": "coal", "label": "Jharia"},
     {"name": "Raniganj", "coordinates": [87.13, 23.62], "type": "coal", "label": "Raniganj"},
-    {"name": "Korba", "coordinates": [82.75, 22.35], "type": "coal", "label": "Korba"},
-    {"name": "Singrauli", "coordinates": [82.67, 24.2], "type": "coal", "label": "Singrauli"}
+    {"name": "Korba", "coordinates": [82.75, 22.35], "type": "coal", "label": "Korba"}
   ],
   "style": {"theme": "warm"}
 }
 ```
 
-**Example 3 - Combined (Monsoon + Rivers)**:
+**Example — Combined (flow + rivers)**:
 ```map-json
 {
   "type": "map",
@@ -409,69 +220,22 @@ Major Indian cities (lon, lat):
 }
 ```
 
-**Example 4 - World Map (Global Resource Distribution)**:
-**USE THIS FORMAT FOR GLOBAL/INTERNATIONAL QUESTIONS** (e.g., "distribution of rubber producing countries", "major oil exporters", "wheat producing nations")
-
-```map-json
-{
-  "type": "map",
-  "mapType": "markers",
-  "region": "world",
-  "title": "Major Rubber Producing Countries",
-  "markers": [
-    {"name": "Thailand", "coordinates": [100.5, 13.7], "type": "crop", "label": "Thailand"},
-    {"name": "Indonesia", "coordinates": [106.8, -6.2], "type": "crop", "label": "Indonesia"},
-    {"name": "Vietnam", "coordinates": [105.8, 21.0], "type": "crop", "label": "Vietnam"},
-    {"name": "India", "coordinates": [77.2, 8.5], "type": "crop", "label": "India"},
-    {"name": "Malaysia", "coordinates": [101.9, 4.2], "type": "crop", "label": "Malaysia"},
-    {"name": "China", "coordinates": [102.7, 25.0], "type": "crop", "label": "China"},
-    {"name": "Sri Lanka", "coordinates": [80.7, 7.8], "type": "crop", "label": "Sri Lanka"}
-  ],
-  "style": {"theme": "warm"}
-}
-```
-
-**IMPORTANT**: When question asks about COUNTRIES or GLOBAL distribution, use `"region": "world"`, NOT `"region": "india"`
-
-**Map Placement in Answer**:
-- Insert map-json block AFTER the relevant sub-heading
-- Add a label line above code block: **Map: [Descriptive Title]**
+**Map placement**:
+- Insert map-json block AFTER the relevant sub-heading (or after Introduction if blueprint says so)
+- Add label above: **Map: [Descriptive Title]**
 - List all markers/locations in bullet points below the map
-- Ensure blank line before and after the map block
+- Blank line before and after the block
 
-**Example Integration**:
-
-### Regional Distribution of Coal Reserves
-
-**Map: Major Coalfields in India**
-```map-json
-{
-  "type": "map",
-  "mapType": "markers",
-  "region": "india",
-  "title": "Major Coalfields",
-  "markers": [
-    {"name": "Jharia", "coordinates": [85.62, 23.78], "type": "coal", "label": "Jharia"}
-  ]
-}
-```
-
-**Coalfield Locations**:
-• **Jharia (Jharkhand)**: Largest coalfield with 19.4 billion tonnes reserves
-• **Raniganj (West Bengal)**: Second largest, supplies Eastern India
-• **Korba (Chhattisgarh)**: Major thermal power generation hub
-
-**CRITICAL MAP RULES**: 
-- Maps are MANDATORY when question matches MAP_TRIGGER_RULES (distribution, locate, belts, hotspots, spatial patterns)
-- Maps can be for India (region: "india") OR world (region: "world") depending on question scope
-- For word count ≥ 200, include ONE visual if it materially improves clarity, 
-as determined by GEO_VISUAL_INTELLIGENCE_RULES. Maps are additional when triggered.
-- Keep map data accurate and simple (max 15-20 markers/countries)
-- Always list locations in text below the map for accessibility
+**Guidelines**:
+- Max 15-20 states/markers; short labels (≤ 3 words)
+- Always list locations in text below map for accessibility
+- Coordinates format: [longitude, latitude]
 """
 
+
 # ============================================================
-# GEO-VISUAL INTELLIGENCE (Auto-infer maps/diagrams/tables)
+# GEO-VISUAL INTELLIGENCE — legacy pipeline only
+# Not used in new blueprint pipeline (blueprint handles decisions)
 # ============================================================
 GEO_VISUAL_INTELLIGENCE_RULES = """
 **GEO-VISUAL INTELLIGENCE (priority & scope)**:
@@ -494,56 +258,24 @@ GEO_VISUAL_INTELLIGENCE_RULES = """
     - Select **only those with distinct explanatory roles**.
     - Do NOT include more than two formats in total.
 
- ------------------------------------------------
-NEGATIVE TRIGGERS (DO NOT USE VISUALS)
-------------------------------------------------
-
+NEGATIVE TRIGGERS (DO NOT USE VISUALS):
 Do NOT include any visual if the question is:
-- purely **definitional**
-- purely **conceptual/theoretical** without structure
-- short **justification-based** (e.g., “Why is X important?”)
+- purely definitional
+- purely conceptual/theoretical without structure
+- short justification-based (e.g., "Why is X important?")
 - GS4 Ethics questions (except rare framework comparison tables)
 
-------------------------------------------------
-DIRECTIVE-SENSITIVE PREFERENCE
-------------------------------------------------
-
+DIRECTIVE-SENSITIVE PREFERENCE:
 - Explain / Analyse → Mermaid preferred over Table
 - Compare / Evaluate / Examine → Table preferred over Mermaid
-- Discuss → Bullets first; visual only if structure/mechanism exists   
+- Discuss → Bullets first; visual only if structure/mechanism exists
 
-- HARD OVERRIDE (Map Priority):
-  - If MAP_TRIGGER_RULES are satisfied, a Map MUST be included.
-  - The Map cannot be dropped to accommodate a Table or Mermaid.
-  - If visual limits are exceeded, In such cases, choose between Table and Mermaid based on which adds greater value.
-
-- STRUCTURAL OVERRIDE (Mermaid Preference):
-  - Prefer a Mermaid diagram when understanding depends on relationships, structure, flow, or interaction between factors.
-  - This includes causal chains, feedback loops, multi-factor interactions, or layered systems.
-  - Do NOT force a table when relationships between elements matter more than listing them.
-
-
-- Priority order when all seem useful:
-  1. Map (spatial clarity is highest priority)
-  2. Table (analytical/comparative clarity)
-  3. Mermaid (process clarity)
-
-- Avoid redundancy:
-  - Do NOT include a Table if its content is already adequately conveyed via bullets.
-  - Do NOT include Mermaid if the process is trivial or easily described in text.
-  - Do NOT include all three (Map + Table + Mermaid) under any circumstance.
-
-- Presentation rules:
-  - Put Map under a "Map/Diagram" heading immediately after INTRO (or right before Body if more appropriate).
-  - Put Mermaid under a "Diagram" heading or at the start/end of the relevant Body section.
-  - Tables must appear directly under the relevant Body sub-heading and replace bullets for that sub-heading.
-  - All formats must be concise, exam-friendly, and non-redundant.
-
+- HARD OVERRIDE (Map Priority): If map triggers satisfied, Map MUST be included.
+- Priority order: 1. Map  2. Table  3. Mermaid
+- Never include Table + Mermaid + Map together.
 """
-# Tie-breaker when multiple visuals seem useful:
+
 VISUAL_TIEBREAKER = """
 If multiple formats appear useful, include only those that add distinct explanatory value and keep the total count ≤ 2.
-
 Never include Table + Mermaid + Map together.
 """
-
