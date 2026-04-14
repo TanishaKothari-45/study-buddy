@@ -1,7 +1,15 @@
 # Study Buddy AI
 
-An AI-powered UPSC Geography study companion with RAG-based Q&A, mock test generation, mains answer writing, and handwritten answer evaluation.
+> Production-grade, multi-agent RAG platform built for UPSC Civil Services preparation — serving real users.
 
+Combines a Pinecone-backed retrieval pipeline with a LangGraph agent graph (Retriever → Mock Test → Evaluation) to deliver exam-accurate Q&A, Prelims MCQ generation, structured Mains answer writing, and handwritten answer evaluation — all in one platform.
+
+### What makes this technically interesting
+- **Custom MCP server** — built a Current Affairs MCP server that injects live news context into Mains answers at generation time
+- **Async micro-batch MCQ pipeline** — generates 5–100 questions in parallel batches with semantic deduplication (embedding similarity at 88% threshold) and persistent job tracking so generation survives browser closes
+- **Multi-model architecture** — Gemini 2.5 Pro for long-context answer generation and OCR; GPT-4o-mini for embeddings and MCQs
+- **D3.js map microservice** — dedicated Node.js service generating SVG choropleth, marker, and river maps embedded directly in answers
+- **LangSmith tracing** — full observability on every agent run for hallucination monitoring and eval
 ---
 
 ## 🚀 Quick Start
