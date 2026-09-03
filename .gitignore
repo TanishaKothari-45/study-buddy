@@ -40,6 +40,7 @@ models/
 embeddings/
 .env
 .env.local
+job-scout/output/
 *.log
 logs/
 
@@ -97,3 +98,12 @@ backend/map_storage/
 .cursor/
 
 package-lock.json
+
+# --- secrets / credentials (added 2026-09-03) ---
+google_vision.json
+**/google_vision.json
+*.rdb
+dump.rdb
+*service-account*.json
+*-key.json
+credentials.json
